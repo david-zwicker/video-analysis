@@ -10,6 +10,17 @@ backend subpackage.
 
 from __future__ import division
 
+import os
+
+# dictionary that maps standard file endings to fourcc codes
+# more codes can be found at http://www.fourcc.org/codecs.php
+MOVIE_FORMATS = {
+    '.xvid': 'XVID',
+    '.mov': 'SVQ3',   # standard quicktime codec
+    '.mpeg': 'FMP4'   # mpeg 4 variant 
+}
+
+
 class MovieBase(object):
     """
     Base class for movies.
@@ -31,6 +42,9 @@ class MovieBase(object):
         # internal pointer to the current frame - might not be used by subclasses
         self._frame_pos = 0
     
+    #===========================================================================
+    # DATA ACCESS
+    #===========================================================================
     
     @property
     def size(self):
@@ -84,3 +98,36 @@ class MovieBase(object):
     def get_frame(self, index):
         """ returns a specific frame identified by its index """ 
         return self._process_frame(self.get_frame_raw(index))
+
+
+    #===========================================================================
+    # WRITE OUT MOVIES
+    #===========================================================================
+    
+    def save(self, filename, video_format=None):
+        """
+        Saves the video to the file indicated by filename.
+        video_format must be a fourcc code from http://www.fourcc.org/codecs.php
+            If video_format is None, the code is determined from the filename extension.
+        """
+        
+        # use OpenCV to save the video
+        import cv2
+        import cv2.cv as cv
+        
+        if video_format is None:
+            # detect format from file ending
+            file_ext = os.path.splitext(filename)[1].tolower()
+            try:
+                video_format = MOVIE_FORMATS[file_ext]
+            except KeyError:
+                raise ValueError('Video format `%s` is unsupported.' % video_format) 
+        
+        # get the code defining the video format
+        fourcc = cv.FOURCC(*video_format)
+        out = cv2.VideoWriter(filename, fourcc, self.fps, self.size)
+
+        for frame in self:
+            out.write(frame)
+            
+        out.release()
