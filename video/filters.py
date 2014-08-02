@@ -21,7 +21,7 @@ from .formats.base import VideoFilterBase
 #===============================================================================
 
 
-class Crop(VideoFilterBase):
+class FilterCrop(VideoFilterBase):
     """ crops the video to the given rect=(top, left, height, width) """
     
     def __init__(self, source, rect):
@@ -54,7 +54,7 @@ class Crop(VideoFilterBase):
         size = (self.rect[2], self.rect[3])
         
         # correct the size, since we are going to crop the movie
-        super(Crop, self).__init__(source, size=size)
+        super(FilterCrop, self).__init__(source, size=size)
 
         logging.debug('Created filter for cropping to rectangle %s', self.rect)
         
@@ -65,12 +65,12 @@ class Crop(VideoFilterBase):
 
 
 
-class Monochrome(VideoFilterBase):
+class FilterMonochrome(VideoFilterBase):
     """ returns the video as monochrome """
     
     def __init__(self, source, mode='normal'):
         self.mode = mode.lower()
-        super(Monochrome, self).__init__(source, is_color=False)
+        super(FilterMonochrome, self).__init__(source, is_color=False)
 
         logging.debug('Created filter for converting video to monochrome with method `%s`', mode)
 
@@ -92,7 +92,7 @@ class Monochrome(VideoFilterBase):
 #===============================================================================
 
 
-class TimeDifference(VideoFilterBase):
+class FilterTimeDifference(VideoFilterBase):
     """
     returns the differences between consecutive frames.
     Here, frames cannot be accessed directly, but one can only iterate over the video
@@ -100,17 +100,20 @@ class TimeDifference(VideoFilterBase):
     
     def __init__(self, source):
         # correct the frame count since we are going to return differences
-        super(TimeDifference, self).__init__(source, frame_count=source.frame_count-1)
+        super(FilterTimeDifference, self).__init__(source, frame_count=source.frame_count-1)
         # store the first frame, because we always need a previous frame
         self.prev_frame = self._source.next()
 
         logging.debug('Created filter for calculating differences between consecutive frames.')
     
+    
     def set_frame_pos(self, index):
-        raise ValueError('Iterators do not allow to seek a specific position')
+        raise RuntimeError('Iterators do not allow to seek a specific position')
+    
       
     def get_frame(self, index):
-        raise ValueError('Iterators do not allow to seek a specific position')
+        raise RuntimeError('Iterators do not allow to seek a specific position')
+    
     
     def next(self):
         # get this frame and subtract from it the previous one

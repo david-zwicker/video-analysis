@@ -13,10 +13,11 @@ import logging
 import itertools
 
 from .base import VideoBase
-from .backend_opencv import VideoOpenCV, VideoImageStackOpenCV
-
+from .backend_opencv import *
 
 # set default file handler
+show_video = show_video_opencv
+write_video = write_video_opencv
 VideoFile = VideoOpenCV
 VideoImageStack = VideoImageStackOpenCV
 

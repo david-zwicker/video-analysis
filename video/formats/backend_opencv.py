@@ -9,12 +9,34 @@ The video is loaded using OpenCV.
 
 from __future__ import division
 
+import os
+import platform
 import logging
 
+import numpy as np
 import cv2
 import cv2.cv as cv # still necessary for some constants
 
 from .base import VideoBase, VideoImageStackBase
+
+
+# dictionary that maps standard file endings to fourcc codes
+# more codes can be found at http://www.fourcc.org/codecs.php
+if platform.system() == 'Darwin':
+    VIDEO_FORMATS = {
+        '.xvid': 'XVID',
+        '.mov': 'mp4v',   # standard quicktime codec - tested
+        '.mpeg': 'FMP4',  # mpeg 4 variant
+        '.avi': 'IYUV',   # uncompressed avi - tested
+    }
+else:
+    VIDEO_FORMATS = {
+        '.xvid': 'XVID',
+        '.mov': 'mp4v', #'SVQ3',   # standard quicktime codec
+        '.mpeg': 'FMP4',  # mpeg 4 variant
+        '.avi': 'IYUV',   # uncompressed avi 
+    }
+
 
 
 class VideoOpenCV(VideoBase):
@@ -87,8 +109,51 @@ class VideoOpenCV(VideoBase):
         self._movie.release()
 
 
+
 class VideoImageStackOpenCV(VideoImageStackBase):
     """ class that loads a stack of images using opencv """
     
     def get_frame(self, index):
         return cv2.imread(self.filenames[index])
+
+
+
+def show_video_opencv(video):
+    """ shows a video using opencv """
+    for frame in video:
+        # Display the resulting frame
+        cv2.imshow('frame', frame)
+        if cv2.waitKey(100) & 0xFF == ord('q'):
+            break
+        
+    cv2.destroyAllWindows()
+
+
+
+def write_video_opencv(video, filename, video_format=None):
+    """
+    Saves the video to the file indicated by filename.
+    video_format must be a fourcc code from http://www.fourcc.org/codecs.php
+        If video_format is None, the code is determined from the filename extension.
+    """
+    
+    if video_format is None:
+        # detect format from file ending
+        file_ext = os.path.splitext(filename)[1].lower()
+        try:
+            video_format = VIDEO_FORMATS[file_ext]
+        except KeyError:
+            raise ValueError('Video format `%s` is unsupported.' % video_format) 
+    
+    # get the code defining the video format
+    logging.info('Start writing video with format `%s`', video_format)
+    fourcc = cv2.cv.FOURCC(*video_format)
+    out = cv2.VideoWriter(filename, fourcc=fourcc, fps=video.fps,
+                          frameSize=video.size, isColor=video.is_color)
+
+    # write out all individual frames
+    for frame in video:
+        out.write(np.asarray(frame, np.uint8))
+        
+    out.release()
+    logging.info('Wrote video to file `%s`', filename)
