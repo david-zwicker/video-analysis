@@ -13,11 +13,18 @@ from format.base import VideoBase
 class VideoIteratorBase(VideoBase):
     """ class which does not hold its own data, but is more like a view """
      
-    def __init__(self, source):
+    def __init__(self, source, size=None, frame_count=None, fps=None):
+        # store an iterator of the source video
         self.source = iter(source)
+        
+        # determine properties of the video
+        size = source.size if size is None else size
+        frame_count = source.frame_count if frame_count is None else frame_count
+        fps = source.fps if fps is None else fps
+        
+        # initialize the base video
         super(VideoIteratorBase, self).__init__(
-            size=source.size, frame_count=source.frame_count,
-            fps=source.fps
+            size=size, frame_count=frame_count, fps=fps
         )
     
     def set_frame_pos(self, index):
@@ -35,7 +42,8 @@ class Crop(VideoIteratorBase):
     
     def __init__(self, source, rect):
         self.rect = rect
-        super(Crop, self).__init__(source)
+        # correct the size, since we are going to crop the movie
+        super(Crop, self).__init__(source, size=(rect[2] - rect[0], rect[3] - rect[1]))
                 
     def next(self):
         r = self.rect
@@ -45,11 +53,9 @@ class Crop(VideoIteratorBase):
 class TimeDifference(VideoIteratorBase):
     """ returns the differences between consecutive frames """ 
     
-    def __init__(self, source, rect):
-        self.rect = rect
-        super(TimeDifference, self).__init__(source)
-        
-        self.frame_count -= 1
+    def __init__(self, source):
+        # correct the frame count since we are going to return differences
+        super(TimeDifference, self).__init__(source, frame_count=source.frame_count-1)
         self.last_frame = self.source.next()
                 
     def next(self):
@@ -65,5 +71,5 @@ class NormalizeBrightness(VideoIteratorBase):
     adjusts individual frames such that their brightness corresponds to
     the initial frame
     """ 
-    raise NotImplementedError
+    pass
 

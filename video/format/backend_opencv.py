@@ -26,8 +26,8 @@ class VideoOpenCV(VideoBase):
         self.movie = cv2.VideoCapture(filename)
         
         # determine movie properties
-        size = (int(self.movie.get(cv.CV_CAP_PROP_FRAME_WIDTH)),
-                int(self.movie.get(cv.CV_CAP_PROP_FRAME_HEIGHT)))
+        size = (int(self.movie.get(cv.CV_CAP_PROP_FRAME_HEIGHT)),
+                int(self.movie.get(cv.CV_CAP_PROP_FRAME_WIDTH)))
         frame_count = int(self.movie.get(cv.CV_CAP_PROP_FRAME_COUNT))
         fps = self.movie.get(cv.CV_CAP_PROP_FPS)
         

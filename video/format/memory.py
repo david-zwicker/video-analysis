@@ -17,10 +17,13 @@ from .base import VideoBase
 class VideoMemory(VideoBase):
     """ class which holds all the video data in memory """ 
     
-    def __init__(self, data, fps=25):
-        # convert input data to numpy array
-        self.data = np.array(data)
-        
+    def __init__(self, data, fps=25, copy_data=False):
+        # copy data if requested
+        if copy_data:
+            self.data = data[:]
+        else:
+            self.data = data
+
         # read important information
         frame_count = data.shape[0]
         size = data.shape[1:3]

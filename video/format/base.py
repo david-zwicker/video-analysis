@@ -10,6 +10,7 @@ functions for video handling.
 from __future__ import division
 
 import os
+import numpy as np
 
 # dictionary that maps standard file endings to fourcc codes
 # more codes can be found at http://www.fourcc.org/codecs.php
@@ -73,6 +74,27 @@ class VideoBase(object):
     #===========================================================================
     # WRITE OUT MOVIES
     #===========================================================================
+    
+    def copy(self):
+        """
+        Creates a copy of the current video and returns a VideoMemory instance
+        """
+        # prevent circular import by lazy importing
+        from .memory import VideoMemory
+        
+        # determine the shape of the required array
+        shape = [self.frame_count]
+        shape.extend(self.size)
+        shape.append(3)
+        
+        # copy the data into a numpy array
+        data = np.empty(shape)
+        for k, val in enumerate(self):
+            data[k, ...] = val
+        
+        # construct the copy
+        return VideoMemory(data, fps=self.fps)
+    
     
     def save(self, filename, video_format=None):
         """
