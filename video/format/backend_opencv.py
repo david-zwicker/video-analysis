@@ -2,6 +2,9 @@
 Created on Jul 31, 2014
 
 @author: zwicker
+
+This package provides class definitions for referencing a single video file.
+The video is loaded using OpenCV.
 '''
 
 from __future__ import division
@@ -9,10 +12,10 @@ from __future__ import division
 import cv2
 import cv2.cv as cv # still necessary for some constants
 
-from .base import MovieBase
+from .base import VideoBase
 
 
-class OpenCVMovie(MovieBase):
+class VideoOpenCV(VideoBase):
     """
     Class handling a single movie file using opencv
     """ 
@@ -31,7 +34,7 @@ class OpenCVMovie(MovieBase):
         # rewind movie
         self.set_frame_pos(0)
         
-        super(OpenCVMovie, self).__init__(size=size, frame_count=frame_count, fps=fps)
+        super(VideoOpenCV, self).__init__(size=size, frame_count=frame_count, fps=fps)
                 
         
     def get_frame_pos(self):
@@ -45,8 +48,8 @@ class OpenCVMovie(MovieBase):
             raise ValueError('Seeking to frame %d was not possible.' % index)
 
 
-    def get_next_frame_raw(self):
-        """ returns the next frame as an unprocessed image """
+    def next(self):
+        """ returns the next frame """
         ret, frame = self.movie.read()
         if ret:
             return frame
@@ -54,10 +57,10 @@ class OpenCVMovie(MovieBase):
             raise StopIteration
 
     
-    def get_frame_raw(self, index):
-        """ returns a specific frame identified by its index  as an unprocessed image """ 
+    def get_frame(self, index):
+        """ returns a specific frame identified by its index """ 
         self.set_frame_pos(index)
-        return self.get_next_frame_raw()
+        return self.next()
             
                     
     def __del__(self):

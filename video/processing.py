@@ -3,7 +3,7 @@ Created on Jul 31, 2014
 
 @author: zwicker
 
-This package contains functions which modify movies.
+This package contains functions which modify video.
 Typically, these functions take a single movie, process it, and return a MovieMemory
 '''
 
@@ -11,7 +11,7 @@ from __future__ import division
 
 import numpy as np
 
-from .representations.memory import MemoryMovie
+from .format import VideoMemory
 
 
 def frame_differences(movie):
@@ -28,4 +28,4 @@ def frame_differences(movie):
         data[k, :, :, :] = frame - last_frame
         last_frame = frame
         
-    return MemoryMovie(data, fps=movie.fps)
+    return VideoMemory(data, fps=movie.fps)

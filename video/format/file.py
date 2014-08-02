@@ -3,23 +3,21 @@ Created on Jul 31, 2014
 
 @author: zwicker
 
-Package provides an abstract base class to define an interface and common
-functions for video handling. Concrete implementations are collected in the
-backend subpackage.
+This package provides class definitions for describing videos
+that are based on a single file or on several files
 '''
 
 from __future__ import division
 
 
-from .base import MovieBase
-from .opencv import OpenCVMovie
+from .base import VideoBase
+from .backend_opencv import VideoOpenCV
 
 
 # set default file handler
-MovieFile = OpenCVMovie
+VideoFile = VideoOpenCV
 
-
-class MovieBatch(MovieBase):
+class VideoStack(VideoBase):
     """
     Class handling a movie distributed over several files.
     The filenames must contain consecutive numbers
@@ -29,7 +27,7 @@ class MovieBatch(MovieBase):
         
         # initialize the list containing all the files
         self.movies = []
-        # register at what frame_count the movies start
+        # register at what frame_count the video start
         self.offsets = []
         
         frame_count = 0
@@ -38,14 +36,14 @@ class MovieBatch(MovieBase):
         try:
             while True:
                 # load the movie
-                movie = MovieFile(filename_scheme % index)
+                movie = VideoFile(filename_scheme % index)
                 
                 # compare it to the previous movie
                 if last_movie:
                     if movie.fps != last_movie.fps:
-                        raise ValueError('The FPS value of two movies does not agree')
+                        raise ValueError('The FPS value of two video does not agree')
                     if movie.size != last_movie.size:
-                        raise ValueError('The size of two movies does not agree')
+                        raise ValueError('The size of two video does not agree')
                 
                 # calculate at which frame this movie starts
                 self.offsets.append(frame_count)  
@@ -55,13 +53,13 @@ class MovieBatch(MovieBase):
                 self.movies.append(movie)
                 
         except IOError:
-            # assume that there are no more files and we are done registering the movies
+            # assume that there are no more files and we are done registering the video
             pass
         
-        super(MovieBatch, self).__init__(size=movie.size, frame_count=frame_count, fps=movie.fps)
+        super(VideoCollection, self).__init__(size=movie.size, frame_count=frame_count, fps=movie.fps)
 
 
-    def get_frame_raw(self, index):
+    def get_frame(self, index):
         """ returns a specific frame identified by its index """
         
         if index >= self.frame_count:
@@ -81,10 +79,3 @@ class MovieBatch(MovieBase):
         
         return frame
             
-
-    def get_next_frame_raw(self):
-        """ returns the next frame """
-
-        # this also sets the internal pointer to the next frame
-        frame = self.get_frame_raw(self._frame_pos)
-        return frame
