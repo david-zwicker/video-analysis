@@ -75,10 +75,13 @@ class VideoFileStack(VideoBase):
 
     def get_movie_index(self, frame_index):
         """ returns the movie and local frame_index to which a certain frame belongs """
+        #print self._offsets
+        
         for movie_index, movie_start in enumerate(self._offsets):
             if frame_index < movie_start:
+                movie_index -= 1
                 break
-            
+
         return movie_index, frame_index - self._offsets[movie_index] 
     
 

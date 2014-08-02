@@ -3,7 +3,7 @@ Created on Jul 31, 2014
 
 @author: zwicker
 
-Package provides an abstract base class to define an interface and common
+Package provides an abstract base classes to define an interface and common
 functions for video handling.
 '''
 
@@ -58,6 +58,10 @@ class VideoBase(object):
     # DATA ACCESS
     #===========================================================================
     
+    
+    def __len__(self):
+        return self.frame_count
+    
     @property
     def shape(self):
         """ returns the shape of the data describing the movie """
@@ -101,9 +105,36 @@ class VideoBase(object):
         self._frame_pos += 1
         return frame
 
+
+    def __getitem__(self, key):
+        """ returns a single frame or a video corresponding to a slice """ 
+        if isinstance(key, slice):
+            # prevent circular import by lazy importing
+            from .time_slice import VideoSliced
+            return VideoSliced(self, *key.indices(self.frame_count))
+        
+        elif isinstance(key, int):
+            return self.get_frame(key)
+        
+        else:
+            raise TypeError("Invalid key")
+        
+
     #===========================================================================
     # CONTROL THE DATA STREAM OF THE MOVIE
     #===========================================================================
+    
+    def show(self):
+        import cv2
+        
+        for frame in self:
+            # Display the resulting frame
+            cv2.imshow('frame', frame)
+            if cv2.waitKey(100) & 0xFF == ord('q'):
+                break
+            
+        cv2.destroyAllWindows()
+
     
     def copy(self):
         """
@@ -175,3 +206,36 @@ class VideoImageStackBase(VideoBase):
         super(VideoImageStackBase, self).__init__(size=size, frame_count=frame_count,
                                                   fps=fps, is_color=is_color)
         
+
+
+class VideoFilterBase(VideoBase):
+    """ class which does not hold its own data, but is more like a view """
+     
+    def __init__(self, source, size=None, frame_count=None, fps=None, is_color=None):
+        # store an iterator of the source video
+        self._source = iter(source)
+        
+        # determine properties of the video
+        size = source.size if size is None else size
+        frame_count = source.frame_count if frame_count is None else frame_count
+        fps = source.fps if fps is None else fps
+        is_color = source.is_color if is_color is None else is_color
+        
+        # initialize the base video
+        super(VideoFilterBase, self).__init__(
+            size=size, frame_count=frame_count, fps=fps, is_color=is_color
+        )
+        
+    def _filter_frame(self, frame):
+        """ returns the frame with a filter applied """
+        raise NotImplementedError
+
+    def set_frame_pos(self, index):
+        self._source.set_frame_pos(0)
+    
+    def get_frame(self, index):
+        return self._filter_frame(self._source.get_frame(index))
+                
+    def next(self):
+        return self._filter_frame(self._source.next())
+    
