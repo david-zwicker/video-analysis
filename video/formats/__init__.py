@@ -4,6 +4,6 @@ accessing their data
 """
 
 from .memory import VideoMemory
-from .file import VideoFile, VideoStack
+from .file import VideoFile, VideoFileStack, VideoImageStack
 
-__all__ = ['VideoMemory', 'VideoFile', 'VideoStack']
+__all__ = ['VideoMemory', 'VideoFile', 'VideoFileStack', 'VideoImageStack']

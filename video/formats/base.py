@@ -9,6 +9,7 @@ functions for video handling.
 
 from __future__ import division
 
+import glob
 import os
 import platform
 import numpy as np
@@ -34,7 +35,7 @@ else:
 
 class VideoBase(object):
     """
-    Base class for video.
+    Base class for videos.
     Every movie has an internal counter `frame_pos` stating which frame would
     be processed next.
     """
@@ -49,7 +50,8 @@ class VideoBase(object):
         self.fps = fps
         self.is_color = is_color
         
-        # internal pointer to the current frame - might not be used by subclasses
+        # internal pointer to the next frame to be loaded when iterating
+        # over the video
         self._frame_pos = 0
     
     #===========================================================================
@@ -70,7 +72,6 @@ class VideoBase(object):
         """ returns the 0-based index of the next frame """
         return self._frame_pos
 
-
     def set_frame_pos(self, index):
         """ sets the 0-based index of the next frame """
         if 0 <= index < self.frame_count:
@@ -90,8 +91,15 @@ class VideoBase(object):
           
     def next(self):
         """ returns the next frame """
-        # this also sets the internal pointer to the next frame
-        return self.get_frame(self._frame_pos)
+        # retrieve current frame
+        try:
+            frame = self.get_frame(self._frame_pos)
+        except IndexError:
+            raise StopIteration
+
+        # set the internal pointer to the next frame
+        self._frame_pos += 1
+        return frame
 
     #===========================================================================
     # CONTROL THE DATA STREAM OF THE MOVIE
@@ -143,3 +151,27 @@ class VideoBase(object):
             
         out.release()
         logging.info('Wrote video to file `%s`', filename)
+
+
+
+class VideoImageStackBase(VideoBase):
+    """ abstract base class that represents a movie stored as individual frame images """
+    
+    def __init__(self, filename_scheme, fps=None):
+        # find all the files belonging to this stack
+        self.filenames = sorted(glob.glob(filename_scheme))
+        frame_count = len(self.filenames)
+        
+        # load the first frame to get information
+        frame = self.get_frame(0)
+        size = frame.shape[:2]
+        if frame.shape[3] == 1:
+            is_color = False
+        elif frame.shape[3] == 3:
+            is_color = True
+        else:
+            raise ValueError('The last dimension of the data must be either 1 or 3.')
+                
+        super(VideoImageStackBase, self).__init__(size=size, frame_count=frame_count,
+                                                  fps=fps, is_color=is_color)
+        

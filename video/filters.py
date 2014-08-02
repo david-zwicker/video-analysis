@@ -10,7 +10,7 @@ that can be iterated over, but that doesn't store its data in memory
 import logging
 import numpy as np
 
-from format.base import VideoBase
+from formats.base import VideoBase
 
 
 class VideoIteratorBase(VideoBase):
@@ -18,7 +18,7 @@ class VideoIteratorBase(VideoBase):
      
     def __init__(self, source, size=None, frame_count=None, fps=None, is_color=None):
         # store an iterator of the source video
-        self.source = iter(source)
+        self._source = iter(source)
         
         # determine properties of the video
         size = source.size if size is None else size
@@ -56,14 +56,14 @@ class Crop(VideoIteratorBase):
         ]
         size = (self.rect[2] - self.rect[0], self.rect[3] - self.rect[1])
         
-        logging.debug('The cropping indices are `%s`', self.rect)
+        logging.debug('The cropping indices are %s', self.rect)
         
         # correct the size, since we are going to crop the movie
         super(Crop, self).__init__(source, size=size)
                 
     def next(self):
         r = self.rect
-        return self.source.next()[r[0]:r[2], r[1]:r[3]]
+        return self._source.next()[r[0]:r[2], r[1]:r[3]]
 
 
 
@@ -74,11 +74,11 @@ class TimeDifference(VideoIteratorBase):
         # correct the frame count since we are going to return differences
         super(TimeDifference, self).__init__(source, frame_count=source.frame_count-1)
         # store the first frame, because we always need a previous frame
-        self.prev_frame = self.source.next()
+        self.prev_frame = self._source.next()
                 
     def next(self):
         # get this frame and subtract from it the previous one
-        this_frame = self.source.next()
+        this_frame = self._source.next()
         diff = this_frame - self.prev_frame
         
         # this frame will be the previous frame of the next one
@@ -96,7 +96,7 @@ class Monochrome(VideoIteratorBase):
         super(Monochrome, self).__init__(source, is_color=False)
 
     def next(self):
-        frame = self.source.next()
+        frame = self._source.next()
         if self.mode == 'normal':
             return np.mean(frame, axis=2)
         elif self.mode == 'r':
