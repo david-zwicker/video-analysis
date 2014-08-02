@@ -11,10 +11,10 @@ output as one iterates over them
 def crop(source, rect):
     """ crops the video to the given rect=(left, top, right, bottom) """ 
     for frame in source:
-        return frame[rect[0]:rect[2], rect[1]:rect[3], :]
+        yield frame[rect[0]:rect[2], rect[1]:rect[3], :]
 
 
-def difference(source):
+def time_difference(source):
     """ returns the differences between consecutive frames """ 
     
     # get the iterator from the video
@@ -34,5 +34,4 @@ def normalize_brightness(source):
     the initial frame
     """ 
     raise NotImplementedError
-
 

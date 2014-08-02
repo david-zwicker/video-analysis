@@ -60,6 +60,7 @@ class VideoBase(object):
         raise NotImplementedError
 
     def __iter__(self):
+        """ initializes the iterator """
         # rewind the movie
         self.set_frame_pos(0)
         return self
@@ -67,7 +68,7 @@ class VideoBase(object):
     def next(self):
         """ returns the next frame """
         # this also sets the internal pointer to the next frame
-        return self.get_frame_raw(self._frame_pos)
+        return self.get_frame(self._frame_pos)
 
     #===========================================================================
     # WRITE OUT MOVIES
