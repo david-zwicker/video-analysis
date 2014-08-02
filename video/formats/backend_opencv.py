@@ -13,7 +13,6 @@ import os
 import platform
 import logging
 
-import numpy as np
 import cv2
 import cv2.cv as cv # still necessary for some constants
 
@@ -83,6 +82,7 @@ class VideoOpenCV(VideoBase):
         """ returns the next frame """
         # get the next frame, which automatically increments the internal frame index
         ret, frame = self._movie.read()
+            
         if ret:
             return frame
         else:
@@ -97,7 +97,10 @@ class VideoOpenCV(VideoBase):
         should thus not be used while iterating over the video.
         """ 
         self.set_frame_pos(index)
+        
+        # get the next frame, which also increments the internal frame index
         ret, frame = self._movie.read()
+            
         if ret:
             return frame
         else:
@@ -112,7 +115,7 @@ class VideoOpenCV(VideoBase):
 
 class VideoImageStackOpenCV(VideoImageStackBase):
     """ class that loads a stack of images using opencv """
-    
+        
     def get_frame(self, index):
         return cv2.imread(self.filenames[index])
 
@@ -153,7 +156,8 @@ def write_video_opencv(video, filename, video_format=None):
 
     # write out all individual frames
     for frame in video:
-        out.write(np.asarray(frame, np.uint8))
+        # convert the data to uint8 before writing it out
+        out.write(cv2.convertScaleAbs(frame))
         
     out.release()
     logging.info('Wrote video to file `%s`', filename)

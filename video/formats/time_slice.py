@@ -4,6 +4,8 @@ Created on Aug 2, 2014
 @author: zwicker
 '''
 
+from __future__ import division
+
 import logging
 import numpy as np
 

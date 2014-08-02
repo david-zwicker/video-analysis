@@ -10,15 +10,72 @@ Some filters allow to access the underlying frames at random using the get_frame
 
 '''
 
+from __future__ import division
+
 import logging
 import numpy as np
 
 from .formats.base import VideoFilterBase
-
+from .formats.utils import get_color_range
 
 #===============================================================================
 # FILTERS THAT ALLOW SEEKING IN THE MATERIAL
 #===============================================================================
+
+class FilterNormalize(VideoFilterBase):
+    """ normalizes a color range to the interval 0..1 """
+    
+    def __init__(self, source, vmin=0, vmax=1, dtype=None):
+        """
+        warning:
+        vmin must not be smaller than the smallest value source can hold.
+        Otherwise wrapping can occur.
+        """
+        
+        # interval From which to convert 
+        self._fmin = vmin
+        self._fdiff = vmax - vmin     
+        
+        # interval To which to convert
+        self._dtype = dtype
+        self._tmin = None
+        self._tmax = None
+        self._tdiff = None
+        
+        super(FilterNormalize, self).__init__(source)
+        logging.debug('Created filter for normalizing range [%g..%g]', vmin, vmax)
+
+
+    def _filter_frame(self, frame):
+        
+        # ensure that we decided on a dtype
+        if self._dtype is None:
+            self._dtype = frame.dtype
+            
+        # ensure that we know the bounds of this dtype
+        if self._tmin is None:
+            self._tmin, self._tmax = get_color_range(self._dtype)
+            self._tdiff = self._tmax - self._tmin
+            
+            # some safety checks on the first run:
+            fmin, fmax = get_color_range(frame.dtype)
+            if self._fmin < fmin:
+                logging.warn('Lower normalization bound is below what the format can hold.')
+            if self._fmin + self._fdiff > fmax:
+                logging.warn('Upper normalization bound is above what the format can hold.')
+
+        # do the conversion to [0, 1]
+        frame = (frame - self._fmin)/self._fdiff
+
+        # convert to the target range
+        frame = frame*self._tdiff + self._tmin
+        
+        # clip the data to the desired range
+        np.clip(frame, self._tmin, self._tmax, out=frame)
+        
+        # cast the data to the right type
+        return frame.astype(self._dtype)
+
 
 
 class FilterCrop(VideoFilterBase):
@@ -76,7 +133,7 @@ class FilterMonochrome(VideoFilterBase):
 
     def _filter_frame(self, frame):
         if self.mode == 'normal':
-            return np.mean(frame, axis=2)
+            return np.mean(frame, axis=2).astype(frame.dtype)
         elif self.mode == 'r':
             return frame[:, :, 0]
         elif self.mode == 'g':
@@ -86,38 +143,48 @@ class FilterMonochrome(VideoFilterBase):
         else:
             raise ValueError('Unsupported conversion method to monochrome: %s' % self.mode)
     
-
-#===============================================================================
-# FILTERS THAT CAN ONLY BE USED AS ITERATORS
-#===============================================================================
-
+    
 
 class FilterTimeDifference(VideoFilterBase):
     """
     returns the differences between consecutive frames.
     Here, frames cannot be accessed directly, but one can only iterate over the video
+    TODO: Take care about expanding the data type, since normal images are stored as unsigned int
     """ 
     
-    def __init__(self, source):
+    def __init__(self, source, dtype=np.int16):
+        """
+        dtype contains the dtype that is used to calculate the difference.
+        If dtype is None, no type casting is done.
+        """
+        
+        self._dtype = dtype
+        
         # correct the frame count since we are going to return differences
         super(FilterTimeDifference, self).__init__(source, frame_count=source.frame_count-1)
-        # store the first frame, because we always need a previous frame
-        self.prev_frame = self._source.next()
 
         logging.debug('Created filter for calculating differences between consecutive frames.')
     
     
     def set_frame_pos(self, index):
-        raise RuntimeError('Iterators do not allow to seek a specific position')
+        # set the underlying movie to requested position 
+        self._source.set_frame_pos(index)
+        # advance one frame and save it in the previous frame structure
+        self.prev_frame = self._source.next()
     
       
     def get_frame(self, index):
-        raise RuntimeError('Iterators do not allow to seek a specific position')
+        this_frame = self._source.get_frame(index + 1)
+        if self._dtype is not None:
+            this_frame = this_frame.astype(self._dtype) 
+        return this_frame - self._source.get_frame(index) 
     
     
     def next(self):
         # get this frame and subtract from it the previous one
         this_frame = self._source.next()
+        if self._dtype is not None:
+            this_frame = this_frame.astype(self._dtype) 
         diff = this_frame - self.prev_frame
         
         # this frame will be the previous frame of the next one

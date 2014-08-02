@@ -11,7 +11,6 @@ from __future__ import division
 
 import glob
 import numpy as np
-import logging
 
 
 class VideoBase(object):
@@ -22,6 +21,13 @@ class VideoBase(object):
     """
     
     def __init__(self, size=(0, 0), frame_count=-1, fps=25, is_color=True):
+        """
+        size stores the dimensions of the video
+        frame_count stores the number of frames
+        fps are the frames per second
+        is_color indicates whether the video is in color or monochrome
+        colordepth indicates how many colors are stored per chanel
+        """
         
         # store number of frames
         self.frame_count = frame_count
@@ -149,7 +155,7 @@ class VideoImageStackBase(VideoBase):
         super(VideoImageStackBase, self).__init__(size=size, frame_count=frame_count,
                                                   fps=fps, is_color=is_color)
         
-
+        
 
 class VideoFilterBase(VideoBase):
     """ class which does not hold its own data, but is more like a view """

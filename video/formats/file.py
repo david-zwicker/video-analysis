@@ -9,11 +9,12 @@ that are based on a single file or on several files
 
 from __future__ import division
 
-import logging
 import itertools
+import logging
 
 from .base import VideoBase
-from .backend_opencv import *
+from .backend_opencv import (show_video_opencv, write_video_opencv, VideoOpenCV,
+                             VideoImageStackOpenCV)
 
 # set default file handler
 show_video = show_video_opencv

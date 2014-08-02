@@ -32,7 +32,8 @@ class VideoMemory(VideoBase):
         else:
             raise ValueError('The last dimension of the _data must be either 1 or 3.')
         
-        super(VideoMemory, self).__init__(size=size, frame_count=frame_count, fps=fps, is_color=is_color)
+        super(VideoMemory, self).__init__(size=size, frame_count=frame_count,
+                                          fps=fps, is_color=is_color)
         
         
     def get_frame(self, index):

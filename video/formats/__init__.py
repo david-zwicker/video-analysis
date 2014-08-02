@@ -1,6 +1,11 @@
 """
 This package provides representations of videos with a unified interface for
-accessing their data
+accessing their data.
+
+Colors are always represented by float values ranging from 0 to 1.
+Two formats are supported:
+    A single value indicates a grey scale
+    Three values indicate RGB values
 """
 
 from .memory import VideoMemory
