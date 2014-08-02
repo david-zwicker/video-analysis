@@ -9,13 +9,18 @@ that are stored in memory using numpt arrays
 
 from __future__ import division
 
+import numpy as np
+
 from .base import VideoBase
 
 class VideoMemory(VideoBase):
     
     def __init__(self, data, fps=25):
-        self.data = data
         
+        # convert input data to numpy array
+        self.data = np.array(data)
+        
+        # read important information
         frame_count = data.shape[0]
         size = data.shape[1:3]
         
