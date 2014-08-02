@@ -19,9 +19,9 @@ import logging
 if platform.system() == 'Darwin':
     VIDEO_FORMATS = {
         '.xvid': 'XVID',
-        '.mov': 'mp4v', #'SVQ3',   # standard quicktime codec
+        '.mov': 'mp4v',   # standard quicktime codec - tested
         '.mpeg': 'FMP4',  # mpeg 4 variant
-        '.avi': 'IYUV',   # uncompressed avi 
+        '.avi': 'IYUV',   # uncompressed avi - tested
     }
 else:
     VIDEO_FORMATS = {
@@ -39,7 +39,7 @@ class VideoBase(object):
     be processed next.
     """
     
-    def __init__(self, size=(0, 0), frame_count=-1, fps=25):
+    def __init__(self, size=(0, 0), frame_count=-1, fps=25, is_color=True):
         
         # store number of frames
         self.frame_count = frame_count
@@ -47,6 +47,7 @@ class VideoBase(object):
         # store the dimensions of the movie as width x height in pixel
         self.size = size
         self.fps = fps
+        self.is_color = is_color
         
         # internal pointer to the current frame - might not be used by subclasses
         self._frame_pos = 0
@@ -54,6 +55,16 @@ class VideoBase(object):
     #===========================================================================
     # DATA ACCESS
     #===========================================================================
+    
+    @property
+    def shape(self):
+        """ returns the shape of the data describing the movie """
+        return (
+            self.frame_count,
+            self.size[0],
+            self.size[1],
+            3 if self.is_color else 1
+        )
     
     def get_frame_pos(self):
         """ returns the 0-based index of the next frame """
@@ -83,7 +94,7 @@ class VideoBase(object):
         return self.get_frame(self._frame_pos)
 
     #===========================================================================
-    # WRITE OUT MOVIES
+    # CONTROL THE DATA STREAM OF THE MOVIE
     #===========================================================================
     
     def copy(self):
@@ -93,13 +104,8 @@ class VideoBase(object):
         # prevent circular import by lazy importing
         from .memory import VideoMemory
         
-        # determine the shape of the required array
-        shape = [self.frame_count]
-        shape.extend(self.size)
-        shape.append(3)
-        
         # copy the data into a numpy array
-        data = np.empty(shape)
+        data = np.empty(self.shape)
         for k, val in enumerate(self):
             data[k, ...] = val
         
@@ -126,12 +132,14 @@ class VideoBase(object):
                 raise ValueError('Video format `%s` is unsupported.' % video_format) 
         
         # get the code defining the video format
-        logging.info('Using video format `%s`', video_format)
+        logging.info('Start writing video with format `%s`', video_format)
         fourcc = cv2.cv.FOURCC(*video_format)
-        out = cv2.VideoWriter(filename, fourcc, self.fps, self.size)
+        out = cv2.VideoWriter(filename, fourcc=fourcc, fps=self.fps,
+                              frameSize=self.size, isColor=self.is_color)
 
         # write out all individual frames
         for frame in self:
-            out.write(np.array(frame, np.uint8))
+            out.write(np.asarray(frame, np.uint8))
             
         out.release()
+        logging.info('Wrote video to file `%s`', filename)

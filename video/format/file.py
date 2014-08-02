@@ -53,9 +53,11 @@ class VideoStack(VideoBase):
             # compare its format to the previous movies
             if last_movie:
                 if movie.fps != last_movie.fps:
-                    raise ValueError('The FPS value of two video does not agree')
+                    raise ValueError('The FPS value of two videos does not agree')
                 if movie.size != last_movie.size:
-                    raise ValueError('The size of two video does not agree')
+                    raise ValueError('The size of two videos does not agree')
+                if movie.is_color != last_movie.is_color:
+                    raise ValueError('The color format of two videos does not agree')
             
             # calculate at which frame this movie starts
             self.offsets.append(frame_count)  
@@ -66,7 +68,8 @@ class VideoStack(VideoBase):
             
             logging.info('Found movie `%s`', movie.filename)
                         
-        super(VideoStack, self).__init__(size=movie.size, frame_count=frame_count, fps=movie.fps)
+        super(VideoStack, self).__init__(size=movie.size, frame_count=frame_count,
+                                         fps=movie.fps, is_color=movie.is_color)
 
 
     def set_frame_pos(self, index):

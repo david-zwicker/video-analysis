@@ -34,7 +34,7 @@ class VideoOpenCV(VideoBase):
         # rewind movie
         self.set_frame_pos(0)
         
-        super(VideoOpenCV, self).__init__(size=size, frame_count=frame_count, fps=fps)
+        super(VideoOpenCV, self).__init__(size=size, frame_count=frame_count, fps=fps, is_color=True)
                 
         
     def get_frame_pos(self):
