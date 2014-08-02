@@ -54,6 +54,7 @@ class VideoOpenCV(VideoBase):
         if ret:
             return frame
         else:
+            # reading the data failed for whatever reason
             raise StopIteration
 
     

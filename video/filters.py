@@ -7,6 +7,8 @@ Filter are iterators that take a video as an input and return a special Video
 that can be iterated over, but that doesn't store its data in memory
 '''
 
+import logging
+
 from format.base import VideoBase
 
 
@@ -41,9 +43,20 @@ class Crop(VideoIteratorBase):
     """ crops the video to the given rect=(left, top, right, bottom) """
     
     def __init__(self, source, rect):
-        self.rect = rect
+        
+        # interpret float values as fractions
+        self.rect = [
+            int(rect[0]*source.size[0] if 0 < rect[0] < 1 else rect[0]),
+            int(rect[1]*source.size[1] if 0 < rect[1] < 1 else rect[1]),
+            int(rect[2]*source.size[0] if 0 < rect[2] < 1 else rect[2]),
+            int(rect[3]*source.size[1] if 0 < rect[3] < 1 else rect[3]),
+        ]
+        size = (self.rect[2] - self.rect[0], self.rect[3] - self.rect[1])
+        
+        logging.debug('The cropping indices are `%s`', self.rect)
+        
         # correct the size, since we are going to crop the movie
-        super(Crop, self).__init__(source, size=(rect[2] - rect[0], rect[3] - rect[1]))
+        super(Crop, self).__init__(source, size=size)
                 
     def next(self):
         r = self.rect

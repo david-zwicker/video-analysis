@@ -9,8 +9,6 @@ that are stored in memory using numpt arrays
 
 from __future__ import division
 
-import numpy as np
-
 from .base import VideoBase
 
 
@@ -32,7 +30,10 @@ class VideoMemory(VideoBase):
         
         
     def get_frame(self, index):
-        frame = self.data[index, :, :, :]
+        try:
+            frame = self.data[index, :, :, :]
+        except IndexError:
+            raise StopIteration
         self._frame_pos = index + 1
         return frame
 

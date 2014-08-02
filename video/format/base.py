@@ -10,15 +10,26 @@ functions for video handling.
 from __future__ import division
 
 import os
+import platform
 import numpy as np
+import logging
 
 # dictionary that maps standard file endings to fourcc codes
 # more codes can be found at http://www.fourcc.org/codecs.php
-VIDEO_FORMATS = {
-    '.xvid': 'XVID',
-    '.mov': 'SVQ3',   # standard quicktime codec
-    '.mpeg': 'FMP4'   # mpeg 4 variant 
-}
+if platform.system() == 'Darwin':
+    VIDEO_FORMATS = {
+        '.xvid': 'XVID',
+        '.mov': 'mp4v', #'SVQ3',   # standard quicktime codec
+        '.mpeg': 'FMP4',  # mpeg 4 variant
+        '.avi': 'IYUV',   # uncompressed avi 
+    }
+else:
+    VIDEO_FORMATS = {
+        '.xvid': 'XVID',
+        '.mov': 'mp4v', #'SVQ3',   # standard quicktime codec
+        '.mpeg': 'FMP4',  # mpeg 4 variant
+        '.avi': 'IYUV',   # uncompressed avi 
+    }
 
 
 class VideoBase(object):
@@ -105,7 +116,6 @@ class VideoBase(object):
         
         # use OpenCV to save the video
         import cv2
-        import cv2.cv as cv
         
         if video_format is None:
             # detect format from file ending
@@ -116,10 +126,12 @@ class VideoBase(object):
                 raise ValueError('Video format `%s` is unsupported.' % video_format) 
         
         # get the code defining the video format
-        fourcc = cv.FOURCC(*video_format)
+        logging.info('Using video format `%s`', video_format)
+        fourcc = cv2.cv.FOURCC(*video_format)
         out = cv2.VideoWriter(filename, fourcc, self.fps, self.size)
 
+        # write out all individual frames
         for frame in self:
-            out.write(frame)
+            out.write(np.array(frame, np.uint8))
             
         out.release()
