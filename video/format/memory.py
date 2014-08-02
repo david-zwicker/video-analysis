@@ -13,10 +13,11 @@ import numpy as np
 
 from .base import VideoBase
 
+
 class VideoMemory(VideoBase):
+    """ class which holds all the video data in memory """ 
     
     def __init__(self, data, fps=25):
-        
         # convert input data to numpy array
         self.data = np.array(data)
         

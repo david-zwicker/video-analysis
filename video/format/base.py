@@ -87,7 +87,7 @@ class VideoBase(object):
         
         if video_format is None:
             # detect format from file ending
-            file_ext = os.path.splitext(filename)[1].tolower()
+            file_ext = os.path.splitext(filename)[1].lower()
             try:
                 video_format = VIDEO_FORMATS[file_ext]
             except KeyError:
