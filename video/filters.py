@@ -15,12 +15,9 @@ from __future__ import division
 import logging
 import numpy as np
 
-from .formats.base import VideoFilterBase
-from .formats.utils import get_color_range
+from .io.base import VideoFilterBase
+from .io.utils import get_color_range
 
-#===============================================================================
-# FILTERS THAT ALLOW SEEKING IN THE MATERIAL
-#===============================================================================
 
 class FilterNormalize(VideoFilterBase):
     """ normalizes a color range to the interval 0..1 """
@@ -29,18 +26,18 @@ class FilterNormalize(VideoFilterBase):
         """
         warning:
         vmin must not be smaller than the smallest value source can hold.
-        Otherwise wrapping can occur.
+        Otherwise wrapping can occur. The same thing holds for vmax, which
+        must not be larger than the maximum value in the color channels.
         """
         
         # interval From which to convert 
         self._fmin = vmin
-        self._fdiff = vmax - vmin     
+        self._fmax = vmax
         
         # interval To which to convert
         self._dtype = dtype
         self._tmin = None
-        self._tmax = None
-        self._tdiff = None
+        self._alpha = None
         
         super(FilterNormalize, self).__init__(source)
         logging.debug('Created filter for normalizing range [%g..%g]', vmin, vmax)
@@ -54,24 +51,21 @@ class FilterNormalize(VideoFilterBase):
             
         # ensure that we know the bounds of this dtype
         if self._tmin is None:
-            self._tmin, self._tmax = get_color_range(self._dtype)
-            self._tdiff = self._tmax - self._tmin
+            self._tmin, tmax = get_color_range(self._dtype)
+            self._alpha = (tmax - self._tmin)/(self._fmax - self._fmin)
             
             # some safety checks on the first run:
             fmin, fmax = get_color_range(frame.dtype)
             if self._fmin < fmin:
                 logging.warn('Lower normalization bound is below what the format can hold.')
-            if self._fmin + self._fdiff > fmax:
+            if self._fmax > fmax:
                 logging.warn('Upper normalization bound is above what the format can hold.')
 
-        # do the conversion to [0, 1]
-        frame = (frame - self._fmin)/self._fdiff
+        # clip the data before converting
+        np.clip(frame, self._fmin, self._fmax, out=frame)
 
-        # convert to the target range
-        frame = frame*self._tdiff + self._tmin
-        
-        # clip the data to the desired range
-        np.clip(frame, self._tmin, self._tmax, out=frame)
+        # do the conversion from [fmin, fmax] to [tmin, tmax]
+        frame = (frame - self._fmin)*self._alpha + self._tmin
         
         # cast the data to the right type
         return frame.astype(self._dtype)
@@ -148,8 +142,8 @@ class FilterMonochrome(VideoFilterBase):
 class FilterTimeDifference(VideoFilterBase):
     """
     returns the differences between consecutive frames.
-    Here, frames cannot be accessed directly, but one can only iterate over the video
-    TODO: Take care about expanding the data type, since normal images are stored as unsigned int
+    This filter is best used by just iterating over it. Retrieving individual
+    frame differences can be a bit slow, since two frames have to be loaded.
     """ 
     
     def __init__(self, source, dtype=np.int16):
@@ -175,16 +169,19 @@ class FilterTimeDifference(VideoFilterBase):
       
     def get_frame(self, index):
         this_frame = self._source.get_frame(index + 1)
+        # cast into different dtype if requested
         if self._dtype is not None:
             this_frame = this_frame.astype(self._dtype) 
         return this_frame - self._source.get_frame(index) 
     
     
     def next(self):
-        # get this frame and subtract from it the previous one
+        # get this frame ...
         this_frame = self._source.next()
+        # ... cast into different dtype if requested ...
         if self._dtype is not None:
             this_frame = this_frame.astype(self._dtype) 
+        # .. and subtract from it the previous one
         diff = this_frame - self.prev_frame
         
         # this frame will be the previous frame of the next one

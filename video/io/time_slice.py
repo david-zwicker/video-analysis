@@ -12,7 +12,7 @@ import numpy as np
 from .base import VideoFilterBase
 
 
-class VideoSliced(VideoFilterBase):
+class VideoSlice(VideoFilterBase):
     """ iterates only over part of the frames """
     
     def __init__(self, source, start=0, stop=None, step=1):
@@ -28,7 +28,7 @@ class VideoSliced(VideoFilterBase):
         frame_count = int(np.ceil((self._stop - self._start)/self._step))
         
         # correct the size, since we are going to crop the movie
-        super(VideoSliced, self).__init__(source, frame_count=frame_count)
+        super(VideoSlice, self).__init__(source, frame_count=frame_count)
 
         logging.debug('Created video slice (%d, %d, %d) of length %d.' % 
                       (self._start, self._stop, self._step, frame_count)) 

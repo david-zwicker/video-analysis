@@ -4,7 +4,10 @@ Created on Jul 31, 2014
 @author: zwicker
 
 This package provides class definitions for describing videos
-that are based on a single file or on several files
+that are based on a single file or on several files.
+
+TODO: Implement a backend using ffmpeg directly.
+Copy ideas from https://github.com/Zulko/moviepy/tree/master/moviepy/video/io
 '''
 
 from __future__ import division

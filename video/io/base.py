@@ -29,10 +29,8 @@ class VideoBase(object):
         colordepth indicates how many colors are stored per chanel
         """
         
-        # store number of frames
+        # store information about the video
         self.frame_count = frame_count
-        
-        # store the dimensions of the movie as width x height in pixel
         self.size = size
         self.fps = fps
         self.is_color = is_color
@@ -86,7 +84,12 @@ class VideoBase(object):
 
           
     def next(self):
-        """ returns the next frame """
+        """
+        returns the next frame while iterating over a movie.
+        This is a generic function, which just retrieves the next image based
+        on the internal frame_pos. Subclasses may overwrite this with more
+        efficient implementations (i.e. for streaming)
+        """
         # retrieve current frame
         try:
             frame = self.get_frame(self._frame_pos)
@@ -102,8 +105,8 @@ class VideoBase(object):
         """ returns a single frame or a video corresponding to a slice """ 
         if isinstance(key, slice):
             # prevent circular import by lazy importing
-            from .time_slice import VideoSliced
-            return VideoSliced(self, *key.indices(self.frame_count))
+            from .time_slice import VideoSlice
+            return VideoSlice(self, *key.indices(self.frame_count))
         
         elif isinstance(key, int):
             return self.get_frame(key)
@@ -116,7 +119,7 @@ class VideoBase(object):
     # CONTROL THE DATA STREAM OF THE MOVIE
     #===========================================================================
     
-    def copy(self):
+    def copy(self, dtype=np.uint8):
         """
         Creates a copy of the current video and returns a VideoMemory instance
         """
@@ -124,12 +127,12 @@ class VideoBase(object):
         from .memory import VideoMemory
         
         # copy the data into a numpy array
-        data = np.empty(self.shape)
+        data = np.empty(self.shape, dtype)
         for k, val in enumerate(self):
             data[k, ...] = val
         
-        # construct the copy
-        return VideoMemory(data, fps=self.fps)
+        # construct the memory object without copying the data
+        return VideoMemory(data, fps=self.fps, copy_data=False)
     
     
 

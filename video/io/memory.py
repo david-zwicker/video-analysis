@@ -15,12 +15,16 @@ from .base import VideoBase
 
 
 class VideoMemory(VideoBase):
-    """ class which holds all the video _data in memory """ 
+    """
+    class which holds all the video data in memory.
+    We allow for direct manipulation of the data attribute in order to make
+    reading and writing data convenient.
+    """ 
     
-    def __init__(self, data, fps=25, copy_data=False):
+    def __init__(self, data, fps=25, copy_data=True):
         
         # only copy the _data if requested or required
-        self._data = np.array(data, copy=copy_data, ndmin=4) 
+        self.data = np.array(data, copy=copy_data, ndmin=4) 
 
         # read important information
         frame_count = data.shape[0]
@@ -36,6 +40,10 @@ class VideoMemory(VideoBase):
                                           fps=fps, is_color=is_color)
         
         
+    def __iter__(self):
+        return iter(self.data)
+        
+        
     def get_frame(self, index):
-        return self._data[index]
+        return self.data[index]
 

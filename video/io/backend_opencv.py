@@ -161,3 +161,4 @@ def write_video_opencv(video, filename, video_format=None):
         
     out.release()
     logging.info('Wrote video to file `%s`', filename)
+    
