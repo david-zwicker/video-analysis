@@ -245,6 +245,7 @@ class VideoFilterBase(VideoBase):
         super(VideoFilterBase, self).set_frame_pos(index)
     
     
+    
     def get_frame(self, index):
         return self._filter_frame(self._source.get_frame(index))
           

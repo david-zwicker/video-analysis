@@ -162,7 +162,7 @@ class FilterMonochrome(VideoFilterBase):
             raise ValueError('Unsupported conversion method to monochrome: %s' % self.mode)
     
     
-    
+
 class FilterFeatures(VideoFilterBase):
     """ detects features and draws them onto the image """
     
@@ -179,7 +179,7 @@ class FilterFeatures(VideoFilterBase):
         return frame
     
     
-    
+
 class FilterSubtractBackground(VideoFilterBase):
     """ filter that subtracts the background using OpenCV """
     
@@ -188,8 +188,6 @@ class FilterSubtractBackground(VideoFilterBase):
 #         self._fgbg = cv2.BackgroundSubtractorMOG(history=5, nmixtures=3, backgroundRatio=0.2)
         self._fgbg = cv2.BackgroundSubtractorMOG2(history=20, varThreshold=16., bShadowDetection=False)
         
-        # probably want to xor with first image to remove wrongly detected background
-        
         super(FilterSubtractBackground, self).__init__(source)
     
     
@@ -197,9 +195,11 @@ class FilterSubtractBackground(VideoFilterBase):
         return self._fgbg.apply(frame)
     
     
+    
 #===============================================================================
 # FILTERS THAT ANALYZE CONSECUTIVE FRAMES
 #===============================================================================
+
 
 
 class FilterFlowBase(VideoFilterBase):
@@ -275,7 +275,7 @@ class FilterTimeDifference(FilterFlowBase):
         return this_frame - prev_frame
     
     
-    
+
 class FilterOpticalFlow(FilterFlowBase):
     """
     calculates the flow of consecutive frames 
