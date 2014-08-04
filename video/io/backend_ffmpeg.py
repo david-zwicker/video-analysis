@@ -9,6 +9,7 @@ This code has been modified from the project moviepy, which is released under
 the MIT license at github:
 https://github.com/Zulko/moviepy/blob/master/moviepy/video/io/ffmpeg_writer.py
 
+The MIT license text is included in the present package in the main README file
 '''
 
 from __future__ import division
@@ -41,9 +42,7 @@ if try_cmd(['ffmpeg']):
 elif try_cmd(['ffmpeg.exe']):
     FFMPEG_BINARY = 'ffmpeg.exe'
 else:
-    raise IOError("FFMPEG binary not found. Try installing MoviePy"
-                  " manually and specify the path to the binary in"
-                  " the file conf.py")
+    raise IOError("FFMPEG binary not found.")
 
 
 class FFMPEG_VideoWriter:
@@ -61,7 +60,7 @@ class FFMPEG_VideoWriter:
       '.avi' for all your videos.
     
     size
-      Size (width,height) of the output video in pixels.
+      Size (height, width) of the output video in pixels.
       
     fps
       Frames per second in the output video file.
@@ -173,11 +172,8 @@ class FFMPEG_VideoWriter:
 def write_video_ffmpeg(video, filename, codec="libx264", bitrate=None):
     """
     Saves the video to the file indicated by filename.
-    video_format must be a fourcc code from http://www.fourcc.org/codecs.php
-        If video_format is None, the code is determined from the filename extension.
     """
         
-    # get the code defining the video format
     logging.info('Start writing video with format `%s`', codec)
     
     # start ffmpeg and add the individual frames

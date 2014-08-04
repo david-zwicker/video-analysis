@@ -5,24 +5,25 @@ Created on Jul 31, 2014
 
 This package provides class definitions for describing videos
 that are based on a single file or on several files.
-
-TODO: Implement a backend using ffmpeg directly.
-Copy ideas from https://github.com/Zulko/moviepy/tree/master/moviepy/video/io
 '''
 
 from __future__ import division
 
+import os
 import itertools
 import logging
 
 from .base import VideoBase
 from .backend_opencv import (show_video_opencv, write_video_opencv, VideoOpenCV,
                              VideoImageStackOpenCV)
-from .backend_ffmpeg import (write_video_ffmpeg)
+from .backend_ffmpeg import (FFMPEG_BINARY, write_video_ffmpeg)
 
-# set default file handler
+# set default handlers
 show_video = show_video_opencv
-write_video = write_video_ffmpeg
+if FFMPEG_BINARY is not None:
+    write_video = write_video_ffmpeg
+else:
+    write_video = write_video_opencv
 VideoFile = VideoOpenCV
 VideoImageStack = VideoImageStackOpenCV
 
@@ -51,9 +52,15 @@ class VideoFileStack(VideoBase):
         last_movie = None
         for index in indices:
             
+            filename = filename_scheme % index
+
+            # see if file exists
+            if not os.path.isfile(filename) or not os.access(filename, os.R_OK):
+                break
+            
             # try to load the movie with given index
             try:
-                movie = video_file_class(filename_scheme % index)
+                movie = video_file_class(filename)
             except IOError:
                 break
             

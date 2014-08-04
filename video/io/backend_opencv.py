@@ -48,6 +48,7 @@ class VideoOpenCV(VideoBase):
         self.filename = filename
         
         logging.debug('Loading video `%s` using OpenCV', filename)
+
         self._movie = cv2.VideoCapture(filename)
         # this call doesn't fail if the file could not be found, but returns
         # an empty video instead.
