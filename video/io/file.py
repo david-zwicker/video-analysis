@@ -18,10 +18,11 @@ import logging
 from .base import VideoBase
 from .backend_opencv import (show_video_opencv, write_video_opencv, VideoOpenCV,
                              VideoImageStackOpenCV)
+from .backend_ffmpeg import (write_video_ffmpeg)
 
 # set default file handler
 show_video = show_video_opencv
-write_video = write_video_opencv
+write_video = write_video_ffmpeg
 VideoFile = VideoOpenCV
 VideoImageStack = VideoImageStackOpenCV
 

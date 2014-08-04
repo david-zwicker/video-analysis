@@ -22,14 +22,14 @@ from .base import VideoBase, VideoImageStackBase
 # dictionary that maps standard file endings to fourcc codes
 # more codes can be found at http://www.fourcc.org/codecs.php
 if platform.system() == 'Darwin':
-    VIDEO_FORMATS = {
+    CODECS = {
         '.xvid': 'XVID',
         '.mov': 'mp4v',   # standard quicktime codec - tested
         '.mpeg': 'FMP4',  # mpeg 4 variant
         '.avi': 'IYUV',   # uncompressed avi - tested
     }
 else:
-    VIDEO_FORMATS = {
+    CODECS = {
         '.xvid': 'XVID',
         '.mov': 'mp4v', #'SVQ3',   # standard quicktime codec
         '.mpeg': 'FMP4',  # mpeg 4 variant
@@ -133,24 +133,24 @@ def show_video_opencv(video):
 
 
 
-def write_video_opencv(video, filename, video_format=None):
+def write_video_opencv(video, filename, codec=None):
     """
     Saves the video to the file indicated by filename.
-    video_format must be a fourcc code from http://www.fourcc.org/codecs.php
-        If video_format is None, the code is determined from the filename extension.
+    codec must be a fourcc code from http://www.fourcc.org/codecs.php
+        If codec is None, the code is determined from the filename extension.
     """
     
-    if video_format is None:
+    if codec is None:
         # detect format from file ending
         file_ext = os.path.splitext(filename)[1].lower()
         try:
-            video_format = VIDEO_FORMATS[file_ext]
+            codec = CODECS[file_ext]
         except KeyError:
-            raise ValueError('Video format `%s` is unsupported.' % video_format) 
+            raise ValueError('Video format `%s` is unsupported.' % codec) 
     
     # get the code defining the video format
-    logging.info('Start writing video with format `%s`', video_format)
-    fourcc = cv2.cv.FOURCC(*video_format)
+    logging.info('Start writing video with format `%s`', codec)
+    fourcc = cv2.cv.FOURCC(*codec)
     out = cv2.VideoWriter(filename, fourcc=fourcc, fps=video.fps,
                           frameSize=video.size, isColor=video.is_color)
 
