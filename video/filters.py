@@ -17,8 +17,24 @@ import numpy as np
 
 from .io.base import VideoFilterBase
 from .io.utils import get_color_range
+  
+
+class FilterFunction(VideoFilterBase):
+    """ smoothes every frame """
+    
+    def __init__(self, source, function):
+        
+        self._function = function
+        
+        super(FilterFunction, self).__init__(source)
+        
+        logging.debug('Created filter applying a function to every frame')
 
 
+    def _filter_frame(self, frame):
+        return self._function(frame)
+    
+    
 class FilterNormalize(VideoFilterBase):
     """ normalizes a color range to the interval 0..1 """
     
@@ -188,5 +204,4 @@ class FilterTimeDifference(VideoFilterBase):
         self.prev_frame = this_frame
         
         return diff
-  
-        
+

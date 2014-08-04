@@ -26,7 +26,7 @@ class VideoBase(object):
         frame_count stores the number of frames
         fps are the frames per second
         is_color indicates whether the video is in color or monochrome
-        colordepth indicates how many colors are stored per chanel
+        colordepth indicates how many colors are stored per channel
         """
         
         # store information about the video
