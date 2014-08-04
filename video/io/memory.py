@@ -19,7 +19,9 @@ class VideoMemory(VideoBase):
     class which holds all the video data in memory.
     We allow for direct manipulation of the data attribute in order to make
     reading and writing data convenient.
-    """ 
+    """
+    
+    write_access = True
     
     def __init__(self, data, fps=25, copy_data=True):
         
@@ -40,10 +42,17 @@ class VideoMemory(VideoBase):
                                           fps=fps, is_color=is_color)
         
         
-    def __iter__(self):
-        return iter(self.data)
-        
-        
     def get_frame(self, index):
         return self.data[index]
+
+
+    def __getitem__(self, key):
+        return self.data[key]  
+        
+
+    def __setitem__(self, key, value):
+        """ writes video data to the frame or slice given in key """
+        # delegate the writing to the data directly
+        self.data[key] = value  
+        
 

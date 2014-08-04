@@ -15,6 +15,12 @@ from __future__ import division
 import logging
 import numpy as np
 
+try:
+    import cv2
+except ImportError:
+    print("OpenCV was not found. Functions requiring OpenCV will not work.")
+
+
 from .io.base import VideoFilterBase
 from .io.utils import get_color_range
   
@@ -111,24 +117,25 @@ class FilterCrop(VideoFilterBase):
             return value
             
         # interpret float values as fractions
-        self.rect = [
+        rect = [
             _check_number(rect[0], source.size[0]),
             _check_number(rect[1], source.size[1]),
             _check_number(rect[2], source.size[0]),
             _check_number(rect[3], source.size[1]),
         ]
         
-        size = (self.rect[2], self.rect[3])
+        # save the rectangle
+        self.rect = (rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3]) 
         
         # correct the size, since we are going to crop the movie
-        super(FilterCrop, self).__init__(source, size=size)
+        super(FilterCrop, self).__init__(source, size=(rect[2], rect[3]))
 
         logging.debug('Created filter for cropping to rectangle %s', self.rect)
         
        
     def _filter_frame(self, frame):
         r = self.rect
-        return frame[r[0]:r[0] + r[2], r[1]:r[1] + r[3]]
+        return frame[r[0]:r[2], r[1]:r[3]]
 
 
 
@@ -154,8 +161,85 @@ class FilterMonochrome(VideoFilterBase):
             raise ValueError('Unsupported conversion method to monochrome: %s' % self.mode)
     
     
+class FilterFeatures(VideoFilterBase):
+    """ detects features and draws them onto the image """
+    
+    def _filter_frame(self, frame):
+        frame = frame.copy()
+        
+        corners = cv2.goodFeaturesToTrack(frame, maxCorners=100, qualityLevel=0.01, minDistance=10)
+        corners = np.int0(corners)
+        
+        for i in corners:
+            x,y = i.ravel()
+            cv2.circle(frame, (x,y), 5, 255, -1)
+            
+        return frame
+    
+    
+class FilterSubtractBackground(VideoFilterBase):
+    """ filter that subtracts the background using OpenCV """
+    
+    def __init__(self, source):
+        
+        self._fgbg = cv2.BackgroundSubtractorMOG()
+        
+        super(FilterSubtractBackground, self).__init__(source)
+    
+    
+    def _filter_frame(self, frame):
+        return self._fgbg.apply(frame)
+    
+#===============================================================================
+# FILTERS THAT ANALYZE CONSECUTIVE FRAMES
+#===============================================================================
 
-class FilterTimeDifference(VideoFilterBase):
+
+class FilterFlowBase(VideoFilterBase):
+    """
+    Base class for filtering a video based on comparing consecutive frames.
+    """ 
+    
+    def __init__(self, source):
+        """
+        dtype contains the dtype that is used to calculate the difference.
+        If dtype is None, no type casting is done.
+        """
+        
+        self._prev_frame = None
+        
+        # correct the frame count since we are going to return differences
+        super(FilterFlowBase, self).__init__(source, frame_count=source.frame_count-1)
+    
+    
+    def set_frame_pos(self, index):
+        # set the underlying movie to requested position 
+        self._source.set_frame_pos(index)
+        # advance one frame and save it in the previous frame structure
+        self._prev_frame = self._source.next()
+    
+    
+    def _compare_frames(self, this_frame, prev_frame):
+        raise NotImplementedError
+    
+      
+    def get_frame(self, index):
+        return self._compare_frames(self._source.get_frame(index + 1),
+                                    self._source.get_frame(index)) 
+    
+    
+    def next(self):
+        # get this frame and evaluate it
+        this_frame = self._source.next()
+        result = self._compare_frames(this_frame, self._prev_frame)
+
+        # this frame will be the previous frame of the next one
+        self._prev_frame = this_frame
+        
+        return result
+
+
+class FilterTimeDifference(FilterFlowBase):
     """
     returns the differences between consecutive frames.
     This filter is best used by just iterating over it. Retrieving individual
@@ -171,37 +255,35 @@ class FilterTimeDifference(VideoFilterBase):
         self._dtype = dtype
         
         # correct the frame count since we are going to return differences
-        super(FilterTimeDifference, self).__init__(source, frame_count=source.frame_count-1)
+        super(FilterTimeDifference, self).__init__(source)
 
         logging.debug('Created filter for calculating differences between consecutive frames.')
-    
-    
-    def set_frame_pos(self, index):
-        # set the underlying movie to requested position 
-        self._source.set_frame_pos(index)
-        # advance one frame and save it in the previous frame structure
-        self.prev_frame = self._source.next()
-    
+
       
-    def get_frame(self, index):
-        this_frame = self._source.get_frame(index + 1)
+    def _compare_frames(self, this_frame, prev_frame):
         # cast into different dtype if requested
         if self._dtype is not None:
             this_frame = this_frame.astype(self._dtype) 
-        return this_frame - self._source.get_frame(index) 
+        return this_frame - prev_frame
     
     
-    def next(self):
-        # get this frame ...
-        this_frame = self._source.next()
-        # ... cast into different dtype if requested ...
-        if self._dtype is not None:
-            this_frame = this_frame.astype(self._dtype) 
-        # .. and subtract from it the previous one
-        diff = this_frame - self.prev_frame
+class FilterOpticalFlow(FilterFlowBase):
+    """
+    calculates the flow of consecutive frames 
+    """
+    
+    def __init__(self, *args, **kwargs):
+        super(FilterOpticalFlow, self).__init__(*args, **kwargs)
+    
         
-        # this frame will be the previous frame of the next one
-        self.prev_frame = this_frame
-        
-        return diff
+    def _compare_frames(self, this_frame, prev_frame):
+        flow = cv2.calcOpticalFlowFarneback(prev_frame, this_frame,
+                                            pyr_scale=0.5, levels=3,
+                                            winsize=2, iterations=3, poly_n=5,
+                                            poly_sigma=1.2, flags=0)
+    
+        mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
 
+        return mag
+    
+    
