@@ -88,6 +88,7 @@ class VideoOpenCV(VideoBase):
             return frame
         else:
             # reading the data failed for whatever reason
+            self._is_iterating = False
             raise StopIteration
 
     

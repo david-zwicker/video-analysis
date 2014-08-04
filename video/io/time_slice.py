@@ -40,6 +40,7 @@ class VideoSlice(VideoFilterBase):
         if not 0 <= index < self.frame_count:
             raise IndexError('Cannot access frame %d.' % index)
         self._source.set_frame_pos(self._start + index*self._step)
+        self._frame_pos = index
         
         
     def get_frame(self, index):
@@ -52,6 +53,7 @@ class VideoSlice(VideoFilterBase):
     def next(self):
         # check whether we reached the end
         if self.get_frame_pos() >= self.frame_count:
+            self._end_iterating()
             raise StopIteration
         
         if self._step == 1:

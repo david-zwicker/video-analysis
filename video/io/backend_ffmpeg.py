@@ -42,7 +42,8 @@ if try_cmd(['ffmpeg']):
 elif try_cmd(['ffmpeg.exe']):
     FFMPEG_BINARY = 'ffmpeg.exe'
 else:
-    raise IOError("FFMPEG binary not found.")
+    FFMPEG_BINARY = None
+    print("FFMPEG binary not found. Functions relying on this will not be available.")
 
 
 class FFMPEG_VideoWriter:

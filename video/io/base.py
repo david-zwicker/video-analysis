@@ -10,6 +10,7 @@ functions for video handling.
 from __future__ import division
 
 import glob
+import logging
 import numpy as np
 
 
@@ -19,6 +20,8 @@ class VideoBase(object):
     Every movie has an internal counter `frame_pos` stating which frame would
     be processed next.
     """
+
+    write_access = False  
     
     def __init__(self, size=(0, 0), frame_count=-1, fps=25, is_color=True):
         """
@@ -27,6 +30,8 @@ class VideoBase(object):
         fps are the frames per second
         is_color indicates whether the video is in color or monochrome
         colordepth indicates how many colors are stored per channel
+
+        TODO: Add flag to movie that indicates whether its writeable or not
         """
         
         # store information about the video
@@ -35,9 +40,18 @@ class VideoBase(object):
         self.fps = fps
         self.is_color = is_color
         
+        self._is_iterating = False
+        
         # internal pointer to the next frame to be loaded when iterating
         # over the video
         self._frame_pos = 0
+    
+    
+    def __str__(self):
+        return "%s(size=%s, frame_count=%s, fps=%s, is_color=%s)" % (
+                self.__class__.__name__, self.size, self.frame_count,
+                self.fps, self.is_color
+            )
     
     #===========================================================================
     # DATA ACCESS
@@ -75,11 +89,27 @@ class VideoBase(object):
         """ returns a specific frame identified by its index """ 
         raise NotImplementedError
 
+    
+    def _start_iterating(self):
+        """ internal function called when we finished iterating """
+        if self._is_iterating:
+            raise RuntimeError("Videos cannot be iterated over multiple times "
+                               "simultaneously. If you need to do this, make a "
+                               "copy of the video before iterating.")
+        
+        # rewind the movie
+        self.set_frame_pos(0)
+        self._is_iterating = True
+    
+
+    def _end_iterating(self):
+        """ internal function called when we finished iterating """
+        self._is_iterating = False
+
 
     def __iter__(self):
         """ initializes the iterator """
-        # rewind the movie
-        self.set_frame_pos(0)
+        self._start_iterating()
         return self
 
           
@@ -94,6 +124,8 @@ class VideoBase(object):
         try:
             frame = self.get_frame(self._frame_pos)
         except IndexError:
+            # stop iterating
+            self._end_iterating()            
             raise StopIteration
 
         # set the internal pointer to the next frame
@@ -114,6 +146,11 @@ class VideoBase(object):
         else:
             raise TypeError("Invalid key for indexing")
         
+        
+    def __setitem__(self, key, value):
+        """ writes video data to the frame or slice given in key """
+        raise ValueError("Writing to this video stream is prohibited.")  
+        
 
     #===========================================================================
     # CONTROL THE DATA STREAM OF THE MOVIE
@@ -121,16 +158,18 @@ class VideoBase(object):
     
     def copy(self, dtype=np.uint8):
         """
-        Creates a copy of the current video and returns a VideoMemory instance
+        Creates a copy of the current video and returns a VideoMemory instance.
         """
         # prevent circular import by lazy importing
         from .memory import VideoMemory
         
+        logging.debug('Copy a video stream and store it in memory')
+        
         # copy the data into a numpy array
         data = np.empty(self.shape, dtype)
         for k, val in enumerate(self):
-            data[k, ...] = val
-        
+            data[k, ...] = np.atleast_3d(val)
+            
         # construct the memory object without copying the data
         return VideoMemory(data, fps=self.fps, copy_data=False)
     
@@ -165,7 +204,7 @@ class VideoFilterBase(VideoBase):
      
     def __init__(self, source, size=None, frame_count=None, fps=None, is_color=None):
         # store an iterator of the source video
-        self._source = iter(source)
+        self._source = source
         
         # determine properties of the video
         size = source.size if size is None else size
@@ -178,16 +217,42 @@ class VideoFilterBase(VideoBase):
             size=size, frame_count=frame_count, fps=fps, is_color=is_color
         )
         
+        
+    def __str__(self):
+        """ delegate the string function to actual source """
+        return str(self._source) + ' +' + self.__class__.__name__        
+
+    
+    def _start_iterating(self):
+        """ internal function called when we starting iterating """
+        self._source._start_iterating()
+        super(VideoFilterBase, self)._start_iterating()
+
+
+    def _end_iterating(self):
+        """ internal function called when we finished iterating """
+        super(VideoFilterBase, self)._end_iterating()
+        self._source._end_iterating()
+
+        
     def _filter_frame(self, frame):
         """ returns the frame with a filter applied """
         raise NotImplementedError
 
+
     def set_frame_pos(self, index):
-        self._source.set_frame_pos(0)
+        self._source.set_frame_pos(index)
+        super(VideoFilterBase, self).set_frame_pos(index)
+    
     
     def get_frame(self, index):
         return self._filter_frame(self._source.get_frame(index))
+          
                 
     def next(self):
-        return self._filter_frame(self._source.next())
+        try:
+            return self._filter_frame(self._source.next())
+        except StopIteration:
+            self._end_iterating()
+            raise
     

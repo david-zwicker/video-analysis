@@ -27,6 +27,7 @@ else:
 VideoFile = VideoOpenCV
 VideoImageStack = VideoImageStackOpenCV
 
+
 class VideoFileStack(VideoBase):
     """
     Class handling a movie distributed over several files.
@@ -88,7 +89,6 @@ class VideoFileStack(VideoBase):
 
     def get_movie_index(self, frame_index):
         """ returns the movie and local frame_index to which a certain frame belongs """
-        #print self._offsets
         
         for movie_index, movie_start in enumerate(self._offsets):
             if frame_index < movie_start:
@@ -113,15 +113,24 @@ class VideoFileStack(VideoBase):
             m.set_frame_pos(0)
 
 
-    def __iter__(self):
+    def _start_iterating(self):
         """ initializes the iterator """
-        # rewind all _movies
-        for movie in self._movies:
-            movie.set_frame_pos(0)
+        # reset internal movie index
         self._movie_pos = 0
         
-        return self
+        # rewind all movies
+        for movie in self._movies:
+            movie._start_iterating()
+        
+        super(VideoFileStack, self)._start_iterating()
 
+
+    def _end_iterating(self):
+        super(VideoFileStack, self)._end_iterating()
+
+        for movie in self._movies:
+            movie._end_iterating()
+           
             
     def next(self):
         """ returns the next frame in the video stack """
@@ -137,6 +146,7 @@ class VideoFileStack(VideoBase):
                 self._movie_pos += 1
             except IndexError:
                 # if the next movie does not exist, stop the iteration
+                self._end_iterating()
                 raise StopIteration
         
         # step to the next frame
