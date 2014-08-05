@@ -24,6 +24,8 @@ except ImportError:
     import os
     DEVNULL = open(os.devnull, 'wb')
 
+from .utils import verbose
+
 
 def try_cmd(cmd):
     """ helper function checking whether a command runs successful """    
@@ -90,13 +92,10 @@ class FFMPEG_VideoWriter:
         self.codec = codec
         self.ext = self.filename.split(".")[-1]
 
-        # determine whether debugging is requested
-        debug = (logging.getLogger().getEffectiveLevel() <= logging.DEBUG)
-
         # build the ffmpeg command
         cmd = (
             [FFMPEG_BINARY, '-y',
-            "-loglevel", "info" if debug else "error",
+            "-loglevel", "info" if verbose() else "error",
             "-f", 'rawvideo',
             "-vcodec","rawvideo",
             '-s', "%dx%d" % (size[1], size[0]), # ffmpeg expects width, height

@@ -4,18 +4,22 @@ Created on Aug 5, 2014
 @author: zwicker
 '''
 
+from __future__ import division
+
 import numpy as np
 
 from .base import VideoBase
+from .utils import safe_typecast
 
 
 class VideoGaussianNoise(VideoBase):
     """ class that creates Gaussian noise for each frame """
     
-    def __init__(self, frame_count, size, mean=0, std=1, fps=None, is_color=False):
+    def __init__(self, frame_count, size, mean=0, std=1, fps=None, is_color=False, dtype=None):
         
         self.mean = mean
         self.std = std
+        self.dtype = dtype
         
         super(VideoGaussianNoise, self).__init__(size=size, frame_count=frame_count,
                                                  fps=fps, is_color=is_color)
@@ -27,5 +31,9 @@ class VideoGaussianNoise(VideoBase):
         if index >= self.frame_count:
             raise IndexError
         else:
-            return self.mean + self.std*np.random.randn(*self._frame_shape)
+            frame = self.mean + self.std*np.random.randn(*self._frame_shape)
+            if self.dtype is None:
+                return frame
+            else:
+                return safe_typecast(frame, self.dtype)
         

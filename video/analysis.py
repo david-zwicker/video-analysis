@@ -9,11 +9,12 @@ import numpy as np
 import cv2
 
 from .filters import FilterFunction
+from .io.utils import display_progress
 
 def reduce_video(video, function, initial_value=None):
     """ applies function to consecutive frames """
     result = initial_value
-    for frame in video:
+    for frame in display_progress(video):
         if result is None:
             result = frame
         else:
@@ -27,7 +28,7 @@ def measure_mean(video):
     """
     mean = np.zeros(video.shape[1:])
  
-    for n, frame in enumerate(video):
+    for n, frame in enumerate(display_progress(video)):
         mean = mean*n/(n + 1) + frame/(n + 1)
  
     return mean
@@ -38,11 +39,10 @@ def measure_mean_std(video):
     measures the mean and the standard deviation of each movie pixel over time
     Uses https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Incremental_algorithm
     """
-    print video
     mean = np.zeros(video.shape[1:])
     M2 = np.zeros(video.shape[1:])
  
-    for n, frame in enumerate(video):
+    for n, frame in enumerate(display_progress(video)):
         delta = frame - mean
         mean = mean + delta/(n + 1)
         M2 = M2 + delta*(frame - mean)

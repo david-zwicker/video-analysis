@@ -13,6 +13,8 @@ import glob
 import logging
 import numpy as np
 
+from .utils import display_progress
+
 
 class VideoBase(object):
     """
@@ -134,8 +136,6 @@ class VideoBase(object):
     def __getitem__(self, key):
         """ returns a single frame or a video corresponding to a slice """ 
         if isinstance(key, slice):
-            # prevent circular import by lazy importing
-            from .time_slice import VideoSlice
             return VideoSlice(self, *key.indices(self.frame_count))
         
         elif isinstance(key, int):
@@ -165,14 +165,13 @@ class VideoBase(object):
         
         # copy the data into a numpy array
         data = np.empty(self.shape, dtype)
-        for k, val in enumerate(self):
+        for k, val in display_progress(enumerate(self)):
             data[k, ...] = np.atleast_3d(val)
             
         # construct the memory object without copying the data
         return VideoMemory(data, fps=self.fps, copy_data=False)
     
     
-
 
 class VideoImageStackBase(VideoBase):
     """ abstract base class that represents a movie stored as individual frame images """
@@ -255,3 +254,59 @@ class VideoFilterBase(VideoBase):
             self._end_iterating()
             raise
     
+
+
+class VideoSlice(VideoFilterBase):
+    """ iterates only over part of the frames """
+    
+    def __init__(self, source, start=0, stop=None, step=1):
+        
+        if step == 0:
+            raise ValueError('step argument must not be zero.')
+        
+        self._start = start
+        self._stop = self.source.frame_count if stop is None else stop 
+        self._step = step
+            
+        # calculate the number of frames to be expected
+        frame_count = int(np.ceil((self._stop - self._start)/self._step))
+        
+        # correct the size, since we are going to crop the movie
+        super(VideoSlice, self).__init__(source, frame_count=frame_count)
+
+        logging.debug('Created video slice (%d, %d, %d) of length %d.' % 
+                      (self._start, self._stop, self._step, frame_count)) 
+        if step < 0:
+            logging.warn('Reversing a video can slow down the processing significantly.')
+        
+        
+    def set_frame_pos(self, index):
+        if not 0 <= index < self.frame_count:
+            raise IndexError('Cannot access frame %d.' % index)
+        self._source.set_frame_pos(self._start + index*self._step)
+        self._frame_pos = index
+        
+        
+    def get_frame(self, index):
+        if not 0 <= index < self.frame_count:
+            raise IndexError('Cannot access frame %d.' % index)
+
+        return self._source.get_frame(self._start + index*self._step)
+        
+        
+    def next(self):
+        # check whether we reached the end
+        if self.get_frame_pos() >= self.frame_count:
+            self._end_iterating()
+            raise StopIteration
+        
+        if self._step == 1:
+            # return the next frame in question
+            frame = self._source.next()
+        else:
+            # return the specific frame in question
+            frame = self.get_frame(self._frame_pos)
+
+        # advance to the next frame
+        self._frame_pos += 1
+        return frame

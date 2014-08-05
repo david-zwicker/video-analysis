@@ -155,7 +155,7 @@ class FilterMonochrome(VideoFilterBase):
         extra dimension in the data
         """
         if self.mode == 'normal':
-            return np.mean(frame, axis=2, keepdims=True).astype(frame.dtype)
+            return np.mean(frame, axis=2).astype(frame.dtype)
         elif self.mode == 'r':
             return frame[:, :, 0]
         elif self.mode == 'g':
