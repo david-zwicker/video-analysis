@@ -150,8 +150,12 @@ class FilterMonochrome(VideoFilterBase):
         logging.debug('Created filter for converting video to monochrome with method `%s`', mode)
 
     def _filter_frame(self, frame):
+        """
+        reduces a single frame from color to monochrome, but keeps the
+        extra dimension in the data
+        """
         if self.mode == 'normal':
-            return np.mean(frame, axis=2).astype(frame.dtype)
+            return np.mean(frame, axis=2, keepdims=True).astype(frame.dtype)
         elif self.mode == 'r':
             return frame[:, :, 0]
         elif self.mode == 'g':
@@ -202,7 +206,7 @@ class FilterSubtractBackground(VideoFilterBase):
 
 
 
-class FilterFlowBase(VideoFilterBase):
+class FilterDiffBase(VideoFilterBase):
     """
     Base class for filtering a video based on comparing consecutive frames.
     """ 
@@ -216,7 +220,7 @@ class FilterFlowBase(VideoFilterBase):
         self._prev_frame = None
         
         # correct the frame count since we are going to return differences
-        super(FilterFlowBase, self).__init__(source, frame_count=source.frame_count-1)
+        super(FilterDiffBase, self).__init__(source, frame_count=source.frame_count-1)
     
     
     def set_frame_pos(self, index):
@@ -247,7 +251,7 @@ class FilterFlowBase(VideoFilterBase):
 
 
 
-class FilterTimeDifference(FilterFlowBase):
+class FilterTimeDifference(FilterDiffBase):
     """
     returns the differences between consecutive frames.
     This filter is best used by just iterating over it. Retrieving individual
@@ -276,7 +280,7 @@ class FilterTimeDifference(FilterFlowBase):
     
     
 
-class FilterOpticalFlow(FilterFlowBase):
+class FilterOpticalFlow(FilterDiffBase):
     """
     calculates the flow of consecutive frames 
     """

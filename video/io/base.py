@@ -23,7 +23,7 @@ class VideoBase(object):
 
     write_access = False  
     
-    def __init__(self, size=(0, 0), frame_count=-1, fps=25, is_color=True):
+    def __init__(self, size=(0, 0), frame_count=-1, fps=None, is_color=True):
         """
         size stores the dimensions of the video
         frame_count stores the number of frames
@@ -37,7 +37,7 @@ class VideoBase(object):
         # store information about the video
         self.frame_count = frame_count
         self.size = size
-        self.fps = fps
+        self.fps = fps if fps is not None else 25
         self.is_color = is_color
         
         self._is_iterating = False
@@ -64,12 +64,10 @@ class VideoBase(object):
     @property
     def shape(self):
         """ returns the shape of the data describing the movie """
-        return (
-            self.frame_count,
-            self.size[0],
-            self.size[1],
-            3 if self.is_color else 1
-        )
+        shape = (self.frame_count, self.size[0], self.size[1])
+        if self.is_color:
+            shape += (3,)
+        return shape
     
     
     def get_frame_pos(self):
@@ -184,12 +182,12 @@ class VideoImageStackBase(VideoBase):
         self.filenames = sorted(glob.glob(filename_scheme))
         frame_count = len(self.filenames)
         
-        # load the first frame to get information
+        # load the first frame to get information on color
         frame = self.get_frame(0)
         size = frame.shape[:2]
-        if frame.shape[3] == 1:
+        if frame.ndim == 2 or frame.shape[2] == 1:
             is_color = False
-        elif frame.shape[3] == 3:
+        elif frame.shape[2] == 3:
             is_color = True
         else:
             raise ValueError('The last dimension of the data must be either 1 or 3.')

@@ -21,6 +21,39 @@ def reduce_video(video, function, initial_value=None):
     return result
         
         
+def measure_mean(video):
+    """
+    measures the mean of each movie pixel over time
+    """
+    mean = np.zeros(video.shape[1:])
+ 
+    for n, frame in enumerate(video):
+        mean = mean*n/(n + 1) + frame/(n + 1)
+ 
+    return mean
+        
+        
+def measure_mean_std(video):
+    """
+    measures the mean and the standard deviation of each movie pixel over time
+    Uses https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Incremental_algorithm
+    """
+    print video
+    mean = np.zeros(video.shape[1:])
+    M2 = np.zeros(video.shape[1:])
+ 
+    for n, frame in enumerate(video):
+        delta = frame - mean
+        mean = mean + delta/(n + 1)
+        M2 = M2 + delta*(frame - mean)
+ 
+    if (n < 2):
+        return frame, 0
+ 
+    variance = M2/(n - 1)
+    return mean, variance
+        
+        
 def remove_background(video):
     """
     function which does a two-pass run to remove the background from a video

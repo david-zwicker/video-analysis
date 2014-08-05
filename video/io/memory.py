@@ -26,12 +26,14 @@ class VideoMemory(VideoBase):
     def __init__(self, data, fps=25, copy_data=True):
         
         # only copy the _data if requested or required
-        self.data = np.array(data, copy=copy_data, ndmin=4) 
+        self.data = np.array(data, copy=copy_data)
+        # remove the color dimension if it is single
+        self.data = np.squeeze(self.data, 3) 
 
         # read important information
         frame_count = data.shape[0]
         size = data.shape[1:3]
-        if data.shape[3] == 1:
+        if data.ndim == 3:
             is_color = False
         elif data.shape[3] == 3:
             is_color = True

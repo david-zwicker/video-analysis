@@ -10,3 +10,4 @@ Two formats are supported:
 
 from .memory import VideoMemory
 from .file import VideoFile, VideoFileStack, VideoImageStack, show_video, write_video
+from .computed import VideoGaussianNoise
