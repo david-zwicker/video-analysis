@@ -195,7 +195,10 @@ class VideoImageStackBase(VideoBase):
         
 
 class VideoFilterBase(VideoBase):
-    """ class which does not hold its own data, but is more like a view """
+    """
+    class which applies a filter function to each frame of a video.
+    This class does not hold its own data, but is more like a view in numpy.
+    """
      
     def __init__(self, source, size=None, frame_count=None, fps=None, is_color=None):
         # store an iterator of the source video
@@ -261,7 +264,7 @@ class VideoFilterBase(VideoBase):
 
 
 class VideoSlice(VideoFilterBase):
-    """ iterates only over part of the frames """
+    """ Video that iterates only over a part of the frames """
     
     def __init__(self, source, start=0, stop=None, step=1):
         
@@ -319,6 +322,8 @@ class VideoSlice(VideoFilterBase):
     
     
 class _VideoForkChild(VideoBase):
+    """ internal class representing the child of a VideoFork """
+    
     def __init__(self, video_fork):
         """ initializes a private video fork child """
         self._parent = video_fork

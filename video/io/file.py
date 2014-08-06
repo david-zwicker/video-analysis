@@ -15,18 +15,38 @@ import itertools
 import logging
 
 from .base import VideoBase
-from .backend_opencv import (show_video_opencv, write_video_opencv, VideoOpenCV,
+from .backend_opencv import (show_video_opencv, VideoWriterOpenCV, VideoOpenCV,
                              VideoImageStackOpenCV)
-from .backend_ffmpeg import (FFMPEG_BINARY, write_video_ffmpeg)
+from .backend_ffmpeg import (FFMPEG_BINARY, VideoWriterFFMPEG)
 
 # set default handlers
 show_video = show_video_opencv
-if FFMPEG_BINARY is not None:
-    write_video = write_video_ffmpeg
-else:
-    write_video = write_video_opencv
 VideoFile = VideoOpenCV
 VideoImageStack = VideoImageStackOpenCV
+
+if FFMPEG_BINARY is not None:
+    VideoFileWriter = VideoWriterFFMPEG
+else:
+    VideoFileWriter = VideoWriterOpenCV
+
+
+
+def write_video(video, filename, **kwargs):
+    """
+    Saves the video to the file indicated by filename.
+    The extra arguments determine the codec used and similar parameters.
+    The accepted values depend on the backend chosen for the video writer.
+    """
+        
+    # initialize the video writer
+    with VideoFileWriter(filename, size=video.size, fps=video.fps,
+                         is_color=video.is_color, **kwargs) as writer:
+                 
+        # write out all individual frames
+        for frame in video:
+            # convert the data to uint8 before writing it out
+            writer.write_frame(frame)
+    
 
 
 class VideoFileStack(VideoBase):
@@ -71,6 +91,9 @@ class VideoFileStack(VideoBase):
         else:
             logging.warn('It seems as the filename scheme refers to a single file.')
             filenames = [filename_scheme]
+
+        if not filenames:
+            raise IOError('Could not find any files matching the pattern `%s`' % filename_scheme)
 
         # load all the files that have been found
         frame_count = 0

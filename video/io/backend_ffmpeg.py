@@ -48,7 +48,7 @@ else:
     print("FFMPEG binary not found. Functions relying on this will not be available.")
 
 
-class FFMPEG_VideoWriter:
+class VideoWriterFFMPEG(object):
     """ A class for FFMPEG-based video writing.
     
     A class to write videos using ffmpeg. ffmpeg will write in a large
@@ -86,7 +86,7 @@ class FFMPEG_VideoWriter:
     
     """
         
-    def __init__(self, filename, size, fps, codec="libx264", is_color=True, bitrate=None):
+    def __init__(self, filename, size, fps, is_color=True, codec="libx264", bitrate=None):
 
         self.filename = filename
         self.codec = codec
@@ -119,9 +119,13 @@ class FFMPEG_VideoWriter:
         # start ffmpeg, which should wait for input
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=DEVNULL)
 
+        logging.info('Start writing video with format `%s`', codec)
+    
         
-    def write_frame(self,img_array):
+    def write_frame(self, img_array):
         """ Writes a single frame in the file """
+        
+        img_array = img_array.astype("uint8")
         
         try:
             self.proc.stdin.write(img_array.tostring())
@@ -153,6 +157,7 @@ class FFMPEG_VideoWriter:
             
             raise IOError(error)
         
+        
     def close(self):
         self.proc.stdin.close()
         if self.proc.stderr is not None:
@@ -160,31 +165,15 @@ class FFMPEG_VideoWriter:
         self.proc.wait()
         
         del self.proc
+
+        logging.info('Wrote video to file `%s`', self.filename)
+    
     
     def __enter__(self):
         return self
+    
         
     def __exit__(self, e_type, e_value, e_traceback):
         self.close()
 
 
-
-def write_video_ffmpeg(video, filename, codec="libx264", bitrate=None):
-    """
-    Saves the video to the file indicated by filename.
-    """
-        
-    logging.info('Start writing video with format `%s`', codec)
-    
-    # start ffmpeg and add the individual frames
-    with FFMPEG_VideoWriter(filename, video.size, video.fps,
-                            is_color=video.is_color, codec=codec,
-                            bitrate=bitrate) as writer:
-                 
-        # write out all individual frames
-        for frame in video:
-            # convert the data to uint8 before writing it out
-            writer.write_frame(frame.astype("uint8"))
-            
-    logging.info('Wrote video to file `%s`', filename)
-    

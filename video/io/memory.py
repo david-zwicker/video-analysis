@@ -40,7 +40,7 @@ class VideoMemory(VideoBase):
         elif data.shape[3] == 3:
             is_color = True
         else:
-            raise ValueError('The last dimension of the _data must be either 1 or 3.')
+            raise ValueError('The last dimension of the data must be either 1 or 3.')
         
         super(VideoMemory, self).__init__(size=size, frame_count=frame_count,
                                           fps=fps, is_color=is_color)

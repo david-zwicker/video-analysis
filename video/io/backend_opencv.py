@@ -135,32 +135,43 @@ def show_video_opencv(video):
 
 
 
-def write_video_opencv(video, filename, codec=None):
-    """
-    Saves the video to the file indicated by filename.
-    codec must be a fourcc code from http://www.fourcc.org/codecs.php
-        If codec is None, the code is determined from the filename extension.
-    """
+class VideoWriterOpenCV(object):
+    def __init__(self, filename, size, fps, is_color=True, codec=None):
+        """
+        Saves the video to the file indicated by filename.
+        codec must be a fourcc code from http://www.fourcc.org/codecs.php
+            If codec is None, the code is determined from the filename extension.
+        """
+        self.filename = filename
     
-    if codec is None:
-        # detect format from file ending
-        file_ext = os.path.splitext(filename)[1].lower()
-        try:
-            codec = CODECS[file_ext]
-        except KeyError:
-            raise ValueError('Video format `%s` is unsupported.' % codec) 
-    
-    # get the code defining the video format
-    logging.info('Start writing video with format `%s`', codec)
-    fourcc = cv2.cv.FOURCC(*codec)
-    out = cv2.VideoWriter(filename, fourcc=fourcc, fps=video.fps,
-                          frameSize=video.size, isColor=video.is_color)
-
-    # write out all individual frames
-    for frame in video:
-        # convert the data to uint8 before writing it out
-        out.write(cv2.convertScaleAbs(frame))
+        if codec is None:
+            # detect format from file ending
+            file_ext = os.path.splitext(filename)[1].lower()
+            try:
+                codec = CODECS[file_ext]
+            except KeyError:
+                raise ValueError('Video format `%s` is unsupported.' % codec) 
         
-    out.release()
-    logging.info('Wrote video to file `%s`', filename)
+        # get the code defining the video format
+        logging.info('Start writing video with format `%s`', codec)
+        fourcc = cv2.cv.FOURCC(*codec)
+        self._writer = cv2.VideoWriter(filename, fourcc=fourcc, fps=fps,
+                                       frameSize=size, isColor=is_color)
+
+
+    def write_frame(self, frame):
+        self._writer.write(cv2.convertScaleAbs(frame))
+        
+        
+    def close(self):
+        self._writer.release()
+        logging.info('Wrote video to file `%s`', self.filename)
+    
+    
+    def __enter__(self):
+        return self
+    
+        
+    def __exit__(self, e_type, e_value, e_traceback):
+        self.close()        
     
