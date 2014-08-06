@@ -8,6 +8,7 @@ Two formats are supported:
     Three values indicate RGB values
 """
 
+from .base import VideoFork
 from .memory import VideoMemory
 from .file import VideoFile, VideoFileStack, VideoImageStack, show_video, write_video
 from .computed import VideoGaussianNoise

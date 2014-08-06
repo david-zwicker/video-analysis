@@ -200,6 +200,41 @@ class FilterSubtractBackground(VideoFilterBase):
     
     
     
+class FilterMoveTowards(VideoFilterBase):
+    """
+    Implementation copied from
+    http://www.aforgenet.com/framework/docs/html/f7f4ad2c-fb50-a76b-38fc-26355e0eafcf.htm
+    """
+    def __init__(self, step):
+        raise NotImplementedError # this filter might not be useful after all
+        self._prev_frame = None
+        self.step = step
+        
+    def set_frame_pos(self, index):
+        super(FilterMoveTowards, self).get_frame(index)
+        # set the cache to the right value
+        if index == 0:
+            self._prev_frame = None
+        else:
+            self._prev_frame = self.get_frame(index - 1)
+        
+    
+    def get_frame(self, index):
+        raise NotImplementedError
+        
+        
+    def _filter_frame(self, frame):
+        
+        if self._prev_frame is None:
+            self._prev_frame = frame
+        else:
+            diff = self._prev_frame - frame
+            frame = self._prev_frame + \
+                np.min(np.abs(diff), self.step)*np.sign(diff)
+        return frame
+    
+    
+    
 #===============================================================================
 # FILTERS THAT ANALYZE CONSECUTIVE FRAMES
 #===============================================================================
@@ -298,5 +333,4 @@ class FilterOpticalFlow(FilterDiffBase):
         mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
 
         return mag
-    
     

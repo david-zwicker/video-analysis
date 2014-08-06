@@ -31,8 +31,9 @@ def add_overlay(background, overlay, mask):
 
     # iterate over all videos
     for r_frame, o_frame, m_frame in itertools.izip(result, overlay, mask):
-        r_frame = np.atleast_3d(r_frame)
-        o_frame = np.atleast_3d(o_frame)
-        r_frame[m_frame, :] = o_frame[m_frame, :]
+        if background.is_color:
+            r_frame[m_frame, :]= o_frame[m_frame, :]
+        else:
+            r_frame[m_frame]= o_frame[m_frame]
         
     return result

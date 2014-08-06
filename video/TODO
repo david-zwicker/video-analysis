@@ -1,1 +1,2 @@
-* Create a video splitter, which allows to iterate over the same data twice
+* Add flag to movies that indicates whether they are writeable or not
+* Create a video splitter, which allows to iterate over the same data twice        

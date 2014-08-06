@@ -40,18 +40,16 @@ else:
 
 class VideoOpenCV(VideoBase):
     """
-    Class handling a single _movie file using opencv
+    Class handling a single movie file using OpenCV
     """ 
     
     def __init__(self, filename):
         # load the _movie
         self.filename = filename
         
-        logging.debug('Loading video `%s` using OpenCV', filename)
-
         self._movie = cv2.VideoCapture(filename)
         # this call doesn't fail if the file could not be found, but returns
-        # an empty video instead.
+        # an empty video instead. We thus fail later by checking the video length
         
         # determine _movie properties
         size = (int(self._movie.get(cv.CV_CAP_PROP_FRAME_HEIGHT)),
@@ -66,6 +64,8 @@ class VideoOpenCV(VideoBase):
         self.set_frame_pos(0)
         
         super(VideoOpenCV, self).__init__(size=size, frame_count=frame_count, fps=fps, is_color=True)
+
+        logging.debug('Initialized video `%s` with %d frames using OpenCV', filename, frame_count)
                 
         
     def get_frame_pos(self):
@@ -88,7 +88,7 @@ class VideoOpenCV(VideoBase):
             return frame
         else:
             # reading the data failed for whatever reason
-            self._is_iterating = False
+            self._end_iterating()
             raise StopIteration
 
     

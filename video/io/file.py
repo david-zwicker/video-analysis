@@ -10,6 +10,7 @@ that are based on a single file or on several files.
 from __future__ import division
 
 import os
+import glob
 import itertools
 import logging
 
@@ -43,21 +44,38 @@ class VideoFileStack(VideoBase):
         # internal pointer to the current movie from which to take a frame
         self._movie_pos = 0
         
-        # determine over which indices we have to iterate
-        if index_end is None:
-            indices = itertools.count(index_start)
-        else:
-            indices = xrange(index_start, index_end+1)
+        # find all files that have to be considered
+        if '*' in filename_scheme or '?' in filename_scheme:
+            logging.debug('Using glob module to locate files.')
+            filenames = sorted(glob.glob(filename_scheme))
+            
+        elif r'%' in filename_scheme:
+            logging.debug('Iterating over possible filenames to find movies.')
+        
+            # determine over which indices we have to iterate
+            if index_end is None:
+                indices = itertools.count(index_start)
+            else:
+                indices = xrange(index_start, index_end+1)
 
+            filenames = []                
+            for index in indices:
+                filename = filename_scheme % index
+    
+                # append filename to list if file is readable
+                if os.path.isfile(filename) and os.access(filename, os.R_OK):
+                    filenames.append(filename)
+                else:
+                    break
+
+        else:
+            logging.warn('It seems as the filename scheme refers to a single file.')
+            filenames = [filename_scheme]
+
+        # load all the files that have been found
         frame_count = 0
         last_movie = None
-        for index in indices:
-            
-            filename = filename_scheme % index
-
-            # see if file exists
-            if not os.path.isfile(filename) or not os.access(filename, os.R_OK):
-                break
+        for filename in filenames:
             
             # try to load the movie with given index
             try:
@@ -141,9 +159,11 @@ class VideoFileStack(VideoBase):
                 # return next frame
                 frame = self._movies[self._movie_pos].next()
                 break
+            
             except StopIteration:
                 # if movie is exhausted, step to next movie
                 self._movie_pos += 1
+                
             except IndexError:
                 # if the next movie does not exist, stop the iteration
                 self._end_iterating()

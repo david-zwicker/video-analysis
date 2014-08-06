@@ -27,8 +27,10 @@ class VideoMemory(VideoBase):
         
         # only copy the _data if requested or required
         self.data = np.array(data, copy=copy_data)
+        
         # remove the color dimension if it is single
-        self.data = np.squeeze(self.data, 3) 
+        if self.data.ndim > 3:
+            self.data = np.squeeze(self.data, 3) 
 
         # read important information
         frame_count = data.shape[0]
