@@ -1,2 +1,5 @@
-* Add flag to movies that indicates whether they are writeable or not
-* Create a video splitter, which allows to iterate over the same data twice        
+* Allow to add a listener to the video fork children which gets notified before the
+video advances to the next frame - this is important for the debug movie, which has to 
+write out frames even if nothing was written to them
+This would also allow us to skip the `index` in the current implementation of the composer
+We might want to rename the composer to DebugVideo, since this might be a narrow use case        

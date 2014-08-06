@@ -24,7 +24,7 @@ except ImportError:
     import os
     DEVNULL = open(os.devnull, 'wb')
 
-from .utils import verbose
+from video.utils import verbose
 
 
 def try_cmd(cmd):
@@ -95,7 +95,7 @@ class VideoWriterFFMPEG(object):
         # build the ffmpeg command
         cmd = (
             [FFMPEG_BINARY, '-y',
-            "-loglevel", "info" if verbose() else "error",
+            "-loglevel", "error", #"info" if verbose() else "error",
             "-f", 'rawvideo',
             "-vcodec","rawvideo",
             '-s', "%dx%d" % (size[1], size[0]), # ffmpeg expects width, height

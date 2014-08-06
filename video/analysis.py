@@ -9,7 +9,7 @@ import numpy as np
 import cv2
 
 from .filters import FilterFunction
-from .io.utils import display_progress
+from video.utils import display_progress
 
 def reduce_video(video, function, initial_value=None):
     """ applies function to consecutive frames """

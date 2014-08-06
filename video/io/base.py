@@ -13,7 +13,7 @@ import glob
 import logging
 import numpy as np
 
-from .utils import display_progress
+from video.utils import display_progress
 
 
 class VideoBase(object):
@@ -281,7 +281,7 @@ class VideoSlice(VideoFilterBase):
         # correct the size, since we are going to crop the movie
         super(VideoSlice, self).__init__(source, frame_count=frame_count)
 
-        logging.debug('Created video slice (%d, %d, %d) of length %d.' % 
+        logging.debug('Created video slice [%d:%d:%d] of length %d.' % 
                       (self._start, self._stop, self._step, frame_count)) 
         if step < 0:
             logging.warn('Reversing a video can slow down the processing significantly.')
@@ -417,7 +417,9 @@ class VideoFork(VideoFilterBase):
             self._frame_pos += 1
             
         else:
-            raise RuntimeError('The video splitter ran out of sync.')
+            raise RuntimeError('The children of the video fork ran out of sync. '
+                               'The parent process is at frame %d, while one child '
+                               'requested frame %d' % (self._frame_index, index))
         
         return self._frame
         

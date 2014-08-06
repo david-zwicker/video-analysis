@@ -22,7 +22,7 @@ except ImportError:
 
 
 from .io.base import VideoFilterBase
-from .io.utils import get_color_range
+from video.utils import get_color_range
   
 
 class FilterFunction(VideoFilterBase):

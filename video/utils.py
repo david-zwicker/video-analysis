@@ -8,6 +8,7 @@ from __future__ import division
 
 import logging
 import numpy as np
+from matplotlib.colors import ColorConverter
 
 try:
     from tqdm import tqdm
@@ -15,6 +16,7 @@ except ImportError:
     tqdm = None
     logging.warn('Package tqdm could not be imported and progress bars are '
                  'thus not available')
+
 
 
 
@@ -57,4 +59,20 @@ def display_progress(iterator, total=None):
         return tqdm(iterator, total=total, leave=True)
     else:
         return iterator
+    
+    
+def get_color(color):
+    """
+    function that returns a RGB color with channels ranging from 0..255.
+    The matplotlib color notation is used.
+    """
+    
+    if get_color.converter is None:
+        get_color.converter = ColorConverter().to_rgb
+        
+    return (255*np.array(get_color.converter(color))).astype(int)
+
+get_color.converter = None
+
+
     
