@@ -37,8 +37,11 @@ class FilterFunction(VideoFilterBase):
         logging.debug('Created filter applying a function to every frame')
 
 
-    def _filter_frame(self, frame):
-        return self._function(frame)
+    def _process_frame(self, frame):
+        # process the current frame 
+        frame = self._function(frame)
+        # pass it to the parent function
+        return super(FilterFunction, self)._process_frame(frame)
     
     
     
@@ -66,7 +69,7 @@ class FilterNormalize(VideoFilterBase):
         logging.debug('Created filter for normalizing range [%g..%g]', vmin, vmax)
 
 
-    def _filter_frame(self, frame):
+    def _process_frame(self, frame):
         
         # ensure that we decided on a dtype
         if self._dtype is None:
@@ -91,7 +94,10 @@ class FilterNormalize(VideoFilterBase):
         frame = (frame - self._fmin)*self._alpha + self._tmin
         
         # cast the data to the right type
-        return frame.astype(self._dtype)
+        frame = frame.astype(self._dtype)
+        
+        # pass the frame to the parent function
+        return super(FilterNormalize, self)._process_frame(frame)
 
 
 
@@ -134,9 +140,11 @@ class FilterCrop(VideoFilterBase):
         logging.debug('Created filter for cropping to rectangle %s', self.rect)
         
        
-    def _filter_frame(self, frame):
+    def _process_frame(self, frame):
         r = self.rect
-        return frame[r[0]:r[2], r[1]:r[3]]
+        frame = frame[r[0]:r[2], r[1]:r[3]]
+        # pass the frame to the parent function
+        return super(FilterCrop, self)._process_frame(frame)
 
 
 
@@ -149,28 +157,31 @@ class FilterMonochrome(VideoFilterBase):
 
         logging.debug('Created filter for converting video to monochrome with method `%s`', mode)
 
-    def _filter_frame(self, frame):
+    def _process_frame(self, frame):
         """
         reduces a single frame from color to monochrome, but keeps the
         extra dimension in the data
         """
         if self.mode == 'normal':
-            return np.mean(frame, axis=2).astype(frame.dtype)
+            frame = np.mean(frame, axis=2).astype(frame.dtype)
         elif self.mode == 'r':
-            return frame[:, :, 0]
+            frame = frame[:, :, 0]
         elif self.mode == 'g':
-            return frame[:, :, 1]
+            frame = frame[:, :, 1]
         elif self.mode == 'b':
-            return frame[:, :, 2]
+            frame = frame[:, :, 2]
         else:
             raise ValueError('Unsupported conversion method to monochrome: %s' % self.mode)
     
+        # pass the frame to the parent function
+        return super(FilterMonochrome, self)._process_frame(frame)
     
+
 
 class FilterFeatures(VideoFilterBase):
     """ detects features and draws them onto the image """
     
-    def _filter_frame(self, frame):
+    def _process_frame(self, frame):
         frame = frame.copy()
         
         corners = cv2.goodFeaturesToTrack(frame, maxCorners=100, qualityLevel=0.01, minDistance=10)
@@ -180,7 +191,8 @@ class FilterFeatures(VideoFilterBase):
             x,y = i.ravel()
             cv2.circle(frame, (x,y), 5, 255, -1)
             
-        return frame
+        # pass the frame to the parent function
+        return super(FilterFeatures, self)._process_frame(frame)
     
     
 
@@ -195,8 +207,11 @@ class FilterSubtractBackground(VideoFilterBase):
         super(FilterSubtractBackground, self).__init__(source)
     
     
-    def _filter_frame(self, frame):
-        return self._fgbg.apply(frame)
+    def _process_frame(self, frame):
+        frame = self._fgbg.apply(frame)
+
+        # pass the frame to the parent function
+        return super(FilterSubtractBackground, self)._process_frame(frame)
     
     
     
@@ -224,7 +239,7 @@ class FilterMoveTowards(VideoFilterBase):
         raise NotImplementedError
         
         
-    def _filter_frame(self, frame):
+    def _process_frame(self, frame):
         
         if self._prev_frame is None:
             self._prev_frame = frame
@@ -232,7 +247,9 @@ class FilterMoveTowards(VideoFilterBase):
             diff = self._prev_frame - frame
             frame = self._prev_frame + \
                 np.min(np.abs(diff), self.step)*np.sign(diff)
-        return frame
+
+        # pass the frame to the parent function
+        return super(FilterMoveTowards, self)._process_frame(frame)
     
     
     

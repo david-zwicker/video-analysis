@@ -39,7 +39,10 @@ class VideoBase(object):
         self.fps = fps if fps is not None else 25
         self.is_color = is_color
         
+        # flag that tells whether the video is currently been iterated over
         self._is_iterating = False
+        # a list of observers, which will be notified, when this video advances 
+        self._observers = []
         
         # internal pointer to the next frame to be loaded when iterating
         # over the video
@@ -69,6 +72,16 @@ class VideoBase(object):
         return shape
     
     
+    def register_observer(self, observer_callback):
+        """ registers an observer function, which will be called if this video is advanced """
+        self._observers.append(observer_callback)
+    
+    
+    def unregister_observer(self, observer_callback):
+        """ unregisters an observer function """
+        self._observers.remove(observer_callback)
+    
+    
     def get_frame_pos(self):
         """ returns the 0-based index of the next frame """
         return self._frame_pos
@@ -80,6 +93,14 @@ class VideoBase(object):
             self._frame_pos = index
         else:
             raise IndexError('Seeking to frame %d was not possible.' % index)
+
+
+    def _process_frame(self, frame):
+        """ returns the frame with a filter applied """
+        # notify potential observers
+        for observer in self._observers:
+            observer(frame)
+        return frame
 
       
     def get_frame(self, index):
@@ -235,18 +256,13 @@ class VideoFilterBase(VideoBase):
         super(VideoFilterBase, self)._end_iterating()
 
         
-    def _filter_frame(self, frame):
-        """ returns the frame with a filter applied """
-        raise NotImplementedError
-
-
     def set_frame_pos(self, index):
         self._source.set_frame_pos(index)
         super(VideoFilterBase, self).set_frame_pos(index)
     
     
     def get_frame(self, index):
-        return self._filter_frame(self._source.get_frame(index))
+        return self._process_frame(self._source.get_frame(index))
           
           
     def __iter__(self):
@@ -256,7 +272,7 @@ class VideoFilterBase(VideoBase):
                 
     def next(self):
         try:
-            return self._filter_frame(self._source_iter.next())
+            return self._process_frame(self._source_iter.next())
         except StopIteration:
             self._end_iterating()
             raise

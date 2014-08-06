@@ -41,14 +41,10 @@ class MouseMovie(object):
             
         # check whether a debug video is requested
         if debug_video:
-            # fork the video such that we can analyze it and use it as a background
-            # for the debug video
-            video_fork = VideoFork(self.video)
-            self.video = video_fork
             
             # initialize the writer for the debug video
             debug_file = os.path.join(self.folder, 'debug', 'video.mov')
-            self.debug_video = VideoComposer(debug_file, background=video_fork)
+            self.debug_video = VideoComposer(debug_file, background=self.video)
             
         else:
             self.debug_video = None
@@ -148,10 +144,10 @@ class MouseMovie(object):
         
         # iterate over all frames and find the mouse
         mouse_trajectory = []
-        for index, frame in enumerate(display_progress(video_features)):
+        for frame in display_progress(video_features):
 
             if self.debug_video:
-                self.debug_video.add_image(index, frame, frame == 255)
+                self.debug_video.add_image(frame, frame == 255)
         
             mouse_data = None
             
@@ -159,7 +155,7 @@ class MouseMovie(object):
             labels, num_features = scipy_measurements.label(frame)
             
             # find the largest object (which should be the mouse)
-            sizes = scipy_measurements.sum(labels, labels, xrange(num_features))
+            sizes = scipy_measurements.sum(labels, labels, range(num_features))
             if len(sizes) > 0:
                 mouse_label = np.argmax(sizes)
                 
@@ -173,12 +169,8 @@ class MouseMovie(object):
                     mouse_data = mouse_pos + (mouse_size,) 
     
                     if self.debug_video:
-                        self.debug_video.add_circle(index, mouse_pos[::-1], 5, 'r')
+                        self.debug_video.add_circle(mouse_pos[::-1], 5, 'r')
                 
             mouse_trajectory.append(mouse_data)
-
-            if self.debug_video:
-                self.debug_video.advance(index)
-                
 
         return mouse_data
