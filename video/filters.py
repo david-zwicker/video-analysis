@@ -210,6 +210,7 @@ class FilterMoveTowards(VideoFilterBase):
         self._prev_frame = None
         self.step = step
         
+        
     def set_frame_pos(self, index):
         super(FilterMoveTowards, self).get_frame(index)
         # set the cache to the right value
