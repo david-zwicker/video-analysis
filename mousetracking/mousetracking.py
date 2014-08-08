@@ -12,7 +12,7 @@ import numpy as np
 import scipy.ndimage as ndimage
 import cv2
 
-from video.io import VideoFileStack
+from video.io import VideoFileStack, VideoFileWriter
 from video.filters import FilterMonochrome, FilterFunction, FilterCrop
 from video.analysis import measure_mean_std
 from video.utils import display_progress
@@ -26,50 +26,64 @@ class MouseMovie(object):
     analyzes the mouse movie
     """
     
-    # determines over how many frames is the movie averaged to estimate the background
-    background_history = 512
+    # determines the rate with which the background is adapted
+    background_adaptation_rate = 0.0001
     
+    # number of frames considered to estimate the noise 
+    noise_estimate_frames= 200
+    
+    # how much brighter than the background has the mouse to be
+    mouse_intensity_threshold = 15
     # radius of the mouse model in pixel
-    mouse_size = 30
+    mouse_size = 25
     # maximal speed in pixel per frame
     mouse_max_speed = 30 
 
-    def __init__(self, folder, frames=None, crop=None, debug_video=False):
+    def __init__(self, folder, frames=None, crop=None, debug_output=None, prefix=''):
         
         self.folder = folder
         
         # initialize video
-        video = VideoFileStack(os.path.join(folder, 'raw_video/*'))
+        self.video = VideoFileStack(os.path.join(folder, 'raw_video/*'))
         
         # setup caches
-        self._background = None # current background model
-        self.video_mean = None # current model of the standard deviations
-        self.video_var = None # current model of the standard deviations
-        self._video_stats_count = 0 # number of items collected in the statistics
         self._cache = {} # cache that some functions might want to use
+        self.result = {} # dictionary holding result information
+        self.debug = {} # dictionary holding debug information
+        self.prefix = prefix
         
         # restrict the analysis to an interval of frames
         if frames is not None:
-            video = video[frames[0]:frames[1]]
+            self.video = self.video[frames[0]:frames[1]]
             
         # restrict the analysis to a region
         if crop is not None:
-            video = FilterCrop(video, crop)
+            self.video = FilterCrop(self.video, crop)
         
         # check whether a debug video is requested
-        if debug_video:
+        debug_output = [] if debug_output is None else debug_output
+        if 'video' in debug_output:
             # initialize the writer for the debug video
-            debug_file = os.path.join(self.folder, 'debug', 'video.mov')
-            self.debug_video = VideoComposer(debug_file, background=video)
+            debug_file = os.path.join(self.folder, 'debug', prefix + 'video.mov')
+            self.debug['video'] = VideoComposer(debug_file, background=self.video)
             
-        else:
-            self.debug_video = None
-
         # only work with the blurred video, to reduce noise effects    
-        self.video = self.get_blurred_video(video)
+        self.video_blurred = self.get_blurred_video(self.video) 
+        
+        # register a listener, which takes care of the background model
+        self._background = None
+        self.video_blurred.register_listener(self.update_background_model)
+        
+        if 'background' in debug_output:
+            # initialize the writer for the debug video
+            debug_file = os.path.join(self.folder, 'debug', prefix + 'background.mov')
+            self.debug['background'] = VideoFileWriter(debug_file, self.video.size,
+                                                       self.video.fps, is_color=False)
 
-        # add a listener to the basic movie to update the standard deviation
-#         self.video.register_listener(self.update_statistics)
+        # estimate the noise in the image by looking at the first number of slides
+#         std = measure_mean_std(self.video[:self.noise_estimate_frames])[1]
+#         self.noise = std.mean()
+#         logging.debug('Noise level was determined as %g', self.noise)
             
 
     def get_blurred_video(self, video, sigma=3):
@@ -89,9 +103,25 @@ class MouseMovie(object):
         return FilterFunction(video, blur)
 
 
+    def update_background_model(self, frame):
+        """ updates the background model using the current frame """
+        if self._background is None:
+            # initialize background model with first frame
+            self._background = np.array(frame, dtype=float)
+        
+        else:
+            # adapt the current background model to current frame
+            self._background = np.minimum(
+                self._background + self.background_adaptation_rate*frame, frame
+            )
+            
+        if 'background' in self.debug:
+            self.debug['background'].write_frame(self._background)
+
+
     def get_movie_statistics(self):
         """ returns the mean and std over the entire movie """
-        
+        raise NotImplementedError
         cache_file = os.path.join(self.folder, 'statistics', 'mean_std.npz')
         
         try:
@@ -117,8 +147,9 @@ class MouseMovie(object):
         video pixel over time.
         Uses https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Incremental_algorithm
         """
+        raise NotImplementedError
         self._video_stats_count += 1
-
+        
         if self.video_mean is None:
             # initialize the statistics 
             self.video_mean = np.array(frame, dtype=np.int) 
@@ -137,11 +168,17 @@ class MouseMovie(object):
             
     def get_std(self):
         """ returns the estimated standard deviation of the video """ 
+        raise NotImplementedError
         if self._video_stats_count < 2:
             return 0
         else:
             return np.sqrt(self.video_var.mean())
             
+        
+    #===========================================================================
+    # FINDING THE MOUSE
+    #===========================================================================
+        
                 
     def _find_best_template_position(self, image, template, start_pos, max_deviation=None):
         """
@@ -191,20 +228,37 @@ class MouseMovie(object):
         """ creates a simple template for matching with the mouse.
         This template can be used to update the current mouse position based
         on information about the changes in the video.
+        The template consists of a core region of maximal intensity and a ring
+        region with gradually decreasing intensity.
         """
+        
+        # determine the sizes of the different regions
+        size_core = self.mouse_size
+        size_ring = 3*self.mouse_size
+        size_total = size_core + size_ring
 
         # build a filter for finding the mouse position
-        x, y = np.ogrid[-2*self.mouse_size:2*self.mouse_size + 1,
-                        -2*self.mouse_size:2*self.mouse_size + 1]
+        x, y = np.ogrid[-size_total:size_total + 1, -size_total:size_total + 1]
         r = np.sqrt(x**2 + y**2)
 
+        # build the template
+#         mouse_template = (
+#             # inner circle of ones
+#             (r <= size_core).astype(float)
+#             # + outer region that falls off
+#             + (np.cos((r - size_core)*np.pi/size_ring) + 1)/2  # smooth function from 1 to 0
+#               * ((size_core < r) & (r <= size_total))          # mask on ring region
+#         )  
+
+        # build the template
         mouse_template = (
             # inner circle of ones
-            (r <= self.mouse_size).astype(float)
+            (r <= size_core).astype(float)
             # + outer region that falls off
-            + (np.cos((r - self.mouse_size)*np.pi/self.mouse_size) + 1)/2
-              * ((self.mouse_size < r) & (r <= 2*self.mouse_size))
+            + np.exp(-((r - size_core)/size_core)**2)  # smooth function from 1 to 0
+              * (size_core < r)          # mask on ring region
         )  
+        
         return mouse_template
         
           
@@ -243,10 +297,6 @@ class MouseMovie(object):
         features that become brighter, i.e. move forward.
         """
         
-        # setup background model if necessary
-        if self._background is None:
-            self._background = np.array(frame, dtype=float)
-        
         # prepare the kernel for morphological opening if necessary
         if 'find_features_moving_forward.kernel_open' not in self._cache:
             self._cache['find_features_moving_forward.kernel_open'] = \
@@ -256,15 +306,10 @@ class MouseMovie(object):
         # Note that the first operand determines the dtype of the result.
         diff = -self._background + frame 
         
-        # adapt the current background model
-        # Here, the cut-off sets the relaxation time scale
-        diff_max = 128/self.background_history
-        self._background += np.clip(diff, -diff_max, diff_max)
-        
         # find movement, this should in principle be a factor multiplied by the 
         # noise in the image (estimated by its standard deviation), but a
         # constant factor is good enough right now
-        moving_toward = (diff > 10)
+        moving_toward = (diff > self.mouse_intensity_threshold)
 
         # convert the binary image to the normal output
         moving_toward = 255*moving_toward.astype(np.uint8)
@@ -286,7 +331,8 @@ class MouseMovie(object):
         mouse_trajectory = []
 
         # iterate over all frames and find the mouse
-        for frame in display_progress(self.video):
+        for frame in display_progress(self.video_blurred):
+
             # find features that indicate that the mouse moved
             moving_toward = self._find_features_moving_forward(frame)
 
@@ -304,15 +350,45 @@ class MouseMovie(object):
                                                                   mouse_pos,
                                                                   self.mouse_max_speed)
                 
-            if self.debug_video:
+            if 'video' in self.debug:
+                debug_video = self.debug['video']
                 # plot the contour of the movement
-                self.debug_video.add_contour(moving_toward)
+                debug_video.add_contour(moving_toward)
                 # indicate the mouse position
                 if mouse_pos is not None:
-                    self.debug_video.add_circle(mouse_pos[::-1], 4, 'r')
-                    self.debug_video.add_circle(mouse_pos[::-1], self.mouse_size, 'r', thickness=1)
+                    debug_video.add_circle(mouse_pos[::-1], 4, 'r')
+                    debug_video.add_circle(mouse_pos[::-1], self.mouse_size, 'r', thickness=1)
 
             mouse_trajectory.append(mouse_pos)
 
+        self.result['mouse_trajectory'] = mouse_trajectory
         return mouse_trajectory
     
+    
+    #===========================================================================
+    # FINDING THE CAGE
+    #===========================================================================
+    
+    
+    def find_cage(self):
+        
+        frame = self.get_blurred_video(self.video, 1)[0]
+        
+        for r in range(3):
+            frame = cv2.pyrDown(frame)
+            
+        print frame.shape
+        edges = cv2.Canny(frame, 30, 120)#, apertureSize=3)
+#         edges = cv2.Laplacian(frame, cv2.CV_64F)
+#         lines = cv2.HoughLines(edges, 1, .1, 1)#, None, 50, 10)
+        lines = cv2.HoughLinesP(edges, 1, .01, 1, None, 50, 10)
+        
+        print lines
+        import matplotlib.pyplot as plt
+        
+        plt.imshow(edges)
+        plt.gray()
+        
+        for line in lines[0]:
+            plt.plot(line[::2], line[1::2], 'r')
+        plt.show()

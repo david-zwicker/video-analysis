@@ -1,3 +1,7 @@
 * We might want to rename the composer to DebugVideo, since this might be a narrow use case        
 * A better solution would be to refactor the class such that there is a Debugger/Observer class 
 and a general VideoComposer class
+* The mouse finder should be implemented as a listener to the blurred video
+* The mouse model should take into account background intensities when doing the search
+* Find cage box 
+* Find sand line

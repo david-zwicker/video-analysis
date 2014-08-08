@@ -41,7 +41,7 @@ def measure_mean_std(video):
     """
     mean = np.zeros(video.shape[1:])
     M2 = np.zeros(video.shape[1:])
- 
+    
     for n, frame in enumerate(display_progress(video)):
         delta = frame - mean
         mean = mean + delta/(n + 1)
@@ -49,9 +49,8 @@ def measure_mean_std(video):
  
     if (n < 2):
         return frame, 0
- 
-    variance = M2/(n - 1)
-    return mean, variance
+
+    return mean, np.sqrt(M2/n)
         
         
 def remove_background(video):

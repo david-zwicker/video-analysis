@@ -33,6 +33,10 @@ class VideoBase(object):
         is_color indicates whether the video is in color or monochrome
         """
         
+        # check arguments for consistency
+        if len(size) != 2:
+           raise ValueError('Videos must have two spatial dimensions.') 
+        
         # store information about the video
         self.frame_count = frame_count
         self.size = size

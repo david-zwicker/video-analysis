@@ -196,22 +196,24 @@ class FilterFeatures(VideoFilterBase):
     
     
 
-class FilterSubtractBackground(VideoFilterBase):
-    """ filter that subtracts the background using OpenCV """
+class FilterBackground(VideoFilterBase):
+    """ filter that filters out the background of a video """
     
-    def __init__(self, source):
-        
-#         self._fgbg = cv2.BackgroundSubtractorMOG(history=5, nmixtures=3, backgroundRatio=0.2)
-        self._fgbg = cv2.BackgroundSubtractorMOG2(history=20, varThreshold=16., bShadowDetection=False)
-        
-        super(FilterSubtractBackground, self).__init__(source)
+    def __init__(self, source, timescale=128):
+        self._background = None
+        self.timescale = timescale
+        super(FilterBackground, self).__init__(source)
     
     
     def _process_frame(self, frame):
-        frame = self._fgbg.apply(frame)
+        # adapt the current background model
+        # Here, the cut-off sets the relaxation time scale
+        #diff_max = 128/self.background_history
+        #self._background += np.clip(diff, -diff_max, diff_max)
+        self._background = np.minimum(self._background, frame)
 
         # pass the frame to the parent function
-        return super(FilterSubtractBackground, self)._process_frame(frame)
+        return super(FilterBackground, self)._process_frame(self._background)
     
     
     

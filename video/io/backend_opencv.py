@@ -154,10 +154,11 @@ class VideoWriterOpenCV(object):
                 raise ValueError('Video format `%s` is unsupported.' % codec) 
         
         # get the code defining the video format
-        logging.info('Start writing video with format `%s`', codec)
         fourcc = cv2.cv.FOURCC(*codec)
         self._writer = cv2.VideoWriter(filename, fourcc=fourcc, fps=fps,
                                        frameSize=size, isColor=is_color)
+
+        logging.info('Start writing video `%s` with format `%s`', filename, codec)
 
 
     def write_frame(self, frame):
