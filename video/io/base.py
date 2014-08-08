@@ -251,7 +251,12 @@ class VideoFilterBase(VideoBase):
 
     def _end_iterating(self):
         """ internal function called when we finished iterating """
-        #self._source._end_iterating() # should not be necessary
+        # The recursive call is necessary in case some filter in the filter chain
+        # decides to end the iteration (i.e. the VideoSlice class).
+        # Under normal circumstances, the video source should end the iteration 
+        self._source._end_iterating() # should not be necessary
+        
+        # end the iteration of the current class
         self._source_iter = None
         super(VideoFilterBase, self)._end_iterating()
 

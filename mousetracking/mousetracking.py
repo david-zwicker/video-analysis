@@ -4,13 +4,15 @@ Created on Aug 5, 2014
 @author: zwicker
 '''
 
+from __future__ import division
+
 import os
 import logging
 import numpy as np
-import scipy.ndimage.measurements as scipy_measurements
+import scipy.ndimage as ndimage
 import cv2
 
-from video.io import VideoFileStack, VideoFork
+from video.io import VideoFileStack
 from video.filters import FilterMonochrome, FilterFunction, FilterCrop
 from video.analysis import measure_mean_std
 from video.utils import display_progress
@@ -24,44 +26,60 @@ class MouseMovie(object):
     analyzes the mouse movie
     """
     
+    # determines over how many frames is the movie averaged to estimate the background
+    background_history = 512
+    
     # radius of the mouse model in pixel
     mouse_size = 30
     # maximal speed in pixel per frame
-    mouse_max_speed = 20 
+    mouse_max_speed = 30 
 
     def __init__(self, folder, frames=None, crop=None, debug_video=False):
         
         self.folder = folder
         
         # initialize video
-        self.video = VideoFileStack(os.path.join(folder, 'raw_video/*'))
+        video = VideoFileStack(os.path.join(folder, 'raw_video/*'))
+        
+        # setup caches
+        self._background = None # current background model
+        self.video_mean = None # current model of the standard deviations
+        self.video_var = None # current model of the standard deviations
+        self._video_stats_count = 0 # number of items collected in the statistics
+        self._cache = {} # cache that some functions might want to use
         
         # restrict the analysis to an interval of frames
         if frames is not None:
-            self.video = self.video[frames[0]:frames[1]]
+            video = video[frames[0]:frames[1]]
             
         # restrict the analysis to a region
         if crop is not None:
-            self.video = FilterCrop(self.video, crop)
-            
+            video = FilterCrop(video, crop)
+        
         # check whether a debug video is requested
         if debug_video:
             # initialize the writer for the debug video
             debug_file = os.path.join(self.folder, 'debug', 'video.mov')
-            self.debug_video = VideoComposer(debug_file, background=self.video)
+            self.debug_video = VideoComposer(debug_file, background=video)
             
         else:
             self.debug_video = None
 
+        # only work with the blurred video, to reduce noise effects    
+        self.video = self.get_blurred_video(video)
 
-    def get_blurred_video(self, sigma=3):
+        # add a listener to the basic movie to update the standard deviation
+#         self.video.register_listener(self.update_statistics)
+            
+
+    def get_blurred_video(self, video, sigma=3):
         """ returns the mouse video with a monochrome and a blur filter """
         
         # add a monochrome filter if necessary
-        if self.video.is_color:
-            video = FilterMonochrome(self.video)
-        else:
-            video = self.video
+        if video.is_color:
+            # take the green channel, which is quicker than considering
+            # the mean of all color values
+            video = FilterMonochrome(video, 'g')
     
         def blur(frame):
             """ helper function applying the blur """
@@ -92,11 +110,44 @@ class MouseMovie(object):
             
         return video_mean, video_std
     
-    
+
+    def update_statistics(self, frame):
+        """
+        updates the estimates of the mean and the standard deviation of each 
+        video pixel over time.
+        Uses https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Incremental_algorithm
+        """
+        self._video_stats_count += 1
+
+        if self.video_mean is None:
+            # initialize the statistics 
+            self.video_mean = np.array(frame, dtype=np.int) 
+            self.video_var = np.zeros_like(frame, dtype=np.int)
+            
+        else:
+            # update the statistics 
+            delta = frame - self.video_mean
+            self.video_mean += delta/self._video_stats_count
+            
+            # use the same time scale as the background_history to estimate
+            # the variance
+            n = max(self._video_stats_count, self.background_history)
+            self.video_var = (n*self.video_var + delta**2)/(n + 1)
+            
+            
+    def get_std(self):
+        """ returns the estimated standard deviation of the video """ 
+        if self._video_stats_count < 2:
+            return 0
+        else:
+            return np.sqrt(self.video_var.mean())
+            
+                
     def _find_best_template_position(self, image, template, start_pos, max_deviation=None):
         """
         moves a template around until it has the largest overlap with image
         start_pos refers to the the center of the template inside the image
+        max_deviation sets a maximal distance the template is moved from start_pos
         """
         
         shape = template.shape
@@ -107,7 +158,7 @@ class MouseMovie(object):
         best_overlap = -np.inf
         best_pos = None 
         
-        # iterate over all possible points
+        # iterate over all possible points 
         while points_to_check:
             
             # get the next position to check, which refers to the top left image of the template
@@ -134,76 +185,14 @@ class MouseMovie(object):
                         points_to_check.append(p)
                 
         return (best_pos[0] + shape[0]//2, best_pos[1] + shape[1]//2)
-            
-    
-    def _find_mouse_in_binary_image(self, binary_image):
-        """ finds the mouse in a binary image """
         
-        # perform morphological closing to combined feature patches that are close 
-        kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
-                                                 (self.mouse_size, self.mouse_size))
-        moving_toward = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel_close)
-
-        # find all distinct features and label them
-        labels, num_features = scipy_measurements.label(moving_toward)
-
-        # find the largest object (which should be the mouse)
-        mouse_label = np.argmax(
-            scipy_measurements.sum(labels, labels, index=range(1, num_features + 1))
-        )
         
-        # determine mouse_pos by setting it to the center of mass
-        return [
-            int(p)
-            for p in scipy_measurements.center_of_mass(labels, labels, mouse_label + 1)
-        ]
-    
-    
-    def find_mouse(self):
+    def _get_mouse_template(self):
+        """ creates a simple template for matching with the mouse.
+        This template can be used to update the current mouse position based
+        on information about the changes in the video.
         """
-        finds the mouse trajectory
-        TODO: Use that the mouse is of a certain size
-            This can be used to carry a box around which moves only, if the "feature"
-            runs out of the box this is useful since the movement can usually only be
-            detected at the front/back of the mouse. Take into account maximal mouse speed here.
-        """
-        
-        # get the video statistics
-        video_mean, video_std = self.get_movie_statistics()
-        
-        # work with a blurred video
-        video = self.get_blurred_video()        
-        
-        # prepare the kernels for morphological operations
-        kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        
-        def find_features(frame):
-            """ helper function for removing the background """
-            
-            # calculate the difference to the current background model
-            diff = frame - find_features.background
-            
-            # adapt the current background model
-            # Here, the cut-off sets the relaxation time scale
-            find_features.background += np.clip(diff, -1, 1)
-            
-            # find movement
-            moving = (np.abs(diff) > 2.5*video_std.mean())
-            
-            # find features (i.e. the mouse) by evaluating changes and intensity 
-            moving_toward = moving * (diff > 0)
 
-            # convert the binary image to the normal output
-            moving_toward = 255*moving_toward.astype(np.uint8)
-
-            # perform morphological opening to remove noise
-            moving_toward = cv2.morphologyEx(moving_toward, cv2.MORPH_OPEN, kernel_open)                        
-            
-            return moving_toward#, moving_away
-
-        # initialize the background model
-        find_features.background = np.array(video[0], np.double)
-        
         # build a filter for finding the mouse position
         x, y = np.ogrid[-2*self.mouse_size:2*self.mouse_size + 1,
                         -2*self.mouse_size:2*self.mouse_size + 1]
@@ -215,21 +204,97 @@ class MouseMovie(object):
             # + outer region that falls off
             + (np.cos((r - self.mouse_size)*np.pi/self.mouse_size) + 1)/2
               * ((self.mouse_size < r) & (r <= 2*self.mouse_size))
-        )
-#         debug.show_image(mouse_template)
+        )  
+        return mouse_template
         
-        # iterate over all frames and find the mouse
+          
+    def _find_mouse_in_binary_image(self, binary_image):
+        """ finds the mouse in a binary image """
+        
+        # build a kernel for morphological closing. We don't cache this kernel,
+        # since the current function should only be called once per run
+        kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
+                                                 (self.mouse_size, self.mouse_size))
+        
+        # perform morphological closing to combined feature patches that are near 
+        moving_toward = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel_close)
+
+        # find all distinct features and label them
+        labels, num_features = ndimage.measurements.label(moving_toward)
+
+        # find the largest object (which should be the mouse)
+        mouse_label = np.argmax(
+            ndimage.measurements.sum(labels, labels, index=range(1, num_features + 1))
+        )
+        
+        # mouse position is center of mass of largest patch
+        mouse_pos = [
+            int(p)
+            for p in ndimage.measurements.center_of_mass(labels, labels, mouse_label + 1)
+        ]
+        return mouse_pos
+
+    
+    def _find_features_moving_forward(self, frame):
+        """ finds moving features in a frame.
+        This works by building a model of the current background and subtracting
+        this from the current frame. Everything that deviates significantly from
+        the background must be moving. Here, we additionally only focus on 
+        features that become brighter, i.e. move forward.
+        """
+        
+        # setup background model if necessary
+        if self._background is None:
+            self._background = np.array(frame, dtype=float)
+        
+        # prepare the kernel for morphological opening if necessary
+        if 'find_features_moving_forward.kernel_open' not in self._cache:
+            self._cache['find_features_moving_forward.kernel_open'] = \
+                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+                        
+        # calculate the difference to the current background model
+        # Note that the first operand determines the dtype of the result.
+        diff = -self._background + frame 
+        
+        # adapt the current background model
+        # Here, the cut-off sets the relaxation time scale
+        diff_max = 128/self.background_history
+        self._background += np.clip(diff, -diff_max, diff_max)
+        
+        # find movement, this should in principle be a factor multiplied by the 
+        # noise in the image (estimated by its standard deviation), but a
+        # constant factor is good enough right now
+        moving_toward = (diff > 10)
+
+        # convert the binary image to the normal output
+        moving_toward = 255*moving_toward.astype(np.uint8)
+
+        # perform morphological opening to remove noise
+        moving_toward = cv2.morphologyEx(moving_toward, cv2.MORPH_OPEN, 
+                                         self._cache['find_features_moving_forward.kernel_open'])                        
+        
+        return moving_toward
+
+    
+    def find_mouse(self):
+        """
+        finds the mouse trajectory in the current video
+        """
+        
+        mouse_template = self._get_mouse_template()
         mouse_pos = None
         mouse_trajectory = []
-        for frame in display_progress(video):
 
+        # iterate over all frames and find the mouse
+        for frame in display_progress(self.video):
             # find features that indicate that the mouse moved
-            moving_toward = find_features(frame)
+            moving_toward = self._find_features_moving_forward(frame)
 
+            # check if features have been found            
             if moving_toward.sum() > 0:
                 
-                # find the position of the mouse
                 if mouse_pos is None:
+                    # determine mouse position from largest feature
                     mouse_pos = self._find_mouse_in_binary_image(moving_toward)
                     
                 else:
@@ -240,9 +305,9 @@ class MouseMovie(object):
                                                                   self.mouse_max_speed)
                 
             if self.debug_video:
-                # TODO: plot the outline of the mask, not the entire mask
-                #self.debug_video.blend_image(moving_toward, mask=(moving_toward == 255))
+                # plot the contour of the movement
                 self.debug_video.add_contour(moving_toward)
+                # indicate the mouse position
                 if mouse_pos is not None:
                     self.debug_video.add_circle(mouse_pos[::-1], 4, 'r')
                     self.debug_video.add_circle(mouse_pos[::-1], self.mouse_size, 'r', thickness=1)
