@@ -17,10 +17,11 @@ class VideoComposer(VideoFileWriter):
     hence the name """
     
     def __init__(self, filename, background, is_color=None, **kwargs):
-        self._background = background
-        background.register_observer(self.set_frame)
         
-        self.frame = None#next(self._background).copy()
+        self._background = background
+        background.register_listener(self.set_frame)
+        
+        self.frame = None
         
         if is_color is None:
             is_color = background.is_color
@@ -92,9 +93,35 @@ class VideoComposer(VideoFileWriter):
             cv2.add(frame, image, frame, mask=mask.astype(np.uint8))
         
         
-    def blend_image(self, image, weight=0.5):
+    def blend_image(self, image, weight=0.5, mask=None):
         """ overlay image with weight """
-        cv2.addWeighted(self.frame, 1 - weight, image, weight, 0)
+        frame = self.frame
+        
+        # check image dimensions
+        if frame.shape[:2] != image.shape[:2]:
+            raise ValueError('The two images to be added must have the same size')
+        
+        # check color properties
+        if frame.ndim == 3 and image.ndim == 2:
+            image = cv2.cvtColor(image, cv2.cv.CV_GRAY2RGB)
+        elif frame.ndim == 2 and image.ndim == 3:
+            raise ValueError('Cannot add a color image to a monochrome one')
+
+        # TODO: this creates an extra copy of the frame, which might not be necessary
+        result = cv2.addWeighted(frame, 1 - weight, image, weight, gamma=0)
+
+        if mask is not None:
+            result[~mask] = frame[~mask]
+            
+        self.frame = result        
+        
+        
+    def add_contour(self, mask, color='w', thickness=1):
+        """ adds the contours of a mask.
+        Note that this function modifies the mask 
+        """
+        contours, hierarchy = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        cv2.drawContours(self.frame, contours, -1,  get_color(color), thickness=thickness)
         
     
     def add_rectangle(self, rect, color='w', width=1):
@@ -103,11 +130,12 @@ class VideoComposer(VideoFileWriter):
                       get_color(color), width)
         
         
-    def add_circle(self, pos, radius=2, color='w'):
-        """ add a circle to the frame """
+    def add_circle(self, pos, radius=2, color='w', thickness=-1):
+        """ add a circle to the frame.
+        thickness=-1 denotes a filled circle 
+        """
         pos = (int(pos[0]), int(pos[1]))
-        cv2.circle(self.frame, pos, radius, get_color(color), thickness=-1)
-        # thickness = -1 denotes a filled circle
+        cv2.circle(self.frame, pos, radius, get_color(color), thickness=thickness)
         
         
     def __del__(self):

@@ -41,8 +41,8 @@ class VideoBase(object):
         
         # flag that tells whether the video is currently been iterated over
         self._is_iterating = False
-        # a list of observers, which will be notified, when this video advances 
-        self._observers = []
+        # a list of listeners, which will be notified, when this video advances 
+        self._listeners = []
         
         # internal pointer to the next frame to be loaded when iterating
         # over the video
@@ -72,14 +72,14 @@ class VideoBase(object):
         return shape
     
     
-    def register_observer(self, observer_callback):
-        """ registers an observer function, which will be called if this video is advanced """
-        self._observers.append(observer_callback)
+    def register_listener(self, listener_callback):
+        """ registers a listener function, which will be called if this video is advanced """
+        self._listeners.append(listener_callback)
     
     
-    def unregister_observer(self, observer_callback):
-        """ unregisters an observer function """
-        self._observers.remove(observer_callback)
+    def unregister_listener(self, listener_callback):
+        """ unregisters a listener function """
+        self._listeners.remove(listener_callback)
     
     
     def get_frame_pos(self):
@@ -98,7 +98,7 @@ class VideoBase(object):
     def _process_frame(self, frame):
         """ returns the frame with a filter applied """
         # notify potential observers
-        for observer in self._observers:
+        for observer in self._listeners:
             observer(frame)
         return frame
 

@@ -75,8 +75,9 @@ class VideoOpenCV(VideoBase):
 
     def set_frame_pos(self, index):
         """ sets the 0-based index of the next frame """
-        if not self._movie.set(cv.CV_CAP_PROP_POS_FRAMES, index):
-            raise IndexError('Seeking to frame %d was not possible.' % index)
+        if index != self.get_frame_pos():
+            if not self._movie.set(cv.CV_CAP_PROP_POS_FRAMES, index):
+                raise IndexError('Seeking to frame %d was not possible.' % index)
 
 
     def next(self):
