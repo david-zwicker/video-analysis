@@ -35,7 +35,7 @@ class VideoBase(object):
         
         # check arguments for consistency
         if len(size) != 2:
-           raise ValueError('Videos must have two spatial dimensions.') 
+            raise ValueError('Videos must have two spatial dimensions.') 
         
         # store information about the video
         self.frame_count = frame_count
@@ -172,10 +172,6 @@ class VideoBase(object):
         """ writes video data to the frame or slice given in key """
         raise ValueError("Writing to this video stream is prohibited.")  
         
-
-    #===========================================================================
-    # CONTROL THE DATA STREAM OF THE MOVIE
-    #===========================================================================
     
     def copy(self, dtype=np.uint8):
         """
@@ -258,7 +254,7 @@ class VideoFilterBase(VideoBase):
         # The recursive call is necessary in case some filter in the filter chain
         # decides to end the iteration (i.e. the VideoSlice class).
         # Under normal circumstances, the video source should end the iteration 
-        self._source._end_iterating() # should not be necessary
+        self._source._end_iterating()
         
         # end the iteration of the current class
         self._source_iter = None
@@ -267,6 +263,13 @@ class VideoFilterBase(VideoBase):
         
     def set_frame_pos(self, index):
         self._source.set_frame_pos(index)
+        # this recursive function call is actually not necessary when rewinding
+        # the video before iterating, because we call
+        # self._source._start_iterating() elsewhere. However, set_frame_pos
+        # is suppose to only change the position of the video, when it is
+        # actually different from the current position and the extra call
+        # to set_frame_pos should thus not cause any performance issues. 
+        
         super(VideoFilterBase, self).set_frame_pos(index)
     
     

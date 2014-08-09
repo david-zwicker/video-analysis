@@ -27,7 +27,7 @@ class MouseMovie(object):
     """
     
     # determines the rate with which the background is adapted
-    background_adaptation_rate = 0.0001
+    background_adaptation_rate = 0.01#0.0001
     
     # number of frames considered to estimate the noise 
     noise_estimate_frames= 200
@@ -51,6 +51,7 @@ class MouseMovie(object):
         self.result = {} # dictionary holding result information
         self.debug = {} # dictionary holding debug information
         self.prefix = prefix
+        self.mouse_pos = None # current model of the mouse position
         
         # restrict the analysis to an interval of frames
         if frames is not None:
@@ -120,13 +121,29 @@ class MouseMovie(object):
         if self._background is None:
             # initialize background model with first frame
             self._background = np.array(frame, dtype=float)
+            # allocate memory for the background mask, which will be used to
+            # adapt the background to a change of the environment
+            self._cache['background_mask'] = np.ones_like(frame, dtype=float)
         
         else:
-            # adapt the current background model to current frame
-            self._background = np.minimum(
-                self._background + self.background_adaptation_rate*frame, frame
-            )
+            # adapt the current background model to the current frame
             
+            mask = self._cache['background_mask']
+            if self.mouse_pos is not None:
+                # reset background mask to 1
+                mask.fill(1)
+                
+                # subtract the current mouse model from the mask
+                # FIXME: corner cases are not implemented correctly, yet
+                template = self._cache['mouse_template']
+                pos_x = self.mouse_pos[0] - template.shape[0]//2
+                pos_y = self.mouse_pos[1] - template.shape[1]//2
+                mask[pos_x:pos_x + template.shape[0], pos_y:pos_y + template.shape[1]] -= template
+                
+            # use the mask to adapt the background 
+            self._background += self.background_adaptation_rate*mask*(frame - self._background)
+            
+        # write out the background if requested
         if 'background' in self.debug:
             self.debug['background'].write_frame(self._background)
 
@@ -346,35 +363,30 @@ class MouseMovie(object):
         # find features that indicate that the mouse moved
         moving_toward = self._find_features_moving_forward(frame)
 
-        if self.result['mouse_trajectory']:
-            mouse_pos = self.result['mouse_trajectory'][-1]
-        else:
-            mouse_pos = None
-
         # check if features have been found
         if moving_toward.sum() > 0:
             
-            if mouse_pos is not None:
+            if self.mouse_pos is not None:
                 # adapt old mouse position by considering the movement
-                mouse_pos = self._find_best_template_position(frame*moving_toward,
-                                                              self._cache['mouse_template'],
-                                                              mouse_pos,
-                                                              self.mouse_max_speed)
+                self.mouse_pos = self._find_best_template_position(
+                        frame*moving_toward,           # features weighted by intensity
+                        self._cache['mouse_template'], # search pattern
+                        self.mouse_pos, self.mouse_max_speed)
                 
             else:
                 # determine mouse position from largest feature
-                mouse_pos = self._find_mouse_in_binary_image(moving_toward)
+                self.mouse_pos = self._find_mouse_in_binary_image(moving_toward)
                     
         if 'video' in self.debug:
             debug_video = self.debug['video']
             # plot the contour of the movement
             debug_video.add_contour(moving_toward)
             # indicate the mouse position
-            if mouse_pos is not None:
-                debug_video.add_circle(mouse_pos[::-1], 4, 'r')
-                debug_video.add_circle(mouse_pos[::-1], self.mouse_size, 'r', thickness=1)
+            if self.mouse_pos is not None:
+                debug_video.add_circle(self.mouse_pos[::-1], 4, 'r')
+                debug_video.add_circle(self.mouse_pos[::-1], self.mouse_size, 'r', thickness=1)
 
-        self.result['mouse_trajectory'].append(mouse_pos)
+        self.result['mouse_trajectory'].append(self.mouse_pos)
 
     
     #===========================================================================
