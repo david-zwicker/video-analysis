@@ -80,11 +80,23 @@ class MouseMovie(object):
             self.debug['background'] = VideoFileWriter(debug_file, self.video.size,
                                                        self.video.fps, is_color=False)
 
+        self.video_blurred.register_listener(self.update_mouse_model)
+
         # estimate the noise in the image by looking at the first number of slides
 #         std = measure_mean_std(self.video[:self.noise_estimate_frames])[1]
 #         self.noise = std.mean()
 #         logging.debug('Noise level was determined as %g', self.noise)
             
+        
+    def process_video(self):
+        """ processes the entire video
+        Note that much of the processing is done implicitly, because listeners
+        have been registered with the videos. We thus merely have to iterate
+        over all frames in this function.
+        """
+        for frame in display_progress(self.video_blurred):
+            pass
+
 
     def get_blurred_video(self, video, sigma=3):
         """ returns the mouse video with a monochrome and a blur filter """
@@ -179,6 +191,44 @@ class MouseMovie(object):
     # FINDING THE MOUSE
     #===========================================================================
         
+        
+    def _get_mouse_template(self):
+        """ creates a simple template for matching with the mouse.
+        This template can be used to update the current mouse position based
+        on information about the changes in the video.
+        The template consists of a core region of maximal intensity and a ring
+        region with gradually decreasing intensity.
+        """
+        
+        # determine the sizes of the different regions
+        size_core = self.mouse_size
+        size_ring = 3*self.mouse_size
+        size_total = size_core + size_ring
+
+        # build a filter for finding the mouse position
+        x, y = np.ogrid[-size_total:size_total + 1, -size_total:size_total + 1]
+        r = np.sqrt(x**2 + y**2)
+
+        # build the template
+#         mouse_template = (
+#             # inner circle of ones
+#             (r <= size_core).astype(float)
+#             # + outer region that falls off
+#             + (np.cos((r - size_core)*np.pi/size_ring) + 1)/2  # smooth function from 1 to 0
+#               * ((size_core < r) & (r <= size_total))          # mask on ring region
+#         )  
+
+        # build the template
+        mouse_template = (
+            # inner circle of ones
+            (r <= size_core).astype(float)
+            # + outer region that falls off
+            + np.exp(-((r - size_core)/size_core)**2)  # smooth function from 1 to 0
+              * (size_core < r)          # mask on ring region
+        )  
+        
+        return mouse_template
+        
                 
     def _find_best_template_position(self, image, template, start_pos, max_deviation=None):
         """
@@ -222,44 +272,6 @@ class MouseMovie(object):
                         points_to_check.append(p)
                 
         return (best_pos[0] + shape[0]//2, best_pos[1] + shape[1]//2)
-        
-        
-    def _get_mouse_template(self):
-        """ creates a simple template for matching with the mouse.
-        This template can be used to update the current mouse position based
-        on information about the changes in the video.
-        The template consists of a core region of maximal intensity and a ring
-        region with gradually decreasing intensity.
-        """
-        
-        # determine the sizes of the different regions
-        size_core = self.mouse_size
-        size_ring = 3*self.mouse_size
-        size_total = size_core + size_ring
-
-        # build a filter for finding the mouse position
-        x, y = np.ogrid[-size_total:size_total + 1, -size_total:size_total + 1]
-        r = np.sqrt(x**2 + y**2)
-
-        # build the template
-#         mouse_template = (
-#             # inner circle of ones
-#             (r <= size_core).astype(float)
-#             # + outer region that falls off
-#             + (np.cos((r - size_core)*np.pi/size_ring) + 1)/2  # smooth function from 1 to 0
-#               * ((size_core < r) & (r <= size_total))          # mask on ring region
-#         )  
-
-        # build the template
-        mouse_template = (
-            # inner circle of ones
-            (r <= size_core).astype(float)
-            # + outer region that falls off
-            + np.exp(-((r - size_core)/size_core)**2)  # smooth function from 1 to 0
-              * (size_core < r)          # mask on ring region
-        )  
-        
-        return mouse_template
         
           
     def _find_mouse_in_binary_image(self, binary_image):
@@ -312,7 +324,7 @@ class MouseMovie(object):
         moving_toward = (diff > self.mouse_intensity_threshold)
 
         # convert the binary image to the normal output
-        moving_toward = 255*moving_toward.astype(np.uint8)
+        moving_toward = moving_toward.astype(np.uint8)
 
         # perform morphological opening to remove noise
         moving_toward = cv2.morphologyEx(moving_toward, cv2.MORPH_OPEN, 
@@ -321,49 +333,49 @@ class MouseMovie(object):
         return moving_toward
 
     
-    def find_mouse(self):
+    def update_mouse_model(self, frame):
         """
         finds the mouse trajectory in the current video
         """
         
-        mouse_template = self._get_mouse_template()
-        mouse_pos = None
-        mouse_trajectory = []
+        # setup initial data
+        if 'mouse_trajectory' not in self.result:
+            self.result['mouse_trajectory'] = []
+            self._cache['mouse_template'] = self._get_mouse_template() 
 
-        # iterate over all frames and find the mouse
-        for frame in display_progress(self.video_blurred):
+        # find features that indicate that the mouse moved
+        moving_toward = self._find_features_moving_forward(frame)
 
-            # find features that indicate that the mouse moved
-            moving_toward = self._find_features_moving_forward(frame)
+        if self.result['mouse_trajectory']:
+            mouse_pos = self.result['mouse_trajectory'][-1]
+        else:
+            mouse_pos = None
 
-            # check if features have been found            
-            if moving_toward.sum() > 0:
+        # check if features have been found
+        if moving_toward.sum() > 0:
+            
+            if mouse_pos is not None:
+                # adapt old mouse position by considering the movement
+                mouse_pos = self._find_best_template_position(frame*moving_toward,
+                                                              self._cache['mouse_template'],
+                                                              mouse_pos,
+                                                              self.mouse_max_speed)
                 
-                if mouse_pos is None:
-                    # determine mouse position from largest feature
-                    mouse_pos = self._find_mouse_in_binary_image(moving_toward)
+            else:
+                # determine mouse position from largest feature
+                mouse_pos = self._find_mouse_in_binary_image(moving_toward)
                     
-                else:
-                    # adapt old mouse_pos by considering the movement
-                    mouse_pos = self._find_best_template_position(moving_toward,
-                                                                  mouse_template,
-                                                                  mouse_pos,
-                                                                  self.mouse_max_speed)
-                
-            if 'video' in self.debug:
-                debug_video = self.debug['video']
-                # plot the contour of the movement
-                debug_video.add_contour(moving_toward)
-                # indicate the mouse position
-                if mouse_pos is not None:
-                    debug_video.add_circle(mouse_pos[::-1], 4, 'r')
-                    debug_video.add_circle(mouse_pos[::-1], self.mouse_size, 'r', thickness=1)
+        if 'video' in self.debug:
+            debug_video = self.debug['video']
+            # plot the contour of the movement
+            debug_video.add_contour(moving_toward)
+            # indicate the mouse position
+            if mouse_pos is not None:
+                debug_video.add_circle(mouse_pos[::-1], 4, 'r')
+                debug_video.add_circle(mouse_pos[::-1], self.mouse_size, 'r', thickness=1)
 
-            mouse_trajectory.append(mouse_pos)
+        self.result['mouse_trajectory'].append(mouse_pos)
 
-        self.result['mouse_trajectory'] = mouse_trajectory
-        return mouse_trajectory
-    
     
     #===========================================================================
     # FINDING THE CAGE
