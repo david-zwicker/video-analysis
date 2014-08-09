@@ -1,5 +1,6 @@
-mouse-movies
-============
+video-analysis
+==============
+collect several modules and packages for doing video analysis with OpenCV and python.
 
 
 Part of the modules have been modified from code from moviepy, which
