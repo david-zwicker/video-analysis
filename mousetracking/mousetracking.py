@@ -13,7 +13,7 @@ import scipy.ndimage as ndimage
 import cv2
 
 from video.io import VideoFileStack, VideoFileWriter
-from video.filters import FilterMonochrome, FilterFunction, FilterCrop
+from video.filters import FilterMonochrome, FilterBlur, FilterCrop
 from video.analysis import measure_mean_std
 from video.utils import display_progress
 from video.composer import VideoComposer
@@ -40,7 +40,7 @@ class MouseMovie(object):
     mouse_max_speed = 30 
 
     def __init__(self, folder, frames=None, crop=None, debug_output=None, prefix=''):
-        
+        """ initializes the whole mouse tracking and prepares the video filters """
         self.folder = folder
         
         # initialize video
@@ -68,9 +68,17 @@ class MouseMovie(object):
             debug_file = os.path.join(self.folder, 'debug', prefix + 'video.mov')
             self.debug['video'] = VideoComposer(debug_file, background=self.video)
             
-        # only work with the blurred video, to reduce noise effects    
-        self.video_blurred = self.get_blurred_video(self.video) 
-        
+        # add a monochrome filter if necessary
+        if self.video.is_color:
+            # take the green channel, which is quicker than considering
+            # the mean of all color values
+            video = FilterMonochrome(self.video, 'g')
+        else:
+            video = self.video
+    
+        # blur the video to reduce noise effects    
+        self.video_blurred = FilterBlur(video, 3) 
+
         # register a listener, which takes care of the background model
         self._background = None
         self.video_blurred.register_listener(self.update_background_model)
@@ -83,11 +91,6 @@ class MouseMovie(object):
 
         self.video_blurred.register_listener(self.update_mouse_model)
 
-        # estimate the noise in the image by looking at the first number of slides
-#         std = measure_mean_std(self.video[:self.noise_estimate_frames])[1]
-#         self.noise = std.mean()
-#         logging.debug('Noise level was determined as %g', self.noise)
-            
         
     def process_video(self):
         """ processes the entire video
@@ -99,25 +102,9 @@ class MouseMovie(object):
             pass
 
 
-    def get_blurred_video(self, video, sigma=3):
-        """ returns the mouse video with a monochrome and a blur filter """
-        
-        # add a monochrome filter if necessary
-        if video.is_color:
-            # take the green channel, which is quicker than considering
-            # the mean of all color values
-            video = FilterMonochrome(video, 'g')
-    
-        def blur(frame):
-            """ helper function applying the blur """
-            return cv2.GaussianBlur(frame, ksize=(0, 0), sigmaX=sigma)
-        
-        # return the video with a blur filter
-        return FilterFunction(video, blur)
-
-
     def update_background_model(self, frame):
         """ updates the background model using the current frame """
+        
         if self._background is None:
             # initialize background model with first frame
             self._background = np.array(frame, dtype=float)
@@ -135,7 +122,7 @@ class MouseMovie(object):
                 
                 # subtract the current mouse model from the mask
                 # FIXME: corner cases are not implemented correctly, yet
-                template = self._cache['mouse_template']
+                template = self._get_mouse_template()
                 pos_x = self.mouse_pos[0] - template.shape[0]//2
                 pos_y = self.mouse_pos[1] - template.shape[1]//2
                 mask[pos_x:pos_x + template.shape[0], pos_y:pos_y + template.shape[1]] -= template
@@ -217,34 +204,41 @@ class MouseMovie(object):
         region with gradually decreasing intensity.
         """
         
-        # determine the sizes of the different regions
-        size_core = self.mouse_size
-        size_ring = 3*self.mouse_size
-        size_total = size_core + size_ring
-
-        # build a filter for finding the mouse position
-        x, y = np.ogrid[-size_total:size_total + 1, -size_total:size_total + 1]
-        r = np.sqrt(x**2 + y**2)
-
-        # build the template
-#         mouse_template = (
-#             # inner circle of ones
-#             (r <= size_core).astype(float)
-#             # + outer region that falls off
-#             + (np.cos((r - size_core)*np.pi/size_ring) + 1)/2  # smooth function from 1 to 0
-#               * ((size_core < r) & (r <= size_total))          # mask on ring region
-#         )  
-
-        # build the template
-        mouse_template = (
-            # inner circle of ones
-            (r <= size_core).astype(float)
-            # + outer region that falls off
-            + np.exp(-((r - size_core)/size_core)**2)  # smooth function from 1 to 0
-              * (size_core < r)          # mask on ring region
-        )  
+        try:
+            return self._cache['mouse_template']
         
-        return mouse_template
+        except KeyError:
+            
+            # determine the sizes of the different regions
+            size_core = self.mouse_size
+            size_ring = 3*self.mouse_size
+            size_total = size_core + size_ring
+    
+            # build a filter for finding the mouse position
+            x, y = np.ogrid[-size_total:size_total + 1, -size_total:size_total + 1]
+            r = np.sqrt(x**2 + y**2)
+    
+            # build the template
+    #         mouse_template = (
+    #             # inner circle of ones
+    #             (r <= size_core).astype(float)
+    #             # + outer region that falls off
+    #             + (np.cos((r - size_core)*np.pi/size_ring) + 1)/2  # smooth function from 1 to 0
+    #               * ((size_core < r) & (r <= size_total))          # mask on ring region
+    #         )  
+    
+            # build the template
+            mouse_template = (
+                # inner circle of ones
+                (r <= size_core).astype(float)
+                # + outer region that falls off
+                + np.exp(-((r - size_core)/size_core)**2)  # smooth function from 1 to 0
+                  * (size_core < r)          # mask on ring region
+            )  
+            
+            self._cache['mouse_template'] = mouse_template
+        
+            return mouse_template
         
                 
     def _find_best_template_position(self, image, template, start_pos, max_deviation=None):
@@ -358,7 +352,6 @@ class MouseMovie(object):
         # setup initial data
         if 'mouse_trajectory' not in self.result:
             self.result['mouse_trajectory'] = []
-            self._cache['mouse_template'] = self._get_mouse_template() 
 
         # find features that indicate that the mouse moved
         moving_toward = self._find_features_moving_forward(frame)
@@ -369,8 +362,8 @@ class MouseMovie(object):
             if self.mouse_pos is not None:
                 # adapt old mouse position by considering the movement
                 self.mouse_pos = self._find_best_template_position(
-                        frame*moving_toward,           # features weighted by intensity
-                        self._cache['mouse_template'], # search pattern
+                        frame*moving_toward,        # features weighted by intensity
+                        self._get_mouse_template(), # search pattern
                         self.mouse_pos, self.mouse_max_speed)
                 
             else:

@@ -157,6 +157,7 @@ class FilterMonochrome(VideoFilterBase):
 
         logging.debug('Created filter for converting video to monochrome with method `%s`', mode)
 
+
     def _process_frame(self, frame):
         """
         reduces a single frame from color to monochrome, but keeps the
@@ -176,6 +177,24 @@ class FilterMonochrome(VideoFilterBase):
         # pass the frame to the parent function
         return super(FilterMonochrome, self)._process_frame(frame)
     
+    
+
+class FilterBlur(VideoFilterBase):
+    """ returns the mouse video with a Gaussian blur filter """
+
+    def __init__(self, source, sigma=3):
+        self.sigma = sigma
+        super(FilterBlur, self).__init__(source)
+
+        logging.debug('Created filter blurring the video with radius %g', sigma)
+
+        
+    def _process_frame(self, frame):
+        """
+        blurs a single frame
+        """
+        return cv2.GaussianBlur(frame, ksize=(0, 0), sigmaX=self.sigma)
+
 
 
 class FilterFeatures(VideoFilterBase):
