@@ -54,14 +54,22 @@ class VideoBase(object):
     
     
     def __str__(self):
-        return "%s(size=%s, frame_count=%s, fps=%s, is_color=%s)" % (
-                self.__class__.__name__, self.size, self.frame_count,
-                self.fps, self.is_color
-            )
+        """ returns a string representation with important properties of the video """
+        result = "%s(size=%s, frame_count=%s, fps=%s, is_color=%s)" % (
+                    self.__class__.__name__, self.size, self.frame_count,
+                    self.fps, self.is_color
+                )
+        if len(self._listeners) == 1:
+            result += '[1 listener]'
+        elif len(self._listeners) > 0:
+            result += '[%d listeners]' % len(self._listeners)
+        return result
+
     
     #===========================================================================
     # DATA ACCESS
     #===========================================================================
+    
     
     def __len__(self):
         return self.frame_count
@@ -222,6 +230,11 @@ class VideoFilterBase(VideoBase):
     """
      
     def __init__(self, source, size=None, frame_count=None, fps=None, is_color=None):
+        
+        # check the status of the source video
+        if source._is_iterating:
+            raise RuntimeError('Cannot put a filter on a video that is already iterating.')
+        
         # store an iterator of the source video
         self._source = source
         self._source_iter = None
@@ -240,7 +253,12 @@ class VideoFilterBase(VideoBase):
         
     def __str__(self):
         """ delegate the string function to actual source """
-        return str(self._source) + ' +' + self.__class__.__name__        
+        result = str(self._source) + ' +' + self.__class__.__name__        
+        if len(self._listeners) == 1:
+            result += '[1 listener]'
+        elif len(self._listeners) > 0:
+            result += '[%d listeners]' % len(self._listeners)
+        return result
 
     
     def _start_iterating(self):

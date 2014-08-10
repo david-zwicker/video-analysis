@@ -104,8 +104,13 @@ class FilterNormalize(VideoFilterBase):
 class FilterCrop(VideoFilterBase):
     """ crops the video to the given rect=(top, left, height, width) """
     
-    def __init__(self, source, rect):
-        """ initialized the filter that crops to the given rect=(top, left, height, width) """
+    def __init__(self, source, rect, color_channel=None):
+        """
+        initialized the filter that crops to the given rect=(top, left, height, width)
+        If color_channel is given, it is assumed that the input video is a color
+        video and only the specified color channel is returned, thus turning
+        the video into a monochrome one
+        """
         
         def _check_number(value, max_value):
             """ helper function checking the bounds of the rectangle """
@@ -132,17 +137,26 @@ class FilterCrop(VideoFilterBase):
         ]
         
         # save the rectangle
-        self.rect = (rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3]) 
+        self.rect = (rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3])
+        self.color_channel = color_channel
+        is_color = None if color_channel is None else False
         
         # correct the size, since we are going to crop the movie
-        super(FilterCrop, self).__init__(source, size=(rect[2], rect[3]))
+        super(FilterCrop, self).__init__(source, size=(rect[2], rect[3]), is_color=is_color)
 
         logging.debug('Created filter for cropping to rectangle %s', self.rect)
         
        
     def _process_frame(self, frame):
         r = self.rect
-        frame = frame[r[0]:r[2], r[1]:r[3]]
+        if self.color_channel is None:
+            # extract the given rectangle 
+            frame = frame[r[0]:r[2], r[1]:r[3]]
+
+        else:
+            # extract the given rectangle and get the color channel 
+            frame = frame[r[0]:r[2], r[1]:r[3], self.color_channel]
+
         # pass the frame to the parent function
         return super(FilterCrop, self)._process_frame(frame)
 

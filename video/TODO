@@ -1,5 +1,4 @@
 * Read video in separate threads, because they are IO bound (and do not need the GIL)
-* Find cage box - we roughly know its size and could therefore do pattern matching on an image pyramid
 * Find sand line and the burrow shape
 	-  This might best be done on the background model (although it is blurred)
 * We might want to rename the composer to DebugVideo, since this might be a narrow use case        

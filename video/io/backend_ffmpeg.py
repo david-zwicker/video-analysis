@@ -92,6 +92,10 @@ class VideoWriterFFMPEG(object):
         self.codec = codec
         self.ext = self.filename.split(".")[-1]
 
+        if size[0]%2 != 0 or size[1]%2 != 0:
+            raise ValueError('Both dimensions of the video must be even for '
+                             'the video codec to work properly')
+
         # build the ffmpeg command
         cmd = (
             [FFMPEG_BINARY, '-y',
@@ -125,8 +129,7 @@ class VideoWriterFFMPEG(object):
     def write_frame(self, img_array):
         """ Writes a single frame in the file """
         
-        img_array = img_array.astype("uint8")
-        
+        img_array = img_array.astype("uint8")        
         try:
             self.proc.stdin.write(img_array.tostring())
         except IOError as err:
@@ -159,14 +162,16 @@ class VideoWriterFFMPEG(object):
         
         
     def close(self):
-        self.proc.stdin.close()
-        if self.proc.stderr is not None:
-            self.proc.stderr.close()
-        self.proc.wait()
+        if self.proc is not None:
+            self.proc.stdin.close()
+            if self.proc.stderr is not None:
+                self.proc.stderr.close()
+            self.proc.wait()
         
-        del self.proc
+            logging.info('Wrote video to file `%s`', self.filename)
+            
+            self.proc = None
 
-        logging.info('Wrote video to file `%s`', self.filename)
     
     
     def __enter__(self):
@@ -176,4 +181,7 @@ class VideoWriterFFMPEG(object):
     def __exit__(self, e_type, e_value, e_traceback):
         self.close()
 
+    
+    def __del__(self):
+        self.close()
 

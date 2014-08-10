@@ -11,6 +11,42 @@ import cv2
 from .filters import FilterFunction
 from video.utils import display_progress
 
+
+def find_bounding_rect(mask):
+    """ finds the rectangle, which bounds a white region in a mask.
+    The rectangle is returned as [top, left, bottom, right]
+    Currently, this function only works reliably for connected regions 
+    """
+
+    # find top boundary
+    top = 0
+    while not np.any(mask[top, :]):
+        top += 1
+    
+    # find bottom boundary
+    bottom = top + 1
+    try:
+        while np.any(mask[bottom, :]):
+            bottom += 1
+    except IndexError:
+        bottom = mask.shape[0] - 1
+
+    # find left boundary
+    left = 0
+    while not np.any(mask[:, left]):
+        left += 1
+    
+    # find right boundary
+    try:
+        right = left + 1
+        while np.any(mask[:, right]):
+            right += 1
+    except IndexError:
+        right = mask.shape[1] - 1
+    
+    return np.array([top, left, bottom, right])
+
+
 def reduce_video(video, function, initial_value=None):
     """ applies function to consecutive frames """
     result = initial_value

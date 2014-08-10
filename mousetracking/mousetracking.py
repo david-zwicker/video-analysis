@@ -14,7 +14,7 @@ import cv2
 
 from video.io import VideoFileStack, VideoFileWriter
 from video.filters import FilterMonochrome, FilterBlur, FilterCrop
-from video.analysis import measure_mean_std
+from video.analysis import measure_mean_std, find_bounding_rect
 from video.utils import display_progress
 from video.composer import VideoComposer
 
@@ -27,11 +27,8 @@ class MouseMovie(object):
     """
     
     # determines the rate with which the background is adapted
-    background_adaptation_rate = 0.01#0.0001
-    
-    # number of frames considered to estimate the noise 
-    noise_estimate_frames= 200
-    
+    background_adaptation_rate = 0.01
+        
     # how much brighter than the background has the mouse to be
     mouse_intensity_threshold = 15
     # radius of the mouse model in pixel
@@ -39,67 +36,63 @@ class MouseMovie(object):
     # maximal speed in pixel per frame
     mouse_max_speed = 30 
 
-    def __init__(self, folder, frames=None, crop=None, debug_output=None, prefix=''):
+    def __init__(self, folder, frames=None, crop=None, prefix='', debug_output=None):
         """ initializes the whole mouse tracking and prepares the video filters """
         self.folder = folder
         
         # initialize video
         self.video = VideoFileStack(os.path.join(folder, 'raw_video/*'))
-        
-        # setup caches
-        self._cache = {} # cache that some functions might want to use
-        self.result = {} # dictionary holding result information
-        self.debug = {} # dictionary holding debug information
-        self.prefix = prefix
-        self.mouse_pos = None # current model of the mouse position
-        
         # restrict the analysis to an interval of frames
         if frames is not None:
             self.video = self.video[frames[0]:frames[1]]
-            
-        # restrict the analysis to a region
-        if crop is not None:
-            self.video = FilterCrop(self.video, crop)
+        
+        self.crop = crop
+        self.prefix = prefix + '_' if prefix else ''
+        self.debug_output = debug_output
+        
+        # setup internal structures that will be filled by analyzing the video
+        self._cache = {} # cache that some functions might want to use
+        self.result = {} # dictionary holding result information
+        self.debug = {} # dictionary holding debug information
+        self.mouse_pos = None # current model of the mouse position
+        self._background = None
+        self.video_blurred = None
+        
+        self.tracking_is_prepared = False
+  
+
+    def prepare_tracking(self):
+        """ prepares tracking by analyzing the first frame. """
+        
+        self.crop_video_to_cage()
         
         # check whether a debug video is requested
-        debug_output = [] if debug_output is None else debug_output
+        debug_output = [] if self.debug_output is None else self.debug_output
         if 'video' in debug_output:
             # initialize the writer for the debug video
-            debug_file = os.path.join(self.folder, 'debug', prefix + 'video.mov')
+            debug_file = os.path.join(self.folder, 'debug', self.prefix + 'video.mov')
             self.debug['video'] = VideoComposer(debug_file, background=self.video)
             
-        # add a monochrome filter if necessary
-        if self.video.is_color:
-            # take the green channel, which is quicker than considering
-            # the mean of all color values
-            video = FilterMonochrome(self.video, 'g')
-        else:
-            video = self.video
-    
         # blur the video to reduce noise effects    
-        self.video_blurred = FilterBlur(video, 3) 
-
-        # register a listener, which takes care of the background model
-        self._background = None
-        self.video_blurred.register_listener(self.update_background_model)
+        self.video_blurred = FilterBlur(self.video, 3)
         
         if 'background' in debug_output:
             # initialize the writer for the debug video
-            debug_file = os.path.join(self.folder, 'debug', prefix + 'background.mov')
+            debug_file = os.path.join(self.folder, 'debug', self.prefix + 'background.mov')
             self.debug['background'] = VideoFileWriter(debug_file, self.video.size,
                                                        self.video.fps, is_color=False)
 
-        self.video_blurred.register_listener(self.update_mouse_model)
+        self.tracking_is_prepared = True
 
-        
+
     def process_video(self):
-        """ processes the entire video
-        Note that much of the processing is done implicitly, because listeners
-        have been registered with the videos. We thus merely have to iterate
-        over all frames in this function.
-        """
+        """ processes the entire video """
+        if not self.tracking_is_prepared:
+            self.prepare_tracking()
+
         for frame in display_progress(self.video_blurred):
-            pass
+            self.update_background_model(frame)
+            self.update_mouse_model(frame)
 
 
     def update_background_model(self, frame):
@@ -121,7 +114,6 @@ class MouseMovie(object):
                 mask.fill(1)
                 
                 # subtract the current mouse model from the mask
-                # FIXME: corner cases are not implemented correctly, yet
                 template = self._get_mouse_template()
                 pos_x = self.mouse_pos[0] - template.shape[0]//2
                 pos_y = self.mouse_pos[1] - template.shape[1]//2
@@ -190,7 +182,102 @@ class MouseMovie(object):
         else:
             return np.sqrt(self.video_var.mean())
             
+
+    #===========================================================================
+    # FINDING THE CAGE
+    #===========================================================================
+    
+    
+    def find_cage(self, image):
         
+        # do automatic thresholding to find large, bright areas
+        _, binarized = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        # find the largest bright area
+        labels, num_features = ndimage.measurements.label(binarized)
+        cage_label = np.argmax(
+            ndimage.measurements.sum(labels, labels, index=range(1, num_features + 1))
+        )
+
+        # find an enclosing rectangle
+        rect_large = find_bounding_rect((labels == cage_label + 1))
+         
+        # crop image
+        image = image[rect_large[0]:rect_large[2], rect_large[1]:rect_large[3]]
+        rect_small = [0, 0, image.shape[0] - 1, image.shape[1] - 1]
+
+        # threshold again, because large distractions outside of cages are now
+        # definitely removed. Still, bright objects close to the cage, e.g. the
+        # stands or some pipes in the background might distract the estimate.
+        # We thus adjust the rectangle in the following  
+        _, binarized = cv2.threshold(image, 0, 255,
+                                     cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # move top line down until we hit the cage boundary.
+        # We move until more than 10% of the pixel are bright
+        width = image.shape[0]
+        brightness = binarized[rect_small[0], :].sum()
+        while brightness < 0.1*255*width: 
+            rect_small[0] += 1
+            brightness = binarized[rect_small[0], :].sum()
+        
+        # move bottom line up until we hit the cage boundary
+        # We move until more then 90% of the pixel are bright
+        width = image.shape[0]
+        brightness = binarized[rect_small[2], :].sum()
+        while brightness < 0.9*255*width: 
+            rect_small[2] -= 1
+            brightness = binarized[rect_small[2], :].sum()
+
+        # return the rectangle as [top, left, height, width]
+        top = rect_large[0] + rect_small[0]
+        left = rect_large[1] + rect_small[1]
+        cage_rect = [top, left,
+                     rect_small[2] - rect_small[0], 
+                     rect_small[3] - rect_small[1]]
+
+        return cage_rect
+
+  
+    def crop_video_to_cage(self):
+        """ crops the video to a suitable cropping rectangle given by the cage """
+        # restrict the analysis to the specified crop region        
+        if self.crop is not None:
+            if self.video.is_color:
+                # restrict video to green channel
+                video_crop = FilterCrop(self.video, self.crop, color_channel=1)
+            else:
+                video_crop = FilterCrop(self.video, self.crop)
+            rect_given = video_crop.rect
+            
+        else:
+            # use the full video
+            video_crop = self.video
+            rect_given = [0, 0, self.video.size[0] - 1, self.video.size[1] - 1]
+        
+        # find the cage and subsequently restrict the area even further
+        blurred_image = FilterBlur(video_crop, 3)[0]
+        rect_cage = self.find_cage(blurred_image)
+        
+        # TODO: add plausibility test of cage dimensions
+        
+        # return rectangle in the format [top, left, height, width]
+        top = rect_given[0] + rect_cage[0]
+        left = rect_given[1] + rect_cage[1]
+        height = rect_cage[2] - rect_cage[2] % 2 # make sure its divisible by 2
+        width = rect_cage[3] - rect_cage[3] % 2 # make sure its divisible by 2
+        cropping_rect = [top, left, height, width]
+        
+        logging.debug('The cage was determined to lie in the rectangle %s', cropping_rect)
+
+        # restrict the video to the determined region
+        if self.video.is_color:
+            # restrict video to green channel
+            self.video = FilterCrop(self.video, cropping_rect, color_channel=1)
+        else:
+            self.video = FilterCrop(self.video, cropping_rect)
+                
+                        
     #===========================================================================
     # FINDING THE MOUSE
     #===========================================================================
@@ -381,31 +468,40 @@ class MouseMovie(object):
 
         self.result['mouse_trajectory'].append(self.mouse_pos)
 
-    
+                
     #===========================================================================
-    # FINDING THE CAGE
+    # FINDING THE SAND
     #===========================================================================
     
-    
-    def find_cage(self):
+
+    def find_sand_profile(self):
         
-        frame = self.get_blurred_video(self.video, 1)[0]
+        image = self.video_blurred[0]
         
-        for r in range(3):
-            frame = cv2.pyrDown(frame)
-            
-        print frame.shape
-        edges = cv2.Canny(frame, 30, 120)#, apertureSize=3)
-#         edges = cv2.Laplacian(frame, cv2.CV_64F)
-#         lines = cv2.HoughLines(edges, 1, .1, 1)#, None, 50, 10)
-        lines = cv2.HoughLinesP(edges, 1, .01, 1, None, 50, 10)
+        # automatic thresholding to separate bright sand from dark background
+        _, binarized = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
-        print lines
-        import matplotlib.pyplot as plt
+        # distance transform to spot large regions of sand
+        dist_transform = cv2.distanceTransform(binarized, cv2.cv.CV_DIST_L2, 5)
+
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(dist_transform)
         
-        plt.imshow(edges)
-        plt.gray()
+        # thresholding to get regions, where we are sure that we have sand
+        _, sure_sand = cv2.threshold(dist_transform, 0.75*dist_transform.max(), 1, 0)
         
-        for line in lines[0]:
-            plt.plot(line[::2], line[1::2], 'r')
-        plt.show()
+        # determine the sand color
+        sand = image[sure_sand.astype(np.bool)]
+        self.color_sand = (sand.mean(), sand.std())
+        print 'sand color', self.color_sand
+        
+        # set one sand pixel to mean
+        image[max_loc[0], max_loc[1]] = self.color_sand[0]
+        
+#         cv2.floodFill(image, mask=None, seedPoint=max_loc, newVal=0,
+#                       loDiff=self.color_sand[0] - self.color_sand[1],
+#                       upDiff=self.color_sand[0] + self.color_sand[1],
+#                       flags=cv2.FLOODFILL_FIXED_RANGE)
+        
+        
+        debug.show_image(image)
+        
