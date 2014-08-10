@@ -13,8 +13,8 @@ import scipy.ndimage as ndimage
 import cv2
 
 from video.io import VideoFileStack, VideoFileWriter
-from video.filters import FilterMonochrome, FilterBlur, FilterCrop
-from video.analysis import measure_mean_std, find_bounding_rect
+from video.filters import FilterBlur, FilterCrop
+from video.analysis import get_largest_region, find_bounding_rect
 from video.utils import display_progress
 from video.composer import VideoComposer
 
@@ -142,13 +142,10 @@ class MouseMovie(object):
         _, binarized = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
         # find the largest bright area
-        labels, num_features = ndimage.measurements.label(binarized)
-        cage_label = np.argmax(
-            ndimage.measurements.sum(labels, labels, index=range(1, num_features + 1))
-        )
-
+        cage_mask = get_largest_region(binarized)
+        
         # find an enclosing rectangle
-        rect_large = find_bounding_rect((labels == cage_label + 1))
+        rect_large = find_bounding_rect(cage_mask)
          
         # crop image
         image = image[rect_large[0]:rect_large[2], rect_large[1]:rect_large[3]]
@@ -228,6 +225,7 @@ class MouseMovie(object):
                 
                 
     def get_color_estimates(self, image):
+        """ estimate the colors in the sky region and the sand region """
         
         # add black border around image, which is important for the distance 
         # transform we use later
@@ -238,27 +236,21 @@ class MouseMovie(object):
                                      cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         # find sky by locating the largest black areas
-        labels, num_features = ndimage.measurements.label(1 - binarized)
-        sky_label = np.argmax(
-            ndimage.measurements.sum(1 - binarized, labels, index=range(1, num_features + 1))
-        ) + 1
-        
-        # shrink the mask by 32 pixel to make sure we are only left with sky
-        sky_mask = (labels == sky_label)
-        sky_sure = ndimage.morphology.binary_erosion(sky_mask, iterations=32).astype(np.bool)
+        sky_mask = get_largest_region(1 - binarized).astype(np.uint8)*255
+
+        # Finding sure foreground area using a distance transform
+        dist_transform = cv2.distanceTransform(sky_mask, cv2.cv.CV_DIST_L2, 5)
+        _, sky_sure = cv2.threshold(dist_transform, 0.25*dist_transform.max(), 255, 0)
 
         # determine the sky color
-        self.color_sky = (image[sky_sure].mean(), image[sky_sure].std())
+        sky_img = image[sky_sure.astype(np.bool)]
+        self.color_sky = (sky_img.mean(), sky_img.std())
         logging.debug('The sky color was determined to be %s', self.color_sky)
 
         # find the sand by looking at the largest bright region
-        labels, num_features = ndimage.measurements.label(binarized)
-        sand_label = np.argmax(
-            ndimage.measurements.sum(binarized, labels, index=range(1, num_features + 1))
-        ) + 1
+        sand_mask = get_largest_region(binarized).astype(np.uint8)*255
         
         # Finding sure foreground area using a distance transform
-        sand_mask = (labels == sand_label).astype(np.uint8)*255
         dist_transform = cv2.distanceTransform(sand_mask, cv2.cv.CV_DIST_L2, 5)
         _, sand_sure = cv2.threshold(dist_transform, 0.5*dist_transform.max(), 255, 0)
         
@@ -370,12 +362,12 @@ class MouseMovie(object):
         # find the largest object (which should be the mouse)
         mouse_label = np.argmax(
             ndimage.measurements.sum(labels, labels, index=range(1, num_features + 1))
-        )
+        ) + 1
         
         # mouse position is center of mass of largest patch
         mouse_pos = [
             int(p)
-            for p in ndimage.measurements.center_of_mass(labels, labels, mouse_label + 1)
+            for p in ndimage.measurements.center_of_mass(labels, labels, mouse_label)
         ]
         return mouse_pos
 

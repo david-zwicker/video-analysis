@@ -6,6 +6,7 @@ Created on Aug 4, 2014
 
 import operator
 import numpy as np
+import scipy.ndimage as ndimage
 import cv2
 
 from .filters import FilterFunction
@@ -57,6 +58,20 @@ def reduce_video(video, function, initial_value=None):
             result = function(frame, result)
     return result
         
+       
+def get_largest_region(mask):
+    """ returns a mask only containing the largest region """
+    # find all regions and label them
+    labels, num_features = ndimage.measurements.label(mask)
+
+    # find the label of the largest region
+    label_max = np.argmax(
+        ndimage.measurements.sum(labels, labels, index=range(1, num_features + 1))
+    ) + 1
+    
+    return labels == label_max
+
+    
         
 def measure_mean(video):
     """
