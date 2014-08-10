@@ -75,6 +75,8 @@ class MouseMovie(object):
             
         # blur the video to reduce noise effects    
         self.video_blurred = FilterBlur(self.video, 3)
+
+        self.get_color_estimates(self.video_blurred[0])
         
         if 'background' in debug_output:
             # initialize the writer for the debug video
@@ -126,69 +128,15 @@ class MouseMovie(object):
         if 'background' in self.debug:
             self.debug['background'].write_frame(self._background)
 
-
-    def get_movie_statistics(self):
-        """ returns the mean and std over the entire movie """
-        raise NotImplementedError
-        cache_file = os.path.join(self.folder, 'statistics', 'mean_std.npz')
-        
-        try:
-            # try to load the data from the cache
-            data = np.load(cache_file)
-            video_mean = data['mean']
-            video_std = data['std']
-            logging.info('Loaded mean and standard deviation from cache')
             
-        except:
-            # measure mean and standard deviation of the blurred video
-            video = self.get_blurred_video()
-        
-            video_mean, video_std = measure_mean_std(video)
-            np.savez(cache_file, mean=video_mean, std=video_std)
-            
-        return video_mean, video_std
-    
-
-    def update_statistics(self, frame):
-        """
-        updates the estimates of the mean and the standard deviation of each 
-        video pixel over time.
-        Uses https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Incremental_algorithm
-        """
-        raise NotImplementedError
-        self._video_stats_count += 1
-        
-        if self.video_mean is None:
-            # initialize the statistics 
-            self.video_mean = np.array(frame, dtype=np.int) 
-            self.video_var = np.zeros_like(frame, dtype=np.int)
-            
-        else:
-            # update the statistics 
-            delta = frame - self.video_mean
-            self.video_mean += delta/self._video_stats_count
-            
-            # use the same time scale as the background_history to estimate
-            # the variance
-            n = max(self._video_stats_count, self.background_history)
-            self.video_var = (n*self.video_var + delta**2)/(n + 1)
-            
-            
-    def get_std(self):
-        """ returns the estimated standard deviation of the video """ 
-        raise NotImplementedError
-        if self._video_stats_count < 2:
-            return 0
-        else:
-            return np.sqrt(self.video_var.mean())
-            
-
     #===========================================================================
     # FINDING THE CAGE
     #===========================================================================
     
     
     def find_cage(self, image):
+        """ analyzes a single image and locates the mouse cage in it.
+        The rectangle [top, left, height, width] enclosing the cage is returned. """
         
         # do automatic thresholding to find large, bright areas
         _, binarized = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -241,7 +189,8 @@ class MouseMovie(object):
   
     def crop_video_to_cage(self):
         """ crops the video to a suitable cropping rectangle given by the cage """
-        # restrict the analysis to the specified crop region        
+        
+        # crop the full video to the region specified by the user
         if self.crop is not None:
             if self.video.is_color:
                 # restrict video to green channel
@@ -255,28 +204,69 @@ class MouseMovie(object):
             video_crop = self.video
             rect_given = [0, 0, self.video.size[0] - 1, self.video.size[1] - 1]
         
-        # find the cage and subsequently restrict the area even further
+        # find the cage in the first frame of the movie
         blurred_image = FilterBlur(video_crop, 3)[0]
         rect_cage = self.find_cage(blurred_image)
         
         # TODO: add plausibility test of cage dimensions
         
-        # return rectangle in the format [top, left, height, width]
+        # determine the rectangle of the cage in global coordinates
         top = rect_given[0] + rect_cage[0]
         left = rect_given[1] + rect_cage[1]
         height = rect_cage[2] - rect_cage[2] % 2 # make sure its divisible by 2
-        width = rect_cage[3] - rect_cage[3] % 2 # make sure its divisible by 2
+        width = rect_cage[3] - rect_cage[3] % 2  # make sure its divisible by 2
         cropping_rect = [top, left, height, width]
         
         logging.debug('The cage was determined to lie in the rectangle %s', cropping_rect)
 
-        # restrict the video to the determined region
+        # crop the video to the cage region
         if self.video.is_color:
             # restrict video to green channel
             self.video = FilterCrop(self.video, cropping_rect, color_channel=1)
         else:
             self.video = FilterCrop(self.video, cropping_rect)
                 
+                
+    def get_color_estimates(self, image):
+        
+        # add black border around image, which is important for the distance 
+        # transform we use later
+        image = cv2.copyMakeBorder(image, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
+        
+        # binarize image
+        _, binarized = cv2.threshold(image, 0, 1,
+                                     cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # find sky by locating the largest black areas
+        labels, num_features = ndimage.measurements.label(1 - binarized)
+        sky_label = np.argmax(
+            ndimage.measurements.sum(1 - binarized, labels, index=range(1, num_features + 1))
+        ) + 1
+        
+        # shrink the mask by 32 pixel to make sure we are only left with sky
+        sky_mask = (labels == sky_label)
+        sky_sure = ndimage.morphology.binary_erosion(sky_mask, iterations=32).astype(np.bool)
+
+        # determine the sky color
+        self.color_sky = (image[sky_sure].mean(), image[sky_sure].std())
+        logging.debug('The sky color was determined to be %s', self.color_sky)
+
+        # find the sand by looking at the largest bright region
+        labels, num_features = ndimage.measurements.label(binarized)
+        sand_label = np.argmax(
+            ndimage.measurements.sum(binarized, labels, index=range(1, num_features + 1))
+        ) + 1
+        
+        # Finding sure foreground area using a distance transform
+        sand_mask = (labels == sand_label).astype(np.uint8)*255
+        dist_transform = cv2.distanceTransform(sand_mask, cv2.cv.CV_DIST_L2, 5)
+        _, sand_sure = cv2.threshold(dist_transform, 0.5*dist_transform.max(), 255, 0)
+        
+        # determine the sky color
+        sand_img = image[sand_sure.astype(np.bool)]
+        self.color_sand = (sand_img.mean(), sand_img.std())
+        logging.debug('The sand color was determined to be %s', self.color_sand)
+
                         
     #===========================================================================
     # FINDING THE MOUSE
@@ -304,15 +294,6 @@ class MouseMovie(object):
             # build a filter for finding the mouse position
             x, y = np.ogrid[-size_total:size_total + 1, -size_total:size_total + 1]
             r = np.sqrt(x**2 + y**2)
-    
-            # build the template
-    #         mouse_template = (
-    #             # inner circle of ones
-    #             (r <= size_core).astype(float)
-    #             # + outer region that falls off
-    #             + (np.cos((r - size_core)*np.pi/size_ring) + 1)/2  # smooth function from 1 to 0
-    #               * ((size_core < r) & (r <= size_total))          # mask on ring region
-    #         )  
     
             # build the template
             mouse_template = (
