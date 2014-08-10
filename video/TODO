@@ -4,7 +4,6 @@
 * We might want to rename the composer to DebugVideo, since this might be a narrow use case        
 * A better solution would be to refactor the class such that there is a Debugger/Observer class 
 and a general VideoComposer class
-* Determine colors of background and sand and their std (maybe keep a spatially resolved image/image pyramid)
 * Make mouse finding more robust, by keeping a score of how confident we are that we know where the mouse is
 	- this score degrades over time, when we don't get a positional update
 	- if the score drops below a threshold, we should consider looking for the mouse anywhere in the video

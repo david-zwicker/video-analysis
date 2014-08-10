@@ -46,52 +46,44 @@ class MouseMovie(object):
         if frames is not None:
             self.video = self.video[frames[0]:frames[1]]
         
-        self.crop = crop
         self.prefix = prefix + '_' if prefix else ''
-        self.debug_output = debug_output
+        self.debug_output = [] if debug_output is None else debug_output
         
         # setup internal structures that will be filled by analyzing the video
         self._cache = {} # cache that some functions might want to use
         self.result = {} # dictionary holding result information
         self.debug = {} # dictionary holding debug information
-        self.mouse_pos = None # current model of the mouse position
-        self._background = None
-        self.video_blurred = None
+        self.mouse_pos = None   # current model of the mouse position
+        self.color_sky = None   # color of sky parts
+        self.color_sand = None  # color of sand parts
+        self._background = None # current background image
         
-        self.tracking_is_prepared = False
-  
+        # restrict the video to the region of interest (the cage)
+        self.crop_video_to_cage(crop)
 
-    def prepare_tracking(self):
-        """ prepares tracking by analyzing the first frame. """
-        
-        self.crop_video_to_cage()
-        
-        # check whether a debug video is requested
-        debug_output = [] if self.debug_output is None else self.debug_output
-        if 'video' in debug_output:
+        # blur the video to reduce noise effects    
+        self.video_blurred = FilterBlur(self.video, 3)
+
+        # estimate colors of sand and sky
+        self.get_color_estimates(self.video_blurred[0])
+
+
+    def process_video(self):
+        """ processes the entire video """
+        # setup the video output, if requested
+        if 'video' in self.debug_output:
             # initialize the writer for the debug video
             debug_file = os.path.join(self.folder, 'debug', self.prefix + 'video.mov')
             self.debug['video'] = VideoComposer(debug_file, background=self.video)
             
-        # blur the video to reduce noise effects    
-        self.video_blurred = FilterBlur(self.video, 3)
-
-        self.get_color_estimates(self.video_blurred[0])
-        
-        if 'background' in debug_output:
+        # setup the background output, if requested
+        if 'background' in self.debug_output:
             # initialize the writer for the debug video
             debug_file = os.path.join(self.folder, 'debug', self.prefix + 'background.mov')
             self.debug['background'] = VideoFileWriter(debug_file, self.video.size,
                                                        self.video.fps, is_color=False)
 
-        self.tracking_is_prepared = True
-
-
-    def process_video(self):
-        """ processes the entire video """
-        if not self.tracking_is_prepared:
-            self.prepare_tracking()
-
+        # iterate over the video and analyze it
         for frame in display_progress(self.video_blurred):
             self.update_background_model(frame)
             self.update_mouse_model(frame)
@@ -184,16 +176,16 @@ class MouseMovie(object):
         return cage_rect
 
   
-    def crop_video_to_cage(self):
+    def crop_video_to_cage(self, user_crop):
         """ crops the video to a suitable cropping rectangle given by the cage """
         
         # crop the full video to the region specified by the user
-        if self.crop is not None:
+        if user_crop is not None:
             if self.video.is_color:
                 # restrict video to green channel
-                video_crop = FilterCrop(self.video, self.crop, color_channel=1)
+                video_crop = FilterCrop(self.video, user_crop, color_channel=1)
             else:
-                video_crop = FilterCrop(self.video, self.crop)
+                video_crop = FilterCrop(self.video, user_crop)
             rect_given = video_crop.rect
             
         else:
@@ -405,9 +397,7 @@ class MouseMovie(object):
 
     
     def update_mouse_model(self, frame):
-        """
-        finds the mouse trajectory in the current video
-        """
+        """ adapts the current mouse position, if enough information is available """
         
         # setup initial data
         if 'mouse_trajectory' not in self.result:
