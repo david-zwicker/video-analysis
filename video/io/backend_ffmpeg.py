@@ -17,6 +17,8 @@ from __future__ import division
 import logging
 import subprocess
 
+import numpy as np
+
 # find the file handle to /dev/null to dumb strings
 try:
     from subprocess import DEVNULL # py3k
@@ -89,6 +91,7 @@ class VideoWriterFFMPEG(object):
         self.filename = filename
         self.codec = codec
         self.ext = self.filename.split(".")[-1]
+        self.is_color = is_color
 
         if size[0]%2 != 0 or size[1]%2 != 0:
             raise ValueError('Both dimensions of the video must be even for '
@@ -127,7 +130,11 @@ class VideoWriterFFMPEG(object):
     def write_frame(self, img_array):
         """ Writes a single frame in the file """
         
-        img_array = img_array.astype("uint8")        
+        img_array = img_array.astype("uint8")   
+        
+        if self.is_color and img_array.ndim == 2:            
+            img_array = img_array[:, :, None]*np.ones((1, 1, 3), np.uint8)
+            
         try:
             self.proc.stdin.write(img_array.tostring())
         except IOError as err:

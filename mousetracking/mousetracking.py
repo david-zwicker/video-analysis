@@ -32,7 +32,7 @@ TRACKING_PARAMETERS_DEFAULT = {
     # spacing of the points in the sand profile
     'sand_profile.spacing': 10,
     # adapt the sand profile only every number of frames
-    'sand_profile.skip_frames': 10,
+    'sand_profile.skip_frames': 100,
     # width of the ridge in pixel
     'sand_profile.width': 5,
         
@@ -49,7 +49,7 @@ TRACKING_PARAMETERS_DEFAULT = {
 
 class MouseMovie(object):
     """
-    analyzes the mouse movie
+    analyzes mouse movies
     """
     
     def __init__(self, folder, frames=None, crop=None, prefix='', debug_output=None):
@@ -71,6 +71,7 @@ class MouseMovie(object):
         self.result = {} # dictionary holding result information
         self.debug = {} # dictionary holding debug information
         self.mouse_pos = None    # current model of the mouse position
+        self.mouse_has_moved = False # flag that states whether the mouse has moved
         self.sand_profile = None # current model of the sand profile
         self.color_sky = None    # color of sky parts
         self.color_sand = None   # color of sand parts
@@ -93,6 +94,7 @@ class MouseMovie(object):
     def process_video(self):
         """ processes the entire video """
         self.debug_setup()
+        self.result['sand_profile'] = []
 
         # iterate over the video and analyze it
         for k, frame in enumerate(display_progress(self.video_blurred)):
@@ -102,6 +104,7 @@ class MouseMovie(object):
             # use the background to find the current sand profile
             if k % self.params['sand_profile.skip_frames'] == 0:
                 self.refine_sand_profile(self._background)
+            self.result['sand_profile'].append(self.sand_profile)
                 
             # search for the mouse
             self.update_mouse_model(frame)
@@ -246,6 +249,32 @@ class MouseMovie(object):
         logging.debug('The sand color was determined to be %s', self.color_sand)
         
         
+    def _get_mouse_template_slices(self, pos, i_shape, t_shape):
+        # TODO, we could memorize this function
+
+        # get the dimensions of the overlapping region        
+        h = min(t_shape[0], i_shape[0] - pos[0])
+        w = min(t_shape[1], i_shape[1] - pos[1])
+        
+        # get the upper point in both images
+        if pos[0] >= 0:
+            i_y, t_y = pos[0], 0
+        else: # pos[0] < 0:
+            i_y, t_y = 0, -pos[0]
+            h += pos[0]
+            
+        # get the leftmost point in both images
+        if pos[1] >= 0:
+            i_x, t_x = pos[1], 0
+        else: # pos[1] < 0:
+            i_x, t_x = 0, -pos[1]
+            w += pos[1]
+            
+        # build the slices used to extract the information
+        return ((slice(i_y, i_y + h), slice(i_x, i_x + w)),  # slice for the image
+                (slice(t_y, t_y + h), slice(t_x, t_x + w)))  # slice for the template
+    
+        
     def update_background_model(self, frame):
         """ updates the background model using the current frame """
         
@@ -266,9 +295,12 @@ class MouseMovie(object):
                 
                 # subtract the current mouse model from the mask
                 template = self._get_mouse_template()
-                pos_x = self.mouse_pos[0] - template.shape[0]//2
-                pos_y = self.mouse_pos[1] - template.shape[1]//2
-                mask[pos_x:pos_x + template.shape[0], pos_y:pos_y + template.shape[1]] -= template
+                pos = (self.mouse_pos[0] - template.shape[0]//2,
+                       self.mouse_pos[1] - template.shape[1]//2)
+                
+                i_s, t_s = self._get_mouse_template_slices(pos, mask.shape, template.shape)
+                
+                mask[i_s[0], i_s[1]] -= template[t_s[0], t_s[1]]
                 
             # use the mask to adapt the background 
             self._background += self.params['background.adaptation_rate'] \
@@ -327,13 +359,13 @@ class MouseMovie(object):
         max_deviation sets a maximal distance the template is moved from start_pos
         """
         
-        shape = template.shape
-        pos_max = (image.shape[0] - shape[0], image.shape[1] - shape[1])
-        start_pos = (start_pos[0] - shape[0]//2, start_pos[1] - shape[1]//2)
-        points_to_check = [start_pos]
-        seen = set()
-        best_overlap = -np.inf
-        best_pos = None 
+        # calculate the initial top left position of the template
+        start_pos = (start_pos[0] - template.shape[0]//2,
+                     start_pos[1] - template.shape[1]//2)
+        # lists for checking all points surrounding the current one
+        points_to_check, seen = [start_pos], set()
+        # variables storing the best fit
+        best_overlap, best_pos = -np.inf, None
         
         # iterate over all possible points 
         while points_to_check:
@@ -341,27 +373,33 @@ class MouseMovie(object):
             # get the next position to check, which refers to the top left image of the template
             pos = points_to_check.pop()
             seen.add(pos)
+
+            # get the slices required for comparing the template to the image
+            i_s, t_s = self._get_mouse_template_slices(pos, image.shape, template.shape)
             
-            # calculate the current overlap
-            image_roi = image[pos[0]:pos[0] + shape[0], pos[1]:pos[1] + shape[1]]
-            overlap = (image_roi*template).sum()
+            # calculate the similarity
+            overlap = (image[i_s[0], i_s[1]]*template[t_s[0], t_s[1]]).sum()
             
             # compare it to the previously seen one
             if overlap > best_overlap:
                 best_overlap = overlap
                 best_pos = pos
                 
-                # append all points around the current one
+                # add points around the current one to the test list
                 for p in ((pos[0] - 1, pos[1]), (pos[0], pos[1] - 1),
                           (pos[0] + 1, pos[1]), (pos[0], pos[1] + 1)):
+                    
+                    # points will only be added if they have not already been checked
+                    # and if the associated distance is below the threshold
                     if (not p in seen 
-                        and 0 <= p[0] < pos_max[0] and 0 <= p[1] < pos_max[1]
                         and (max_deviation is None or 
-                             np.hypot(p[0] - start_pos[0], p[1] - start_pos[1]) < max_deviation)
+                             np.hypot(p[0] - start_pos[0], 
+                                      p[1] - start_pos[1]) < max_deviation)
                         ):
                         points_to_check.append(p)
                 
-        return (best_pos[0] + shape[0]//2, best_pos[1] + shape[1]//2)
+        # return the center position of the best template fit
+        return (best_pos[0] + template.shape[0]//2, best_pos[1] + template.shape[1]//2)
         
           
     def _find_mouse_in_binary_image(self, binary_image):
@@ -384,10 +422,7 @@ class MouseMovie(object):
         ) + 1
         
         # mouse position is center of mass of largest patch
-        mouse_pos = [
-            int(p)
-            for p in ndimage.measurements.center_of_mass(labels, labels, mouse_label)
-        ]
+        mouse_pos = np.array(ndimage.measurements.center_of_mass(labels, labels, mouse_label), np.int)
         return mouse_pos
 
     
@@ -427,8 +462,8 @@ class MouseMovie(object):
         """ adapts the current mouse position, if enough information is available """
         
         # setup initial data
-        if 'mouse_trajectory' not in self.result:
-            self.result['mouse_trajectory'] = []
+        if 'mouse.trajectory' not in self.result:
+            self.result['mouse.trajectory'] = []
 
         # find features that indicate that the mouse moved
         moving_toward = self._find_features_moving_forward(frame)
@@ -436,72 +471,36 @@ class MouseMovie(object):
         # check if features have been found
         if moving_toward.sum() > 0:
             
-            if self.mouse_pos is not None:
+            if self.mouse_pos is None:
+                # determine mouse position from largest feature
+                self.mouse_pos = self._find_mouse_in_binary_image(moving_toward)
+                self.result['mouse.position_initial'] = self.mouse_pos
+                
+            else:
                 # adapt old mouse position by considering the movement
                 self.mouse_pos = self._find_best_template_position(
                         frame*moving_toward,        # features weighted by intensity
                         self._get_mouse_template(), # search pattern
                         self.mouse_pos, self.params['mouse.max_speed'])
                 
-            else:
-                # determine mouse position from largest feature
-                self.mouse_pos = self._find_mouse_in_binary_image(moving_toward)
+                if not self.mouse_has_moved:
+                    mouse_dist = np.linalg.norm(self.mouse_pos - self.result['mouse.position_initial'])
+                    if mouse_dist > self.params['mouse.size']:
+                        self.mouse_has_moved = True
                     
         if 'video' in self.debug:
             # plot the contour of the movement
-            self.debug['video'].add_contour(moving_toward)
+            self.debug['video'].add_contour(moving_toward, color='g')
 
-        self.result['mouse_trajectory'].append(self.mouse_pos)
+        self.result['mouse.trajectory'].append(self.mouse_pos)
 
                 
     #===========================================================================
     # FINDING THE SAND PROFILE
     #===========================================================================
     
+    
     def _find_rough_sand_profile(self, image):
-        """ finds rough sand profile using a sand ridge template """
-        
-        # set up parameters
-        w = 3 # half the ridge width
-        s = 10*w
-                
-        # create the template for finding horizontal sand to sky transitions
-        y = np.arange(-s, s + 1)
-        c1 = self.color_sky[0]
-        c2 = self.color_sand[0]
-        sand_template = (np.tanh(y/w) + 1)/2*(c2 - c1) + c1
-        sand_template = sand_template[:, None]*np.ones((2*s + 1, 4*s + 1))
-
-        res = cv2.matchTemplate(image, sand_template.astype(np.uint8), cv2.TM_CCOEFF)
-        res = (res > 0.5*res.max())
-        
-        # reset borders
-        res[ :s, :] = 0
-        res[-s:, :] = 0
-        res[:,  :s] = 0
-        res[:, -s:] = 0
-        
-        # thin the mask by taking the maximum of the distance transform
-        dist_transform = cv2.distanceTransform(res.astype(np.uint8), cv2.cv.CV_DIST_L2, 5)
-        points = []
-        for x in xrange(res.shape[1]):
-            data = dist_transform[:, x]
-            if data.sum() > 0:
-                points.append((x + 2*s, data.argmax() + s))
-                
-        img = image.copy()
-        for p in points:
-            pos = (int(p[0]), int(p[1]))
-            cv2.circle(img, pos, 3, 255, thickness=-1)
-            
-        debug.show_image(img)
-             
-                
-        # return the points describing the sand profile
-        return np.array(points)
-    
-    
-    def _find_rough_sand_profile2(self, image):
         
         # remove 10% of each side of the image
         h = int(0.15*image.shape[0])
@@ -509,7 +508,7 @@ class MouseMovie(object):
         image_center = image[h:-h, w:-w]
         
         # binarize image
-        mask = (image_center > (self.color_sand[0] + self.color_sky[0])/2).astype(np.uint8)
+        _, mask = cv2.threshold(image_center, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         # TODO: we might want to replace that with the typical burrow radius
         # do morphological opening and closing to smooth the profile
@@ -577,7 +576,7 @@ class MouseMovie(object):
 
             # maximize the difference between the colors of the two half planes, which
             # should separate out sky from sand
-            x, cov_x, infodict, mesg, ier = \
+            x, _, infodict, _, _ = \
                 leastsq(sand_profile_model.get_difference, [0], xtol=0.1, full_output=True)
             
             # calculate goodness of fit
@@ -602,7 +601,7 @@ class MouseMovie(object):
         """
 
         # save the resulting profile
-        self.sand_profile = self._find_rough_sand_profile2(image)
+        self.sand_profile = self._find_rough_sand_profile(image)
         
         # iterate until the profile does not change significantly anymore
         length_last, length_current = 0, curve_length(self.sand_profile)
@@ -628,7 +627,7 @@ class MouseMovie(object):
         if 'video' in self.debug_output:
             # initialize the writer for the debug video
             debug_file = os.path.join(self.folder, 'debug', self.prefix + 'video.mov')
-            self.debug['video'] = VideoComposer(debug_file, background=self.video)
+            self.debug['video'] = VideoComposer(debug_file, background=self.video, is_color=True)
             
         # setup the background output, if requested
         if 'background' in self.debug_output:
@@ -637,6 +636,7 @@ class MouseMovie(object):
             self.debug['background'] = VideoFileWriter(debug_file, self.video.size,
                                                        self.video.fps, is_color=False)
 
+
     def debug_add_frame(self):
         """ adds information of the current frame to the debug output """
         
@@ -644,12 +644,13 @@ class MouseMovie(object):
             debug_video = self.debug['video']
             
             # plot the sand profile
-            debug_video.add_polygon(self.sand_profile, is_closed=False, color='w')
+            debug_video.add_polygon(self.sand_profile, is_closed=False, color='y')
         
             # indicate the mouse position
             if self.mouse_pos is not None:
-                debug_video.add_circle(self.mouse_pos[::-1], 4, 'r')
-                debug_video.add_circle(self.mouse_pos[::-1], self.params['mouse.size'], 'r', thickness=1)
+                color = 'w' if self.mouse_has_moved else 'r'
+                debug_video.add_circle(self.mouse_pos[::-1], 4, color)
+                debug_video.add_circle(self.mouse_pos[::-1], self.params['mouse.size'], color, thickness=1)
 
 
 

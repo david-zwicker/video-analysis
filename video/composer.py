@@ -35,7 +35,10 @@ class VideoComposer(VideoFileWriter):
             self.write_frame(self.frame)
         
         # set current frame
-        self.frame = frame.copy()
+        if self.is_color and frame.ndim == 2:
+            self.frame = frame[:, :, None]*np.ones((1, 1, 3), np.uint8)
+        else:
+            self.frame = frame.copy()
         
     
     def add_image(self, image, mask=None, alpha=1):
