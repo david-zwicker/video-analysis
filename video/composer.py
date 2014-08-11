@@ -117,6 +117,13 @@ class VideoComposer(VideoFileWriter):
         pos = (int(pos[0]), int(pos[1]))
         cv2.circle(self.frame, pos, radius, get_color(color), thickness=thickness)
         
+    
+    def add_points(self, points, radius, color):
+        """ adds a sequence of points to the frame """
+        c = get_color(color)
+        for p in points:
+            cv2.circle(self.frame, (int(p[0]), int(p[1])), radius, c, thickness=-1)
+        
         
     def __del__(self):
         # write the last frame
