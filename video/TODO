@@ -8,3 +8,8 @@ and a general VideoComposer class
 	- this score degrades over time, when we don't get a positional update
 	- if the score drops below a threshold, we should consider looking for the mouse anywhere in the video
 	- this should be done by using _find_mouse_in_binary_image
+* Produce a color movie, which allows for better annotation
+* Store meta information of video somewhere (especially date taken)
+* Store mouse position and sand profile only for those time points where we actually have data. We then have
+to store the frame index as well
+* Write a manual of assumption we make about the videos in order to track everything
