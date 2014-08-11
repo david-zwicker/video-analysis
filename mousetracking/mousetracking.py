@@ -12,16 +12,39 @@ import itertools
 
 import numpy as np
 import scipy.ndimage as ndimage
-from scipy.optimize import minimize_scalar
+from scipy.optimize import minimize_scalar, leastsq
 import cv2
 
 from video.io import VideoFileStack, VideoFileWriter
 from video.filters import FilterBlur, FilterCrop
-from video.analysis import get_largest_region, find_bounding_rect, curve_length
+from video.analysis.regions import get_largest_region, find_bounding_rect
+from video.analysis.curves import curve_length, make_cruve_equidistantly, simplify_curve
 from video.utils import display_progress
 from video.composer import VideoComposer
 
 import debug
+
+
+TRACKING_PARAMETERS_DEFAULT = {
+    # determines the rate with which the background is adapted
+    'background.adaptation_rate': 0.01,
+    
+    # spacing of the points in the sand profile
+    'sand_profile.spacing': 10,
+    # adapt the sand profile only every number of frames
+    'sand_profile.skip_frames': 10,
+    # width of the ridge in pixel
+    'sand_profile.width': 5,
+        
+    # `mouse.intensity_threshold` determines how much brighter than the
+    # background (usually the sky) has the mouse to be. This value is
+    # measured in terms of standard deviations of self.color_sky
+    'mouse.intensity_threshold': 2,
+    # radius of the mouse model in pixel
+    'mouse.size': 25,
+    # maximal speed of the mouse in pixel per frame
+    'mouse.max_speed': 30, 
+}
 
 
 class MouseMovie(object):
@@ -29,18 +52,6 @@ class MouseMovie(object):
     analyzes the mouse movie
     """
     
-    # determines the rate with which the background is adapted
-    background_adaptation_rate = 0.01
-        
-    # `mouse_intensity_threshold` determines how much brighter than the
-    # background (usually the sky) has the mouse to be. This value is
-    # measured in terms of standard deviations of self.color_sky
-    mouse_intensity_threshold = 2
-    # radius of the mouse model in pixel
-    mouse_size = 25
-    # maximal speed of the mouse in pixel per frame
-    mouse_max_speed = 30 
-
     def __init__(self, folder, frames=None, crop=None, prefix='', debug_output=None):
         """ initializes the whole mouse tracking and prepares the video filters """
         self.folder = folder
@@ -53,6 +64,7 @@ class MouseMovie(object):
         
         self.prefix = prefix + '_' if prefix else ''
         self.debug_output = [] if debug_output is None else debug_output
+        self.params = TRACKING_PARAMETERS_DEFAULT.copy()
         
         # setup internal structures that will be filled by analyzing the video
         self._cache = {} # cache that some functions might want to use
@@ -80,57 +92,22 @@ class MouseMovie(object):
 
     def process_video(self):
         """ processes the entire video """
-        # setup the video output, if requested
-        if 'video' in self.debug_output:
-            # initialize the writer for the debug video
-            debug_file = os.path.join(self.folder, 'debug', self.prefix + 'video.mov')
-            self.debug['video'] = VideoComposer(debug_file, background=self.video)
-            
-        # setup the background output, if requested
-        if 'background' in self.debug_output:
-            # initialize the writer for the debug video
-            debug_file = os.path.join(self.folder, 'debug', self.prefix + 'background.mov')
-            self.debug['background'] = VideoFileWriter(debug_file, self.video.size,
-                                                       self.video.fps, is_color=False)
+        self.debug_setup()
 
         # iterate over the video and analyze it
-        for frame in display_progress(self.video_blurred):
+        for k, frame in enumerate(display_progress(self.video_blurred)):
+            # adapt current background model
             self.update_background_model(frame)
-            #TODO: maybe we should refine the sand profile only every 100 frames or so
-            self.refine_sand_profile(self._background)
+            
+            # use the background to find the current sand profile
+            if k % self.params['sand_profile.skip_frames'] == 0:
+                self.refine_sand_profile(self._background)
+                
+            # search for the mouse
             self.update_mouse_model(frame)
-
-
-    def update_background_model(self, frame):
-        """ updates the background model using the current frame """
-        
-        if self._background is None:
-            # initialize background model with first frame
-            self._background = np.array(frame, dtype=float)
-            # allocate memory for the background mask, which will be used to
-            # adapt the background to a change of the environment
-            self._cache['background_mask'] = np.ones_like(frame, dtype=float)
-        
-        else:
-            # adapt the current background model to the current frame
             
-            mask = self._cache['background_mask']
-            if self.mouse_pos is not None:
-                # reset background mask to 1
-                mask.fill(1)
-                
-                # subtract the current mouse model from the mask
-                template = self._get_mouse_template()
-                pos_x = self.mouse_pos[0] - template.shape[0]//2
-                pos_y = self.mouse_pos[1] - template.shape[1]//2
-                mask[pos_x:pos_x + template.shape[0], pos_y:pos_y + template.shape[1]] -= template
-                
-            # use the mask to adapt the background 
-            self._background += self.background_adaptation_rate*mask*(frame - self._background)
-            
-        # write out the background if requested
-        if 'background' in self.debug:
-            self.debug['background'].write_frame(self._background)
+            # store some information in the debug dictionary
+            self.debug_add_frame()
 
             
     #===========================================================================
@@ -227,7 +204,12 @@ class MouseMovie(object):
         else:
             self.video = FilterCrop(self.video, cropping_rect)
                 
-                
+            
+    #===========================================================================
+    # BACKGROUND MODEL AND COLOR ESTIMATES
+    #===========================================================================
+               
+               
     def find_color_estimates(self, image):
         """ estimate the colors in the sky region and the sand region """
         
@@ -262,6 +244,39 @@ class MouseMovie(object):
         sand_img = image[sand_sure.astype(np.bool)]
         self.color_sand = (sand_img.mean(), sand_img.std())
         logging.debug('The sand color was determined to be %s', self.color_sand)
+        
+        
+    def update_background_model(self, frame):
+        """ updates the background model using the current frame """
+        
+        if self._background is None:
+            # initialize background model with first frame
+            self._background = np.array(frame, dtype=float)
+            # allocate memory for the background mask, which will be used to
+            # adapt the background to a change of the environment
+            self._cache['background_mask'] = np.ones_like(frame, dtype=float)
+        
+        else:
+            # adapt the current background model to the current frame
+            
+            mask = self._cache['background_mask']
+            if self.mouse_pos is not None:
+                # reset background mask to 1
+                mask.fill(1)
+                
+                # subtract the current mouse model from the mask
+                template = self._get_mouse_template()
+                pos_x = self.mouse_pos[0] - template.shape[0]//2
+                pos_y = self.mouse_pos[1] - template.shape[1]//2
+                mask[pos_x:pos_x + template.shape[0], pos_y:pos_y + template.shape[1]] -= template
+                
+            # use the mask to adapt the background 
+            self._background += self.params['background.adaptation_rate'] \
+                                *mask*(frame - self._background)
+            
+        # write out the background if requested
+        if 'background' in self.debug:
+            self.debug['background'].write_frame(self._background)
 
                         
     #===========================================================================
@@ -283,8 +298,8 @@ class MouseMovie(object):
         except KeyError:
             
             # determine the sizes of the different regions
-            size_core = self.mouse_size
-            size_ring = 3*self.mouse_size
+            size_core = self.params['mouse.size']
+            size_ring = 3*self.params['mouse.size']
             size_total = size_core + size_ring
     
             # build a filter for finding the mouse position
@@ -355,7 +370,7 @@ class MouseMovie(object):
         # build a kernel for morphological closing. We don't cache this kernel,
         # since the current function should only be called once per run
         kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
-                                                 (self.mouse_size, self.mouse_size))
+                                                 (self.params['mouse.size'],)*2)
         
         # perform morphological closing to combined feature patches that are near 
         moving_toward = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel_close)
@@ -396,7 +411,7 @@ class MouseMovie(object):
         # find movement, this should in principle be a factor multiplied by the 
         # noise in the image (estimated by its standard deviation), but a
         # constant factor is good enough right now
-        moving_toward = (diff > self.mouse_intensity_threshold*self.color_sky[1])
+        moving_toward = (diff > self.params['mouse.intensity_threshold']*self.color_sky[1])
 
         # convert the binary image to the normal output
         moving_toward = moving_toward.astype(np.uint8)
@@ -426,26 +441,21 @@ class MouseMovie(object):
                 self.mouse_pos = self._find_best_template_position(
                         frame*moving_toward,        # features weighted by intensity
                         self._get_mouse_template(), # search pattern
-                        self.mouse_pos, self.mouse_max_speed)
+                        self.mouse_pos, self.params['mouse.max_speed'])
                 
             else:
                 # determine mouse position from largest feature
                 self.mouse_pos = self._find_mouse_in_binary_image(moving_toward)
                     
         if 'video' in self.debug:
-            debug_video = self.debug['video']
             # plot the contour of the movement
-            debug_video.add_contour(moving_toward)
-            # indicate the mouse position
-            if self.mouse_pos is not None:
-                debug_video.add_circle(self.mouse_pos[::-1], 4, 'r')
-                debug_video.add_circle(self.mouse_pos[::-1], self.mouse_size, 'r', thickness=1)
+            self.debug['video'].add_contour(moving_toward)
 
         self.result['mouse_trajectory'].append(self.mouse_pos)
 
                 
     #===========================================================================
-    # FINDING THE SAND
+    # FINDING THE SAND PROFILE
     #===========================================================================
     
     def _find_rough_sand_profile(self, image):
@@ -462,7 +472,6 @@ class MouseMovie(object):
         sand_template = (np.tanh(y/w) + 1)/2*(c2 - c1) + c1
         sand_template = sand_template[:, None]*np.ones((2*s + 1, 4*s + 1))
 
-        
         res = cv2.matchTemplate(image, sand_template.astype(np.uint8), cv2.TM_CCOEFF)
         res = (res > 0.5*res.max())
         
@@ -480,65 +489,99 @@ class MouseMovie(object):
             if data.sum() > 0:
                 points.append((x + 2*s, data.argmax() + s))
                 
+        img = image.copy()
+        for p in points:
+            pos = (int(p[0]), int(p[1]))
+            cv2.circle(img, pos, 3, 255, thickness=-1)
+            
+        debug.show_image(img)
+             
+                
         # return the points describing the sand profile
         return np.array(points)
+    
+    
+    def _find_rough_sand_profile2(self, image):
         
+        # remove 10% of each side of the image
+        h = int(0.15*image.shape[0])
+        w = int(0.15*image.shape[1])
+        image_center = image[h:-h, w:-w]
         
-    def refine_sand_profile(self, image, points=None):
-        """ adapts a sand profile given as points to a given image """
+        # binarize image
+        mask = (image_center > (self.color_sand[0] + self.color_sky[0])/2).astype(np.uint8)
+        
+        # TODO: we might want to replace that with the typical burrow radius
+        # do morphological opening and closing to smooth the profile
+        s = 4*self.params['sand_profile.spacing']
+        ys, xs = np.ogrid[-s:s+1, -s:s+1]
+        kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+        # get the contour from the mask
+        points = [(x + w, np.nonzero(col)[0][0] + h)
+                  for x, col in enumerate(mask.T)]            
+
+        # simplify the curve        
+        points = np.array(simplify_curve(points, epsilon=2))
+
+#         for p in points:
+#             pos = (int(p[0]), int(p[1]))
+#             cv2.circle(image, pos, 3, 255, thickness=-1)
+#         debug.show_image(image, mask)
+
+        return np.array(points)
+   
+        
+    def refine_sand_profile(self, image, points=None, spacing=None):
+        """ adapts a sand profile given as points to a given image.
+        Here, we fit a ridge profile in the vicinity of every point of the curve.
+        The only fitting parameter is the distance by which a single points moves
+        in the direction perpendicular to the curve. """
                 
         if points is None:
             points = self.sand_profile
+            
+        if spacing is None:
+            spacing = self.params['sand_profile.spacing']
                 
-        profile_points_spacing = 20 #< point distance we aim for
-
-        # walk along and pick points equidistantly
-        profile_length = curve_length(points)
-        dx = profile_length/np.round(profile_length/profile_points_spacing)
-        dist = 0
-        sand_profile = [points[0]]
-        for p1, p2 in itertools.izip(points[:-1], points[1:]):
-            # determine the distance between the last two points 
-            dp = np.linalg.norm(p2 - p1)
-            # add points to the result list
-            while dist + dp > dx:
-                p1 += (dx - dist)/dp*(p2 - p1)
-                sand_profile.append(p1.copy())
-                dp = np.linalg.norm(p2 - p1)
-                dist = 0
-            
-            # add the remaining distance 
-            dist += dp
-            
-        # add the last point if necessary
-        if dist > dx/2:
-            sand_profile.append(points[-1])
-            
-        # we now have an estimate of the sand profile with equidistant points
+        # make sure the curve has equidistant points
+        sand_profile = make_cruve_equidistantly(points, spacing)
         sand_profile = np.array(sand_profile)
 
-        # we next move these points in the normal direction of the profile
-        # we therefore use windows of size w
-        w = profile_points_spacing
+        # we next conisder a window of width w around each point
+        w = spacing
         ys, xs = np.ogrid[-w:w+1, -w:w+1]
         
-        def half_plane_mask(angle, distance):
+        def half_plane_mask(distance, angle):
             """ makes a mask of a half plane with an angle and a distance to
             the central point """
-            p0 = distance*np.sin(angle)
-            p1 = distance*np.cos(angle)
-            dist = (ys - p0)*np.sin(angle) + (xs - p1)*np.cos(angle) + 0.5
-            return (dist > 0)
+            # determine center point
+            px = distance*np.cos(angle)
+            py = -distance*np.sin(angle)
+            
+            # determine the distance from the ridge line
+            dist = (ys - py)*np.sin(angle) - (xs - px)*np.cos(angle) + 0.5 # TODO: check the 0.5
+            
+            # apply sigmoidal function
+            mask = np.tanh(dist/self.params['sand_profile.width'])
+#             mask[w + int(py), w + int(px)] = 2
+            return mask
         
         def measure_difference(region, angle, distance):
             """ evaluates the difference between the two sides of the half plane """
-            mask = half_plane_mask(angle, distance)
+            mask = half_plane_mask(distance, angle)
             #print distance, np.abs(region[mask].mean() - region[~mask].mean())
             # TODO: do not rely on simple masks, but introduce a sigmoidal
             # transition region - this implies that we have to done real fitting
             # i.e. we could do normalized fitting using the mean and the std of the 
             # region as an estimate
             return np.abs(region[mask].mean() - region[~mask].mean())
+
+        def ridge_profile(distance, angle, region):
+            mask = half_plane_mask(distance, angle)
+            return np.ravel(region.mean() + 1.5*region.std()*mask - region)
 
         # iterate through all points and correct profile
         corrected_points = []
@@ -553,34 +596,47 @@ class MouseMovie(object):
                 # approximately constant
                 angle = np.pi/2
             else:
-                slope = (sand_profile[k+1] - sand_profile[k-1])/(2*dx)
-                angle = np.arctan2(slope[1], slope[0])
+                dp = sand_profile[k+1] - sand_profile[k-1]
+                angle = np.arctan2(dp[0], dp[1]) # y-coord, x-coord
                 
             # extract the region image
             region = image[p[1]-w : p[1]+w+1, p[0]-w : p[0]+w+1].copy()
 
+            #debug.show_image(region, region.mean() + 1.5*region.std()*half_plane_mask(15, angle))
+
             # maximize the difference between the colors of the two half planes, which
-            # should separate out sky from sand          
-            res = minimize_scalar(lambda dist: -measure_difference(region, angle - np.pi/2, dist),
-                                  bounds=(-w//2, w//2), method='bounded')
+            # should separate out sky from sand
+            x, cov_x, infodict, mesg, ier = leastsq(ridge_profile, [0],
+                                                    args=(angle, region), full_output=True)
+            
+            # calculate goodness of fit
+            ss_err = (infodict['fvec']**2).sum()
+            ss_tot = ((region - region.mean())**2).sum()
+            rsquared = 1 - ss_err/ss_tot
+
+#             res = minimize_scalar(lambda dist: -measure_difference(region, angle, dist),
+#                                   bounds=(-w//2, w//2), method='bounded')
             
             # use a threshold based on the known variations in color
             # Note, that we never remove the first and the last point
-            if (res.fun < -2*(self.color_sand[1] + self.color_sky[1]) 
-                or k == 0 or k == len(sand_profile) - 1):
+            if rsquared > 0.1 or k == 0 or k == len(sand_profile) - 1:
                 # we are rather confident that this point is better than it was
                 # before and thus add it to the result list
-                corrected_points.append((p[0] + res.x*np.sin(angle),
-                                         p[1] - res.x*np.cos(angle)))
+                corrected_points.append((p[0] + x[0]*np.cos(angle),   # x-coord
+                                         p[1] - x[0]*np.sin(angle)))  # y-coord
             
-        print self.sand_profile[0, 0], corrected_points[0][0]
+        #print self.sand_profile[0, 0], corrected_points[0][0]
         self.sand_profile = np.array(corrected_points)
     
-        if 'video' in self.debug:
-            debug_video = self.debug['video']
-            # plot the sand profile
-            debug_video.add_polygon(self.sand_profile, is_closed=False, color='w')
-        
+#         test = image.copy()
+#         for p in sand_profile:
+#             pos = (int(p[0]), int(p[1]))
+#             cv2.circle(test, pos, 3, 0, thickness=-1)
+#             
+#         for p in self.sand_profile:
+#             pos = (int(p[0]), int(p[1]))
+#             cv2.circle(test, pos, 3, 255, thickness=-1)
+            
 
     def find_sand_profile(self, image):
         """
@@ -588,13 +644,51 @@ class MouseMovie(object):
         """
 
         # save the resulting profile
-        self.sand_profile = self._find_rough_sand_profile(image)
+        self.sand_profile = self._find_rough_sand_profile2(image)
         
-        # FIXME: iterate until the profile does not change significantly anymore
-        for _ in xrange(5):
-            self.refine_sand_profile(image)
+        # iterate until the profile does not change significantly anymore
+        length_last, length_current = 0, curve_length(self.sand_profile)
+        iterations = 0
+        while abs(length_current - length_last)/length_current > 0.001 or iterations < 5:
+            self.refine_sand_profile(image, spacing=2*self.params['sand_profile.spacing'])
+            length_last, length_current = length_current, curve_length(self.sand_profile)
+            iterations += 1
             
-        logging.info('We found a sand profile of length %g', curve_length(self.sand_profile))
+        logging.info('We found a sand profile of length %g after %d iterations',
+                     length_current, iterations)
         
+                    
+    #===========================================================================
+    # DEBUGGING
+    #===========================================================================
+
+
+    def debug_setup(self):
+        """ prepares everything for the debug output """
         
+        # setup the video output, if requested
+        if 'video' in self.debug_output:
+            # initialize the writer for the debug video
+            debug_file = os.path.join(self.folder, 'debug', self.prefix + 'video.mov')
+            self.debug['video'] = VideoComposer(debug_file, background=self.video)
+            
+        # setup the background output, if requested
+        if 'background' in self.debug_output:
+            # initialize the writer for the debug video
+            debug_file = os.path.join(self.folder, 'debug', self.prefix + 'background.mov')
+            self.debug['background'] = VideoFileWriter(debug_file, self.video.size,
+                                                       self.video.fps, is_color=False)
+
+    def debug_add_frame(self):
+        """ adds information of the current frame to the debug output """
         
+        if 'video' in self.debug:
+            debug_video = self.debug['video']
+            
+            # plot the sand profile
+            debug_video.add_polygon(self.sand_profile, is_closed=False, color='w')
+        
+            # indicate the mouse position
+            if self.mouse_pos is not None:
+                debug_video.add_circle(self.mouse_pos[::-1], 4, 'r')
+                debug_video.add_circle(self.mouse_pos[::-1], self.params['mouse.size'], 'r', thickness=1)

@@ -11,8 +11,9 @@ def show_image(*images, **kwargs):
     """ shows the image using matplotlib and waits for the user to continue """
     import matplotlib.pyplot as plt
 
-    for image in images:
-        plt.figure()
+    num_plots = len(images)
+    for k, image in enumerate(images):
+        plt.subplot(1, num_plots, k + 1)
         plt.imshow(image, interpolation='none')
         plt.gray()
         plt.colorbar()
