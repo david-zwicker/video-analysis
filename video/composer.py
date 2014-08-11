@@ -122,6 +122,13 @@ class VideoComposer(VideoFileWriter):
         """
         contours, hierarchy = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(self.frame, contours, -1,  get_color(color), thickness=thickness)
+    
+    
+    def add_polygon(self, points, color='w', is_closed=True, width=1):
+        """ adds a polygon to the frame """
+        points = np.asarray(points, np.int)               
+        cv2.polylines(self.frame, [points], isClosed=is_closed,
+                      color=get_color(color), thickness=width)
         
     
     def add_rectangle(self, rect, color='w', width=1):

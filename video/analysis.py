@@ -4,6 +4,8 @@ Created on Aug 4, 2014
 @author: zwicker
 '''
 
+import itertools
+
 import numpy as np
 import scipy.ndimage as ndimage
 
@@ -43,6 +45,12 @@ def find_bounding_rect(mask):
         right = mask.shape[1] - 1
     
     return np.array([top, left, bottom, right])
+
+
+def curve_length(points):
+    """ returns the total arc length of a curve definded by a number of points """
+    return np.sum(np.linalg.norm(p2 - p1)
+                  for p1, p2 in itertools.izip(points, points[1:]))
 
 
 def reduce_video(video, function, initial_value=None):

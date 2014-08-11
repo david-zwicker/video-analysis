@@ -7,14 +7,19 @@ Created on Aug 8, 2014
 from __future__ import division
 
 
-def show_image(image):
+def show_image(*images, **kwargs):
     """ shows the image using matplotlib and waits for the user to continue """
     import matplotlib.pyplot as plt
 
-    plt.imshow(image)
-    plt.colorbar()
+    for image in images:
+        plt.figure()
+        plt.imshow(image, interpolation='none')
+        plt.gray()
+        plt.colorbar()
+        
     plt.show()
-    raw_input('Press enter to continue...')
+    if kwargs.pop('wait_for_key', True):
+        raw_input('Press enter to continue...')
     
     
 def print_filter_chain(video):

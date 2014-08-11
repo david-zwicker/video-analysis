@@ -8,13 +8,17 @@ from __future__ import division
 
 import os
 import logging
+import itertools
+
 import numpy as np
 import scipy.ndimage as ndimage
+from scipy.interpolate import interp1d
+from scipy.optimize import minimize_scalar
 import cv2
 
 from video.io import VideoFileStack, VideoFileWriter
 from video.filters import FilterBlur, FilterCrop
-from video.analysis import get_largest_region, find_bounding_rect
+from video.analysis import get_largest_region, find_bounding_rect, curve_length
 from video.utils import display_progress
 from video.composer import VideoComposer
 
@@ -53,10 +57,11 @@ class MouseMovie(object):
         self._cache = {} # cache that some functions might want to use
         self.result = {} # dictionary holding result information
         self.debug = {} # dictionary holding debug information
-        self.mouse_pos = None   # current model of the mouse position
-        self.color_sky = None   # color of sky parts
-        self.color_sand = None  # color of sand parts
-        self._background = None # current background image
+        self.mouse_pos = None    # current model of the mouse position
+        self.sand_profile = None # current model of the sand profile
+        self.color_sky = None    # color of sky parts
+        self.color_sand = None   # color of sand parts
+        self._background = None  # current background image
         
         # restrict the video to the region of interest (the cage)
         self.crop_video_to_cage(crop)
@@ -65,7 +70,10 @@ class MouseMovie(object):
         self.video_blurred = FilterBlur(self.video, 3)
 
         # estimate colors of sand and sky
-        self.get_color_estimates(self.video_blurred[0])
+        self.set_color_estimates(self.video_blurred[0])
+        
+        # estimate initial sand profile
+        self.find_initial_sand_profile()
 
 
     def process_video(self):
@@ -86,6 +94,7 @@ class MouseMovie(object):
         # iterate over the video and analyze it
         for frame in display_progress(self.video_blurred):
             self.update_background_model(frame)
+            self.refine_sand_profile(self._background)
             self.update_mouse_model(frame)
 
 
@@ -216,7 +225,7 @@ class MouseMovie(object):
             self.video = FilterCrop(self.video, cropping_rect)
                 
                 
-    def get_color_estimates(self, image):
+    def set_color_estimates(self, image):
         """ estimate the colors in the sky region and the sand region """
         
         # add black border around image, which is important for the distance 
@@ -436,35 +445,151 @@ class MouseMovie(object):
     # FINDING THE SAND
     #===========================================================================
     
-
-    def find_sand_profile(self):
+    def _find_rough_sand_profile(self, image):
+        """ finds rough sand profile using a sand ridge template """
         
+        # set up parameters
+        w = 3 # half the ridge width
+        s = 10*w
+                
+        # create the template for finding horizontal sand to sky transitions
+        y = np.arange(-s, s + 1)
+        c1 = self.color_sky[0]
+        c2 = self.color_sand[0]
+        sand_template = (np.tanh(y/w) + 1)/2*(c2 - c1) + c1
+        sand_template = sand_template[:, None]*np.ones((2*s + 1, 4*s + 1))
+
+        
+        res = cv2.matchTemplate(image, sand_template.astype(np.uint8), cv2.TM_CCOEFF)
+        res = (res > 0.5*res.max())
+        
+        # reset borders
+        res[ :s, :] = 0
+        res[-s:, :] = 0
+        res[:,  :s] = 0
+        res[:, -s:] = 0
+        
+        # thin the mask by taking the maximum of the distance transform
+        dist_transform = cv2.distanceTransform(res.astype(np.uint8), cv2.cv.CV_DIST_L2, 5)
+        points = []
+        for x in xrange(res.shape[1]):
+            data = dist_transform[:, x]
+            if data.sum() > 0:
+                points.append((x + 2*s, data.argmax() + s))
+                
+        # return the points describing the sand profile
+        return np.array(points)
+        
+        
+    def refine_sand_profile(self, image, points=None):
+        """ adapts a sand profile given as points to a given image """
+                
+        if points is None:
+            points = self.sand_profile
+                
+        profile_points_spacing = 20 #< point distance we aim for
+
+        # walk along and pick points equidistantly
+        profile_length = curve_length(points)
+        dx = profile_length/np.round(profile_length/profile_points_spacing)
+        dist = 0
+        sand_profile = [points[0]]
+        for p1, p2 in itertools.izip(points[:-1], points[1:]):
+            # determine the distance between the last two points 
+            dp = np.linalg.norm(p2 - p1)
+            # add points to the result list
+            while dist + dp > dx:
+                p1 += (dx - dist)/dp*(p2 - p1)
+                sand_profile.append(p1.copy())
+                dp = np.linalg.norm(p2 - p1)
+                dist = 0
+            
+            # add the remaining distance 
+            dist += dp
+            
+        # add the last point if necessary
+        if dist > dx/2:
+            sand_profile.append(points[-1])
+            
+        # we now have an estimate of the sand profile with equidistant points
+        sand_profile = np.array(sand_profile)
+
+        # we next move these points in the normal direction of the profile
+        # we therefore use windows of size w
+        w = profile_points_spacing
+        ys, xs = np.ogrid[-w:w+1, -w:w+1]
+        
+        def half_plane_mask(angle, distance):
+            """ makes a mask of a half plane with an angle and a distance to
+            the central point """
+            p0 = distance*np.sin(angle)
+            p1 = distance*np.cos(angle)
+            dist = (ys - p0)*np.sin(angle) + (xs - p1)*np.cos(angle) + 0.5
+            return (dist > 0)
+        
+        def measure_difference(region, angle, distance):
+            """ evaluates the difference between the two sides of the half plane """
+            mask = half_plane_mask(angle, distance)
+            #print distance, np.abs(region[mask].mean() - region[~mask].mean())
+            return np.abs(region[mask].mean() - region[~mask].mean())
+
+        # iterate through all points and correct profile
+        corrected_points = []
+        for k, p in enumerate(sand_profile):
+            # FIXME: draw a sketch on how the angle and all the slopes are defined
+            # there are definitely problems with the angles in this code
+            # this seems to cause the line to shrink 
+            
+            # determine the local slope of the profile, which fixes the angle 
+            if k == 0 or k == len(sand_profile) - 1:
+                # we only move these vertically to keep the profile length
+                # approximately constant
+                angle = np.pi/2
+            else:
+                slope = (sand_profile[k+1] - sand_profile[k-1])/(2*dx)
+                angle = np.arctan2(slope[1], slope[0])
+                
+            # extract the region image
+            region = image[p[1]-w : p[1]+w+1, p[0]-w : p[0]+w+1].copy()
+
+            # maximize the difference between the colors of the two half planes, which
+            # should separate out sky from sand          
+            res = minimize_scalar(lambda dist: -measure_difference(region, angle - np.pi/2, dist),
+                                  bounds=(-w//2, w//2), method='bounded')
+            
+            # use a threshold based on the known variations in color
+            # Note, that we never remove the first and the last point
+            if (res.fun < -2*(self.color_sand[1] + self.color_sky[1]) 
+                or k == 0 or k == len(sand_profile) - 1):
+                # we are rather confident that this point is better than it was
+                # before and thus add it to the result list
+                corrected_points.append((p[0] + res.x*np.sin(angle),
+                                         p[1] - res.x*np.cos(angle)))
+            
+        print self.sand_profile[0, 0], corrected_points[0][0]
+        self.sand_profile = np.array(corrected_points)
+    
+        if 'video' in self.debug:
+            debug_video = self.debug['video']
+            # plot the sand profile
+            debug_video.add_polygon(self.sand_profile, is_closed=False, color='w')
+        
+
+    def find_initial_sand_profile(self):
+        """
+        finds 
+        """
+        # work with the first frame of the blurred image
         image = self.video_blurred[0]
-        
-        # automatic thresholding to separate bright sand from dark background
-        _, binarized = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
-        # distance transform to spot large regions of sand
-        dist_transform = cv2.distanceTransform(binarized, cv2.cv.CV_DIST_L2, 5)
 
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(dist_transform)
+        # save the resulting profile
+        self.sand_profile = self._find_rough_sand_profile(image)
         
-        # thresholding to get regions, where we are sure that we have sand
-        _, sure_sand = cv2.threshold(dist_transform, 0.75*dist_transform.max(), 1, 0)
-        
-        # determine the sand color
-        sand = image[sure_sand.astype(np.bool)]
-        self.color_sand = (sand.mean(), sand.std())
-        print 'sand color', self.color_sand
-        
-        # set one sand pixel to mean
-        image[max_loc[0], max_loc[1]] = self.color_sand[0]
-        
-#         cv2.floodFill(image, mask=None, seedPoint=max_loc, newVal=0,
-#                       loDiff=self.color_sand[0] - self.color_sand[1],
-#                       upDiff=self.color_sand[0] + self.color_sand[1],
-#                       flags=cv2.FLOODFILL_FIXED_RANGE)
+        # FIXME: iterate until the profile does not change significantly anymore
+        for _ in xrange(5):
+            self.refine_sand_profile(image)
+            
+        logging.info('We found a sand profile of length %g', curve_length(self.sand_profile))
         
         
-        debug.show_image(image)
         
