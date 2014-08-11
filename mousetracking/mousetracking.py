@@ -545,50 +545,20 @@ class MouseMovie(object):
             
         if spacing is None:
             spacing = self.params['sand_profile.spacing']
+            
+        if not 'sand_profile.model' in self._cache or self._cache['sand_profile.model'].size != spacing:
+            self._cache['sand_profile.model'] = \
+                    RidgeProfile(spacing, self.params['sand_profile.width'])
                 
         # make sure the curve has equidistant points
         sand_profile = make_cruve_equidistantly(points, spacing)
         sand_profile = np.array(sand_profile)
 
-        # we next conisder a window of width w around each point
-        w = spacing
-        ys, xs = np.ogrid[-w:w+1, -w:w+1]
-        
-        def half_plane_mask(distance, angle):
-            """ makes a mask of a half plane with an angle and a distance to
-            the central point """
-            # determine center point
-            px = distance*np.cos(angle)
-            py = -distance*np.sin(angle)
-            
-            # determine the distance from the ridge line
-            dist = (ys - py)*np.sin(angle) - (xs - px)*np.cos(angle) + 0.5 # TODO: check the 0.5
-            
-            # apply sigmoidal function
-            mask = np.tanh(dist/self.params['sand_profile.width'])
-#             mask[w + int(py), w + int(px)] = 2
-            return mask
-        
-        def measure_difference(region, angle, distance):
-            """ evaluates the difference between the two sides of the half plane """
-            mask = half_plane_mask(distance, angle)
-            #print distance, np.abs(region[mask].mean() - region[~mask].mean())
-            # TODO: do not rely on simple masks, but introduce a sigmoidal
-            # transition region - this implies that we have to done real fitting
-            # i.e. we could do normalized fitting using the mean and the std of the 
-            # region as an estimate
-            return np.abs(region[mask].mean() - region[~mask].mean())
-
-        def ridge_profile(distance, angle, region):
-            mask = half_plane_mask(distance, angle)
-            return np.ravel(region.mean() + 1.5*region.std()*mask - region)
 
         # iterate through all points and correct profile
+        sand_profile_model = self._cache['sand_profile.model']
         corrected_points = []
         for k, p in enumerate(sand_profile):
-            # FIXME: draw a sketch on how the angle and all the slopes are defined
-            # there are definitely problems with the angles in this code
-            # this seems to cause the line to shrink 
             
             # determine the local slope of the profile, which fixes the angle 
             if k == 0 or k == len(sand_profile) - 1:
@@ -600,24 +570,21 @@ class MouseMovie(object):
                 angle = np.arctan2(dp[0], dp[1]) # y-coord, x-coord
                 
             # extract the region image
-            region = image[p[1]-w : p[1]+w+1, p[0]-w : p[0]+w+1].copy()
+            region = image[p[1]-spacing : p[1]+spacing+1, p[0]-spacing : p[0]+spacing+1].copy()
+            sand_profile_model.set_data(region, angle) 
 
             #debug.show_image(region, region.mean() + 1.5*region.std()*half_plane_mask(15, angle))
 
             # maximize the difference between the colors of the two half planes, which
             # should separate out sky from sand
-            x, cov_x, infodict, mesg, ier = leastsq(ridge_profile, [0],
-                                                    args=(angle, region), full_output=True)
+            x, cov_x, infodict, mesg, ier = \
+                leastsq(sand_profile_model.get_difference, [0], xtol=0.1, full_output=True)
             
             # calculate goodness of fit
             ss_err = (infodict['fvec']**2).sum()
             ss_tot = ((region - region.mean())**2).sum()
             rsquared = 1 - ss_err/ss_tot
 
-#             res = minimize_scalar(lambda dist: -measure_difference(region, angle, dist),
-#                                   bounds=(-w//2, w//2), method='bounded')
-            
-            # use a threshold based on the known variations in color
             # Note, that we never remove the first and the last point
             if rsquared > 0.1 or k == 0 or k == len(sand_profile) - 1:
                 # we are rather confident that this point is better than it was
@@ -627,15 +594,6 @@ class MouseMovie(object):
             
         #print self.sand_profile[0, 0], corrected_points[0][0]
         self.sand_profile = np.array(corrected_points)
-    
-#         test = image.copy()
-#         for p in sand_profile:
-#             pos = (int(p[0]), int(p[1]))
-#             cv2.circle(test, pos, 3, 0, thickness=-1)
-#             
-#         for p in self.sand_profile:
-#             pos = (int(p[0]), int(p[1]))
-#             cv2.circle(test, pos, 3, 255, thickness=-1)
             
 
     def find_sand_profile(self, image):
@@ -692,3 +650,47 @@ class MouseMovie(object):
             if self.mouse_pos is not None:
                 debug_video.add_circle(self.mouse_pos[::-1], 4, 'r')
                 debug_video.add_circle(self.mouse_pos[::-1], self.params['mouse.size'], 'r', thickness=1)
+
+
+
+class RidgeProfile(object):
+    """ represents a ridge profile to compare it against an image in fitting """
+    
+    def __init__(self, size, profile_width=1):
+        """ initialize the structure
+        size is half the width of the region of interest
+        profile_width determines the blurriness of the ridge
+        """
+        self.size = size
+        self.ys, self.xs = np.ogrid[-size:size+1, -size:size+1]
+        self.width = profile_width
+        self.image = None
+        
+        
+    def set_data(self, image, angle):
+        """ sets initial data used for fitting
+        image denotes the data we compare the model to
+        angle defines the direction perpendicular to the profile 
+        """
+        
+        self.image = image
+        self.image_mean = image.mean()
+        self.image_std = image.std()
+        self._sina = np.sin(angle)
+        self._cosa = np.cos(angle)
+        
+        
+    def get_difference(self, distance):
+        """ calculates the difference between image and model, when the 
+        model is moved by a certain distance in its normal direction """ 
+        # determine center point
+        px =  distance*self._cosa
+        py = -distance*self._sina
+        
+        # determine the distance from the ridge line
+        dist = (self.ys - py)*self._sina - (self.xs - px)*self._cosa + 0.5 # TODO: check the 0.5
+        
+        # apply sigmoidal function
+        model = np.tanh(dist/self.width)
+     
+        return np.ravel(self.image_mean + 1.5*self.image_std*model - self.image)
