@@ -24,8 +24,6 @@ except ImportError:
     import os
     DEVNULL = open(os.devnull, 'wb')
 
-from video.utils import verbose
-
 
 def try_cmd(cmd):
     """ helper function checking whether a command runs successful """    

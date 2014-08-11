@@ -36,36 +36,6 @@ class VideoComposer(VideoFileWriter):
         
         # set current frame
         self.frame = frame.copy()
-
-
-#     def advance(self, index=None):
-#         """ advances to the frame index.
-#         Advance to the next frame if index is None.
-#         """
-#         # advance the video to the requested frame
-#         while self._frame_pos < index:
-#             # write the current frame
-#             if self._frame is not None:
-#                 self.write_frame(self._frame)
-# 
-#             # retrieve the next frame
-#             self._frame_pos += 1
-#             self._frame = next(self._background).copy()
-# 
-#         
-#     def get_frame(self, index):
-#         """ returns the frame at position index to be drawn onto """
-#         if index == self._frame_pos:
-#             # just return the current frame to allow it to be manipulated
-#             pass
-#         
-#         elif index > self._frame_pos:
-#             self.advance(index)
-#             
-#         else:
-#             raise RuntimeError('The debug video went out of sync.')
-# 
-#         return self._frame
         
     
     def add_image(self, image, mask=None, alpha=1):

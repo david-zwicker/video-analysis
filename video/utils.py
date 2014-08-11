@@ -15,8 +15,7 @@ try:
 except ImportError:
     tqdm = None
     logging.warn('Package tqdm could not be imported and progress bars are '
-                 'thus not available')
-
+                 'thus not available.')
 
 
 

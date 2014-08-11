@@ -12,7 +12,6 @@ import itertools
 
 import numpy as np
 import scipy.ndimage as ndimage
-from scipy.interpolate import interp1d
 from scipy.optimize import minimize_scalar
 import cv2
 
@@ -33,11 +32,13 @@ class MouseMovie(object):
     # determines the rate with which the background is adapted
     background_adaptation_rate = 0.01
         
-    # how much brighter than the background has the mouse to be
-    mouse_intensity_threshold = 15
+    # `mouse_intensity_threshold` determines how much brighter than the
+    # background (usually the sky) has the mouse to be. This value is
+    # measured in terms of standard deviations of self.color_sky
+    mouse_intensity_threshold = 2
     # radius of the mouse model in pixel
     mouse_size = 25
-    # maximal speed in pixel per frame
+    # maximal speed of the mouse in pixel per frame
     mouse_max_speed = 30 
 
     def __init__(self, folder, frames=None, crop=None, prefix='', debug_output=None):
@@ -68,12 +69,13 @@ class MouseMovie(object):
 
         # blur the video to reduce noise effects    
         self.video_blurred = FilterBlur(self.video, 3)
+        first_frame = self.video_blurred[0]
 
         # estimate colors of sand and sky
-        self.set_color_estimates(self.video_blurred[0])
+        self.find_color_estimates(first_frame)
         
         # estimate initial sand profile
-        self.find_initial_sand_profile()
+        self.find_sand_profile(first_frame)
 
 
     def process_video(self):
@@ -94,6 +96,7 @@ class MouseMovie(object):
         # iterate over the video and analyze it
         for frame in display_progress(self.video_blurred):
             self.update_background_model(frame)
+            #TODO: maybe we should refine the sand profile only every 100 frames or so
             self.refine_sand_profile(self._background)
             self.update_mouse_model(frame)
 
@@ -225,7 +228,7 @@ class MouseMovie(object):
             self.video = FilterCrop(self.video, cropping_rect)
                 
                 
-    def set_color_estimates(self, image):
+    def find_color_estimates(self, image):
         """ estimate the colors in the sky region and the sand region """
         
         # add black border around image, which is important for the distance 
@@ -393,7 +396,7 @@ class MouseMovie(object):
         # find movement, this should in principle be a factor multiplied by the 
         # noise in the image (estimated by its standard deviation), but a
         # constant factor is good enough right now
-        moving_toward = (diff > self.mouse_intensity_threshold)
+        moving_toward = (diff > self.mouse_intensity_threshold*self.color_sky[1])
 
         # convert the binary image to the normal output
         moving_toward = moving_toward.astype(np.uint8)
@@ -531,6 +534,10 @@ class MouseMovie(object):
             """ evaluates the difference between the two sides of the half plane """
             mask = half_plane_mask(angle, distance)
             #print distance, np.abs(region[mask].mean() - region[~mask].mean())
+            # TODO: do not rely on simple masks, but introduce a sigmoidal
+            # transition region - this implies that we have to done real fitting
+            # i.e. we could do normalized fitting using the mean and the std of the 
+            # region as an estimate
             return np.abs(region[mask].mean() - region[~mask].mean())
 
         # iterate through all points and correct profile
@@ -575,12 +582,10 @@ class MouseMovie(object):
             debug_video.add_polygon(self.sand_profile, is_closed=False, color='w')
         
 
-    def find_initial_sand_profile(self):
+    def find_sand_profile(self, image):
         """
-        finds 
+        finds the sand profile given an image of an antfarm 
         """
-        # work with the first frame of the blurred image
-        image = self.video_blurred[0]
 
         # save the resulting profile
         self.sand_profile = self._find_rough_sand_profile(image)
