@@ -12,22 +12,16 @@ from .io.file import VideoFileWriter
 
 
 class VideoComposer(VideoFileWriter):
-    """ A class that takes a background video and can add additional geometric
-    structures on top of this background. This makes it useful for debug output,
-    hence the name """
+    """ A class that can be used to compose a video frame by frame.
+    Additional elements like geometric objects can be added to each frame
+    """
     
-    def __init__(self, filename, background, is_color=None, **kwargs):
-        
-        self._background = background
-        background.register_listener(self.set_frame)
+    def __init__(self, filename, size, fps, is_color, **kwargs):
         
         self.frame = None
         
-        if is_color is None:
-            is_color = background.is_color
-        
-        super(VideoComposer, self).__init__(filename, background.size,
-                                            background.fps, is_color, **kwargs)
+        super(VideoComposer, self).__init__(filename, size, fps, is_color, **kwargs)
+
 
     def set_frame(self, frame):
         # write the current frame
@@ -131,4 +125,22 @@ class VideoComposer(VideoFileWriter):
         self.write_frame(self.frame)
         # close the video writer
         self.close()
+        
+    
+        
+class VideoComposerListener(VideoComposer):
+    """ A class that can be used to compose a video frame by frame.
+    This class automatically listens to another video and captures the newest
+    frame from it. Additional elements like geometric objects can then be added
+    to each frame. This is useful to annotate a copy of a video.
+    """
+    
+    
+    def __init__(self, filename, background, is_color=None, **kwargs):
+        
+        self._background = background
+        background.register_listener(self.set_frame)
+        
+        super(VideoComposerListener, self).__init__(filename, background.size,
+                                                    background.fps, is_color, **kwargs)
         

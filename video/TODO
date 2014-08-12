@@ -1,9 +1,4 @@
 * Read video in separate threads, because they are IO bound (and do not need the GIL)
-* Find the burrow shape
-	-  This might best be done on the background model (although it is blurred)
-* We might want to rename the composer to DebugVideo, since this might be a narrow use case        
-* A better solution would be to refactor the class such that there is a Debugger/Observer class 
-and a general VideoComposer class
 * Make mouse finding more robust, by keeping a score of how confident we are that we know where the mouse is
 	- this score degrades over time, when we don't get a positional update
 	- if the score drops below a threshold, we should consider looking for the mouse anywhere in the video
@@ -15,4 +10,6 @@ and a general VideoComposer class
 	- Maybe we could fit both of them simultaneously
 * Speed up sand profile fitting by having a library of profiles with certain angles and just matching these
 	around the point of interest (move along perpendicular line, until overlap is maximal)
-* Burrows should be defined as dark areas underneath the sand profile line
+* Find the burrow shape
+	-  This might best be done on the background model (although it is blurred)
+	- Burrows should be defined as dark areas underneath the sand profile line

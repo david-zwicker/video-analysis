@@ -10,7 +10,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport
 
 
 def show_image(*images, **kwargs):
-    """ shows the image using matplotlib and waits for the user to continue """
+    """ shows a collection of images using matplotlib and waits for the user to continue """
     import matplotlib.pyplot as plt
 
     num_plots = len(images)
