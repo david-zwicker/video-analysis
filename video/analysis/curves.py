@@ -12,14 +12,14 @@ from ._rdp import rdp as simplify_curve # make it available under current scope
 
 
 def curve_length(points):
-    """ returns the total arc length of a curve definded by a number of points """
+    """ returns the total arc length of a curve defined by a number of points """
     return np.sum(np.linalg.norm(p2 - p1)
                   for p1, p2 in itertools.izip(points, points[1:]))
 
 
-def make_cruve_equidistantly(points, spacing):
-    """ returns a new parametrization of the same curve where points have been
-    choosen equidistantly. The originial curve may be slightly modified """
+def make_curve_equidistant(points, spacing):
+    """ returns a new parameterization of the same curve where points have been
+    chosen equidistantly. The original curve may be slightly modified """
     
     # walk along and pick points equidistantly
     profile_length = curve_length(points)
@@ -44,4 +44,3 @@ def make_cruve_equidistantly(points, spacing):
         result.append(points[-1])
         
     return result
-

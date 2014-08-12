@@ -118,6 +118,20 @@ class VideoComposer(VideoFileWriter):
         for p in points:
             cv2.circle(self.frame, (int(p[0]), int(p[1])), radius, c, thickness=-1)
         
+    
+    def add_text(self, text, pos, color='w', size=1, anchor='bottom'):
+        """ adds text to the video.
+        pos denotes the bottom left corner of the text
+        """
+        
+        if anchor == 'top':
+            text_size, baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                                                  fontScale=size, thickness=1)
+            pos = (pos[0], pos[1] + text_size[1])
+            
+        cv2.putText(self.frame, text, pos, cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                    fontScale=size, color=get_color(color), thickness=1)
+        
         
     def __del__(self):
         # write the last frame

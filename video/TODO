@@ -11,5 +11,5 @@
 * Speed up sand profile fitting by having a library of profiles with certain angles and just matching these
 	around the point of interest (move along perpendicular line, until overlap is maximal)
 * Find the burrow shape
-	-  This might best be done on the background model (although it is blurred)
+	- This might best be done on the background model (although it is blurred)
 	- Burrows should be defined as dark areas underneath the sand profile line

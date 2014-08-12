@@ -23,7 +23,7 @@ import cv2
 from video.io import VideoFileStack, VideoFileWriter
 from video.filters import FilterBlur, FilterCrop
 from video.analysis.regions import get_largest_region, find_bounding_rect
-from video.analysis.curves import curve_length, make_cruve_equidistantly, simplify_curve
+from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve
 from video.utils import display_progress
 from video.composer import VideoComposerListener, VideoComposer
 
@@ -41,7 +41,7 @@ TRACKING_PARAMETERS_DEFAULT = {
     # spacing of the points in the sand profile
     'sand_profile.spacing': 20,
     # adapt the sand profile only every number of frames
-    'sand_profile.skip_frames': 10,
+    'sand_profile.skip_frames': 100,
     # width of the ridge in pixel
     'sand_profile.width': 5,
         
@@ -81,6 +81,7 @@ class MouseMovie(object):
         self.debug = {} # dictionary holding debug information
         self.mouse_pos = None        # current model of the mouse position
         self.mouse_has_moved = False # flag that states whether the mouse has moved
+        self._mouse_not_seen = 0     # number of frames in which the mouse has not been seen 
         self.sand_profile = None     # current model of the sand profile
         self.color_sky = None        # color of sky parts
         self.color_sand = None       # color of sand parts
@@ -107,17 +108,18 @@ class MouseMovie(object):
         self.result['sand_profile'] = []
 
         # iterate over the video and analyze it
-        for k, frame in enumerate(display_progress(self.video_blurred)):
+        for frame_id, frame in enumerate(display_progress(self.video_blurred)):
             # adapt current background model
             self.update_background_model(frame)
             
             # use the background to find the current sand profile
-            if k % self.params['sand_profile.skip_frames'] == 0:
+            if frame_id % self.params['sand_profile.skip_frames'] == 0:
                 self.refine_sand_profile(self._background)
             self.result['sand_profile'].append(self.sand_profile)
-                
-            # search for the mouse
+
+            # find remaining features                
             self.update_mouse_model(frame)
+            self.find_burrows()
             
             # store some information in the debug dictionary
             self.debug_add_frame()
@@ -463,18 +465,19 @@ class MouseMovie(object):
         # Note that the first operand determines the dtype of the result.
         diff = -self._background + frame 
         
-        # find movement, this should in principle be a factor multiplied by the 
-        # noise in the image (estimated by its standard deviation), but a
-        # constant factor is good enough right now
+        # find movement by comparing the difference to a threshold 
         moving_toward = (diff > self.params['mouse.intensity_threshold']*self.color_sky[1])
-
-        # convert the binary image to the normal output
         moving_toward = moving_toward.astype(np.uint8)
 
         # perform morphological opening to remove noise
-        moving_toward = cv2.morphologyEx(moving_toward, cv2.MORPH_OPEN, 
-                                         self._cache['find_features_moving_forward.kernel_open'])                        
-        
+        cv2.morphologyEx(moving_toward, cv2.MORPH_OPEN, 
+                         self._cache['find_features_moving_forward.kernel_open'],
+                         dst=moving_toward)                        
+
+        # plot the contour of the movement if debug video is enabled
+        if 'video' in self.debug:
+            self.debug['video'].add_contour(moving_toward, color='g')
+
         return moving_toward
 
     
@@ -498,6 +501,8 @@ class MouseMovie(object):
                 # determine mouse position from largest feature
                 self.mouse_pos = self._find_mouse_in_binary_image(moving_toward)
                 self.result['mouse.position_initial'] = self.mouse_pos
+                if self.mouse_pos is not None:
+                    self._mouse_not_seen = 0
                 
             else:
                 # adapt old mouse position by considering the movement
@@ -511,14 +516,25 @@ class MouseMovie(object):
                     if mouse_dist > self.params['mouse.size']:
                         self.mouse_has_moved = True
 
-            # update the area explored by the mouse
-            # FIXME: make sure that we only update the regions where the mouse currently is
-            cv2.bitwise_or(self._explored_area, moving_toward, self._explored_area)
-                                
-        if 'video' in self.debug:
-            # plot the contour of the movement
-            self.debug['video'].add_contour(moving_toward, color='g')
+            # restrict the mask to the mouse region for further analysis
+            mask = np.zeros(moving_toward.shape, np.uint8)
+            mouse_pos = (int(self.mouse_pos[0]), int(self.mouse_pos[1]))
+            cv2.circle(mask, mouse_pos, radius=self.params['mouse.size'], color=255, thickness=-1)
+            cv2.bitwise_and(mask, moving_toward, dst=mask)
+            
+            # check whether the mouse has been seen
+            if mask.sum() == 0:
+                self._mouse_not_seen += 1
+            else:
+                self._mouse_not_seen = 0
 
+            # update the area explored by the mouse
+            cv2.bitwise_or(self._explored_area, mask, dst=self._explored_area)
+             
+        else:
+            self._mouse_not_seen += 1
+                  
+                                
         self.result['mouse.trajectory'].append(self.mouse_pos)
 
                 
@@ -535,7 +551,7 @@ class MouseMovie(object):
         image_center = image[h:-h, w:-w]
         
         # binarize image
-        _, mask = cv2.threshold(image_center, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        cv2.threshold(image_center, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
         
         # TODO: we might want to replace that with the typical burrow radius
         # do morphological opening and closing to smooth the profile
@@ -544,17 +560,17 @@ class MouseMovie(object):
         kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8)
 
         # widen the mask
-        mask = cv2.copyMakeBorder(mask, s, s, s, s, cv2.BORDER_REPLICATE)
+        mask = cv2.copyMakeBorder(image_center, s, s, s, s, cv2.BORDER_REPLICATE)
         # make sure their is sky on the top
         mask[:s + h, :] = 0
         # make sure their is and at the bottom
         mask[-s - h:, :] = 255
 
         # morphological opening to remove noise and clutter
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, dst=mask)
 
         # morphological closing to smooth the boundary and remove burrows
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, borderType=cv2.BORDER_REPLICATE)
+        cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, borderType=cv2.BORDER_REPLICATE, dst=mask)
         
         # reduce the mask to its original dimension
         mask = mask[s:-s, s:-s]
@@ -583,7 +599,7 @@ class MouseMovie(object):
                     RidgeProfile(spacing, self.params['sand_profile.width'])
                 
         # make sure the curve has equidistant points
-        sand_profile = make_cruve_equidistantly(points, spacing)
+        sand_profile = make_curve_equidistant(points, spacing)
         sand_profile = np.array(sand_profile)
 
         # calculate the bounds for the points
@@ -660,6 +676,39 @@ class MouseMovie(object):
         
                     
     #===========================================================================
+    # FIND BURROWS 
+    #===========================================================================
+
+
+    def find_burrows(self):
+        """ locates burrows by combining the information of the sand profile
+        and the explored area """
+        
+        # build a mask with potential burrows
+        mask = np.zeros(self.video.size, np.uint8)
+        height, width = self.video.size
+        
+        # create a mask for the region below the current sand profile
+        points = np.empty((len(self.sand_profile) + 4, 2), np.int)
+        points[:-4, :] = self.sand_profile
+        points[-4, :] = (width, points[-5, 1])
+        points[-3, :] = (width, height)
+        points[-2, :] = (0, height)
+        points[-1, :] = (0, points[0, 1])
+        cv2.fillPoly(mask, [points], color=128)
+
+        # erode the mask slightly, since the sand profile is not perfect        
+        w = 2*self.params['sand_profile.width']
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
+        cv2.erode(mask, kernel, dst=mask)
+
+        # combine with the information of what areas have been explored
+        cv2.bitwise_or(mask, self._explored_area, dst=mask)
+        
+#         debug.show_image(mask)
+
+
+    #===========================================================================
     # DATA ANALYSIS
     #===========================================================================
 
@@ -722,6 +771,9 @@ class MouseMovie(object):
                     color = 'w'
                 debug_video.add_circle(self.mouse_pos, 4, color)
                 debug_video.add_circle(self.mouse_pos, self.params['mouse.size'], color, thickness=1)
+                
+            debug_video.add_text('not seen: %d' % self._mouse_not_seen, (20, 20), anchor='top')
+            
 
         if 'background.video' in self.debug:
             self.debug['background.video'].write_frame(self._background.copy())
@@ -741,7 +793,6 @@ class MouseMovie(object):
         """ close the video streams when done iterating """
         for identifier in ('video', 'background.video', 'explored_area.video'):
             if identifier in self.debug:
-                self.debug[identifier].close()
                 del self.debug[identifier]
             
     
