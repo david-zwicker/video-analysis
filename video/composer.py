@@ -83,10 +83,12 @@ class VideoComposer(VideoFileWriter):
         self.frame = result        
         
         
-    def add_contour(self, mask, color='w', thickness=1):
+    def add_contour(self, mask, color='w', thickness=1, copy=True):
         """ adds the contours of a mask.
-        Note that this function modifies the mask 
+        Note that this function modifies the mask, unless copy=True
         """
+        if copy:
+            mask = mask.copy()
         contours, hierarchy = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(self.frame, contours, -1,  get_color(color), thickness=thickness)
     

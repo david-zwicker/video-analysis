@@ -48,7 +48,7 @@ TRACKING_PARAMETERS_DEFAULT = {
     # `mouse.intensity_threshold` determines how much brighter than the
     # background (usually the sky) has the mouse to be. This value is
     # measured in terms of standard deviations of the sky color
-    'mouse.intensity_threshold': 1.5,
+    'mouse.intensity_threshold': 1, #1.5,
     # radius of the mouse model in pixel
     'mouse.size': 25,
     # maximal speed of the mouse in pixel per frame
@@ -77,20 +77,19 @@ class MouseMovie(object):
         self.debug_output = [] if debug_output is None else debug_output
         self.params = TRACKING_PARAMETERS_DEFAULT.copy()
         
-        # dictionary holding result information
+        # initialize the dictionary holding result information
         self.result = {
+            'tracking_parameters': self.params,
             'mouse.has_moved': False,
         }
 
         # setup internal structures that will be filled by analyzing the video
-        # TODO: move all data which might be useful for later analysis to result dictionary
         self._cache = {}           # cache that some functions might want to use
         self.debug = {}            # dictionary holding debug information
         self.sand_profile = None   # current model of the sand profile
         self.mouse_pos = None      # current model of the mouse position
-        self._mouse_not_seen = 0   # number of frames in which the mouse has not been seen 
-        self._background = None    # current background image
-        self._explored_area = None # region the mouse has explored, yet
+        self._mouse_not_seen = 0   # number of previous frames in which the mouse has not been seen 
+        self._explored_area = None # region the mouse has explored yet
         
         # restrict the video to the region of interest (the cage)
         self.crop_video_to_cage(crop)
@@ -98,6 +97,9 @@ class MouseMovie(object):
         # blur the video to reduce noise effects    
         self.video_blurred = FilterBlur(self.video, self.params['video.blur'])
         first_frame = self.video_blurred[0]
+        
+        # initialize the background model
+        self._background = np.array(first_frame, dtype=float)
 
         # estimate colors of sand and sky
         self.find_color_estimates(first_frame)
@@ -113,17 +115,14 @@ class MouseMovie(object):
 
         # iterate over the video and analyze it
         for frame_id, frame in enumerate(display_progress(self.video_blurred)):
-            # adapt current background model
-            self.update_background_model(frame)
+            # find the mouse; this also takes care of the background model
+            self.update_mouse_model(frame)
             
-            # use the background to find the current sand profile
+            # use the background to find the current sand profile and burrows
             if frame_id % self.params['sand_profile.skip_frames'] == 0:
                 self.refine_sand_profile(self._background)
+                self.find_burrows()
             self.result['sand_profile'].append(self.sand_profile)
-
-            # find remaining features                
-            self.update_mouse_model(frame)
-            self.find_burrows()
             
             # store some information in the debug dictionary
             self.debug_add_frame()
@@ -149,7 +148,7 @@ class MouseMovie(object):
         # find an enclosing rectangle
         rect_large = find_bounding_rect(cage_mask)
          
-        # crop image
+        # crop image to this rectangle, which should surely contain the cage 
         image = image[rect_large[0]:rect_large[2], rect_large[1]:rect_large[3]]
         rect_small = [0, 0, image.shape[0] - 1, image.shape[1] - 1]
 
@@ -161,7 +160,7 @@ class MouseMovie(object):
                                      cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         # move top line down until we hit the cage boundary.
-        # We move until more than 10% of the pixel are bright
+        # We move until more than 10% of the pixel on a horizontal line are bright
         width = image.shape[0]
         brightness = binarized[rect_small[0], :].sum()
         while brightness < 0.1*255*width: 
@@ -169,7 +168,7 @@ class MouseMovie(object):
             brightness = binarized[rect_small[0], :].sum()
         
         # move bottom line up until we hit the cage boundary
-        # We move until more then 90% of the pixel are bright
+        # We move until more then 90% of the pixel of a horizontal line are bright
         width = image.shape[0]
         brightness = binarized[rect_small[2], :].sum()
         while brightness < 0.9*255*width: 
@@ -177,9 +176,8 @@ class MouseMovie(object):
             brightness = binarized[rect_small[2], :].sum()
 
         # return the rectangle as [top, left, height, width]
-        top = rect_large[0] + rect_small[0]
-        left = rect_large[1] + rect_small[1]
-        cage_rect = [top, left,
+        cage_rect = [rect_large[0] + rect_small[0],
+                     rect_large[1] + rect_small[1],
                      rect_small[2] - rect_small[0], 
                      rect_small[3] - rect_small[1]]
 
@@ -305,36 +303,28 @@ class MouseMovie(object):
                 (slice(t_y, t_y + h), slice(t_x, t_x + w)))  # slice for the template
     
         
-    def update_background_model(self, frame):
+    def _update_background_model(self, frame, mask):
         """ updates the background model using the current frame """
-        
-        if self._background is None:
-            # initialize background model with first frame
-            self._background = np.array(frame, dtype=float)
-            # allocate memory for the background mask, which will be used to
-            # adapt the background to a change of the environment
-            self._cache['background_mask'] = np.ones_like(frame, dtype=float)
-        
-        else:
-            # adapt the current background model to the current frame
+
+        # prepare the kernel for morphological opening if necessary
+        if '_update_background_model.kernel_dilate' not in self._cache:
+            kernel_size = 2*self.params['video.blur'] + 1
+            self._cache['_update_background_model.kernel_dilate'] = \
+                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+
+        if self.mouse_pos is not None:
+            # add the mouse model to the mask
+            pos = (int(self.mouse_pos[0]), int(self.mouse_pos[1]))
+            cv2.circle(mask, pos, radius=self.params['mouse.size'], color=255)
+
+        # dilate the mask to capture surrounding of features (moving things/mouse)
+        mask = cv2.dilate(mask, self._cache['_update_background_model.kernel_dilate'])
+        # TODO: maybe smoothing of the mask will increase the viability of the background
             
-            mask = self._cache['background_mask']
-            if self.mouse_pos is not None:
-                # reset background mask to 1
-                mask.fill(1)
-                
-                # subtract the current mouse model from the mask
-                template = self._get_mouse_template()
-                pos = (self.mouse_pos[0] - template.shape[0]//2,
-                       self.mouse_pos[1] - template.shape[1]//2)
-                
-                i_s, t_s = self._get_mouse_template_slices(pos, mask.shape, template.shape)
-                
-                mask[i_s[0], i_s[1]] -= template[t_s[0], t_s[1]]
-                
-            # use the mask to adapt the background 
-            self._background += self.params['background.adaptation_rate'] \
-                                *mask*(frame - self._background)
+        # adapt the background to current frame, but only outside the mask 
+        self._background += (self.params['background.adaptation_rate']  # base rate 
+                             *(255 - mask)/255                          # inverse of the mask 
+                             *(frame - self._background))               # difference to current frame
 
                         
     #===========================================================================
@@ -456,7 +446,7 @@ class MouseMovie(object):
         return np.array(mouse_pos[::-1], np.int)
 
     
-    def _find_features_moving_forward(self, frame):
+    def _find_moving_features(self, frame):
         """ finds moving features in a frame.
         This works by building a model of the current background and subtracting
         this from the current frame. Everything that deviates significantly from
@@ -474,19 +464,19 @@ class MouseMovie(object):
         diff = -self._background + frame 
         
         # find movement by comparing the difference to a threshold 
-        moving_toward = (diff > self.params['mouse.intensity_threshold']*self.result['color.sky_std'])
-        moving_toward = moving_toward.astype(np.uint8)
+        mask_moving = (diff > self.params['mouse.intensity_threshold']*self.result['color.sky_std'])
+        mask_moving = 255*mask_moving.astype(np.uint8)
 
         # perform morphological opening to remove noise
-        cv2.morphologyEx(moving_toward, cv2.MORPH_OPEN, 
+        cv2.morphologyEx(mask_moving, cv2.MORPH_OPEN, 
                          self._cache['find_features_moving_forward.kernel_open'],
-                         dst=moving_toward)                        
+                         dst=mask_moving)     
 
         # plot the contour of the movement if debug video is enabled
         if 'video' in self.debug:
-            self.debug['video'].add_contour(moving_toward, color='g')
+            self.debug['video'].add_contour(mask_moving, color='g', copy=True)
 
-        return moving_toward
+        return mask_moving
 
     
     def update_mouse_model(self, frame):
@@ -500,30 +490,30 @@ class MouseMovie(object):
             self._explored_area = np.zeros(self.video.size, np.uint8)
 
         # find features that indicate that the mouse moved
-        moving_toward = self._find_features_moving_forward(frame)
+        mask_moving = self._find_moving_features(frame)
 
-        if moving_toward.sum() == 0:
+        if mask_moving.sum() == 0:
             self._mouse_not_seen += 1
-            
+
         else:
             # some moving features have been found in the video 
             
             if self.mouse_pos is None:
                 # we have never seen the mouse, yet
                 # => determine mouse position from largest feature
-                self.mouse_pos = self._find_mouse_in_binary_image(moving_toward)
+                self.mouse_pos = self._find_mouse_in_binary_image(mask_moving)
                 self.result['mouse.position_initial'] = self.mouse_pos
                 
             elif self._mouse_not_seen > self.params['mouse.lost_threshold']:
                 # we have lost the mouse
                 # => determine mouse position from largest feature
-                self.mouse_pos = self._find_mouse_in_binary_image(moving_toward)
+                self.mouse_pos = self._find_mouse_in_binary_image(mask_moving)
                     
             else:
                 # we sort of know where the mouse is                
                 # => adapt old mouse position by considering the movement
                 self.mouse_pos = self._find_best_template_position(
-                                        frame*moving_toward,        # features weighted by intensity
+                                        frame*mask_moving,        # features weighted by intensity
                                         self._get_mouse_template(), # search pattern
                                         self.mouse_pos,             # current known position
                                         self.params['mouse.max_speed'])
@@ -534,20 +524,23 @@ class MouseMovie(object):
                     if mouse_dist > self.params['mouse.size']:
                         self.result['mouse.has_moved'] = True
 
-            # restrict the mask to the mouse region for further analysis
-            mask = np.zeros(moving_toward.shape, np.uint8)
+            # restrict the mask_mouse to the mouse region for further analysis
+            mask_mouse = np.zeros(mask_moving.shape, np.uint8)
             mouse_pos = (int(self.mouse_pos[0]), int(self.mouse_pos[1]))
-            cv2.circle(mask, mouse_pos, radius=self.params['mouse.size'], color=255, thickness=-1)
-            cv2.bitwise_and(mask, moving_toward, dst=mask)
+            cv2.circle(mask_mouse, mouse_pos, radius=self.params['mouse.size'], color=255, thickness=-1)
+            cv2.bitwise_and(mask_mouse, mask_moving, dst=mask_mouse)
             
             # check whether the mouse has been seen
-            if mask.sum() == 0:
+            if mask_mouse.sum() == 0:
                 self._mouse_not_seen += 1
             else:
                 self._mouse_not_seen = 0
 
             # update the area explored by the mouse
-            cv2.bitwise_or(self._explored_area, mask, dst=self._explored_area)
+            cv2.bitwise_or(self._explored_area, mask_mouse, dst=self._explored_area)
+             
+        # update the background model => this might modify the mask
+        self._update_background_model(frame, mask_moving)
                                 
         self.result['mouse.trajectory'].append(self.mouse_pos)
 
@@ -712,6 +705,7 @@ class MouseMovie(object):
 
         # erode the mask slightly, since the sand profile is not perfect        
         w = 2*self.params['sand_profile.width']
+        # TODO: cache this kernel
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
         cv2.erode(mask, kernel, dst=mask)
 

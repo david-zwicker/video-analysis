@@ -1,12 +1,8 @@
 * Read video in separate threads, because they are IO bound (and do not need the GIL)
-* Make mouse finding more robust, by keeping a score of how confident we are that we know where the mouse is
-	- this score degrades over time, when we don't get a positional update
-	- if the score drops below a threshold, we should consider looking for the mouse anywhere in the video
-	- this should be done by using _find_mouse_in_binary_image
 * Store meta information of video somewhere (especially date taken)
 * Write a manual of assumption we make about the videos in order to track everything
 * Write out the results in a YAML file or something similar (should be easy to read!)
-* This file should contain all the parameters that were used for scanning the data
+	- This file should contain all the parameters that were used for scanning the data
 * Build collection of extracts from movies which are hard to analyze (use this for semi-automatic testing)
 * The sand profile sometimes has two brightnesses - What's the origin of this?
 	- Maybe we could fit both of them simultaneously
@@ -15,3 +11,12 @@
 * Find the burrow shape
 	- This might best be done on the background model (although it is blurred)
 	- Burrows should be defined as dark areas underneath the sand profile line
+* Use lower threshold for mouse identification and use the temporal information to connect the traces correctly
+	- This tracking is called Multiple Hypothesis Tracking [Reid 1979], Streit and Luginbuhl [1994]
+		[REID, D. B. 1979. An algorithm for tracking multiple targets. IEEE Trans. Autom. Control 24, 6, 843-854.]
+* Apparently, sometimes the light flickers and a frame becomes unusably bright.
+	- Get an example video to see how we could circumvent this problem in our code
+	- One idea is to just drop these frames and assume that not much happens during this time
+* Generally cache all kernels for morphological operations, since these are costly to make
+* Add option to do real-time output instead of writing to movies, such that I can watch the tracking directly
+* Add timing output to the logging (start of operation, start of scanning, finish of scanning)
