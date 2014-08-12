@@ -47,12 +47,14 @@ TRACKING_PARAMETERS_DEFAULT = {
         
     # `mouse.intensity_threshold` determines how much brighter than the
     # background (usually the sky) has the mouse to be. This value is
-    # measured in terms of standard deviations of self.color_sky
+    # measured in terms of standard deviations of the sky color
     'mouse.intensity_threshold': 1.5,
     # radius of the mouse model in pixel
     'mouse.size': 25,
     # maximal speed of the mouse in pixel per frame
     'mouse.max_speed': 30, 
+    # after how many frames do we think we have lost the mouse entirely
+    'mouse.lost_threshold': 100,
 }
 
 
@@ -75,18 +77,20 @@ class MouseMovie(object):
         self.debug_output = [] if debug_output is None else debug_output
         self.params = TRACKING_PARAMETERS_DEFAULT.copy()
         
+        # dictionary holding result information
+        self.result = {
+            'mouse.has_moved': False,
+        }
+
         # setup internal structures that will be filled by analyzing the video
-        self._cache = {} # cache that some functions might want to use
-        self.result = {} # dictionary holding result information
-        self.debug = {} # dictionary holding debug information
-        self.mouse_pos = None        # current model of the mouse position
-        self.mouse_has_moved = False # flag that states whether the mouse has moved
-        self._mouse_not_seen = 0     # number of frames in which the mouse has not been seen 
-        self.sand_profile = None     # current model of the sand profile
-        self.color_sky = None        # color of sky parts
-        self.color_sand = None       # color of sand parts
-        self._background = None      # current background image
-        self._explored_area = None   # region the mouse has explored, yet
+        # TODO: move all data which might be useful for later analysis to result dictionary
+        self._cache = {}           # cache that some functions might want to use
+        self.debug = {}            # dictionary holding debug information
+        self.sand_profile = None   # current model of the sand profile
+        self.mouse_pos = None      # current model of the mouse position
+        self._mouse_not_seen = 0   # number of frames in which the mouse has not been seen 
+        self._background = None    # current background image
+        self._explored_area = None # region the mouse has explored, yet
         
         # restrict the video to the region of interest (the cage)
         self.crop_video_to_cage(crop)
@@ -247,8 +251,10 @@ class MouseMovie(object):
 
         # determine the sky color
         sky_img = image[sky_sure.astype(np.bool)]
-        self.color_sky = (sky_img.mean(), sky_img.std())
-        logging.debug('The sky color was determined to be %s', self.color_sky)
+        self.result['color.sky'] = sky_img.mean()
+        self.result['color.sky_std'] = sky_img.std()
+        logging.debug('The sky color was determined to be %d +- %d',
+                      self.result['color.sky'], self.result['color.sky_std'])
 
         # find the sand by looking at the largest bright region
         sand_mask = get_largest_region(binarized).astype(np.uint8)*255
@@ -259,8 +265,10 @@ class MouseMovie(object):
         
         # determine the sky color
         sand_img = image[sand_sure.astype(np.bool)]
-        self.color_sand = (sand_img.mean(), sand_img.std())
-        logging.debug('The sand color was determined to be %s', self.color_sand)
+        self.result['color.sand'] = sand_img.mean()
+        self.result['color.sand_std'] = sand_img.std()
+        logging.debug('The sand color was determined to be %d +- %d',
+                      self.result['color.sand'], self.result['color.sand_std'])
         
         
     def _get_mouse_template_slices(self, pos, i_shape, t_shape):
@@ -466,7 +474,7 @@ class MouseMovie(object):
         diff = -self._background + frame 
         
         # find movement by comparing the difference to a threshold 
-        moving_toward = (diff > self.params['mouse.intensity_threshold']*self.color_sky[1])
+        moving_toward = (diff > self.params['mouse.intensity_threshold']*self.result['color.sky_std'])
         moving_toward = moving_toward.astype(np.uint8)
 
         # perform morphological opening to remove noise
@@ -494,27 +502,37 @@ class MouseMovie(object):
         # find features that indicate that the mouse moved
         moving_toward = self._find_features_moving_forward(frame)
 
-        # check if features have been found
-        if moving_toward.sum() > 0:
+        if moving_toward.sum() == 0:
+            self._mouse_not_seen += 1
+            
+        else:
+            # some moving features have been found in the video 
             
             if self.mouse_pos is None:
-                # determine mouse position from largest feature
+                # we have never seen the mouse, yet
+                # => determine mouse position from largest feature
                 self.mouse_pos = self._find_mouse_in_binary_image(moving_toward)
                 self.result['mouse.position_initial'] = self.mouse_pos
-                if self.mouse_pos is not None:
-                    self._mouse_not_seen = 0
                 
+            elif self._mouse_not_seen > self.params['mouse.lost_threshold']:
+                # we have lost the mouse
+                # => determine mouse position from largest feature
+                self.mouse_pos = self._find_mouse_in_binary_image(moving_toward)
+                    
             else:
-                # adapt old mouse position by considering the movement
+                # we sort of know where the mouse is                
+                # => adapt old mouse position by considering the movement
                 self.mouse_pos = self._find_best_template_position(
-                        frame*moving_toward,        # features weighted by intensity
-                        self._get_mouse_template(), # search pattern
-                        self.mouse_pos, self.params['mouse.max_speed'])
+                                        frame*moving_toward,        # features weighted by intensity
+                                        self._get_mouse_template(), # search pattern
+                                        self.mouse_pos,             # current known position
+                                        self.params['mouse.max_speed'])
                 
-                if not self.mouse_has_moved:
+                # check whether the mouse has moved at all in this video 
+                if not self.result['mouse.has_moved']:
                     mouse_dist = np.linalg.norm(self.mouse_pos - self.result['mouse.position_initial'])
                     if mouse_dist > self.params['mouse.size']:
-                        self.mouse_has_moved = True
+                        self.result['mouse.has_moved'] = True
 
             # restrict the mask to the mouse region for further analysis
             mask = np.zeros(moving_toward.shape, np.uint8)
@@ -530,10 +548,6 @@ class MouseMovie(object):
 
             # update the area explored by the mouse
             cv2.bitwise_or(self._explored_area, mask, dst=self._explored_area)
-             
-        else:
-            self._mouse_not_seen += 1
-                  
                                 
         self.result['mouse.trajectory'].append(self.mouse_pos)
 
@@ -544,6 +558,7 @@ class MouseMovie(object):
     
     
     def _find_rough_sand_profile(self, image):
+        """ determines an estimate of the sand profile from a single image """
         
         # remove 10%/15% of each side of the image
         h = int(0.15*image.shape[0])
@@ -656,11 +671,9 @@ class MouseMovie(object):
             
 
     def find_sand_profile(self, image):
-        """
-        finds the sand profile given an image of an antfarm 
-        """
+        """ finds the sand profile given an image of an antfarm """
 
-        # save the resulting profile
+        # get an estimate of a profile
         self.sand_profile = self._find_rough_sand_profile(image)
         
         # iterate until the profile does not change significantly anymore
@@ -763,7 +776,7 @@ class MouseMovie(object):
         
             # indicate the mouse position
             if self.mouse_pos is not None:
-                if not self.mouse_has_moved:
+                if not self.result['mouse.has_moved']:
                     color = 'r'
                 elif self.mouse_underground():
                     color = 'k'

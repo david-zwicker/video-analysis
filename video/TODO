@@ -5,6 +5,8 @@
 	- this should be done by using _find_mouse_in_binary_image
 * Store meta information of video somewhere (especially date taken)
 * Write a manual of assumption we make about the videos in order to track everything
+* Write out the results in a YAML file or something similar (should be easy to read!)
+* This file should contain all the parameters that were used for scanning the data
 * Build collection of extracts from movies which are hard to analyze (use this for semi-automatic testing)
 * The sand profile sometimes has two brightnesses - What's the origin of this?
 	- Maybe we could fit both of them simultaneously
