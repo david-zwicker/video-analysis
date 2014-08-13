@@ -73,7 +73,7 @@ class MouseMovie(object):
         self.folder = folder
         
         # initialize video
-        self.video = VideoFileStack(os.path.join(folder, 'raw_video/*'))
+        self.video = VideoFileStack(os.path.join(folder, 'raw_video/*.avi'))
         self.result['video_raw'] = {'frame_count': self.video.frame_count,
                                     'size': '{1} x {0}'.format(*self.video.size),
                                     'fps': self.video.fps,}
@@ -135,7 +135,7 @@ class MouseMovie(object):
             # use the background to find the current sand profile and burrows
             if frame_id % self.params['sand_profile.skip_frames'] == 0:
                 self.refine_sand_profile(self._background)
-                self.find_burrows()
+                #self.find_burrows()
             self.result['sand_profile'].append(self.sand_profile)
             
             # store some information in the debug dictionary
@@ -291,6 +291,10 @@ class MouseMovie(object):
 
         # Finding sure foreground area using a distance transform
         dist_transform = cv2.distanceTransform(sky_mask, cv2.cv.CV_DIST_L2, 5)
+        if len(dist_transform) == 2:
+            # fallback for old behavior of OpenCV, where an additional parameter
+            # would be returned
+            dist_transform = dist_transform[0]
         _, sky_sure = cv2.threshold(dist_transform, 0.25*dist_transform.max(), 255, 0)
 
         # determine the sky color
@@ -306,6 +310,10 @@ class MouseMovie(object):
         
         # Finding sure foreground area using a distance transform
         dist_transform = cv2.distanceTransform(sand_mask, cv2.cv.CV_DIST_L2, 5)
+        if len(dist_transform) == 2:
+            # fallback for old behavior of OpenCV, where an additional parameter
+            # would be returned
+            dist_transform = dist_transform[0]
         _, sand_sure = cv2.threshold(dist_transform, 0.5*dist_transform.max(), 255, 0)
         
         # determine the sky color
@@ -726,7 +734,7 @@ class MouseMovie(object):
         points[-3, :] = (width, height)
         points[-2, :] = (0, height)
         points[-1, :] = (0, points[0, 1])
-        cv2.fillPoly(mask, [points], color=128)
+        cv2.fillPoly(mask, np.array([points], np.int), color=128)
 
         # erode the mask slightly, since the sand profile is not perfect        
         w = 2*self.params['sand_profile.width']

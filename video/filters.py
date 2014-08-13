@@ -207,7 +207,7 @@ class FilterBlur(VideoFilterBase):
         """
         blurs a single frame
         """
-        return cv2.GaussianBlur(frame, (0, 0), self.sigma)
+        return cv2.GaussianBlur(frame.astype(np.uint8), (0, 0), self.sigma)
 
 
 
@@ -217,9 +217,9 @@ class FilterFeatures(VideoFilterBase):
     def _process_frame(self, frame):
         frame = frame.copy()
         
-        corners = cv2.goodFeaturesToTrack(frame, maxCorners=100, qualityLevel=0.01, minDistance=10)
-        corners = np.int0(corners)
-        
+        corners = cv2.goodFeaturesToTrack(frame, maxCorners=100,
+                                          qualityLevel=0.01,minDistance=10)
+   
         for i in corners:
             x,y = i.ravel()
             cv2.circle(frame, (x,y), 5, 255, -1)
