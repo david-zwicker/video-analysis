@@ -207,7 +207,7 @@ class FilterBlur(VideoFilterBase):
         """
         blurs a single frame
         """
-        return cv2.GaussianBlur(frame, ksize=(0, 0), sigmaX=self.sigma)
+        return cv2.GaussianBlur(frame, (0, 0), self.sigma)
 
 
 

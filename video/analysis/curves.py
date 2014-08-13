@@ -7,8 +7,14 @@ contains functions that are useful for curve analysis
 '''
 
 import itertools
+import math
 import numpy as np
 from ._rdp import rdp as simplify_curve # make it available under current scope
+
+
+def point_distance(p1, p2):
+    """ calculates the distance between point p1 and p2 """
+    return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
 
 
 def curve_length(points):

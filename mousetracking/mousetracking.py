@@ -6,7 +6,6 @@ Created on Aug 5, 2014
 Note that the OpenCV convention is to store images in [row, column] format
 Thus, a point in an image is referred to as image[coord_y, coord_x]
 However, a single point is stored as point = (coord_x, coord_y)
-
 '''
 
 from __future__ import division
@@ -25,7 +24,7 @@ import h5py
 from video.io import VideoFileStack, VideoFileWriter
 from video.filters import FilterBlur, FilterCrop
 from video.analysis.regions import get_largest_region, find_bounding_rect
-from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve
+from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve, point_distance
 from video.utils import display_progress, ensure_directory, prepare_data_for_yaml
 from video.composer import VideoComposerListener, VideoComposer
 
@@ -50,7 +49,7 @@ TRACKING_PARAMETERS_DEFAULT = {
     # `mouse.intensity_threshold` determines how much brighter than the
     # background (usually the sky) has the mouse to be. This value is
     # measured in terms of standard deviations of the sky color
-    'mouse.intensity_threshold': 1, #1.5,
+    'mouse.intensity_threshold': 1.2, #1.5,
     # radius of the mouse model in pixel
     'mouse.size': 25,
     # maximal speed of the mouse in pixel per frame
@@ -75,6 +74,10 @@ class MouseMovie(object):
         
         # initialize video
         self.video = VideoFileStack(os.path.join(folder, 'raw_video/*'))
+        self.result['video_raw'] = {'frame_count': self.video.frame_count,
+                                    'size': '{1} x {0}'.format(*self.video.size),
+                                    'fps': self.video.fps,}
+        
         # restrict the analysis to an interval of frames
         if frames is not None:
             self.video = self.video[frames[0]:frames[1]]
@@ -95,6 +98,9 @@ class MouseMovie(object):
 
         # restrict the video to the region of interest (the cage)
         self.crop_video_to_cage(crop)
+        self.result['video_analyzed'] = {'frame_count': self.video.frame_count,
+                                         'size': '{1} x {0}'.format(*self.video.size),
+                                         'fps': self.video.fps,}
 
         # blur the video to reduce noise effects    
         self.video_blurred = FilterBlur(self.video, self.params['video.blur'])
@@ -118,6 +124,7 @@ class MouseMovie(object):
         self.log_event('run_begin', 'Start iterating through the frames.')
         
         self.debug_setup()
+        self.process_setup()
         self.result['sand_profile'] = []
 
         # iterate over the video and analyze it
@@ -139,6 +146,35 @@ class MouseMovie(object):
         self.debug_finalize()
         self.write_results()
 
+
+    def process_setup(self):
+        """ sets up the processing of the video by initializing caches etc """
+        
+        # creates a simple template for matching with the mouse.
+        # This template can be used to update the current mouse position based
+        # on information about the changes in the video.
+        # The template consists of a core region of maximal intensity and a ring
+        # region with gradually decreasing intensity.
+        
+        # determine the sizes of the different regions
+        size_core = self.params['mouse.size']
+        size_ring = 3*self.params['mouse.size']
+        size_total = size_core + size_ring
+
+        # build a filter for finding the mouse position
+        x, y = np.ogrid[-size_total:size_total + 1, -size_total:size_total + 1]
+        r = np.sqrt(x**2 + y**2)
+
+        # build the template
+        mouse_template = (
+            # inner circle of ones
+            (r <= size_core).astype(float)
+            # + outer region that falls off
+            + np.exp(-((r - size_core)/size_core)**2)  # smooth function from 1 to 0
+              * (size_core < r)          # mask on ring region
+        )  
+        
+        self._cache['mouse.template'] = mouse_template
             
     #===========================================================================
     # FINDING THE CAGE
@@ -259,10 +295,11 @@ class MouseMovie(object):
 
         # determine the sky color
         sky_img = image[sky_sure.astype(np.bool)]
-        self.result['color.sky'] = sky_img.mean()
-        self.result['color.sky_std'] = sky_img.std()
+        self.result['colors'] = {}
+        self.result['colors']['sky'] = sky_img.mean()
+        self.result['colors']['sky_std'] = sky_img.std()
         logging.debug('The sky color was determined to be %d +- %d',
-                      self.result['color.sky'], self.result['color.sky_std'])
+                      self.result['colors']['sky'], self.result['colors']['sky_std'])
 
         # find the sand by looking at the largest bright region
         sand_mask = get_largest_region(binarized).astype(np.uint8)*255
@@ -273,16 +310,22 @@ class MouseMovie(object):
         
         # determine the sky color
         sand_img = image[sand_sure.astype(np.bool)]
-        self.result['color.sand'] = sand_img.mean()
-        self.result['color.sand_std'] = sand_img.std()
+        self.result['colors']['sand'] = sand_img.mean()
+        self.result['colors']['sand_std'] = sand_img.std()
         logging.debug('The sand color was determined to be %d +- %d',
-                      self.result['color.sand'], self.result['color.sand_std'])
+                      self.result['colors']['sand'], self.result['colors']['sand_std'])
         
         
     def _get_mouse_template_slices(self, pos, i_shape, t_shape):
         """ calculates the slices necessary to compare a template to an image.
         Here, we assume that the image is larger than the template.
-        """         
+        pos refers to the center of the template
+        """
+        
+        # get dimensions to determine center position         
+        t_top  = t_shape[0]//2
+        t_left = t_shape[1]//2
+        pos = (pos[0] - t_left, pos[1] - t_top)
 
         # get the dimensions of the overlapping region        
         h = min(t_shape[0], i_shape[0] - pos[1])
@@ -324,13 +367,22 @@ class MouseMovie(object):
             self._cache['_update_background_model.kernel_dilate'] = \
                 cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
 
-        # reset the mask to contain everything
-        mask = np.ones(frame.shape, np.uint8)
-
         if np.all(np.isfinite(self.mouse_pos)):
-            # add the mouse model to the mask
-            pos = (int(self.mouse_pos[0]), int(self.mouse_pos[1]))
-            cv2.circle(mask, pos, radius=self.params['mouse.size'], color=0, thickness=-1)
+            # build a mask omitting the mouse
+            mask = np.ones(frame.shape, np.double)
+            template = self._cache['mouse.template']
+            
+            # get the slices required for comparing the template to the image
+            i_s, t_s = self._get_mouse_template_slices(self.mouse_pos, frame.shape, template.shape)
+            mask[i_s[0], i_s[1]] -= template[t_s[0], t_s[1]]
+            
+#             debug.show_image(mask)
+            
+#             pos = (int(self.mouse_pos[0]), int(self.mouse_pos[1]))
+#             cv2.circle(mask, pos, radius=self.params['mouse.size'], color=0, thickness=-1)
+
+        else:
+            mask = 1
 
         # dilate the mask to capture surrounding of features (moving things/mouse)
         #mask = cv2.dilate(mask, self._cache['_update_background_model.kernel_dilate'])
@@ -345,43 +397,33 @@ class MouseMovie(object):
     #===========================================================================
     # FINDING THE MOUSE
     #===========================================================================
+      
+          
+    def _find_mouse_in_binary_image(self, binary_image):
+        """ finds the mouse in a binary image """
         
+        # build a kernel for morphological closing. We don't cache this kernel,
+        # since the current function should only be called once per run
+        kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
+                                                 (self.params['mouse.size'],)*2)
         
-    def _get_mouse_template(self):
-        """ creates a simple template for matching with the mouse.
-        This template can be used to update the current mouse position based
-        on information about the changes in the video.
-        The template consists of a core region of maximal intensity and a ring
-        region with gradually decreasing intensity.
-        """
+        # perform morphological closing to combined feature patches that are near 
+        moving_toward = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel_close)
+
+        # find all distinct features and label them
+        labels, num_features = ndimage.measurements.label(moving_toward)
+
+        # find the largest object (which should be the mouse)
+        mouse_label = np.argmax(
+            ndimage.measurements.sum(labels, labels, index=range(1, num_features + 1))
+        ) + 1
         
-        try:
-            return self._cache['mouse_template']
+        # mouse position is center of mass of largest patch
+        mouse_pos = ndimage.measurements.center_of_mass(labels, labels, mouse_label)
         
-        except KeyError:
-            
-            # determine the sizes of the different regions
-            size_core = self.params['mouse.size']
-            size_ring = 3*self.params['mouse.size']
-            size_total = size_core + size_ring
-    
-            # build a filter for finding the mouse position
-            x, y = np.ogrid[-size_total:size_total + 1, -size_total:size_total + 1]
-            r = np.sqrt(x**2 + y**2)
-    
-            # build the template
-            mouse_template = (
-                # inner circle of ones
-                (r <= size_core).astype(float)
-                # + outer region that falls off
-                + np.exp(-((r - size_core)/size_core)**2)  # smooth function from 1 to 0
-                  * (size_core < r)          # mask on ring region
-            )  
-            
-            self._cache['mouse_template'] = mouse_template
-        
-            return mouse_template
-        
+        # switch the coordinates, such that they are given as (x, y)
+        return (int(mouse_pos[1]), int(mouse_pos[0]))
+
                 
     def _find_best_template_position(self, image, template, start_pos, max_deviation=None):
         """
@@ -390,11 +432,6 @@ class MouseMovie(object):
         max_deviation sets a maximal distance the template is moved from start_pos
         """
         
-        t_top  = template.shape[0]//2
-        t_left = template.shape[1]//2
-        
-        # calculate the initial top left position of the template
-        start_pos = (start_pos[0] - t_left, start_pos[1] - t_top)
         # lists for checking all points surrounding the current one
         points_to_check, seen = [start_pos], set()
         # variables storing the best fit
@@ -431,35 +468,8 @@ class MouseMovie(object):
                         ):
                         points_to_check.append(p)
                 
-        # return the center position of the best template fit
-        return (best_pos[0] + t_left, best_pos[1] + t_top)
-        
-          
-    def _find_mouse_in_binary_image(self, binary_image):
-        """ finds the mouse in a binary image """
-        
-        # build a kernel for morphological closing. We don't cache this kernel,
-        # since the current function should only be called once per run
-        kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
-                                                 (self.params['mouse.size'],)*2)
-        
-        # perform morphological closing to combined feature patches that are near 
-        moving_toward = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel_close)
-
-        # find all distinct features and label them
-        labels, num_features = ndimage.measurements.label(moving_toward)
-
-        # find the largest object (which should be the mouse)
-        mouse_label = np.argmax(
-            ndimage.measurements.sum(labels, labels, index=range(1, num_features + 1))
-        ) + 1
-        
-        # mouse position is center of mass of largest patch
-        mouse_pos = ndimage.measurements.center_of_mass(labels, labels, mouse_label)
-        
-        # switch the coordinates, such that they are given as (x, y)
-        return np.array(mouse_pos[::-1], np.int)
-
+        return best_pos
+  
     
     def _find_moving_features(self, frame):
         """ finds moving features in a frame.
@@ -479,7 +489,7 @@ class MouseMovie(object):
         diff = -self._background + frame 
         
         # find movement by comparing the difference to a threshold 
-        mask_moving = (diff > self.params['mouse.intensity_threshold']*self.result['color.sky_std'])
+        mask_moving = (diff > self.params['mouse.intensity_threshold']*self.result['colors']['sky_std'])
         mask_moving = 255*mask_moving.astype(np.uint8)
 
         # perform morphological opening to remove noise
@@ -529,20 +539,20 @@ class MouseMovie(object):
                 # => adapt old mouse position by considering the movement
                 self.mouse_pos = self._find_best_template_position(
                                         frame*mask_moving,        # features weighted by intensity
-                                        self._get_mouse_template(), # search pattern
+                                        self._cache['mouse.template'], # search pattern
                                         self.mouse_pos,             # current known position
                                         self.params['mouse.max_speed'])
                 
                 # check whether the mouse has moved at all in this video 
                 if not self.result['mouse.has_moved']:
-                    mouse_dist = np.linalg.norm(self.mouse_pos - self.result['mouse.position_initial'])
+                    mouse_dist = point_distance(self.mouse_pos, self.result['mouse.position_initial'])
                     if mouse_dist > self.params['mouse.size']:
                         self.result['mouse.has_moved'] = True
 
             # restrict the mask_mouse to the mouse region for further analysis
             mask_mouse = np.zeros(mask_moving.shape, np.uint8)
-            mouse_pos = (int(self.mouse_pos[0]), int(self.mouse_pos[1]))
-            cv2.circle(mask_mouse, mouse_pos, radius=self.params['mouse.size'], color=255, thickness=-1)
+            #mouse_pos = (int(self.mouse_pos[0]), int(self.mouse_pos[1]))
+            cv2.circle(mask_mouse, self.mouse_pos, radius=self.params['mouse.size'], color=255, thickness=-1)
             cv2.bitwise_and(mask_mouse, mask_moving, dst=mask_mouse)
             
             # check whether the mouse has been seen
@@ -746,6 +756,7 @@ class MouseMovie(object):
         
         # handle sand_profile
         for key in ('sand_profile', 'mouse.trajectory'):
+            logging.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
             dataset = hdf_file.create_dataset(key, data=np.asarray(main_result[key]))
             main_result[key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
 

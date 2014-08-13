@@ -1,8 +1,6 @@
 * Read video in separate threads, because they are IO bound (and do not need the GIL)
 * Store meta information of video somewhere (especially date taken)
 * Write a manual of assumption we make about the videos in order to track everything
-* Write out the results in a YAML file or something similar (should be easy to read!)
-	- This file should contain all the parameters that were used for scanning the data
 * Build collection of extracts from movies which are hard to analyze (use this for semi-automatic testing)
 * The sand profile sometimes has two brightnesses - What's the origin of this?
 	- Maybe we could fit both of them simultaneously
@@ -17,9 +15,8 @@
 * Apparently, sometimes the light flickers and a frame becomes unusably bright.
 	- Get an example video to see how we could circumvent this problem in our code
 	- One idea is to just drop these frames and assume that not much happens during this time
-* Generally cache all kernels for morphological operations, since these are costly to make
-* Add timing output to the logging (start of operation, start of scanning, finish of scanning)
 * Adapt the color estimates every x Frames to adjust to changing lightning conditions
 * Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)
+* Generally cache all kernels for morphological operations, since these are costly to make
 * Write special YAML object (extend yaml.YAMLObject), which can load numpy arrays (which will still be saved in the HDF5 file.
 	- Here, we just save the filename and dataset of the hdf5 data in the yaml file and use this information to transparently load the data
