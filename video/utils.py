@@ -6,6 +6,7 @@ Created on Aug 2, 2014
 
 from __future__ import division
 
+import os
 import logging
 import numpy as np
 from matplotlib.colors import ColorConverter
@@ -24,6 +25,15 @@ def verbose(mode=logging.DEBUG):
     return logging.getLogger().getEffectiveLevel() <= mode
 
 
+def ensure_directory(folder):
+    """ creates a folder if it not already exists """
+    try:
+        os.makedirs(folder)
+    except OSError:
+        # assume that the directory already exists
+        pass
+
+
 def get_color_range(dtype):
     """
     determines the color depth of the numpy array `data`.
@@ -39,6 +49,22 @@ def get_color_range(dtype):
         
     else:
         raise ValueError('Unsupported data type `%r`' % dtype)
+
+
+def prepare_data_for_yaml(data):
+    """ converts all arrays to lists in a nested list or dictionary """
+    if isinstance(data, np.ndarray):
+        return data.tolist()
+    elif isinstance(data, np.floating):
+        return float(data)
+    elif isinstance(data, np.integer):
+        return int(data)
+    elif isinstance(data, dict):
+        return {k: prepare_data_for_yaml(v) for k, v in data.iteritems()}
+    elif isinstance(data, (list, tuple)):
+        return [prepare_data_for_yaml(v) for v in data]
+    else:
+        return data         
 
 
 def safe_typecast(data, dtype):

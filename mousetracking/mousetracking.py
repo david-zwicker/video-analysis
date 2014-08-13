@@ -4,8 +4,8 @@ Created on Aug 5, 2014
 @author: zwicker
 
 Note that the OpenCV convention is to store images in [row, column] format
-Thus, a point in an image is referred to as: image[point_y, point_x]
-However, a single point is stored as: point = (point_x, point_y)
+Thus, a point in an image is referred to as image[coord_y, coord_x]
+However, a single point is stored as point = (coord_x, coord_y)
 
 '''
 
@@ -13,18 +13,20 @@ from __future__ import division
 
 import os
 import logging
-import itertools
+import datetime
 
 import numpy as np
 import scipy.ndimage as ndimage
-from scipy.optimize import minimize_scalar, leastsq
+from scipy.optimize import leastsq
 import cv2
+import yaml
+import h5py
 
 from video.io import VideoFileStack, VideoFileWriter
 from video.filters import FilterBlur, FilterCrop
 from video.analysis.regions import get_largest_region, find_bounding_rect
 from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve
-from video.utils import display_progress
+from video.utils import display_progress, ensure_directory, prepare_data_for_yaml
 from video.composer import VideoComposerListener, VideoComposer
 
 import debug
@@ -65,6 +67,10 @@ class MouseMovie(object):
     
     def __init__(self, folder, frames=None, crop=None, prefix='', debug_output=None):
         """ initializes the whole mouse tracking and prepares the video filters """
+        
+        # initialize the dictionary holding result information
+        self.result = {}
+        self.log_event('init_begin', 'Start initializing the video analysis.')
         self.folder = folder
         
         # initialize video
@@ -76,21 +82,17 @@ class MouseMovie(object):
         self.prefix = prefix + '_' if prefix else ''
         self.debug_output = [] if debug_output is None else debug_output
         self.params = TRACKING_PARAMETERS_DEFAULT.copy()
+        self.result['tracking_parameters'] = self.params
         
-        # initialize the dictionary holding result information
-        self.result = {
-            'tracking_parameters': self.params,
-            'mouse.has_moved': False,
-        }
-
         # setup internal structures that will be filled by analyzing the video
         self._cache = {}           # cache that some functions might want to use
         self.debug = {}            # dictionary holding debug information
         self.sand_profile = None   # current model of the sand profile
-        self.mouse_pos = None      # current model of the mouse position
+        self.mouse_pos = (np.nan, np.nan)
         self._mouse_not_seen = 0   # number of previous frames in which the mouse has not been seen 
         self._explored_area = None # region the mouse has explored yet
-        
+        self.result['mouse.has_moved'] = False
+
         # restrict the video to the region of interest (the cage)
         self.crop_video_to_cage(crop)
 
@@ -107,9 +109,14 @@ class MouseMovie(object):
         # estimate initial sand profile
         self.find_sand_profile(first_frame)
 
+        self.log_event('init_end', 'Finished initializing the video analysis.')
+
 
     def process_video(self):
         """ processes the entire video """
+
+        self.log_event('run_begin', 'Start iterating through the frames.')
+        
         self.debug_setup()
         self.result['sand_profile'] = []
 
@@ -127,7 +134,10 @@ class MouseMovie(object):
             # store some information in the debug dictionary
             self.debug_add_frame()
             
+        self.log_event('run_end', 'Finished iterating through the frames.')
+            
         self.debug_finalize()
+        self.write_results()
 
             
     #===========================================================================
@@ -303,8 +313,10 @@ class MouseMovie(object):
                 (slice(t_y, t_y + h), slice(t_x, t_x + w)))  # slice for the template
     
         
-    def _update_background_model(self, frame, mask):
-        """ updates the background model using the current frame """
+    def _update_background_model(self, frame):#, mask):
+        """ updates the background model using the current frame
+        This function uses the self._mask cache.
+        """
 
         # prepare the kernel for morphological opening if necessary
         if '_update_background_model.kernel_dilate' not in self._cache:
@@ -312,18 +324,21 @@ class MouseMovie(object):
             self._cache['_update_background_model.kernel_dilate'] = \
                 cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
 
-        if self.mouse_pos is not None:
+        # reset the mask to contain everything
+        mask = np.ones(frame.shape, np.uint8)
+
+        if np.all(np.isfinite(self.mouse_pos)):
             # add the mouse model to the mask
             pos = (int(self.mouse_pos[0]), int(self.mouse_pos[1]))
-            cv2.circle(mask, pos, radius=self.params['mouse.size'], color=255)
+            cv2.circle(mask, pos, radius=self.params['mouse.size'], color=0, thickness=-1)
 
         # dilate the mask to capture surrounding of features (moving things/mouse)
-        mask = cv2.dilate(mask, self._cache['_update_background_model.kernel_dilate'])
+        #mask = cv2.dilate(mask, self._cache['_update_background_model.kernel_dilate'])
         # TODO: maybe smoothing of the mask will increase the viability of the background
             
-        # adapt the background to current frame, but only outside the mask 
-        self._background += (self.params['background.adaptation_rate']  # base rate 
-                             *(255 - mask)/255                          # inverse of the mask 
+        # adapt the background to current frame, but only inside the mask 
+        self._background += (self.params['background.adaptation_rate']  # adaptation rate 
+                             *mask                                      # mask 
                              *(frame - self._background))               # difference to current frame
 
                         
@@ -498,7 +513,7 @@ class MouseMovie(object):
         else:
             # some moving features have been found in the video 
             
-            if self.mouse_pos is None:
+            if np.any(np.isnan(self.mouse_pos)):
                 # we have never seen the mouse, yet
                 # => determine mouse position from largest feature
                 self.mouse_pos = self._find_mouse_in_binary_image(mask_moving)
@@ -540,7 +555,7 @@ class MouseMovie(object):
             cv2.bitwise_or(self._explored_area, mask_mouse, dst=self._explored_area)
              
         # update the background model => this might modify the mask
-        self._update_background_model(frame, mask_moving)
+        self._update_background_model(frame)#, mask_moving)
                                 
         self.result['mouse.trajectory'].append(self.mouse_pos)
 
@@ -720,24 +735,60 @@ class MouseMovie(object):
     #===========================================================================
 
 
+    def write_results(self):
+        """ writes the results to a file """
+        ensure_directory(os.path.join(self.folder, 'results'))
+
+        # contains all the result as a python array
+        main_result = self.result.copy()
+        hdf_name = self.prefix + 'results.hdf5'
+        hdf_file = h5py.File(os.path.join(self.folder, 'results', hdf_name), 'w')
+        
+        # handle sand_profile
+        for key in ('sand_profile', 'mouse.trajectory'):
+            dataset = hdf_file.create_dataset(key, data=np.asarray(main_result[key]))
+            main_result[key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
+
+        # write the main result file
+        filename = os.path.join(self.folder, 'results', self.prefix + 'results.yaml')
+        with open(filename, 'w') as outfile:
+            yaml.dump(prepare_data_for_yaml(main_result),
+                      outfile,
+                      default_flow_style=False)        
+
+
     def mouse_underground(self):
         """ checks whether the mouse is under ground """
-        pos = self.mouse_pos
-        if pos is None:
+        if np.any(np.isnan(self.mouse_pos)):
             return None
         else:
             profile = self.sand_profile
-            sand_y = np.interp(pos[0], profile[:, 0], profile[:, 1])
-            return pos[1] - self.params['mouse.size']/2 > sand_y
+            sand_y = np.interp(self.mouse_pos[0], profile[:, 0], profile[:, 1])
+            return self.mouse_pos[1] - self.params['mouse.size']/2 > sand_y
 
 
     #===========================================================================
     # DEBUGGING
     #===========================================================================
 
+    
+    def log_event(self, name, description):
+        """ stores and/or outputs the time and date of the event given by name """
+        datestr = str(datetime.datetime.now()) 
+            
+        # log the event
+        logging.info(datestr + ': ' + description)
+        
+        # save the event in the result structure
+        if 'events' not in self.result:
+            self.result['events'] = {}
+        self.result['events'][name] = datestr
+
 
     def debug_setup(self):
         """ prepares everything for the debug output """
+        if len(self.debug_output) > 0:
+            ensure_directory(os.path.join(self.folder, 'debug'))
         
         # setup the video output, if requested
         if 'video' in self.debug_output:
@@ -769,7 +820,7 @@ class MouseMovie(object):
             debug_video.add_points(self.sand_profile, radius=2, color='y')
         
             # indicate the mouse position
-            if self.mouse_pos is not None:
+            if np.all(np.isfinite(self.mouse_pos)):
                 if not self.result['mouse.has_moved']:
                     color = 'r'
                 elif self.mouse_underground():
@@ -781,7 +832,12 @@ class MouseMovie(object):
                 
             debug_video.add_text('not seen: %d' % self._mouse_not_seen, (20, 20), anchor='top')
             
-
+            if 'video.show' in self.debug_output:
+                cv2.imshow('Debug video', debug_video.frame) 
+                if cv2.waitKey(1) & 0xFF in {27, ord('q')}:
+                    logging.info('Tracking has been interrupted by user.')
+                    exit()
+                
         if 'background.video' in self.debug:
             self.debug['background.video'].write_frame(self._background.copy())
 
@@ -801,6 +857,9 @@ class MouseMovie(object):
         for identifier in ('video', 'background.video', 'explored_area.video'):
             if identifier in self.debug:
                 del self.debug[identifier]
+                
+        # remove all windows that may have been opened
+        cv2.destroyAllWindows()
             
     
 

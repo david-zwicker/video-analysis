@@ -18,5 +18,8 @@
 	- Get an example video to see how we could circumvent this problem in our code
 	- One idea is to just drop these frames and assume that not much happens during this time
 * Generally cache all kernels for morphological operations, since these are costly to make
-* Add option to do real-time output instead of writing to movies, such that I can watch the tracking directly
 * Add timing output to the logging (start of operation, start of scanning, finish of scanning)
+* Adapt the color estimates every x Frames to adjust to changing lightning conditions
+* Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)
+* Write special YAML object (extend yaml.YAMLObject), which can load numpy arrays (which will still be saved in the HDF5 file.
+	- Here, we just save the filename and dataset of the hdf5 data in the yaml file and use this information to transparently load the data
