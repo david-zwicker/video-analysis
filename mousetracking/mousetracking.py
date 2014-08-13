@@ -73,7 +73,7 @@ class MouseMovie(object):
         self.folder = folder
         
         # initialize video
-        self.video = VideoFileStack(os.path.join(folder, 'raw_video/*.avi'))
+        self.video = VideoFileStack(os.path.join(folder, 'raw_video/*'))
         self.result['video_raw'] = {'frame_count': self.video.frame_count,
                                     'size': '{1} x {0}'.format(*self.video.size),
                                     'fps': self.video.fps,}
