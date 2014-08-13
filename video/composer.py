@@ -95,8 +95,8 @@ class VideoComposer(VideoFileWriter):
     
     def add_polygon(self, points, color='w', is_closed=True, width=1):
         """ adds a polygon to the frame """
-        points = np.asarray(points, np.int)               
-        cv2.polylines(self.frame, [points], isClosed=is_closed,
+        points = np.array([points], np.int32)               
+        cv2.polylines(self.frame, points, isClosed=is_closed,
                       color=get_color(color), thickness=width)
         
     
