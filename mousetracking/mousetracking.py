@@ -34,18 +34,18 @@ import debug
 
 
 TRACKING_PARAMETERS_DEFAULT = {
-                               
-    # radius of the blur filter
-    'video.blur': 3,
+    # number of initial frames to not analyze
     'video.ignore_initial_frames': 0,
+    # radius of the blur filter
+    'video.blur_radius': 3,
                                
     # determines the rate with which the background is adapted
     'background.adaptation_rate': 0.01,
     
     # spacing of the points in the sand profile
-    'sand_profile.spacing': 20,
+    'sand_profile.point_spacing': 20,
     # adapt the sand profile only every number of frames
-    'sand_profile.skip_frames': 100,
+    'sand_profile.adaptation_interval': 100,
     # width of the ridge in pixel
     'sand_profile.width': 5,
         
@@ -112,13 +112,13 @@ class MouseMovie(object):
 
         # restrict the video to the region of interest (the cage)
         self.crop_video_to_cage(crop)
-        self.result['video_analyzed'] = {'frame_slice': '%d : %d' % frames,
+        self.result['video_analyzed'] = {'frame_slice': '%d to %d' % frames,
                                          'frame_count': self.video.frame_count,
                                          'size': '{1} x {0}'.format(*self.video.size),
                                          'fps': self.video.fps,}
 
         # blur the video to reduce noise effects    
-        self.video_blurred = FilterBlur(self.video, self.params['video.blur'])
+        self.video_blurred = FilterBlur(self.video, self.params['video.blur_radius'])
         first_frame = self.video_blurred[0]
         
         # initialize the background model
@@ -142,27 +142,35 @@ class MouseMovie(object):
         self.process_setup()
         self.result['sand_profile'] = []
 
-        # iterate over the video and analyze it
-        for frame_id, frame in enumerate(display_progress(self.video_blurred)):
-            
-            if frame_id < self.params['video.ignore_initial_frames']:
-                self._update_background_model(frame)
-            
-            else:
-                # find the mouse; this also takes care of the background model
-                self.update_mouse_model(frame)
+        try:
+            # iterate over the video and analyze it
+            for frame_id, frame in enumerate(display_progress(self.video_blurred)):
                 
-                # use the background to find the current sand profile and burrows
-                if frame_id % self.params['sand_profile.skip_frames'] == 0:
-                    self.refine_sand_profile(self._background)
-                    #self.find_burrows()
-                self.result['sand_profile'].append(self.sand_profile)
+                if frame_id < self.params['video.ignore_initial_frames']:
+                    # ignore early frames and only adapt background
+                    self._update_background_model(frame)
                 
-            # store some information in the debug dictionary
-            self.debug_add_frame(frame)
+                else:
+                    # find the mouse; this also takes care of the background model
+                    self.update_mouse_model(frame)
+                    
+                    # use the background to find the current sand profile and burrows
+                    if frame_id % self.params['sand_profile.adaptation_interval'] == 0:
+                        self.refine_sand_profile(self._background)
+                        #self.find_burrows()
+                    self.result['sand_profile'].append(self.sand_profile)
+                    
+                # store some information in the debug dictionary
+                self.debug_add_frame(frame)
+                
+        except KeyboardInterrupt:
+            logging.info('Tracking has been interrupted by user.')
+            self.log_event('run_interrupted', 'Run has been interrupted.')
             
-        self.log_event('run_end', 'Finished iterating through the frames.')
-            
+        else:
+            self.log_event('run_end', 'Finished iterating through the frames.')
+        
+        # cleanup
         self.debug_finalize()
         self.write_results()
 
@@ -268,7 +276,7 @@ class MouseMovie(object):
             rect_given = [0, 0, self.video.size[0] - 1, self.video.size[1] - 1]
         
         # find the cage in the first frame of the movie
-        blurred_image = FilterBlur(video_crop, self.params['video.blur'])[0]
+        blurred_image = FilterBlur(video_crop, self.params['video.blur_radius'])[0]
         rect_cage = self.find_cage(blurred_image)
         
         # TODO: add plausibility test of cage dimensions
@@ -391,7 +399,7 @@ class MouseMovie(object):
 
         # prepare the kernel for morphological opening if necessary
         if '_update_background_model.kernel_dilate' not in self._cache:
-            kernel_size = 2*self.params['video.blur'] + 1
+            kernel_size = 2*self.params['video.blur_radius'] + 1
             self._cache['_update_background_model.kernel_dilate'] = \
                 cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
 
@@ -624,7 +632,7 @@ class MouseMovie(object):
         
         # TODO: we might want to replace that with the typical burrow radius
         # do morphological opening and closing to smooth the profile
-        s = 4*self.params['sand_profile.spacing']
+        s = 4*self.params['sand_profile.point_spacing']
         ys, xs = np.ogrid[-s:s+1, -s:s+1]
         kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8)
 
@@ -661,7 +669,7 @@ class MouseMovie(object):
         in the direction perpendicular to the curve. """
                 
         points = self.sand_profile
-        spacing = self.params['sand_profile.spacing']
+        spacing = self.params['sand_profile.point_spacing']
             
         if not 'sand_profile.model' in self._cache or self._cache['sand_profile.model'].size != spacing:
             self._cache['sand_profile.model'] = \
@@ -910,8 +918,7 @@ class MouseMovie(object):
             
             if 'video.show' in self.debug:
                 if self.debug['video.show'].show_with_check(debug_video.frame):
-                    logging.info('Tracking has been interrupted by user.')
-                    exit()
+                    raise KeyboardInterrupt
                 
         if 'difference.video' in self.debug:
             diff = np.clip(frame.astype(int) - self._background + 128, 0, 255)
