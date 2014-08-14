@@ -6,6 +6,10 @@ Created on Aug 5, 2014
 Note that the OpenCV convention is to store images in [row, column] format
 Thus, a point in an image is referred to as image[coord_y, coord_x]
 However, a single point is stored as point = (coord_x, coord_y)
+Similarly, we store rectangles as (coord_x, coord_y, width, height)
+
+Generally, x-values increase from left to right, while y-values increase from
+top to bottom. The origin is thus in the upper left corner.
 '''
 
 from __future__ import division
@@ -22,8 +26,9 @@ import yaml
 import h5py
 
 from video.io import VideoFileStack, VideoFileWriter, ImageShow
-from video.filters import FilterBlur, FilterCrop
-from video.analysis.regions import get_largest_region, find_bounding_rect
+from video.filters import FilterBlur, FilterCrop, FilterMonochrome
+from video.analysis.regions import (get_largest_region, find_bounding_box,
+                                    rect_to_slices, corners_to_rect)
 from video.analysis.curves import (curve_length, make_curve_equidistant,
                                    simplify_curve, point_distance)
 from video.utils import (display_progress, ensure_directory,
@@ -38,6 +43,10 @@ TRACKING_PARAMETERS_DEFAULT = {
     'video.ignore_initial_frames': 0,
     # radius of the blur filter
     'video.blur_radius': 3,
+    
+    # thresholds for cage dimension
+    'cage.minimal_width': 650,
+    'cage.minimal_height': 400,
                                
     # determines the rate with which the background is adapted
     'background.adaptation_rate': 0.01,
@@ -85,7 +94,7 @@ class MouseMovie(object):
         self.video = VideoFileStack(os.path.join(folder, self.video_filename_pattern))
         self.result['video_raw'] = {'filename_pattern': self.video_filename_pattern,
                                     'frame_count': self.video.frame_count,
-                                    'size': '{1} x {0}'.format(*self.video.size),
+                                    'size': '%d x %d' % self.video.size,
                                     'fps': self.video.fps,}
         
         # restrict the analysis to an interval of frames
@@ -114,7 +123,7 @@ class MouseMovie(object):
         self.crop_video_to_cage(crop)
         self.result['video_analyzed'] = {'frame_slice': '%d to %d' % frames,
                                          'frame_count': self.video.frame_count,
-                                         'size': '{1} x {0}'.format(*self.video.size),
+                                         'size': '%d x %d' % self.video.size,
                                          'fps': self.video.fps,}
 
         # blur the video to reduce noise effects    
@@ -211,20 +220,25 @@ class MouseMovie(object):
     
     def find_cage(self, image):
         """ analyzes a single image and locates the mouse cage in it.
+        Try to find a bounding box for the cage.
         The rectangle [top, left, height, width] enclosing the cage is returned. """
         
         # do automatic thresholding to find large, bright areas
         _, binarized = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-        # find the largest bright area
+        # find the largest bright are, which should contain the cage
         cage_mask = get_largest_region(binarized)
         
-        # find an enclosing rectangle
-        rect_large = find_bounding_rect(cage_mask)
+        # find an enclosing rectangle, which usually overestimates the cage bounding box
+        rect_large = find_bounding_box(cage_mask)
          
         # crop image to this rectangle, which should surely contain the cage 
-        image = image[rect_large[0]:rect_large[2], rect_large[1]:rect_large[3]]
-        rect_small = [0, 0, image.shape[0] - 1, image.shape[1] - 1]
+        image = image[rect_to_slices(rect_large)]
+
+        # initialize the rect coordinates
+        top = 0 # start on first row
+        bottom = image.shape[0] - 1 # start on last row
+        width = image.shape[1]
 
         # threshold again, because large distractions outside of cages are now
         # definitely removed. Still, bright objects close to the cage, e.g. the
@@ -235,58 +249,67 @@ class MouseMovie(object):
         
         # move top line down until we hit the cage boundary.
         # We move until more than 10% of the pixel on a horizontal line are bright
-        width = image.shape[0]
-        brightness = binarized[rect_small[0], :].sum()
+        brightness = binarized[top, :].sum()
         while brightness < 0.1*255*width: 
-            rect_small[0] += 1
-            brightness = binarized[rect_small[0], :].sum()
+            top += 1
+            brightness = binarized[top, :].sum()
         
         # move bottom line up until we hit the cage boundary
         # We move until more then 90% of the pixel of a horizontal line are bright
-        width = image.shape[0]
-        brightness = binarized[rect_small[2], :].sum()
+        brightness = binarized[bottom, :].sum()
         while brightness < 0.9*255*width: 
-            rect_small[2] -= 1
-            brightness = binarized[rect_small[2], :].sum()
+            bottom -= 1
+            brightness = binarized[bottom, :].sum()
 
-        # return the rectangle as [top, left, height, width]
-        cage_rect = [rect_large[0] + rect_small[0],
-                     rect_large[1] + rect_small[1],
-                     rect_small[2] - rect_small[0], 
-                     rect_small[3] - rect_small[1]]
-
-        return cage_rect
+        # return the rectangle defined by two corner points
+        p1 = (rect_large[0], rect_large[1] + top)
+        p2 = (rect_large[0] + width - 1, rect_large[1] + bottom)
+        return corners_to_rect(p1, p2)
 
   
     def crop_video_to_cage(self, user_crop):
         """ crops the video to a suitable cropping rectangle given by the cage """
         
-        # crop the full video to the region specified by the user
-        if user_crop is not None:
-            if self.video.is_color:
-                # restrict video to green channel
-                video_crop = FilterCrop(self.video, user_crop, color_channel=1)
-            else:
-                video_crop = FilterCrop(self.video, user_crop)
-            rect_given = video_crop.rect
-            
-        else:
+        if user_crop is None:
             # use the full video
-            video_crop = self.video
-            rect_given = [0, 0, self.video.size[0] - 1, self.video.size[1] - 1]
+            if self.video.is_color:
+                # restrict video to green channel if it is a color video
+                video_crop = FilterMonochrome(self.video, 1)
+            else:
+                video_crop = self.video
+                
+            rect_given = [0, 0, self.video.size[0], self.video.size[1]]
+
+        else: # user_crop is not None                
+            # restrict video to green channel if it is a color video
+            color_channel = 1 if self.video.is_color else None
+            
+            if isinstance(user_crop, str):
+                # crop according to the supplied string
+                video_crop = FilterCrop(self.video, quadrant=user_crop,
+                                        color_channel=color_channel)
+            else:
+                # crop to the given rect
+                video_crop = FilterCrop(self.video, rect=user_crop,
+                                        color_channel=color_channel)
+
+            rect_given = video_crop.rect
         
         # find the cage in the first frame of the movie
         blurred_image = FilterBlur(video_crop, self.params['video.blur_radius'])[0]
         rect_cage = self.find_cage(blurred_image)
         
-        # TODO: add plausibility test of cage dimensions
-        
         # determine the rectangle of the cage in global coordinates
-        top = rect_given[0] + rect_cage[0]
-        left = rect_given[1] + rect_cage[1]
-        height = rect_cage[2] - rect_cage[2] % 2 # make sure its divisible by 2
-        width = rect_cage[3] - rect_cage[3] % 2  # make sure its divisible by 2
-        cropping_rect = [top, left, height, width]
+        left = rect_given[0] + rect_cage[0]
+        top = rect_given[1] + rect_cage[1]
+        width = rect_cage[2] - rect_cage[2] % 2   # make sure its divisible by 2
+        height = rect_cage[3] - rect_cage[3] % 2  # make sure its divisible by 2
+
+        if (width < self.params['cage.minimal_width'] or
+            height < self.params['cage.minimal_height']):
+            raise RuntimeError('The rectangle (%dx%d) enclosing is too small.' % (width, height)) 
+        
+        cropping_rect = [left, top, width, height]
         
         logging.debug('The cage was determined to lie in the rectangle %s', cropping_rect)
 
@@ -296,7 +319,6 @@ class MouseMovie(object):
             self.video = FilterCrop(self.video, cropping_rect, color_channel=1)
         else:
             self.video = FilterCrop(self.video, cropping_rect)
-                
             
     #===========================================================================
     # BACKGROUND MODEL AND COLOR ESTIMATES
@@ -554,7 +576,8 @@ class MouseMovie(object):
             self.result['mouse.trajectory'] = []
 
         if self._explored_area is None:
-            self._explored_area = np.zeros(self.video.size, np.uint8)
+            shape = (self.video.size[1], self.video.size[0])
+            self._explored_area = np.zeros(shape, np.uint8)
 
         # find features that indicate that the mouse moved
         mask_moving = self._find_moving_features(frame)
@@ -763,8 +786,8 @@ class MouseMovie(object):
         and the explored area """
         
         # build a mask with potential burrows
-        mask = np.zeros(self.video.size, np.uint8)
-        height, width = self.video.size
+        width, height = self.video.size
+        mask = np.zeros((height, width), np.uint8)
         
         # create a mask for the region below the current sand profile
         points = np.empty((len(self.sand_profile) + 4, 2), np.int)
@@ -859,6 +882,9 @@ class MouseMovie(object):
             self.debug['video'] = VideoComposerListener(debug_file, background=self.video,
                                                         is_color=True, codec=self.video_output_codec,
                                                         bitrate=self.video_output_bitrate)
+            if 'video.show' in self.debug_output:
+                self.debug['video.show'] = ImageShow(self.debug['video'].shape, 'Debug video')
+
             
         # setup the background output, if requested
         if 'difference' in self.debug_output:
@@ -889,9 +915,6 @@ class MouseMovie(object):
                                                               codec=self.video_output_codec,
                                                               bitrate=self.video_output_bitrate)
 
-        if 'video.show' in self.debug_output:
-            self.debug['video.show'] = ImageShow('Debug video')
-
 
     def debug_add_frame(self, frame):
         """ adds information of the current frame to the debug output """
@@ -917,8 +940,7 @@ class MouseMovie(object):
             debug_video.add_text('not seen: %d' % self._mouse_not_seen, (20, 20), anchor='top')
             
             if 'video.show' in self.debug:
-                if self.debug['video.show'].show_with_check(debug_video.frame):
-                    raise KeyboardInterrupt
+                self.debug['video.show'].show(debug_video.frame)
                 
         if 'difference.video' in self.debug:
             diff = np.clip(frame.astype(int) - self._background + 128, 0, 255)

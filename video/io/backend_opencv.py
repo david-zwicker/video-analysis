@@ -52,8 +52,8 @@ class VideoOpenCV(VideoBase):
         # an empty video instead. We thus fail later by checking the video length
         
         # determine _movie properties
-        size = (int(self._movie.get(cv.CV_CAP_PROP_FRAME_HEIGHT)),
-                int(self._movie.get(cv.CV_CAP_PROP_FRAME_WIDTH)))
+        size = (int(self._movie.get(cv.CV_CAP_PROP_FRAME_WIDTH)),
+                int(self._movie.get(cv.CV_CAP_PROP_FRAME_HEIGHT)))
         frame_count = int(self._movie.get(cv.CV_CAP_PROP_FRAME_COUNT))
         fps = self._movie.get(cv.CV_CAP_PROP_FPS)
 
@@ -66,7 +66,7 @@ class VideoOpenCV(VideoBase):
         super(VideoOpenCV, self).__init__(size=size, frame_count=frame_count, fps=fps, is_color=True)
 
         logging.debug('Initialized video `%s` with %d frames using OpenCV', filename, frame_count)
-                
+    
         
     def get_frame_pos(self):
         """ returns the 0-based index of the next frame """
@@ -144,6 +144,8 @@ class VideoWriterOpenCV(object):
             If codec is None, the code is determined from the filename extension.
         """
         self.filename = filename
+        self.size = size
+        self.is_color = is_color
     
         if codec is None:
             # detect format from file ending
@@ -156,9 +158,18 @@ class VideoWriterOpenCV(object):
         # get the code defining the video format
         fourcc = cv2.cv.FOURCC(*codec)
         self._writer = cv2.VideoWriter(filename, fourcc=fourcc, fps=fps,
-                                       frameSize=size, isColor=is_color)
+                                       frameSize=(size[1], size[0]), isColor=is_color)
 
         logging.info('Start writing video `%s` with codec `%s`', filename, codec)
+                
+        
+    @property
+    def shape(self):
+        """ returns the shape of the data describing the movie """
+        shape = (self.size[1], self.size[0])
+        if self.is_color:
+            shape += (3,)
+        return shape
 
 
     def write_frame(self, frame):

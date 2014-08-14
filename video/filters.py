@@ -22,7 +22,8 @@ except ImportError:
 
 
 from .io.base import VideoFilterBase
-from video.utils import get_color_range
+from .analysis.regions import rect_to_slices
+from .utils import get_color_range
   
 
 class FilterFunction(VideoFilterBase):
@@ -101,61 +102,83 @@ class FilterNormalize(VideoFilterBase):
 
 
 
+def _check_coordinate(value, max_value):
+    """ helper function checking the bounds of the rectangle """
+    if -1 < value < 1:
+        # convert to integer by interpreting float values as fractions
+        value = int(value*max_value)
+    
+    # interpret negative numbers as counting from opposite boundary
+    if value < 0:
+        value += max_value
+        
+    # check whether the value is within bounds
+    if not 0 <= value < max_value:
+        raise IndexError('Coordinate %d of points is out of bounds.')
+    
+    return value
+  
+    
+
 class FilterCrop(VideoFilterBase):
     """ crops the video to the given rect=(top, left, height, width) """
     
-    def __init__(self, source, rect, color_channel=None):
+    def __init__(self, source, rect=None, quadrant='', color_channel=None):
         """
-        initialized the filter that crops to the given rect=(top, left, height, width)
+        initialized the filter that crops to the given rect=(left, top, width, height)
+        Alternative, the class understands the special strings 'lower', 'upper', 'left',
+        and 'right, which can be given in the quadrant parameter. 
         If color_channel is given, it is assumed that the input video is a color
         video and only the specified color channel is returned, thus turning
         the video into a monochrome one
         """
+        source_width, source_height = source.size
         
-        def _check_number(value, max_value):
-            """ helper function checking the bounds of the rectangle """
+        if rect is not None:
+            # interpret float values as fractions of width/height
+            left =   _check_coordinate(rect[0], source_width)
+            top =    _check_coordinate(rect[1], source_height)
+            width =  _check_coordinate(rect[2], source_width)
+            height = _check_coordinate(rect[3], source_height)
+                    
+        else:
+            # construct the rect from the given string
+            quadrant = quadrant.lower()
+            left, top = 0, 0
+            width, height = source_width, source_height
+            if 'left' in quadrant:
+                width //= 2 
+            elif 'right' in quadrant:
+                width //= 2
+                left = source_width - width 
             
-            # convert to integer by interpreting float values as fractions
-            value = int(value*max_value if -1 < value < 1 else value)
-            
-            # interpret negative numbers as counting from opposite boundary
-            if value < 0:
-                value += max_value
-                
-            # check whether the value is within bounds
-            if not 0 <= value < max_value:
-                raise IndexError('Cropping rectangle reaches out of frame.')
-            
-            return value
-            
-        # interpret float values as fractions
-        rect = [
-            _check_number(rect[0], source.size[0]),
-            _check_number(rect[1], source.size[1]),
-            _check_number(rect[2], source.size[0]),
-            _check_number(rect[3], source.size[1]),
-        ]
+            if 'upper' in quadrant:
+                height //= 2
+            elif 'lower' in quadrant:
+                height //= 2
+                top = source_height - height
         
-        # save the rectangle
-        self.rect = (rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3])
+        # create the rectangle and store it 
+        self.rect = (left, top, width, height)
+        self.slices = rect_to_slices(self.rect)
+        
+        # extract color information
         self.color_channel = color_channel
         is_color = None if color_channel is None else False
         
         # correct the size, since we are going to crop the movie
-        super(FilterCrop, self).__init__(source, size=(rect[2], rect[3]), is_color=is_color)
-
+        super(FilterCrop, self).__init__(source, size=self.rect[2:], is_color=is_color)
         logging.debug('Created filter for cropping to rectangle %s', self.rect)
         
        
     def _process_frame(self, frame):
-        r = self.rect
         if self.color_channel is None:
             # extract the given rectangle 
-            frame = frame[r[0]:r[2], r[1]:r[3]]
+            frame = frame[self.slices]
 
         else:
             # extract the given rectangle and get the color channel 
-            frame = frame[r[0]:r[2], r[1]:r[3], self.color_channel]
+            frame = frame[self.slices[0], self.slices[1], self.color_channel]
 
         # pass the frame to the parent function
         return super(FilterCrop, self)._process_frame(frame)

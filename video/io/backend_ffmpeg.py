@@ -63,7 +63,7 @@ class VideoWriterFFMPEG(object):
       '.avi' for all your videos.
     
     size
-      Size (height, width) of the output video in pixels.
+      Size (width, height) of the output video in pixels.
       
     fps
       Frames per second in the output video file.
@@ -91,7 +91,8 @@ class VideoWriterFFMPEG(object):
         self.filename = filename
         self.codec = codec
         self.ext = self.filename.split(".")[-1]
-        self.is_color = is_color
+        self.size = size
+        self.is_color = is_color        
 
         if size[0]%2 != 0 or size[1]%2 != 0:
             raise ValueError('Both dimensions of the video must be even for '
@@ -103,7 +104,7 @@ class VideoWriterFFMPEG(object):
             "-loglevel", "error", #"info" if verbose() else "error",
             "-f", 'rawvideo',
             "-vcodec","rawvideo",
-            '-s', "%dx%d" % (size[1], size[0]), # ffmpeg expects width, height
+            '-s', "%dx%d" % size,
             '-pix_fmt', "rgb24" if is_color else "gray",
             '-r', "%.02f" % fps,
             '-i', '-',
@@ -127,6 +128,15 @@ class VideoWriterFFMPEG(object):
                                      stdout=DEVNULL, stderr=subprocess.PIPE)
 
         logging.info('Start writing video `%s` with codec `%s`', filename, codec)
+
+    
+    @property
+    def shape(self):
+        """ returns the shape of the data describing the movie """
+        shape = (self.size[1], self.size[0])
+        if self.is_color:
+            shape += (3,)
+        return shape
     
         
     def write_frame(self, img_array):

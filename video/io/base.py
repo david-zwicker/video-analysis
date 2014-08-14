@@ -27,7 +27,7 @@ class VideoBase(object):
     
     def __init__(self, size=(0, 0), frame_count=-1, fps=None, is_color=True):
         """
-        size stores the dimensions of the video
+        size stores the dimensions of the video (width x height)
         frame_count stores the number of frames
         fps are the frames per second
         is_color indicates whether the video is in color or monochrome
@@ -78,7 +78,7 @@ class VideoBase(object):
     @property
     def shape(self):
         """ returns the shape of the data describing the movie """
-        shape = (self.frame_count, self.size[0], self.size[1])
+        shape = (self.frame_count, self.size[1], self.size[0])
         if self.is_color:
             shape += (3,)
         return shape
@@ -210,7 +210,7 @@ class VideoImageStackBase(VideoBase):
         
         # load the first frame to get information on color
         frame = self.get_frame(0)
-        size = frame.shape[:2]
+        size = (frame.shape[1], frame.shape[0])
         if frame.ndim == 2 or frame.shape[2] == 1:
             is_color = False
         elif frame.shape[2] == 3:

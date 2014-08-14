@@ -34,7 +34,7 @@ class VideoMemory(VideoBase):
 
         # read important information
         frame_count = data.shape[0]
-        size = data.shape[1:3]
+        size = (data.shape[2], data.shape[1])
         if data.ndim == 3:
             is_color = False
         elif data.shape[3] == 3:
