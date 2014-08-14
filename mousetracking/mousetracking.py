@@ -21,7 +21,7 @@ import cv2
 import yaml
 import h5py
 
-from video.io import VideoFileStack, VideoFileWriter
+from video.io import VideoFileStack, VideoFileWriter, ImageShow
 from video.filters import FilterBlur, FilterCrop
 from video.analysis.regions import get_largest_region, find_bounding_rect
 from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve, point_distance
@@ -827,7 +827,7 @@ class MouseMovie(object):
             ensure_directory(os.path.join(self.folder, 'debug'))
         
         # setup the video output, if requested
-        if 'video' in self.debug_output:
+        if 'video' in self.debug_output or 'video.show' in self.debug_output:
             # initialize the writer for the debug video
             debug_file = os.path.join(self.folder, 'debug', self.prefix + 'video.mov')
             self.debug['video'] = VideoComposerListener(debug_file, background=self.video, is_color=True)
@@ -849,6 +849,9 @@ class MouseMovie(object):
             debug_file = os.path.join(self.folder, 'debug', self.prefix + 'explored.mov')
             self.debug['explored_area.video'] = VideoComposer(debug_file, self.video.size,
                                                               self.video.fps, is_color=False)
+
+        if 'video.show' in self.debug_output:
+            self.debug['video.show'] = ImageShow('Debug video')
 
 
     def debug_add_frame(self, frame):
@@ -874,9 +877,8 @@ class MouseMovie(object):
                 
             debug_video.add_text('not seen: %d' % self._mouse_not_seen, (20, 20), anchor='top')
             
-            if 'video.show' in self.debug_output:
-                cv2.imshow('Debug video', debug_video.frame) 
-                if cv2.waitKey(1) & 0xFF in {27, ord('q')}:
+            if 'video.show' in self.debug:
+                if self.debug['video.show'].show_with_check(debug_video.frame):
                     logging.info('Tracking has been interrupted by user.')
                     exit()
                 
