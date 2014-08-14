@@ -37,6 +37,7 @@ TRACKING_PARAMETERS_DEFAULT = {
                                
     # radius of the blur filter
     'video.blur': 3,
+    'video.ignore_initial_frames': 0,
                                
     # determines the rate with which the background is adapted
     'background.adaptation_rate': 0.01,
@@ -140,15 +141,20 @@ class MouseMovie(object):
 
         # iterate over the video and analyze it
         for frame_id, frame in enumerate(display_progress(self.video_blurred)):
-            # find the mouse; this also takes care of the background model
-            self.update_mouse_model(frame)
             
-            # use the background to find the current sand profile and burrows
-            if frame_id % self.params['sand_profile.skip_frames'] == 0:
-                self.refine_sand_profile(self._background)
-                #self.find_burrows()
-            self.result['sand_profile'].append(self.sand_profile)
+            if frame_id < self.params['video.ignore_initial_frames']:
+                self._update_background_model(frame)
             
+            else:
+                # find the mouse; this also takes care of the background model
+                self.update_mouse_model(frame)
+                
+                # use the background to find the current sand profile and burrows
+                if frame_id % self.params['sand_profile.skip_frames'] == 0:
+                    self.refine_sand_profile(self._background)
+                    #self.find_burrows()
+                self.result['sand_profile'].append(self.sand_profile)
+                
             # store some information in the debug dictionary
             self.debug_add_frame(frame)
             
@@ -698,7 +704,10 @@ class MouseMovie(object):
             # calculate goodness of fit
             ss_err = (infodict['fvec']**2).sum()
             ss_tot = ((region - region.mean())**2).sum()
-            rsquared = 1 - ss_err/ss_tot
+            if ss_tot == 0:
+                rsquared = 0
+            else:
+                rsquared = 1 - ss_err/ss_tot
 
             # Note, that we never remove the first and the last point
             if rsquared > 0.1 or k == 0 or k == len(sand_profile) - 1:
