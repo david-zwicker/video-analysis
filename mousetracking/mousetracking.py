@@ -680,9 +680,9 @@ class MouseMovie(object):
                   for x, col in enumerate(mask.T)]            
 
         # simplify the curve        
-        points = np.array(simplify_curve(points, epsilon=2))
+        points = simplify_curve(points, epsilon=2)
 
-        return np.array(points)
+        return np.array(points, np.int)
    
         
     def refine_sand_profile(self, image):
@@ -700,7 +700,7 @@ class MouseMovie(object):
                 
         # make sure the curve has equidistant points
         sand_profile = make_curve_equidistant(points, spacing)
-        sand_profile = np.array(sand_profile)
+        sand_profile = np.array(sand_profile,  np.int)
 
         # calculate the bounds for the points
         p_min =  spacing 
@@ -751,7 +751,7 @@ class MouseMovie(object):
                 p_y = p[1] - x[0]*np.sin(angle)
                 # make sure that we have no overhanging ridges
                 if p_x >= x_previous:
-                    corrected_points.append((p_x, p_y))
+                    corrected_points.append((int(p_x), int(p_y)))
                     x_previous = p_x
             
         #print self.sand_profile[0, 0], corrected_points[0][0]
