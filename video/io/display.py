@@ -16,9 +16,8 @@ try:
     import sharedmem
 except ImportError:
     sharedmem = None
-    logging.warn('Package sharedmem could not be imported and displays must '
-                 'thus be shown using the main process.')
-
+        
+        
         
 def _show_image_from_pipe(pipe, image_array, title):
     """ function that runs in a separate process to display images """
@@ -53,20 +52,30 @@ class ImageShow(object):
     def __init__(self, size, title='', multiprocessing=True):
         self.title = title
         self._data = None
+        self._proc = None
         
-        if multiprocessing and sharedmem:
-            # create the pipe to talk to the child
-            self._pipe, pipe_child = Pipe(duplex=True)
-            # setup the shared memory area
-            self._data = sharedmem.empty(size, np.uint8)
-            # initialize the process that shows the image
-            self._proc = Process(target=_show_image_from_pipe,
-                                 args=(pipe_child, self._data, title))
-            self._proc.start()
-            logging.debug('Started background process for displaying images')
+        if multiprocessing:
             
-        else:
-            self._proc = None
+            if sharedmem:
+                try:
+                    # create the pipe to talk to the child
+                    self._pipe, pipe_child = Pipe(duplex=True)
+                    # setup the shared memory area
+                    self._data = sharedmem.empty(size, np.uint8)
+                    # initialize the process that shows the image
+                    self._proc = Process(target=_show_image_from_pipe,
+                                         args=(pipe_child, self._data, title))
+                    self._proc.start()
+                    logging.debug('Started background process for displaying images')
+                    
+                except AssertionError:
+                    logging.warn('Could not start a separate process to display images. '
+                                 'The main process will thus be used.')
+                
+            else:
+                logging.warn('Package sharedmem could not be imported and '
+                             'images are thus shown using the main process.')
+
        
        
     def show(self, image):
