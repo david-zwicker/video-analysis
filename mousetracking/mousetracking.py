@@ -48,6 +48,9 @@ TRACKING_PARAMETERS_DEFAULT = {
     'cage.minimal_width': 650,
     'cage.minimal_height': 400,
                                
+    # determine the colors every ? frames
+    'colors.adaptation_interval': 1000,
+                               
     # determines the rate with which the background is adapted
     'background.adaptation_rate': 0.01,
     
@@ -154,6 +157,9 @@ class MouseMovie(object):
         try:
             # iterate over the video and analyze it
             for frame_id, frame in enumerate(display_progress(self.video_blurred)):
+                
+                if frame_id % self.params['colors.adaptation_interval'] == 0:
+                    self.find_color_estimates(frame)
                 
                 if frame_id < self.params['video.ignore_initial_frames']:
                     # ignore early frames and only adapt background
