@@ -106,7 +106,8 @@ class VideoWriterFFMPEG(object):
             '-s', "%dx%d" % (size[1], size[0]), # ffmpeg expects width, height
             '-pix_fmt', "rgb24" if is_color else "gray",
             '-r', "%.02f" % fps,
-            '-i', '-', '-an',
+            '-i', '-',
+            '-an', # no audio
             '-vcodec', codec]
             + ([] if (bitrate is None) else ['-b', bitrate])
 

@@ -9,10 +9,10 @@
 	- This tracking is called Multiple Hypothesis Tracking [Reid 1979], Streit and Luginbuhl [1994]
 		[REID, D. B. 1979. An algorithm for tracking multiple targets. IEEE Trans. Autom. Control 24, 6, 843-854.]
 	
+	
 Performance improvements:
 -------------------------
 * Read video in separate threads, because they are IO bound (and do not need the GIL)
-* Show video (in debug view) in separate thread
 * Speed up sand profile fitting by having a library of profiles with certain angles and just matching these
 	around the point of interest (move along perpendicular line, until overlap is maximal)
 * Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)

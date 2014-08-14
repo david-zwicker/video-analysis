@@ -24,8 +24,10 @@ import h5py
 from video.io import VideoFileStack, VideoFileWriter, ImageShow
 from video.filters import FilterBlur, FilterCrop
 from video.analysis.regions import get_largest_region, find_bounding_rect
-from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve, point_distance
-from video.utils import display_progress, ensure_directory, prepare_data_for_yaml, homogenize_arraylist
+from video.analysis.curves import (curve_length, make_curve_equidistant,
+                                   simplify_curve, point_distance)
+from video.utils import (display_progress, ensure_directory,
+                         prepare_data_for_yaml, homogenize_arraylist)
 from video.composer import VideoComposerListener, VideoComposer
 
 import debug
