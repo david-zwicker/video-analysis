@@ -103,12 +103,12 @@ class VideoOpenCV(VideoBase):
         
         # get the next frame, which also increments the internal frame index
         ret, frame = self._movie.read()
-            
+        
         if ret:
             return frame
         else:
             # reading the data failed for whatever reason
-            raise IndexError
+            raise IndexError('OpenCV could not read frame.')
             
                     
     def __del__(self):
@@ -158,7 +158,7 @@ class VideoWriterOpenCV(object):
         self._writer = cv2.VideoWriter(filename, fourcc=fourcc, fps=fps,
                                        frameSize=size, isColor=is_color)
 
-        logging.info('Start writing video `%s` with format `%s`', filename, codec)
+        logging.info('Start writing video `%s` with codec `%s`', filename, codec)
 
 
     def write_frame(self, frame):
