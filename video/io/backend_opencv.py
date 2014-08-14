@@ -103,12 +103,12 @@ class VideoOpenCV(VideoBase):
         
         # get the next frame, which also increments the internal frame index
         ret, frame = self._movie.read()
-            
+        
         if ret:
             return frame
         else:
             # reading the data failed for whatever reason
-            raise IndexError
+            raise IndexError('OpenCV could not read frame.')
             
                     
     def __del__(self):
