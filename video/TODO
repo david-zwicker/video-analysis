@@ -1,22 +1,29 @@
-* Read video in separate threads, because they are IO bound (and do not need the GIL)
-* Store meta information of video somewhere (especially date taken)
 * Write a manual of assumption we make about the videos in order to track everything
 * Build collection of extracts from movies which are hard to analyze (use this for semi-automatic testing)
 * The sand profile sometimes has two brightnesses - What's the origin of this?
 	- Maybe we could fit both of them simultaneously
-* Speed up sand profile fitting by having a library of profiles with certain angles and just matching these
-	around the point of interest (move along perpendicular line, until overlap is maximal)
 * Find the burrow shape
 	- This might best be done on the background model (although it is blurred)
 	- Burrows should be defined as dark areas underneath the sand profile line
 * Use lower threshold for mouse identification and use the temporal information to connect the traces correctly
 	- This tracking is called Multiple Hypothesis Tracking [Reid 1979], Streit and Luginbuhl [1994]
 		[REID, D. B. 1979. An algorithm for tracking multiple targets. IEEE Trans. Autom. Control 24, 6, 843-854.]
+	
+Performance improvements:
+-------------------------
+* Read video in separate threads, because they are IO bound (and do not need the GIL)
+* Show video (in debug view) in separate thread
+* Speed up sand profile fitting by having a library of profiles with certain angles and just matching these
+	around the point of interest (move along perpendicular line, until overlap is maximal)
+* Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)
+* Generally cache all kernels for morphological operations, since these are costly to make
+
+
+Low priority enhancements:
+--------------------------
 * Apparently, sometimes the light flickers and a frame becomes unusably bright.
 	- Get an example video to see how we could circumvent this problem in our code
 	- One idea is to just drop these frames and assume that not much happens during this time
 * Adapt the color estimates every x Frames to adjust to changing lightning conditions
-* Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)
-* Generally cache all kernels for morphological operations, since these are costly to make
 * Write special YAML object (extend yaml.YAMLObject), which can load numpy arrays (which will still be saved in the HDF5 file.
 	- Here, we just save the filename and dataset of the hdf5 data in the yaml file and use this information to transparently load the data

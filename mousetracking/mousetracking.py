@@ -25,7 +25,7 @@ from video.io import VideoFileStack, VideoFileWriter
 from video.filters import FilterBlur, FilterCrop
 from video.analysis.regions import get_largest_region, find_bounding_rect
 from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve, point_distance
-from video.utils import display_progress, ensure_directory, prepare_data_for_yaml
+from video.utils import display_progress, ensure_directory, prepare_data_for_yaml, homogenize_arraylist
 from video.composer import VideoComposerListener, VideoComposer
 
 import debug
@@ -64,6 +64,8 @@ class MouseMovie(object):
     analyzes mouse movies
     """
     
+    video_filename_pattern = 'raw_video/*'
+    
     def __init__(self, folder, frames=None, crop=None, prefix='', debug_output=None):
         """ initializes the whole mouse tracking and prepares the video filters """
         
@@ -73,14 +75,17 @@ class MouseMovie(object):
         self.folder = folder
         
         # initialize video
-        self.video = VideoFileStack(os.path.join(folder, 'raw_video/*'))
-        self.result['video_raw'] = {'frame_count': self.video.frame_count,
+        self.video = VideoFileStack(os.path.join(folder, self.video_filename_pattern))
+        self.result['video_raw'] = {'filename_pattern': self.video_filename_pattern,
+                                    'frame_count': self.video.frame_count,
                                     'size': '{1} x {0}'.format(*self.video.size),
                                     'fps': self.video.fps,}
         
         # restrict the analysis to an interval of frames
         if frames is not None:
             self.video = self.video[frames[0]:frames[1]]
+        else:
+            frames = (0, self.video.frame_count) 
         
         self.prefix = prefix + '_' if prefix else ''
         self.debug_output = [] if debug_output is None else debug_output
@@ -98,7 +103,8 @@ class MouseMovie(object):
 
         # restrict the video to the region of interest (the cage)
         self.crop_video_to_cage(crop)
-        self.result['video_analyzed'] = {'frame_count': self.video.frame_count,
+        self.result['video_analyzed'] = {'frame_slice': '%d : %d' % frames,
+                                         'frame_count': self.video.frame_count,
                                          'size': '{1} x {0}'.format(*self.video.size),
                                          'fps': self.video.fps,}
 
@@ -139,7 +145,7 @@ class MouseMovie(object):
             self.result['sand_profile'].append(self.sand_profile)
             
             # store some information in the debug dictionary
-            self.debug_add_frame()
+            self.debug_add_frame(frame)
             
         self.log_event('run_end', 'Finished iterating through the frames.')
             
@@ -491,6 +497,9 @@ class MouseMovie(object):
         if 'find_features_moving_forward.kernel_open' not in self._cache:
             self._cache['find_features_moving_forward.kernel_open'] = \
                 cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+            self._cache['find_features_moving_forward.kernel_close'] = \
+                 cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.params['mouse.size']//2,)*2)
+       
                         
         # calculate the difference to the current background model
         # Note that the first operand determines the dtype of the result.
@@ -503,6 +512,9 @@ class MouseMovie(object):
         # perform morphological opening to remove noise
         cv2.morphologyEx(mask_moving, cv2.MORPH_OPEN, 
                          self._cache['find_features_moving_forward.kernel_open'],
+                         dst=mask_moving)     
+        cv2.morphologyEx(mask_moving, cv2.MORPH_CLOSE, 
+                         self._cache['find_features_moving_forward.kernel_close'],
                          dst=mask_moving)     
 
         # plot the contour of the movement if debug video is enabled
@@ -524,6 +536,8 @@ class MouseMovie(object):
 
         # find features that indicate that the mouse moved
         mask_moving = self._find_moving_features(frame)
+        
+        #labels, num_features = 
 
         if mask_moving.sum() == 0:
             self._mouse_not_seen += 1
@@ -762,6 +776,9 @@ class MouseMovie(object):
         hdf_name = self.prefix + 'results.hdf5'
         hdf_file = h5py.File(os.path.join(self.folder, 'results', hdf_name), 'w')
         
+        # prepare data for writing
+        main_result['sand_profile'] = homogenize_arraylist(main_result['sand_profile'])
+        
         # handle sand_profile
         for key in ('sand_profile', 'mouse.trajectory'):
             logging.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
@@ -816,6 +833,12 @@ class MouseMovie(object):
             self.debug['video'] = VideoComposerListener(debug_file, background=self.video, is_color=True)
             
         # setup the background output, if requested
+        if 'difference' in self.debug_output:
+            # initialize the writer for the debug video
+            debug_file = os.path.join(self.folder, 'debug', self.prefix + 'difference.mov')
+            self.debug['difference.video'] = VideoFileWriter(debug_file, self.video.size,
+                                                             self.video.fps, is_color=False)
+        # setup the background output, if requested
         if 'background' in self.debug_output:
             # initialize the writer for the debug video
             debug_file = os.path.join(self.folder, 'debug', self.prefix + 'background.mov')
@@ -828,7 +851,7 @@ class MouseMovie(object):
                                                               self.video.fps, is_color=False)
 
 
-    def debug_add_frame(self):
+    def debug_add_frame(self, frame):
         """ adds information of the current frame to the debug output """
         
         if 'video' in self.debug:
@@ -857,6 +880,10 @@ class MouseMovie(object):
                     logging.info('Tracking has been interrupted by user.')
                     exit()
                 
+        if 'difference.video' in self.debug:
+            diff = np.clip(frame.astype(int) - self._background + 128, 0, 255)
+            self.debug['difference.video'].write_frame(diff.astype(np.uint8))
+                
         if 'background.video' in self.debug:
             self.debug['background.video'].write_frame(self._background.copy())
 
@@ -873,10 +900,7 @@ class MouseMovie(object):
 
     def debug_finalize(self):
         """ close the video streams when done iterating """
-        for identifier in ('video', 'background.video', 'explored_area.video'):
-            if identifier in self.debug:
-                del self.debug[identifier]
-                
+        self.debug.clear()
         # remove all windows that may have been opened
         cv2.destroyAllWindows()
             

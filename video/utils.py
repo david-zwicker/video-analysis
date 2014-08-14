@@ -52,7 +52,7 @@ def get_color_range(dtype):
 
 
 def prepare_data_for_yaml(data):
-    """ converts all arrays to lists in a nested list or dictionary """
+    """ recursively converts all numpy types to their closest python equivalents """
     if isinstance(data, np.ndarray):
         return data.tolist()
     elif isinstance(data, np.floating):
@@ -64,7 +64,19 @@ def prepare_data_for_yaml(data):
     elif isinstance(data, (list, tuple)):
         return [prepare_data_for_yaml(v) for v in data]
     else:
-        return data         
+        return data
+   
+    
+def homogenize_arraylist(data):
+    """ stores a list of arrays of different length in a single array.
+    This is achieved by appending np.nan as necessary.
+    """
+    len_max = max(len(d) for d in data)
+    result = np.empty((len(data), len_max) + data[0].shape[1:], dtype=data[0].dtype)
+    result.fill(np.nan)
+    for k, d in enumerate(data):
+        result[k, :len(d), ...] = d
+    return result
 
 
 def safe_typecast(data, dtype):
