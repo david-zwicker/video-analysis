@@ -72,7 +72,8 @@ class MouseMovie(object):
     video_output_extension = '.mov'
     video_output_bitrate = None
     
-    def __init__(self, folder, frames=None, crop=None, prefix='', debug_output=None):
+    def __init__(self, folder, frames=None, crop=None, prefix='',
+                 tracking_parameters=None, debug_output=None):
         """ initializes the whole mouse tracking and prepares the video filters """
         
         # initialize the dictionary holding result information
@@ -96,6 +97,8 @@ class MouseMovie(object):
         self.prefix = prefix + '_' if prefix else ''
         self.debug_output = [] if debug_output is None else debug_output
         self.params = TRACKING_PARAMETERS_DEFAULT.copy()
+        if tracking_parameters is not None:
+            self.params.update(tracking_parameters)
         self.result['tracking_parameters'] = self.params
         
         # setup internal structures that will be filled by analyzing the video
