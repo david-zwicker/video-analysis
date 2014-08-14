@@ -880,7 +880,7 @@ class MouseMovie(object):
         if len(self.debug_output) > 0:
             ensure_directory(os.path.join(self.folder, 'debug'))
         
-        # setup the video output, if requested
+        # set up the general video output, if requested
         if 'video' in self.debug_output or 'video.show' in self.debug_output:
             # initialize the writer for the debug video
             debug_file = os.path.join(self.folder, 'debug',
@@ -891,36 +891,18 @@ class MouseMovie(object):
             if 'video.show' in self.debug_output:
                 self.debug['video.show'] = ImageShow(self.debug['video'].shape, 'Debug video')
 
-            
-        # setup the background output, if requested
-        if 'difference' in self.debug_output:
-            # initialize the writer for the debug video
-            debug_file = os.path.join(self.folder, 'debug',
-                                      self.prefix + 'difference' + self.video_output_extension)
-            self.debug['difference.video'] = VideoFileWriter(debug_file, self.video.size,
-                                                             self.video.fps, is_color=False,
-                                                             codec=self.video_output_codec,
-                                                             bitrate=self.video_output_bitrate)
-            
-        # setup the background output, if requested
-        if 'background' in self.debug_output:
-            # initialize the writer for the debug video
-            debug_file = os.path.join(self.folder, 'debug',
-                                      self.prefix + 'background' + self.video_output_extension)
-            self.debug['background.video'] = VideoFileWriter(debug_file, self.video.size,
-                                                             self.video.fps, is_color=False,
-                                                             codec=self.video_output_codec,
-                                                             bitrate=self.video_output_bitrate)
-            
-        if 'explored_area' in self.debug_output:
-            # initialize the writer for the explored area video 
-            debug_file = os.path.join(self.folder, 'debug',
-                                      self.prefix + 'explored' + self.video_output_extension)
-            self.debug['explored_area.video'] = VideoComposer(debug_file, self.video.size,
-                                                              self.video.fps, is_color=False,
-                                                              codec=self.video_output_codec,
-                                                              bitrate=self.video_output_bitrate)
-
+        # set up additional video writers
+        for identifier in ('difference', 'background', 'explored_area'):
+            if identifier in self.debug_output:
+                # determine the filename to be used
+                debug_file = os.path.join(self.folder, 'debug',
+                                          self.prefix + identifier + self.video_output_extension)
+                # set up the video file writer
+                video_writer = VideoFileWriter(debug_file, self.video.size, self.video.fps,
+                                               is_color=False, codec=self.video_output_codec,
+                                               bitrate=self.video_output_bitrate)
+                self.debug[identifier + '.video'] = video_writer
+        
 
     def debug_add_frame(self, frame):
         """ adds information of the current frame to the debug output """
