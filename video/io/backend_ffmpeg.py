@@ -122,9 +122,10 @@ class VideoWriterFFMPEG(object):
         )
 
         # start ffmpeg, which should wait for input
-        self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=DEVNULL)
+        self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                     stdout=DEVNULL, stderr=subprocess.PIPE)
 
-        logging.info('Start writing video `%s` with format `%s`', filename, codec)
+        logging.info('Start writing video `%s` with codec `%s`', filename, codec)
     
         
     def write_frame(self, img_array):

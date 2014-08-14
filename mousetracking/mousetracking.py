@@ -65,6 +65,8 @@ class MouseMovie(object):
     """
     
     video_filename_pattern = 'raw_video/*'
+    video_output_codec = 'libx264'
+    video_output_extension = '.mov'
     
     def __init__(self, folder, frames=None, crop=None, prefix='', debug_output=None):
         """ initializes the whole mouse tracking and prepares the video filters """
@@ -829,26 +831,34 @@ class MouseMovie(object):
         # setup the video output, if requested
         if 'video' in self.debug_output:
             # initialize the writer for the debug video
-            debug_file = os.path.join(self.folder, 'debug', self.prefix + 'video.mov')
-            self.debug['video'] = VideoComposerListener(debug_file, background=self.video, is_color=True)
+            debug_file = os.path.join(self.folder, 'debug',
+                                      self.prefix + 'video' + self.video_output_extension)
+            self.debug['video'] = VideoComposerListener(debug_file, background=self.video,
+                                                        is_color=True, codec=self.video_output_codec)
             
         # setup the background output, if requested
         if 'difference' in self.debug_output:
             # initialize the writer for the debug video
-            debug_file = os.path.join(self.folder, 'debug', self.prefix + 'difference.mov')
+            debug_file = os.path.join(self.folder, 'debug',
+                                      self.prefix + 'difference' + self.video_output_extension)
             self.debug['difference.video'] = VideoFileWriter(debug_file, self.video.size,
-                                                             self.video.fps, is_color=False)
+                                                             self.video.fps, is_color=False,
+                                                             codec=self.video_output_codec)
         # setup the background output, if requested
         if 'background' in self.debug_output:
             # initialize the writer for the debug video
-            debug_file = os.path.join(self.folder, 'debug', self.prefix + 'background.mov')
+            debug_file = os.path.join(self.folder, 'debug',
+                                      self.prefix + 'background' + self.video_output_extension)
             self.debug['background.video'] = VideoFileWriter(debug_file, self.video.size,
-                                                             self.video.fps, is_color=False)
+                                                             self.video.fps, is_color=False,
+                                                             codec=self.video_output_codec)
         if 'explored_area' in self.debug_output:
             # initialize the writer for the explored area video 
-            debug_file = os.path.join(self.folder, 'debug', self.prefix + 'explored.mov')
+            debug_file = os.path.join(self.folder, 'debug',
+                                      self.prefix + 'explored' + self.video_output_extension)
             self.debug['explored_area.video'] = VideoComposer(debug_file, self.video.size,
-                                                              self.video.fps, is_color=False)
+                                                              self.video.fps, is_color=False,
+                                                              codec=self.video_output_codec)
 
 
     def debug_add_frame(self, frame):
