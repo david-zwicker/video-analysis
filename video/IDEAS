@@ -1,7 +1,23 @@
+Mouse tracking
+--------------
 * Track each feature individually
+* mouse_pos should be an array with multiple hypotheses
+* There should also be an array with possible traces - we could match the traces in a post processing run!
 * Could Kalman filters be useful for mouse tracking?
 	More information and further links can be found here:
 	http://www.morethantechnical.com/2011/06/17/simple-kalman-filter-for-tracking-using-opencv-2-2-w-code/
 * A simple filter would be an Alpha-Beta filter:
 	http://en.wikipedia.org/wiki/Alpha_beta_filter
 * Look into time smoothing (Gaussian smoothing across several frames)
+
+Burrow tracking
+---------------
+* Write separate class, which represents a burrow by describing its midline.
+	Any burrow shape should be represented by 
+	- an anchor point (at the entrance)
+	- a length
+	- a list of tangent angles
+	- a list of widths  
+* We should be able to fit the burrow shape to the real data, using the explored area as an initial guess
+* We could use a post-process run to extrapolate the predug size (considering the first frame should be sufficient here)
+* This fitting should happen only every ~1000 frames and be done in a separate thread (such that we have about 40s per burrow)
