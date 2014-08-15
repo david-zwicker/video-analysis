@@ -108,8 +108,8 @@ class VideoWriterFFMPEG(object):
             '-pix_fmt', "rgb24" if is_color else "gray",
             '-r', "%.02f" % fps,
             '-i', '-',
-            '-an', # no audio
-            '-vcodec', codec]
+            '-an'] # no audio
+            + ([] if (codec is None) else ['-vcodec', codec])
             + ([] if (bitrate is None) else ['-b', bitrate])
 
             # http://trac.ffmpeg.org/ticket/658

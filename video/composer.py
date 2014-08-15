@@ -137,10 +137,10 @@ class VideoComposer(VideoFileWriter):
         
     def __del__(self):
         # write the last frame
-        
-        self.write_frame(self.frame)
+        if self.frame is not None:
+            self.write_frame(self.frame)
         # close the video writer
-        self.close()
+        super(VideoComposer, self).__del__()
         
     
         
