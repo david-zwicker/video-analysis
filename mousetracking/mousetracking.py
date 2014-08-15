@@ -164,34 +164,27 @@ class MouseMovie(object):
         
         self.debug_setup()
         self.setup_processing()
-        self.result['sand_profile'] = []
 
         try:
-            # move this to module, since it's clutter
-            if verbose():
-                video_iter = self.video_blurred
-            else:
-                video_iter = display_progress(self.video_blurred)
-                
             # iterate over the video and analyze it
-            for self.frame_id, frame in enumerate(video_iter):
+            for self.frame_id, frame in enumerate(display_progress(self.video_blurred)):
                 
                 if self.frame_id % self.params['colors.adaptation_interval'] == 0:
                     self.find_color_estimates(frame)
                 
-                if self.frame_id < self.params['video.ignore_initial_frames']:
-                    # ignore early frames and only adapt background
-                    self._update_background_model(frame)
-                
-                else:
-                    # find the mouse; this also takes care of the background model
-                    self.update_mouse_model(frame)
+                if self.frame_id >= self.params['video.ignore_initial_frames']:
+                    # find the mouse
+                    self.find_mice(frame)
                     
                     # use the background to find the current sand profile and burrows
                     if self.frame_id % self.params['sand_profile.adaptation_interval'] == 0:
                         self.refine_sand_profile(self._background)
                         #self.find_burrows()
                     self.result['sand_profile'].append(self.sand_profile)
+                    
+            
+                # update the background model
+                self._update_background_model(frame)
                     
                 # store some information in the debug dictionary
                 self.debug_add_frame(frame)
@@ -212,7 +205,8 @@ class MouseMovie(object):
         """ sets up the processing of the video by initializing caches etc """
         
         self.result['mouse.trajectories'] = []
-                
+        self.result['sand_profile'] = []
+
         # creates a simple template for matching with the mouse.
         # This template can be used to update the current mouse position based
         # on information about the changes in the video.
@@ -684,7 +678,7 @@ class MouseMovie(object):
         assert len(self.mice) == len(objects_found)
         
     
-    def update_mouse_model(self, frame):
+    def find_mice(self, frame):
         """ adapts the current mouse position, if enough information is available """
         
         # setup initial data
@@ -714,8 +708,8 @@ class MouseMovie(object):
             mice_moving = [mouse.is_moving() for mouse in self.mice]
             if any(mice_moving):
                 self.result['mouse.has_moved'] = True
-                
                 # remove the trajectories that didn't move
+                # this essentially assumes that there is only one mouse
                 self.mice = [mouse
                              for k, mouse in enumerate(self.mice)
                              if mice_moving[k]]
@@ -727,9 +721,6 @@ class MouseMovie(object):
             cv2.circle(self._explored_area, mouse.last_pos,
                        radius=self.params['mouse.model_radius'],
                        color=255, thickness=-1)
-            
-        # update the background model
-        self._update_background_model(frame)
                                 
                 
     #===========================================================================
