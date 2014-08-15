@@ -46,7 +46,7 @@ def make_curve_equidistant(points, spacing):
         dist += dp
         
     # add the last point if necessary
-    if dist > dx/2:
+    if dist > 1e-8:
         result.append(points[-1])
         
     return result

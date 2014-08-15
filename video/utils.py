@@ -20,9 +20,13 @@ except ImportError:
 
 
 
-def verbose(mode=logging.DEBUG):
+def verbose(level_min=logging.DEBUG, level_max=None):
     """ determine whether debugging is requested """
-    return logging.getLogger().getEffectiveLevel() <= mode
+    level = logging.getLogger().getEffectiveLevel()
+    if level_max is None:
+        return level_min <= level 
+    else:
+        return level_min <= level < level_max
 
 
 def ensure_directory(folder):
@@ -92,7 +96,7 @@ def display_progress(iterator, total=None):
     """
     displays a progress bar when iterating
     """
-    if tqdm is not None and verbose(logging.INFO):
+    if tqdm is not None and verbose(logging.INFO, logging.DEBUG):
         return tqdm(iterator, total=total, leave=True)
     else:
         return iterator

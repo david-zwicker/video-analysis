@@ -27,7 +27,12 @@ def _show_image_from_pipe(pipe, image_array, title):
         
         if data == 'update':
             # update the image
-            cv2.imshow(title, image_array)
+            if image_array.ndim > 2:
+                # reverse the color axis, since this seems to be the opencv way
+                cv2.imshow(title, image_array[:, :, ::-1])
+            else:
+                cv2.imshow(title, image_array)
+            
             # check whether the user wants to abort
             if cv2.waitKey(1) & 0xFF in {27, ord('q')}:
                 pipe.send('interrupt')

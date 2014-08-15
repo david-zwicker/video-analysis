@@ -14,9 +14,10 @@ top to bottom. The origin is thus in the upper left corner.
 
 from __future__ import division
 
-import os
-import logging
 import datetime
+import itertools
+import logging
+import os
 
 import numpy as np
 import scipy.ndimage as ndimage
@@ -26,7 +27,7 @@ import cv2
 import yaml
 import h5py
 
-from video.io import VideoFileStack, VideoFileWriter, ImageShow
+from video.io import VideoFileStack, ImageShow
 from video.filters import FilterBlur, FilterCrop, FilterMonochrome
 from video.analysis.regions import (get_largest_region, find_bounding_box,
                                     rect_to_slices, corners_to_rect)
@@ -61,19 +62,26 @@ TRACKING_PARAMETERS_DEFAULT = {
     'sand_profile.adaptation_interval': 100,
     # width of the ridge in pixel
     'sand_profile.width': 5,
+    
+    # relative weight of distance vs. size of objects
+    'object_matching.weigth': 0.5,
+    # size of the window used for motion detection
+    'object_matching.moving_window': 20,
         
     # `mouse.intensity_threshold` determines how much brighter than the
     # background (usually the sky) has the mouse to be. This value is
     # measured in terms of standard deviations of the sky color
-    'mouse.intensity_threshold': 1, #1.5,
+    'mouse.intensity_threshold': 1,
     # radius of the mouse model in pixel
-    'mouse.model_radius': 30,
+    'mouse.model_radius': 25,
     # minimal area of a feature to be considered in tracking
-    'mouse.min_area': 30,
+    'mouse.min_area': 100,
     # maximal speed of the mouse in pixel per frame
     'mouse.max_speed': 30, 
+    # maximal area change allowed between consecutive frames
+    'mouse.max_rel_area_change': 0.5,
     # after how many frames do we think we have lost the mouse entirely
-    'mouse.lost_threshold': 100,
+#     'mouse.lost_threshold': 100,
 }
 
 
@@ -85,7 +93,7 @@ class MouseMovie(object):
     video_filename_pattern = 'raw_video/*'
     video_output_codec = 'libx264'
     video_output_extension = '.mov'
-    video_output_bitrate = None
+    video_output_bitrate = '6000k'
     
     def __init__(self, folder, frames=None, crop=None, prefix='',
                  tracking_parameters=None, debug_output=None):
@@ -122,7 +130,6 @@ class MouseMovie(object):
         self.sand_profile = None   # current model of the sand profile
         self.mice = []             # list of plausible mouse models in current frame
         self._mouse_pos_estimate = []  # list of estimated mouse positions
-        self._mouse_not_seen = 0   # number of previous frames in which the mouse has not been seen 
         self._explored_area = None # region the mouse has explored yet
         self.frame_id = None       # id of the current frame
         self.result['mouse.has_moved'] = False
@@ -160,6 +167,7 @@ class MouseMovie(object):
         self.result['sand_profile'] = []
 
         try:
+            # move this to module, since it's clutter
             if verbose():
                 video_iter = self.video_blurred
             else:
@@ -204,7 +212,7 @@ class MouseMovie(object):
         """ sets up the processing of the video by initializing caches etc """
         
         self.result['mouse.trajectories'] = []
-        
+                
         # creates a simple template for matching with the mouse.
         # This template can be used to update the current mouse position based
         # on information about the changes in the video.
@@ -485,8 +493,8 @@ class MouseMovie(object):
             self._cache['find_moving_features.kernel_open'] = \
                 cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
             self._cache['find_moving_features.kernel_close'] = \
-                 cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.params['mouse.model_radius']//2,)*2)
-       
+                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+#                 cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.params['mouse.model_radius']//2,)*2)
                         
         # calculate the difference to the current background model
         # Note that the first operand determines the dtype of the result.
@@ -503,7 +511,7 @@ class MouseMovie(object):
         # perform morphological closing to join distinct features
         cv2.morphologyEx(mask_moving, cv2.MORPH_CLOSE, 
                          self._cache['find_moving_features.kernel_close'],
-                         dst=mask_moving)     
+                         dst=mask_moving)
 
         # plot the contour of the movement if debug video is enabled
         if 'video' in self.debug:
@@ -512,42 +520,44 @@ class MouseMovie(object):
         return mask_moving
 
 
-    def _find_mice_in_binary_image(self, binary_image):
-        """ finds the mouse in a binary image.
-        Returns a list of Mouse objects
+    def _find_objects_in_binary_image(self, binary_image):
+        """ finds objects in a binary image.
+        Returns a list with characteristic properties
         """
         
-        # build a kernel for morphological closing. We don't cache this kernel,
-        # since the current function should only be called once per run
-        kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
-                                                 (self.params['mouse.model_radius'],)*2)
+#         # build a kernel for morphological closing. We don't cache this kernel,
+#         # since the current function should only be called once per run
+#         kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
+#                                                  (self.params['mouse.model_radius'],)*2)
         
         # perform morphological closing to combined feature patches that are near 
-        moving_toward = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel_close)
+#         moving_toward = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel_close)
 
         # find all distinct features and label them
-        labels, num_features = ndimage.measurements.label(moving_toward)
+        labels, num_features = ndimage.measurements.label(binary_image)
+        self.debug['object_count'] = num_features
 
         # find the area of features
-        areas = ndimage.measurements.sum(labels, labels, index=range(1, num_features + 1))
+        areas = ndimage.measurements.sum(np.ones_like(labels), labels,
+                                         index=range(1, num_features + 1))
 
         # find the largest object (which should be the mouse)
-        mice = []
+        objects = []
         for index, area in enumerate(areas):
             if area > self.params['mouse.min_area']:
                 # mouse position is given by center of mass
                 pos = ndimage.measurements.center_of_mass(labels, labels, index + 1)
                 # switch the coordinates, such that they are given as (x, y)
-                mice.append(MouseData((pos[1], pos[0]), size=area))
+                objects.append(Object((pos[1], pos[0]), size=area))
                 
-        if len(mice) == 0:
+        if len(objects) == 0:
             # mouse position is center of mass of largest patch
             index = np.argmax(areas)
             pos = ndimage.measurements.center_of_mass(labels, labels, index + 1)
             # switch the coordinates, such that they are given as (x, y)
-            mice.append(MouseData((pos[1], pos[0]), size=areas[index]))
+            objects.append(Object((pos[1], pos[0]), size=areas[index]))
         
-        return mice
+        return objects
 
                 
     def _find_best_template_position(self, image, template, start_pos, max_deviation=None):
@@ -596,69 +606,82 @@ class MouseMovie(object):
         return best_pos
   
 
-    def _handle_mouse_traces(self, frame, mask_moving):
+    def _handle_object_traces(self, frame, mask_moving):
         """ analyzes a single frame and tries to identify the current mouse position """
         # get potential positions
-        mice_found = self._find_mice_in_binary_image(mask_moving)
+        objects_found = self._find_objects_in_binary_image(mask_moving)
         
-        # get the current mouse positions
-        pos_found = [mouse.pos for mouse in mice_found]
-        # get the estimated mouse positions (based on their speed)
-        pos_estmt = [mouse_trace.get_future_pos() for mouse_trace in self.mice]
-
-        if len(pos_estmt) == 0:
-            self.mice = [MouseTrace(self.frame_id, mouse) for mouse in mice_found]
+        if len(self.mice) == 0:
+            self.mice = [ObjectTrace(self.frame_id, mouse,
+                                     moving_window=self.params['object_matching.moving_window'])
+                         for mouse in objects_found]
             
         else:
+            # calculate the distance between these points and the ones of our traces
+            dist = distance.cdist([mouse.pos for mouse in objects_found],
+                                  [mouse_trace.predict_pos() for mouse_trace in self.mice],
+                                  metric='euclidean')
+#             dist = np.array([[point_distance(mouse.pos, mouse_trace.predict_pos())
+#                               for mouse_trace in self.mice]
+#                              for mouse in objects_found])
+            # normalize distance to the maximum speed
+            dist = dist/self.params['mouse.max_speed']
             
-            # calculate the distance/residual between these points
-            dist = distance.cdist(pos_found, pos_estmt, metric='euclidean')
+            # calculate the difference of areas between these points and the ones of our traces
+            def area_score(area1, area2):
+                """ helper function scoring area differences """
+                return abs(area1 - area2)/(area1 + area2)
             
+            areas = np.array([[area_score(mouse.size, mouse_trace.last_size)
+                               for mouse_trace in self.mice]
+                              for mouse in objects_found])
+            # normalize area change such that 1 corresponds to the maximal allowed one
+            areas = areas/self.params['mouse.max_rel_area_change']
+
+            # build a combined score from this
+            alpha = self.params['object_matching.weigth']
+            score = alpha*dist + (1 - alpha)*areas
+
             # match previous estimates to this one
-            idx_f = range(len(mice_found))
-            idx_e = range(len(self.mice))
+            idx_f = range(len(objects_found)) # indices of found objects
+            idx_e = range(len(self.mice))     # indices of previous objects
             while True:
-                # get the smallest distance in the distance matrix            
-                dist_min = dist.min()
+                # get the smallest score, which corresponds to best match            
+                score_min = score.min()
                 
-                if dist_min > self.params['mouse.max_speed']:
-                    # there are no close points left anymore
+                if score_min > 1:
+                    # there are no good matches left
                     break
                 
                 else:
-                    # find the indices 
-                    i_f, i_e = np.argwhere(dist == dist_min)[0]
+                    # find the indices of the match
+                    i_f, i_e = np.argwhere(score == score_min)[0]
                     
-                    # append mouse to the trace
-                    self.mice[i_e].append(self.frame_id, mice_found[i_f])
+                    # append found object to the previous trace
+                    self.mice[i_e].append(self.frame_id, objects_found[i_f])
                     
-                    # eliminate these points from the consideration
-                    dist[i_f, :] = np.inf
-                    dist[:, i_e] = np.inf
+                    # eliminate these points from further considerations
+                    score[i_f, :] = np.inf
+                    score[:, i_e] = np.inf
                     idx_f.remove(i_f)
                     idx_e.remove(i_e)
                     
-                    
-            # save traces that have not been continued to results
-            for i_e in idx_e:
+            # end trajectories that had no match in current frame 
+            for i_e in reversed(idx_e): # have to go backwards, since we delete items
                 logging.debug('%d: Copy mouse trajectory of length %d to results',
                               self.frame_id, len(self.mice[i_e]))
-                # copy trajectory to result file
+                # copy trajectory to result dictionary
                 self.result['mouse.trajectories'].append(self.mice[i_e])
                 del self.mice[i_e]
             
-            # start new traces for positions
+            # start new traces for objects that had no previous match
             for i_f in idx_f:
-                logging.debug('%d: Start new mouse trajectory at %s', self.frame_id, mice_found[i_f].pos)
+                logging.debug('%d: Start new mouse trajectory at %s', self.frame_id, objects_found[i_f].pos)
                 # start new trajectory
-                self.mice.append(MouseTrace(self.frame_id, mice_found[i_f]))
-            
-        assert len(self.mice) == len(mice_found)
+                self.mice.append(ObjectTrace(self.frame_id, objects_found[i_f],
+                                             moving_window=self.params['object_matching.moving_window']))
         
-        # keep track of the area that the mouse explored
-        for mouse in self.mice:
-            cv2.circle(self._explored_area, mouse.pos,
-                       radius=self.params['mouse.model_radius'], color=255, thickness=-1)
+        assert len(self.mice) == len(objects_found)
         
     
     def update_mouse_model(self, frame):
@@ -675,10 +698,7 @@ class MouseMovie(object):
         # find features that indicate that the mouse moved
         mask_moving = self._find_moving_features(frame)
         
-        #labels, num_features = 
-
         if mask_moving.sum() == 0:
-            self._mouse_not_seen += 1
             # end all current traces if there are any
             if len(self.mice) > 0:
                 logging.debug('%d: Copy %d trajectories to results', 
@@ -688,7 +708,7 @@ class MouseMovie(object):
 
         else:
             # some moving features have been found in the video 
-            self._handle_mouse_traces(frame, mask_moving)
+            self._handle_object_traces(frame, mask_moving)
             
             # check whether mouse traces have sat still
             mice_moving = [mouse.is_moving() for mouse in self.mice]
@@ -700,8 +720,13 @@ class MouseMovie(object):
                              for k, mouse in enumerate(self.mice)
                              if mice_moving[k]]
 
-            self._mouse_pos_estimate = [mouse.pos for mouse in self.mice]
-            self._mouse_not_seen = 0
+            self._mouse_pos_estimate = [mouse.last_pos for mouse in self.mice]
+        
+        # keep track of the area that the mouse explored
+        for mouse in self.mice:
+            cv2.circle(self._explored_area, mouse.last_pos,
+                       radius=self.params['mouse.model_radius'],
+                       color=255, thickness=-1)
             
         # update the background model
         self._update_background_model(frame)
@@ -764,14 +789,16 @@ class MouseMovie(object):
         points = self.sand_profile
         spacing = self.params['sand_profile.point_spacing']
             
-        if not 'sand_profile.model' in self._cache or self._cache['sand_profile.model'].size != spacing:
+        if not 'sand_profile.model' in self._cache or \
+            self._cache['sand_profile.model'].size != spacing:
+            
             self._cache['sand_profile.model'] = \
                     RidgeProfile(spacing, self.params['sand_profile.width'])
                 
         # make sure the curve has equidistant points
         sand_profile = make_curve_equidistant(points, spacing)
-        sand_profile = np.array(sand_profile,  np.int)
-
+        sand_profile = np.array(np.round(sand_profile),  np.int)
+        
         # calculate the bounds for the points
         p_min =  spacing 
         y_max, x_max = image.shape[0] - spacing, image.shape[1] - spacing
@@ -789,19 +816,18 @@ class MouseMovie(object):
             
             # determine the local slope of the profile, which fixes the angle 
             if k == 0 or k == len(sand_profile) - 1:
-                # we only move these vertically to keep the profile length
-                # approximately constant
+                # we only move these vertically to prevent the sand profile
+                # from shortening
                 angle = np.pi/2
             else:
                 dp = sand_profile[k+1] - sand_profile[k-1]
                 angle = np.arctan2(dp[0], dp[1]) # y-coord, x-coord
                 
-            # extract the region image
+            # extract the region around the point used for fitting
             region = image[p[1]-spacing : p[1]+spacing+1, p[0]-spacing : p[0]+spacing+1].copy()
             sand_profile_model.set_data(region, angle) 
 
-            # maximize the difference between the colors of the two half planes, which
-            # should separate out sky from sand
+            # move the sand profile model perpendicular until it fits best
             x, _, infodict, _, _ = \
                 leastsq(sand_profile_model.get_difference, [0], xtol=0.1, full_output=True)
             
@@ -824,7 +850,6 @@ class MouseMovie(object):
                     corrected_points.append((int(p_x), int(p_y)))
                     x_previous = p_x
             
-        #print self.sand_profile[0, 0], corrected_points[0][0]
         self.sand_profile = np.array(corrected_points)
             
 
@@ -948,6 +973,10 @@ class MouseMovie(object):
         """ prepares everything for the debug output """
         if len(self.debug_output) > 0:
             ensure_directory(os.path.join(self.folder, 'debug'))
+
+        self.debug['object_count'] = 0
+        self.debug['text1'] = ''
+        self.debug['text2'] = ''
         
         # set up the general video output, if requested
         if 'video' in self.debug_output or 'video.show' in self.debug_output:
@@ -993,16 +1022,17 @@ class MouseMovie(object):
                     else:
                         color = 'b'
                         
-                    #debug_video.add_circle(mouse.pos, 4, color)
-                    debug_video.add_polygon(mouse.get_trace(), color, is_closed=False)
-                    debug_video.add_circle(mouse.pos, self.params['mouse.model_radius'], color, thickness=1)
+                    debug_video.add_polygon(mouse.get_trace(), '0.5', is_closed=False)
+                    debug_video.add_circle(mouse.last_pos, self.params['mouse.model_radius'], color, thickness=1)
                 
             else: # there are no current traces
                 for mouse_pos in self._mouse_pos_estimate:
                     debug_video.add_circle(mouse_pos, self.params['mouse.model_radius'], 'k', thickness=1)
              
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
-            debug_video.add_text('not seen: %d' % self._mouse_not_seen, (200, 20), anchor='top')
+            debug_video.add_text('#objects:%d' % self.debug['object_count'], (120, 20), anchor='top')
+            debug_video.add_text(self.debug['text1'], (300, 20), anchor='top')
+            debug_video.add_text(self.debug['text2'], (300, 50), anchor='top')
             
             if 'video.show' in self.debug:
                 self.debug['video.show'].show(debug_video.frame)
@@ -1033,55 +1063,72 @@ class MouseMovie(object):
             
     
     
-class MouseData(object):
-    """ represents a single mouse (hypotheses) """
+class Object(object):
+    """ represents a single object """
+    __slots__ = ['pos', 'size'] #< save some memory
+    
     def __init__(self, pos, size):
         self.pos = (int(pos[0]), int(pos[1]))
         self.size = size
-        
-    def estimate_speed(self, pos_prev):
-        self.speed = (self.pos[0] - pos_prev[0], self.pos[1] - pos_prev[1])
 
 
-
-class MouseTrace(object):
-    """ represents a single mouse (hypotheses) """
+class ObjectTrace(object):
+    """ represents a time course of objects """
+    # hold everything inside lists, not list of objects
     # TODO: speed up by keeping track of velocity vectors
-    def __init__(self, time, mouse):
-        self._time = [time]
-        self._mouse = [mouse]
+    
+    def __init__(self, time, obj, moving_window=20):
+        self._times = [time]
+        self._objects = [obj]
+        self.moving_window = moving_window
         
     def __len__(self):
-        return len(self._time)
+        return len(self._times)
     
     @property
-    def pos(self):
-        return self._mouse[-1].pos
+    def last_pos(self):
+        """ return the last position of the object """
+        return self._objects[-1].pos
     
-    def get_future_pos(self):
-        if len(self._mouse) > 1:
-            p_now = self._mouse[-1].pos
-            p_prev = self._mouse[-2].pos
-            return (2*p_now[0] - p_prev[0], 2*p_now[1] - p_prev[1])
-        else:
-            return self._mouse[0].pos
+    @property
+    def last_size(self):
+        """ return the last size of the object """
+        return self._objects[-1].size
+    
+    def predict_pos(self):
+        """ predict the position in the next frame.
+        It turned out that setting the current position is the best predictor.
+        This is because mice are often stationary (especially in complicated
+        tracking situations, like inside burrows). Additionally, when mice
+        throw out dirt, there are frames, where dirt + mouse are considered 
+        being one object, which moves the center of mass in direction of the
+        dirt. If in the next frame two objects are found, than it is likely
+        that the dirt would be seen as the mouse, if we'd predict the position
+        based on the continuation of the previous movement
+        """
+        return self._objects[-1].pos
         
     def get_trace(self):
-        return [mouse.pos for mouse in self._mouse]
+        """ return a list of positions over time """
+        return [obj.pos for obj in self._objects]
 
-    def append(self, time, mouse):
-        self._time.append(time)
-        self._mouse.append(mouse)
+    def append(self, time, obj):
+        """ append a new object with a time code """
+        self._times.append(time)
+        self._objects.append(obj)
         
     def is_moving(self):
-        pos = self._mouse[-1].pos
-        dist = 0
-        for mouse in self._mouse[-50:]:
-            dist += point_distance(pos, mouse.pos)
-        return dist > 50
+        """ return if the object has moved in the last frames """
+        pos = self._objects[-1].pos
+        dist = sum(point_distance(pos, obj.pos)
+                   for obj in self._objects[-self.moving_window:])
+        return dist > 2*self.moving_window
+    
+    def to_array(self):
+        return np.array([(time, obj.pos[0], obj.pos[1], obj.size)
+                         for time, obj in itertools.izip(self._times, self._objects)])
         
             
-
 
 class RidgeProfile(object):
     """ represents a ridge profile to compare it against an image in fitting """
