@@ -15,7 +15,6 @@ top to bottom. The origin is thus in the upper left corner.
 from __future__ import division
 
 import datetime
-import itertools
 import logging
 import os
 
@@ -24,73 +23,21 @@ import scipy.ndimage as ndimage
 from scipy.optimize import leastsq
 from scipy.spatial import distance
 import cv2
-import yaml
-import h5py
 
+from .data_handler import DataHandler, ObjectTrajectory, Object
 from video.io import VideoFileStack, ImageShow
 from video.filters import FilterBlur, FilterCrop, FilterMonochrome
 from video.analysis.regions import (get_largest_region, find_bounding_box,
                                     rect_to_slices, corners_to_rect)
-from video.analysis.curves import (curve_length, make_curve_equidistant,
-                                   simplify_curve, point_distance)
-from video.utils import (display_progress, ensure_directory,
-                         prepare_data_for_yaml, homogenize_arraylist)
+from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve
+from video.utils import display_progress
 from video.composer import VideoComposerListener, VideoComposer
 
 import debug
 
 
-TRACKING_PARAMETERS_DEFAULT = {
-    # number of initial frames to not analyze
-    'video.ignore_initial_frames': 0,
-    # radius of the blur filter [in pixel]
-    'video.blur_radius': 3,
-    
-    # thresholds for cage dimension [in pixel]
-    'cage.width_min': 650,
-    'cage.width_max': 800,
-    'cage.height_min': 400,
-    'cage.height_max': 500,
-                               
-    # how often are the color estimates adapted [in frames]
-    'colors.adaptation_interval': 1000,
-                               
-    # determines the rate with which the background is adapted [in 1/frames]
-    'background.adaptation_rate': 0.01,
-    
-    # spacing of the points in the sand profile [in pixel]
-    'sand_profile.point_spacing': 20,
-    # adapt the sand profile only every number of frames [in frames]
-    'sand_profile.adaptation_interval': 100,
-    # width of the ridge [in pixel]
-    'sand_profile.width': 5,
-    
-    # relative weight of distance vs. size of objects [dimensionless]
-    'objects.matching_weigth': 0.5,
-    # size of the window used for motion detection [in frames]
-    'objects.matching_moving_window': 20,
-        
-    # `mouse.intensity_threshold` determines how much brighter than the
-    # background (usually the sky) has the mouse to be. This value is
-    # measured in terms of standard deviations of the sky color
-    'mouse.intensity_threshold': 1,
-    # radius of the mouse model [in pixel]
-    'mouse.model_radius': 25,
-    # minimal area of a feature to be considered in tracking [in pixel^2]
-    'mouse.min_area': 100,
-    # maximal speed of the mouse [in pixel per frame]
-    'mouse.max_speed': 30, 
-    # maximal area change allowed between consecutive frames [dimensionless]
-    'mouse.max_rel_area_change': 0.5,
 
-    # how often are the burrow shapes adapted [in frames]
-    'burrows.adaptation_interval': 100,
-    # what is a typical radius of a burrow [in pixel]
-    'burrows.radius': 10
-}
-
-
-class MouseMovie(object):
+class FirstPass(DataHandler):
     """
     analyzes mouse movies
     """
@@ -98,23 +45,23 @@ class MouseMovie(object):
     video_filename_pattern = 'raw_video/*'
     video_output_codec = 'libx264'
     video_output_extension = '.mov'
-    video_output_bitrate = '6000k'
+    video_output_bitrate = '2000k'
     
     def __init__(self, folder, frames=None, crop=None, prefix='',
                  tracking_parameters=None, debug_output=None):
         """ initializes the whole mouse tracking and prepares the video filters """
         
         # initialize the dictionary holding result information
-        self.result = {}
+        super(FirstPass, self).__init__(folder, prefix, tracking_parameters)
+        
         self.log_event('init_begin', 'Start initializing the video analysis.')
-        self.folder = folder
         
         # initialize video
         self.video = VideoFileStack(os.path.join(folder, self.video_filename_pattern))
-        self.result['video_raw'] = {'filename_pattern': self.video_filename_pattern,
-                                    'frame_count': self.video.frame_count,
-                                    'size': '%d x %d' % self.video.size,
-                                    'fps': self.video.fps,}
+        self.data['video_raw'] = {'filename_pattern': self.video_filename_pattern,
+                                  'frame_count': self.video.frame_count,
+                                  'size': '%d x %d' % self.video.size,
+                                  'fps': self.video.fps}
         
         # restrict the analysis to an interval of frames
         if frames is not None:
@@ -122,12 +69,8 @@ class MouseMovie(object):
         else:
             frames = (0, self.video.frame_count) 
         
-        self.prefix = prefix + '_' if prefix else ''
         self.debug_output = [] if debug_output is None else debug_output
-        self.params = TRACKING_PARAMETERS_DEFAULT.copy()
-        if tracking_parameters is not None:
-            self.params.update(tracking_parameters)
-        self.result['tracking_parameters'] = self.params
+        self.params = self.data['tracking_parameters']
         
         # setup internal structures that will be filled by analyzing the video
         self._cache = {}           # cache that some functions might want to use
@@ -137,14 +80,16 @@ class MouseMovie(object):
         self._mouse_pos_estimate = []  # list of estimated mouse positions
         self._explored_area = None # region the mouse has explored yet
         self.frame_id = None       # id of the current frame
-        self.result['mouse.has_moved'] = False
+        self.data['mouse.has_moved'] = False
 
         # restrict the video to the region of interest (the cage)
-        self.crop_video_to_cage(crop)
-        self.result['video_analyzed'] = {'frame_slice': '%d to %d' % frames,
-                                         'frame_count': self.video.frame_count,
-                                         'size': '%d x %d' % self.video.size,
-                                         'fps': self.video.fps,}
+        cropping_rect = self.crop_video_to_cage(crop)
+        self.data['video_analyzed'] = {'frame_slice': '%d to %d' % frames,
+                                       'frame_count': self.video.frame_count,
+                                       'region_specified': crop,
+                                       'region_cage': cropping_rect,
+                                       'size': '%d x %d' % self.video.size,
+                                       'fps': self.video.fps}
 
         # blur the video to reduce noise effects    
         self.video_blurred = FilterBlur(self.video, self.params['video.blur_radius'])
@@ -184,7 +129,7 @@ class MouseMovie(object):
                     # use the background to find the current sand profile and burrows
                     if self.frame_id % self.params['sand_profile.adaptation_interval'] == 0:
                         self.refine_sand_profile(self._background)
-                    self.result['sand_profile'].append(self.sand_profile)
+                    self.data['sand_profile'].append(self.sand_profile)
             
 #                 if self.frame_id % self.params['burrows.adaptation_interval'] == 0:
 #                     self.find_burrows(frame)
@@ -204,14 +149,14 @@ class MouseMovie(object):
         
         # cleanup
         self.debug_finalize()
-        self.write_results()
+        self.write_data()
 
 
     def setup_processing(self):
         """ sets up the processing of the video by initializing caches etc """
         
-        self.result['objects.trajectories'] = []
-        self.result['sand_profile'] = []
+        self.data['objects.trajectories'] = []
+        self.data['sand_profile'] = []
 
         # creates a simple template for matching with the mouse.
         # This template can be used to update the current mouse position based
@@ -353,6 +298,8 @@ class MouseMovie(object):
         else:
             self.video = FilterCrop(self.video, cropping_rect)
             
+        return cropping_rect
+            
             
     #===========================================================================
     # BACKGROUND MODEL AND COLOR ESTIMATES
@@ -383,11 +330,11 @@ class MouseMovie(object):
 
         # determine the sky color
         sky_img = image[sky_sure.astype(np.bool)]
-        self.result['colors'] = {}
-        self.result['colors']['sky'] = sky_img.mean()
-        self.result['colors']['sky_std'] = sky_img.std()
+        self.data['colors'] = {}
+        self.data['colors']['sky'] = sky_img.mean()
+        self.data['colors']['sky_std'] = sky_img.std()
         logging.debug('The sky color was determined to be %d +- %d',
-                      self.result['colors']['sky'], self.result['colors']['sky_std'])
+                      self.data['colors']['sky'], self.data['colors']['sky_std'])
 
         # find the sand by looking at the largest bright region
         sand_mask = get_largest_region(binarized).astype(np.uint8)*255
@@ -402,10 +349,10 @@ class MouseMovie(object):
         
         # determine the sky color
         sand_img = image[sand_sure.astype(np.bool)]
-        self.result['colors']['sand'] = sand_img.mean()
-        self.result['colors']['sand_std'] = sand_img.std()
+        self.data['colors']['sand'] = sand_img.mean()
+        self.data['colors']['sand_std'] = sand_img.std()
         logging.debug('The sand color was determined to be %d +- %d',
-                      self.result['colors']['sand'], self.result['colors']['sand_std'])
+                      self.data['colors']['sand'], self.data['colors']['sand_std'])
         
         
     def _get_mouse_template_slices(self, pos, i_shape, t_shape):
@@ -499,7 +446,7 @@ class MouseMovie(object):
         diff = -self._background + frame 
         
         # find movement by comparing the difference to a threshold 
-        mask_moving = (diff > self.params['mouse.intensity_threshold']*self.result['colors']['sky_std'])
+        mask_moving = (diff > self.params['mouse.intensity_threshold']*self.data['colors']['sky_std'])
         mask_moving = 255*mask_moving.astype(np.uint8)
 
         # perform morphological opening to remove noise
@@ -662,7 +609,7 @@ class MouseMovie(object):
             logging.debug('%d: Copy mouse trajectory of length %d to results',
                           self.frame_id, len(self.mice[i_e]))
             # copy trajectory to result dictionary
-            self.result['objects.trajectories'].append(self.mice[i_e])
+            self.data['objects.trajectories'].append(self.mice[i_e])
             del self.mice[i_e]
         
         # start new trajectories for objects that had no previous match
@@ -686,7 +633,7 @@ class MouseMovie(object):
             if len(self.mice) > 0:
                 logging.debug('%d: Copy %d trajectories to results', 
                               self.frame_id, len(self.mice))
-                self.result['objects.trajectories'].extend(self.mice)
+                self.data['objects.trajectories'].extend(self.mice)
                 self.mice = []
 
         else:
@@ -696,7 +643,7 @@ class MouseMovie(object):
             # check whether objects moved and call them a mouse
             mice_moving = [mouse.is_moving() for mouse in self.mice]
             if any(mice_moving):
-                self.result['mouse.has_moved'] = True
+                self.data['mouse.has_moved'] = True
                 # remove the trajectories that didn't move
                 # this essentially assumes that there is only one mouse
                 self.mice = [mouse
@@ -893,71 +840,6 @@ class MouseMovie(object):
 
 
     #===========================================================================
-    # DATA ANALYSIS
-    #===========================================================================
-
-    
-    def write_results(self):
-        """ writes the results to a file """
-        ensure_directory(os.path.join(self.folder, 'results'))
-
-        # contains all the result as a python array
-        main_result = self.result.copy()
-        hdf_name = self.prefix + 'results.hdf5'
-        hdf_file = h5py.File(os.path.join(self.folder, 'results', hdf_name), 'w')
-        
-        # prepare data for writing
-        main_result['sand_profile'] = homogenize_arraylist(main_result['sand_profile'])
-        
-        # prepare object trajectories
-        trajectories = []
-        for index, trajectory in enumerate(main_result['objects.trajectories']):
-            data = trajectory.to_array()
-            index_array = np.zeros((len(trajectory), 1), np.int) + index
-            trajectories.append(np.hstack((index_array, data)))
-        
-        if trajectories:
-            main_result['objects.trajectories'] = np.concatenate(trajectories)
-        else:
-            main_result['objects.trajectories'] = []
-        
-        # handle sand_profile
-        for key in ['sand_profile', 'objects.trajectories']:
-            logging.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
-            dataset = hdf_file.create_dataset(key, data=np.asarray(main_result[key]))
-            main_result[key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
-            
-        # set meta information
-        hdf_file['sand_profile'].dims[0].label = 'Frame Number'
-        hdf_file['sand_profile'].dims[1].label = 'Anchor Point ID'
-        hdf_file['sand_profile'].dims[2].label = 'Coordinates (x, y)'
-        hdf_file['objects.trajectories'].attrs['column_names'] = \
-            ['Track ID', 'Frame ID', 'Position X', 'Position Y', 'Object Area'] 
-
-        # write the main result file
-        filename = os.path.join(self.folder, 'results', self.prefix + 'results.yaml')
-        with open(filename, 'w') as outfile:
-            yaml.dump(prepare_data_for_yaml(main_result),
-                      outfile,
-                      default_flow_style=False)        
-
-
-    def mouse_underground(self, position):
-        """ checks whether the mouse is under ground """
-        sand_y = np.interp(position[0], self.sand_profile[:, 0], self.sand_profile[:, 1])
-        return position[1] - self.params['mouse.model_radius']/2 > sand_y
-#         if len(self.mouse_pos) == 0:
-#             return None
-#         else:
-#             profile = self.sand_profile
-#             for pos in self.mouse_pos:
-#                 sand_y = np.interp(pos[0], profile[:, 0], profile[:, 1])
-#                 if pos[1] - self.params['mouse.model_radius']/2 > sand_y:
-#                     return True
-#             return False
-
-
-    #===========================================================================
     # DEBUGGING
     #===========================================================================
 
@@ -970,16 +852,13 @@ class MouseMovie(object):
         logging.info(str(now) + ': ' + description)
         
         # save the event in the result structure
-        if 'events' not in self.result:
-            self.result['events'] = {}
-        self.result['events'][name] = now
+        if 'events' not in self.data:
+            self.data['events'] = {}
+        self.data['events'][name] = now
 
 
     def debug_setup(self):
         """ prepares everything for the debug output """
-        if len(self.debug_output) > 0:
-            ensure_directory(os.path.join(self.folder, 'debug'))
-
         self.debug['object_count'] = 0
         self.debug['text1'] = ''
         self.debug['text2'] = ''
@@ -987,8 +866,7 @@ class MouseMovie(object):
         # set up the general video output, if requested
         if 'video' in self.debug_output or 'video.show' in self.debug_output:
             # initialize the writer for the debug video
-            debug_file = os.path.join(self.folder, 'debug',
-                                      self.prefix + 'video' + self.video_output_extension)
+            debug_file = self.get_filename('video' + self.video_output_extension, 'debug')
             self.debug['video'] = VideoComposerListener(debug_file, background=self.video,
                                                         is_color=True, codec=self.video_output_codec,
                                                         bitrate=self.video_output_bitrate)
@@ -999,8 +877,7 @@ class MouseMovie(object):
         for identifier in ('difference', 'background', 'explored_area'):
             if identifier in self.debug_output:
                 # determine the filename to be used
-                debug_file = os.path.join(self.folder, 'debug',
-                                          self.prefix + identifier + self.video_output_extension)
+                debug_file = self.get_filename(identifier + self.video_output_extension, 'debug')
                 # set up the video file writer
                 video_writer = VideoComposer(debug_file, self.video.size, self.video.fps,
                                                is_color=False, codec=self.video_output_codec,
@@ -1021,7 +898,7 @@ class MouseMovie(object):
             # indicate the mouse position
             if len(self.mice) > 0:
                 for mouse in self.mice:
-                    if not self.result['mouse.has_moved']:
+                    if not self.data['mouse.has_moved']:
                         color = 'r'
                     elif mouse.is_moving():
                         color = 'w'
@@ -1069,75 +946,6 @@ class MouseMovie(object):
             
     
     
-class Object(object):
-    """ represents a single object """
-    __slots__ = ['pos', 'size'] #< save some memory
-    
-    def __init__(self, pos, size):
-        self.pos = (int(pos[0]), int(pos[1]))
-        self.size = size
-
-
-
-class ObjectTrajectory(object):
-    """ represents a time course of objects """
-    # TODO: hold everything inside lists, not list of objects
-    # TODO: speed up by keeping track of velocity vectors
-    
-    def __init__(self, time, obj, moving_window=20):
-        self._times = [time]
-        self._objects = [obj]
-        self.moving_window = moving_window
-        
-    def __len__(self):
-        return len(self._times)
-    
-    @property
-    def last_pos(self):
-        """ return the last position of the object """
-        return self._objects[-1].pos
-    
-    @property
-    def last_size(self):
-        """ return the last size of the object """
-        return self._objects[-1].size
-    
-    def predict_pos(self):
-        """ predict the position in the next frame.
-        It turned out that setting the current position is the best predictor.
-        This is because mice are often stationary (especially in complicated
-        tracking situations, like inside burrows). Additionally, when mice
-        throw out dirt, there are frames, where dirt + mouse are considered 
-        being one object, which moves the center of mass in direction of the
-        dirt. If in the next frame two objects are found, than it is likely
-        that the dirt would be seen as the mouse, if we'd predict the position
-        based on the continuation of the previous movement
-        """
-        return self._objects[-1].pos
-        
-    def get_trajectory(self):
-        """ return a list of positions over time """
-        return [obj.pos for obj in self._objects]
-
-    def append(self, time, obj):
-        """ append a new object with a time code """
-        self._times.append(time)
-        self._objects.append(obj)
-        
-    def is_moving(self):
-        """ return if the object has moved in the last frames """
-        pos = self._objects[-1].pos
-        dist = sum(point_distance(pos, obj.pos)
-                   for obj in self._objects[-self.moving_window:])
-        return dist > 2*self.moving_window
-    
-    def to_array(self):
-        return np.array([(time, obj.pos[0], obj.pos[1], obj.size)
-                         for time, obj in itertools.izip(self._times, self._objects)],
-                        dtype=np.int)
-        
-            
-
 class RidgeProfile(object):
     """ represents a ridge profile to compare it against an image in fitting """
     

@@ -24,7 +24,7 @@ def logging_level():
     return logging.getLogger().getEffectiveLevel()
 
 
-def ensure_directory(folder):
+def ensure_directory_exists(folder):
     """ creates a folder if it not already exists """
     try:
         os.makedirs(folder)

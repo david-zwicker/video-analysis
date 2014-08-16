@@ -179,6 +179,7 @@ class VideoWriterFFMPEG(object):
         
         
     def close(self):
+        """ finishes the process, which should also make the video available """
         if self.proc is not None:
             self.proc.stdin.close()
             if self.proc.stderr is not None:
@@ -188,7 +189,6 @@ class VideoWriterFFMPEG(object):
             logging.info('Wrote video to file `%s`', self.filename)
             
             self.proc = None
-
     
     
     def __enter__(self):
