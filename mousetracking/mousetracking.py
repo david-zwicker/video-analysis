@@ -33,7 +33,7 @@ from video.analysis.regions import (get_largest_region, find_bounding_box,
                                     rect_to_slices, corners_to_rect)
 from video.analysis.curves import (curve_length, make_curve_equidistant,
                                    simplify_curve, point_distance)
-from video.utils import (display_progress, ensure_directory, verbose,
+from video.utils import (display_progress, ensure_directory,
                          prepare_data_for_yaml, homogenize_arraylist)
 from video.composer import VideoComposerListener, VideoComposer
 
@@ -64,9 +64,9 @@ TRACKING_PARAMETERS_DEFAULT = {
     'sand_profile.width': 5,
     
     # relative weight of distance vs. size of objects
-    'object_matching.weigth': 0.5,
+    'objects.matching_weigth': 0.5,
     # size of the window used for motion detection
-    'object_matching.moving_window': 20,
+    'objects.matching_moving_window': 20,
         
     # `mouse.intensity_threshold` determines how much brighter than the
     # background (usually the sky) has the mouse to be. This value is
@@ -204,7 +204,7 @@ class MouseMovie(object):
     def setup_processing(self):
         """ sets up the processing of the video by initializing caches etc """
         
-        self.result['mouse.trajectories'] = []
+        self.result['objects.trajectories'] = []
         self.result['sand_profile'] = []
 
         # creates a simple template for matching with the mouse.
@@ -519,37 +519,33 @@ class MouseMovie(object):
         Returns a list with characteristic properties
         """
         
-#         # build a kernel for morphological closing. We don't cache this kernel,
-#         # since the current function should only be called once per run
-#         kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
-#                                                  (self.params['mouse.model_radius'],)*2)
-        
-        # perform morphological closing to combined feature patches that are near 
-#         moving_toward = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel_close)
-
         # find all distinct features and label them
         labels, num_features = ndimage.measurements.label(binary_image)
         self.debug['object_count'] = num_features
 
-        # find the area of features
-        areas = ndimage.measurements.sum(np.ones_like(labels), labels,
-                                         index=range(1, num_features + 1))
-
         # find the largest object (which should be the mouse)
         objects = []
-        for index, area in enumerate(areas):
+        max_area, max_label = 0, 0
+        for label in xrange(1, num_features + 1):
+            # find the area of the feature
+            area = np.sum(labels == label)
+            
+            # determine the maximal area during the loop
+            if area > max_area:
+                max_area, max_label = area, label
+                
+            # check whether this object could be a mouse
             if area > self.params['mouse.min_area']:
                 # mouse position is given by center of mass
-                pos = ndimage.measurements.center_of_mass(labels, labels, index + 1)
+                pos = ndimage.measurements.center_of_mass(labels, labels, label)
                 # switch the coordinates, such that they are given as (x, y)
                 objects.append(Object((pos[1], pos[0]), size=area))
                 
         if len(objects) == 0:
-            # mouse position is center of mass of largest patch
-            index = np.argmax(areas)
-            pos = ndimage.measurements.center_of_mass(labels, labels, index + 1)
-            # switch the coordinates, such that they are given as (x, y)
-            objects.append(Object((pos[1], pos[0]), size=areas[index]))
+            # if we haven't found anything yet, we just take the best guess,
+            # which is the object with the largest area
+            pos = ndimage.measurements.center_of_mass(labels, labels, max_label)
+            objects.append(Object((pos[1], pos[0]), size=max_area))
         
         return objects
 
@@ -607,7 +603,7 @@ class MouseMovie(object):
         
         if len(self.mice) == 0:
             self.mice = [ObjectTrace(self.frame_id, mouse,
-                                     moving_window=self.params['object_matching.moving_window'])
+                                     moving_window=self.params['objects.matching_moving_window'])
                          for mouse in objects_found]
             
         else:
@@ -633,7 +629,7 @@ class MouseMovie(object):
             areas = areas/self.params['mouse.max_rel_area_change']
 
             # build a combined score from this
-            alpha = self.params['object_matching.weigth']
+            alpha = self.params['objects.matching_weigth']
             score = alpha*dist + (1 - alpha)*areas
 
             # match previous estimates to this one
@@ -665,7 +661,7 @@ class MouseMovie(object):
                 logging.debug('%d: Copy mouse trajectory of length %d to results',
                               self.frame_id, len(self.mice[i_e]))
                 # copy trajectory to result dictionary
-                self.result['mouse.trajectories'].append(self.mice[i_e])
+                self.result['objects.trajectories'].append(self.mice[i_e])
                 del self.mice[i_e]
             
             # start new traces for objects that had no previous match
@@ -673,7 +669,7 @@ class MouseMovie(object):
                 logging.debug('%d: Start new mouse trajectory at %s', self.frame_id, objects_found[i_f].pos)
                 # start new trajectory
                 self.mice.append(ObjectTrace(self.frame_id, objects_found[i_f],
-                                             moving_window=self.params['object_matching.moving_window']))
+                                             moving_window=self.params['objects.matching_moving_window']))
         
         assert len(self.mice) == len(objects_found)
         
@@ -682,9 +678,6 @@ class MouseMovie(object):
         """ adapts the current mouse position, if enough information is available """
         
         # setup initial data
-        if 'mouse.trajectory' not in self.result:
-            self.result['mouse.trajectory'] = []
-
         if self._explored_area is None:
             shape = (self.video.size[1], self.video.size[0])
             self._explored_area = np.zeros(shape, np.uint8)
@@ -697,7 +690,7 @@ class MouseMovie(object):
             if len(self.mice) > 0:
                 logging.debug('%d: Copy %d trajectories to results', 
                               self.frame_id, len(self.mice))
-                self.result['mouse.trajectories'].extend(self.mice)
+                self.result['objects.trajectories'].extend(self.mice)
                 self.mice = []
 
         else:
@@ -913,11 +906,30 @@ class MouseMovie(object):
         # prepare data for writing
         main_result['sand_profile'] = homogenize_arraylist(main_result['sand_profile'])
         
+        # prepare object trajectories
+        trajectories = []
+        for index, trajectory in enumerate(main_result['objects.trajectories']):
+            data = trajectory.to_array()
+            index_array = np.zeros((len(trajectory), 1), np.int) + index
+            trajectories.append(np.hstack((index_array, data)))
+        
+        if trajectories:
+            main_result['objects.trajectories'] = np.concatenate(trajectories)
+        else:
+            main_result['objects.trajectories'] = []
+        
         # handle sand_profile
-        for key in ['sand_profile']:
+        for key in ['sand_profile', 'objects.trajectories']:
             logging.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
             dataset = hdf_file.create_dataset(key, data=np.asarray(main_result[key]))
             main_result[key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
+            
+        # set meta information
+        hdf_file['sand_profile'].dims[0].label = 'Frame Number'
+        hdf_file['sand_profile'].dims[1].label = 'Anchor Point ID'
+        hdf_file['sand_profile'].dims[2].label = 'Coordinates (x, y)'
+        hdf_file['objects.trajectories'].attrs['column_names'] = \
+            ['Track ID', 'Frame ID', 'Position X', 'Position Y', 'Object Area'] 
 
         # write the main result file
         filename = os.path.join(self.folder, 'results', self.prefix + 'results.yaml')
@@ -1117,7 +1129,8 @@ class ObjectTrace(object):
     
     def to_array(self):
         return np.array([(time, obj.pos[0], obj.pos[1], obj.size)
-                         for time, obj in itertools.izip(self._times, self._objects)])
+                         for time, obj in itertools.izip(self._times, self._objects)],
+                        dtype=np.int)
         
             
 

@@ -19,14 +19,9 @@ except ImportError:
                  'thus not available.')
 
 
-
-def verbose(level_min=logging.DEBUG, level_max=None):
-    """ determine whether debugging is requested """
-    level = logging.getLogger().getEffectiveLevel()
-    if level_max is None:
-        return level_min <= level 
-    else:
-        return level_min <= level < level_max
+def logging_level():
+    """ returns the level of the current logger """
+    return logging.getLogger().getEffectiveLevel()
 
 
 def ensure_directory(folder):
@@ -96,7 +91,7 @@ def display_progress(iterator, total=None):
     """
     displays a progress bar when iterating
     """
-    if tqdm is not None and verbose(logging.INFO, logging.DEBUG):
+    if tqdm is not None and logging_level() <= logging.INFO:
         return tqdm(iterator, total=total, leave=True)
     else:
         return iterator
