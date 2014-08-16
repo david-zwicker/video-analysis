@@ -7,7 +7,13 @@ Part of the modules have been modified from code from moviepy, which
 is released under the MIT license at github. The license is included
 at the end of this file.
 
+This package builds on the following python packages
+matplotlib
+numpy
+scipy
+cv2 - the OpenCV python bindings
 
+Optionally, sharedmem can be used to display images in a separate process
 
 
 The MIT License (MIT)

@@ -1,0 +1,12 @@
+Necessary python packages:
+cv2
+h5py
+matplotlib
+numpy
+scipy
+yaml 
+
+
+Optional python packages:
+tqdm
+sharedmem
