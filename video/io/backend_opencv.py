@@ -188,3 +188,7 @@ class VideoWriterOpenCV(object):
     def __exit__(self, e_type, e_value, e_traceback):
         self.close()        
     
+    
+    def __del__(self):
+        self.close()
+    

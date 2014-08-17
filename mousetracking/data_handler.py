@@ -80,12 +80,13 @@ class DataHandler(object):
             self.data['tracking_parameters'].update(tracking_parameters)
             
         # initialize additional properties
+        self.data['progress'] = 'None'
         self.folder = folder
         self.prefix = prefix + '_' if prefix else ''
 
 
     def get_folder(self, folder):
-
+        """ makes sure that a folder exists and returns its path """
         if folder == 'results':
             folder = os.path.join(self.folder, 'results')
         elif folder == 'debug':
@@ -114,8 +115,15 @@ class DataHandler(object):
         hdf_name = self.get_filename('results.hdf5')
         hdf_file = h5py.File(self.get_filename('results.hdf5', 'results'), 'w')
         
-        # prepare data for writing
-        main_result['sand_profile'] = homogenize_arraylist(main_result['sand_profile'])
+        # prepare sand profile to write to file
+        sand_profile = []
+        for index, profile in enumerate(main_result['sand_profile']):
+            sand_profile.append(profile.to_array())
+        
+        if sand_profile:
+            main_result['sand_profile'] = np.concatenate(sand_profile)
+        else:
+            main_result['sand_profile'] = []
         
         # prepare object trajectories
         trajectories = []
@@ -129,16 +137,15 @@ class DataHandler(object):
         else:
             main_result['objects.trajectories'] = []
         
-        # handle sand_profile
+        # write the data to the file
         for key in ['sand_profile', 'objects.trajectories']:
             logging.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
             dataset = hdf_file.create_dataset(key, data=np.asarray(main_result[key]))
             main_result[key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
             
         # set meta information
-        hdf_file['sand_profile'].dims[0].label = 'Frame Number'
-        hdf_file['sand_profile'].dims[1].label = 'Anchor Point ID'
-        hdf_file['sand_profile'].dims[2].label = 'Coordinates (x, y)'
+        hdf_file['sand_profile'].attrs['column_names'] = \
+            ['Frame ID', 'Position X', 'Position Y']
         hdf_file['objects.trajectories'].attrs['column_names'] = \
             ['Track ID', 'Frame ID', 'Position X', 'Position Y', 'Object Area'] 
 
@@ -151,14 +158,37 @@ class DataHandler(object):
         
             
     def read_data(self):
-        """ writes the results to a file """
+        """ read the data from result files """
+        
         # read the main result file
         filename = self.get_filename('results.yaml', 'results')
         with open(filename, 'r') as infile:
-            print filename
             data = yaml.load(infile)
             self.data.update(data)
             
+        # handle the sand profile
+        data_str = self.data['sand_profile']
+        hdf_filename, dataset = data_str.split(':')
+        hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
+        hdf_file = h5py.File(hdf_filepath, 'r')
+        
+        # iterate over the data and store it in the format that we expect
+        self.data['sand_profile'] = []
+        index, data = 0, []
+        for line in hdf_file[dataset]:
+            if line[0] == index:
+                # append object to the current trajectory
+                data.append(line[1:])
+            else:
+                # save the trajectory and start a new one
+                if data:
+                    obj = SandProfile(index, np.array(data))
+                    self.data['sand_profile'].append(obj)
+                data = [line[1:]]
+                index = line[0]
+                
+        self.data['sand_profile'].append(SandProfile(index, np.array(data)))
+        
         # handle object trajectories
         data_str = self.data['objects.trajectories']
         hdf_filename, dataset = data_str.split(':')
@@ -169,15 +199,16 @@ class DataHandler(object):
         self.data['objects.trajectories'] = []
         index, trajectory = 0, ObjectTrajectory()
         for line in hdf_file[dataset]:
-            if line[0] == index:
-                # append object to the current trajectory
-                obj = Object(pos=(line[2], line[3]), size=line[4])
-                trajectory.append(line[1], obj)
-            else:
+            if line[0] != index:
                 # save the trajectory and start a new one
                 self.data['objects.trajectories'].append(trajectory)
                 trajectory = ObjectTrajectory()
                 index = line[0]
+
+            # append object to the current trajectory
+            obj = Object(pos=(line[2], line[3]), size=line[4])
+            trajectory.append(line[1], obj)
+            
         self.data['objects.trajectories'].append(trajectory)
         
  
@@ -193,7 +224,7 @@ class DataHandler(object):
 
        
 class Object(object):
-    """ represents a single object """
+    """ represents a single object by its position and size """
     __slots__ = ['pos', 'size'] #< save some memory
     
     def __init__(self, pos, size):
@@ -208,33 +239,30 @@ class ObjectTrajectory(object):
     # TODO: speed up by keeping track of velocity vectors
     
     def __init__(self, time=None, obj=None, moving_window=20):
-        self._times = [] if time is None else [time]
-        self._objects = [] if obj is None else [obj]
+        self.times = [] if time is None else [time]
+        self.objects = [] if obj is None else [obj]
         self.moving_window = moving_window
         
-    def __str__(self):
+    def __repr__(self):
         if len(self) == 0:
             return 'ObjectTrajectory([])'
         elif len(self) == 1:
-            return 'ObjectTrajectory(time=%d)' % (self._times[0])
+            return 'ObjectTrajectory(time=%d)' % (self.times[0])
         else:
-            return 'ObjectTrajectory(time=%d..%d)' % (self._times[0], self._times[-1])
-        
-    def __repr__(self):
-        return str(self)
+            return 'ObjectTrajectory(time=%d..%d)' % (self.times[0], self.times[-1])
         
     def __len__(self):
-        return len(self._times)
+        return len(self.times)
     
     @property
     def last_pos(self):
         """ return the last position of the object """
-        return self._objects[-1].pos
+        return self.objects[-1].pos
     
     @property
     def last_size(self):
         """ return the last size of the object """
-        return self._objects[-1].size
+        return self.objects[-1].size
     
     def predict_pos(self):
         """ predict the position in the next frame.
@@ -247,26 +275,46 @@ class ObjectTrajectory(object):
         that the dirt would be seen as the mouse, if we'd predict the position
         based on the continuation of the previous movement
         """
-        return self._objects[-1].pos
+        return self.objects[-1].pos
         
     def get_trajectory(self):
         """ return a list of positions over time """
-        return [obj.pos for obj in self._objects]
+        return [obj.pos for obj in self.objects]
 
     def append(self, time, obj):
         """ append a new object with a time code """
-        self._times.append(time)
-        self._objects.append(obj)
+        self.times.append(time)
+        self.objects.append(obj)
         
     def is_moving(self):
         """ return if the object has moved in the last frames """
-        pos = self._objects[-1].pos
+        pos = self.objects[-1].pos
         dist = sum(point_distance(pos, obj.pos)
-                   for obj in self._objects[-self.moving_window:])
+                   for obj in self.objects[-self.moving_window:])
         return dist > 2*self.moving_window
     
     def to_array(self):
+        """ converts the internal representation to a single array
+        useful for storing the data """
         return np.array([(time, obj.pos[0], obj.pos[1], obj.size)
-                         for time, obj in itertools.izip(self._times, self._objects)],
+                         for time, obj in itertools.izip(self.times, self.objects)],
                         dtype=np.int)
         
+
+
+class SandProfile(object):
+    """ dummy class representing a single sand profile at a certain point
+    in time """
+    
+    def __init__(self, time, points):
+        self.time = time
+        self.points = points
+        
+    def __repr__(self):
+        return 'SandProfile(time=%d, %d points)' % (self.time, len(self.points))
+        
+    def to_array(self):
+        """ converts the internal representation to a single array
+        useful for storing the data """
+        time_array = np.zeros((len(self.points), 1), np.int) + self.time
+        return np.hstack((time_array, self.points))

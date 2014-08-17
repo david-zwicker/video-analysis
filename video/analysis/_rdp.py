@@ -89,4 +89,7 @@ def rdp(M, epsilon=0, dist=pldist):
     """
     if "numpy" in str(type(M)):
         return _rdp(M, epsilon, dist)
-    return _rdp_nn(M, epsilon, dist)
+    else:
+        return _rdp_nn(M, epsilon, dist)
+    
+    

@@ -72,6 +72,11 @@ def find_bounding_box(mask):
     return (left, top, right - left, bottom - top)
 
        
+def expand_rectangle(rect, amount=1):
+    """ expands a rectangle by a given amount """
+    return (rect[0] - amount, rect[1] - amount, rect[2] + 2*amount, rect[3] + 2*amount)
+    
+       
 def get_largest_region(mask):
     """ returns a mask only containing the largest region """
     # find all regions and label them
