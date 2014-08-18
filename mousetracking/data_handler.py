@@ -6,6 +6,7 @@ Created on Aug 16, 2014
 
 from __future__ import division
 
+import datetime
 import logging
 import itertools
 import os
@@ -14,6 +15,7 @@ import numpy as np
 import yaml
 import h5py
 
+from .burrow_finder import Burrow
 from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import NestedDict, ensure_directory_exists, prepare_data_for_yaml
@@ -45,12 +47,12 @@ PARAMETERS_DEFAULT = {
     # determines the rate with which the background is adapted [in 1/frames]
     'background/adaptation_rate': 0.01,
     
-    # spacing of the points in the sand profile [in pixel]
-    'sand_profile/point_spacing': 20,
-    # adapt the sand profile only every number of frames [in frames]
-    'sand_profile/adaptation_interval': 100,
+    # spacing of the points in the ground profile [in pixel]
+    'ground/point_spacing': 20,
+    # adapt the ground profile only every number of frames [in frames]
+    'ground/adaptation_interval': 100,
     # width of the ridge [in pixel]
-    'sand_profile/width': 5,
+    'ground/width': 5,
     
     # relative weight of distance vs. size of objects [dimensionless]
     'objects/matching_weigth': 0.5,
@@ -121,6 +123,17 @@ class DataHandler(object):
         else:
             return os.path.join(self.get_folder(folder), filename)
       
+
+    def log_event(self, description):
+        """ stores and/or outputs the time and date of the event given by name """
+        event = str(datetime.datetime.now()) + ': ' + description 
+        logging.info(event)
+        
+        # save the event in the result structure
+        if 'event_log' not in self.data:
+            self.data['event_log'] = []
+        self.data['event_log'].append(event)
+
     
     def load_video(self):
         """ loads the video and applies a monochrome and cropping filter """
@@ -152,8 +165,6 @@ class DataHandler(object):
             else:
                 video_crop = self.video
                 
-            #rect_given = [0, 0, self.video.size[0], self.video.size[1]]
-
         else: # user_crop is not None                
             # restrict video to green channel if it is a color video
             color_channel = 1 if self.video.is_color else None
@@ -167,29 +178,35 @@ class DataHandler(object):
                 video_crop = FilterCrop(self.video, rect=cropping_rect,
                                         color_channel=color_channel)
 
-           # rect_given = video_crop.rect
-            
         return video_crop
             
             
     def write_data(self):
         """ writes the results to a file """
 
+        self.log_event('Started writing out all data.')
+
         # prepare writing the data
         main_result = self.data.copy()
         hdf_name = self.get_filename('results.hdf5')
         hdf_file = h5py.File(self.get_filename('results.hdf5', 'results'), 'w')
         
-        def write_object_list(key, has_index=False, column_names=None):
+        def write_object_list(key):
             """ helper function that writes a list of objects to HDF5.
             If has_index is True, the first column of the array returned by calling
             to_array() on each object serves as an index to distinguish the object.
             """
+            # read column_names from the object
+            column_names = main_result[key][0].array_columns
+            index_columns = main_result[key][0].index_columns
+            
             # turn the list of objects into a numpy array
-            if has_index:
+            if index_columns > 0:
+                # the first columns are enough to separate the data
                 result = [obj.to_array() for obj in main_result[key]]
                 
             else:
+                # we have to add an extra index to separate the data later
                 result = []
                 for index, obj in enumerate(main_result[key]):
                     data = obj.to_array()
@@ -213,11 +230,9 @@ class DataHandler(object):
         
         
         # write large data to HDF5
-        write_object_list('pass1/sand_profile', True,
-                          ['Frame ID', 'Position X', 'Position Y'])
-
-        write_object_list('pass1/objects/tracks', False,
-                          ['Frame ID', 'Position X', 'Position Y', 'Object Area'])
+        write_object_list('pass1/ground/profile')
+        write_object_list('pass1/objects/tracks')
+        write_object_list('pass1/burrows/data')
         
         # write the main result file to YAML
         filename = self.get_filename('results.yaml', 'results')
@@ -251,15 +266,22 @@ class DataHandler(object):
             
             # check whether the first column has been prepended automatically
             if hdf_file[dataset].attrs['column_names'][0] == 'Automatic Index':
-                data_start = 1
+                data_start = 1    #< data starts at first column
+                index_columns = 1 #< the first column is used as an index
             else:
-                data_start = 0
+                data_start = 0    #< all items are considered data 
+                try:
+                    # try to retrieve the length of the index
+                    index_columns = cls.index_columns
+                except AttributeError:
+                    # otherwise, it defaults to the first column
+                    index_columns = 1
             
             # iterate over the data and create objects from it
             self.data[key] = []
-            index, obj_data = 0, []
+            index, obj_data = [], []
             for line in hdf_file[dataset]:
-                if line[0] == index:
+                if line[:index_columns] == index:
                     # append object to the current track
                     obj_data.append(line[data_start:])
                 else:
@@ -267,13 +289,13 @@ class DataHandler(object):
                     if obj_data:
                         self.data[key].append(cls.from_array(obj_data))
                     obj_data = [line[data_start:]]
-                    index = line[0]
+                    index = line[:index_columns]
             
             self.data[key].append(cls.from_array(obj_data))
 
-
-        read_object_list('pass1/sand_profile', SandProfile)
+        read_object_list('pass1/ground/profile', GroundProfile)
         read_object_list('pass1/objects/tracks', ObjectTrack)
+        read_object_list('pass1/burrows/data', Burrow)
         
  
     #===========================================================================
@@ -282,8 +304,8 @@ class DataHandler(object):
         
     def mouse_underground(self, position):
         """ checks whether the mouse is under ground """
-        sand_y = np.interp(position[0], self.sand_profile[:, 0], self.sand_profile[:, 1])
-        return position[1] - self.params['mouse.model_radius']/2 > sand_y
+        ground_y = np.interp(position[0], self.ground[:, 0], self.ground[:, 1])
+        return position[1] - self.params['mouse.model_radius']/2 > ground_y
 
 
        
@@ -301,6 +323,9 @@ class ObjectTrack(object):
     """ represents a time course of objects """
     # TODO: hold everything inside lists, not list of objects
     # TODO: speed up by keeping track of velocity vectors
+    
+    array_columns = ['Frame ID', 'Position X', 'Position Y', 'Object Area']
+    index_columns = 0
     
     def __init__(self, time=None, obj=None, moving_window=20):
         self.times = [] if time is None else [time]
@@ -374,16 +399,19 @@ class ObjectTrack(object):
 
 
 
-class SandProfile(object):
-    """ dummy class representing a single sand profile at a certain point
+class GroundProfile(object):
+    """ dummy class representing a single ground profile at a certain point
     in time """
+    
+    array_columns = ['Time', 'Position X', 'Position Y']
+    index_columns = 1
     
     def __init__(self, time, points):
         self.time = time
         self.points = points
         
     def __repr__(self):
-        return 'SandProfile(time=%d, %d points)' % (self.time, len(self.points))
+        return 'GroundProfile(time=%d, %d points)' % (self.time, len(self.points))
         
     def to_array(self):
         """ converts the internal representation to a single array

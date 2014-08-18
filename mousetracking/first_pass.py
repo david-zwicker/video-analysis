@@ -14,7 +14,6 @@ top to bottom. The origin is thus in the upper left corner.
 
 from __future__ import division
 
-import datetime
 import logging
 
 import numpy as np
@@ -24,7 +23,7 @@ from scipy.spatial import distance
 import cv2
 
 from video.io import ImageShow
-from video.filters import FilterBlur, FilterCrop, FilterMonochrome
+from video.filters import FilterBlur, FilterCrop
 from video.analysis.regions import (get_largest_region, find_bounding_box,
                                     rect_to_slices, corners_to_rect)
 from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve
@@ -32,7 +31,7 @@ from video.utils import display_progress
 from video.composer import VideoComposerListener, VideoComposer
 
 
-from .data_handler import DataHandler, ObjectTrack, Object, SandProfile
+from .data_handler import DataHandler, ObjectTrack, Object, GroundProfile
 from .burrow_finder import BurrowFinder
 
 import debug
@@ -52,13 +51,13 @@ class FirstPass(DataHandler):
         self.params = self.data['parameters']
         self.result = self.data['pass1'] 
         
-        self.log_event('init_begin', 'Start initializing the video analysis.')
+        self.log_event('Started initializing the video analysis.')
         
         # setup internal structures that will be filled by analyzing the video
         self.burrow_finder = BurrowFinder(self.params)
         self._cache = {}               # cache that some functions might want to use
         self.debug = {}                # dictionary holding debug information
-        self.sand_profile = None       # current model of the sand profile
+        self.ground = None             # current model of the ground profile
         self.tracks = []               # list of plausible mouse models in current frame
         self._mouse_pos_estimate = []  # list of estimated mouse positions
         self.explored_area = None      # region the mouse has explored yet
@@ -86,22 +85,24 @@ class FirstPass(DataHandler):
         # estimate colors of sand and sky
         self.find_color_estimates(first_frame)
         
-        # estimate initial sand profile
-        logging.debug('Find the initial sand profile.')
-        self.find_initial_sand_profile(first_frame)
+        # estimate initial ground profile
+        logging.debug('Find the initial ground profile.')
+        self.find_initial_ground(first_frame)
 
         self.data['analysis-status'] = 'Initialized first pass'            
-        self.log_event('init_end', 'Finished initializing the video analysis.')
+        self.log_event('Finished initializing the video analysis.')
 
     
     def process_video(self):
         """ processes the entire video """
 
-        self.log_event('run_begin', 'Start iterating through the frames.')
+        self.log_event('Setting up the cache and debug objects.')
         
         self.debug_setup()
         self.setup_processing()
 
+        self.log_event('Started iterating through the video.')
+        
         try:
             # iterate over the video and analyze it
             for self.frame_id, frame in enumerate(display_progress(self.video_blurred)):
@@ -113,14 +114,16 @@ class FirstPass(DataHandler):
                     # find the mouse
                     self.find_objects(frame)
                     
-                    # use the background to find the current sand profile and burrows
-                    if self.frame_id % self.params['sand_profile/adaptation_interval'] == 0:
-                        self.refine_sand_profile(self._background)
-                        sand_profile = SandProfile(self.frame_id, self.sand_profile)
-                        self.result['sand_profile'].append(sand_profile)
+                    # use the background to find the current ground profile and burrows
+                    if self.frame_id % self.params['ground/adaptation_interval'] == 0:
+                        self.refine_ground(self._background)
+                        ground = GroundProfile(self.frame_id, self.ground)
+                        self.result['ground/profile'].append(ground)
             
-#                 if self.frame_id % self.params['burrows.adaptation_interval'] == 0:
-#                     self.burrow_finder.find_burrows(frame, self.explored_area, self.sand_profile)
+                if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
+                    burrows = self.burrow_finder.find_burrows(frame, self.frame_id,
+                                                              self.explored_area, self.ground)
+                    self.result['burrows/data'].extend(burrows)
             
                 # update the background model
                 self.update_background_model(frame)
@@ -130,10 +133,10 @@ class FirstPass(DataHandler):
                 
         except KeyboardInterrupt:
             logging.info('Tracking has been interrupted by user.')
-            self.log_event('run_interrupted', 'Run has been interrupted.')
+            self.log_event('Analysis run has been interrupted.')
             
         else:
-            self.log_event('run_end', 'Finished iterating through the frames.')
+            self.log_event('Finished iterating through the frames.')
         
         frames_analyzed = self.frame_id + 1
         if frames_analyzed == self.video.frame_count:
@@ -151,7 +154,8 @@ class FirstPass(DataHandler):
         """ sets up the processing of the video by initializing caches etc """
         
         self.result['objects/tracks'] = []
-        self.result['sand_profile'] = []
+        self.result['ground/profile'] = []
+        self.result['burrows/data'] = []
 
         # creates a simple template for matching with the mouse.
         # This template can be used to update the current mouse position based
@@ -576,12 +580,12 @@ class FirstPass(DataHandler):
                                 
                 
     #===========================================================================
-    # FINDING THE SAND PROFILE
+    # FINDING THE GROUND PROFILE
     #===========================================================================
     
     
-    def find_rough_sand_profile(self, image):
-        """ determines an estimate of the sand profile from a single image """
+    def find_rough_ground(self, image):
+        """ determines an estimate of the ground profile from a single image """
         
         # remove 10%/15% of each side of the image
         h = int(0.15*image.shape[0])
@@ -593,7 +597,7 @@ class FirstPass(DataHandler):
         
         # TODO: we might want to replace that with the typical burrow radius
         # do morphological opening and closing to smooth the profile
-        s = 4*self.params['sand_profile/point_spacing']
+        s = 4*self.params['ground/point_spacing']
         ys, xs = np.ogrid[-s:s+1, -s:s+1]
         kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8)
 
@@ -623,35 +627,35 @@ class FirstPass(DataHandler):
         return np.array(points, np.int)
    
         
-    def refine_sand_profile(self, image):
-        """ adapts a sand profile given as points to a given image.
+    def refine_ground(self, image):
+        """ adapts a ground profile given as points to a given image.
         Here, we fit a ridge profile in the vicinity of every point of the curve.
         The only fitting parameter is the distance by which a single points moves
         in the direction perpendicular to the curve. """
                 
-        points = self.sand_profile
-        spacing = self.params['sand_profile/point_spacing']
+        points = self.ground
+        spacing = self.params['ground/point_spacing']
             
-        if not 'sand_profile.model' in self._cache or \
-            self._cache['sand_profile.model'].size != spacing:
+        if not 'ground.model' in self._cache or \
+            self._cache['ground.model'].size != spacing:
             
-            self._cache['sand_profile.model'] = \
-                    RidgeProfile(spacing, self.params['sand_profile/width'])
+            self._cache['ground.model'] = \
+                    RidgeProfile(spacing, self.params['ground/width'])
                 
         # make sure the curve has equidistant points
-        sand_profile = make_curve_equidistant(points, spacing)
-        sand_profile = np.array(np.round(sand_profile),  np.int)
+        ground = make_curve_equidistant(points, spacing)
+        ground = np.array(np.round(ground),  np.int)
         
         # calculate the bounds for the points
         p_min = spacing 
         y_max, x_max = image.shape[0] - spacing, image.shape[1] - spacing
 
         # iterate through all points and correct profile
-        sand_profile_model = self._cache['sand_profile.model']
+        ground_model = self._cache['ground.model']
         corrected_points = []
         x_previous = spacing
         deviation = 0
-        for k, p in enumerate(sand_profile):
+        for k, p in enumerate(ground):
             
             # skip points that are too close to the boundary
             if (p[0] < p_min or p[0] > x_max or 
@@ -659,21 +663,21 @@ class FirstPass(DataHandler):
                 continue
             
             # determine the local slope of the profile, which fixes the angle 
-            if k == 0 or k == len(sand_profile) - 1:
-                # we only move these vertically to prevent the sand profile
+            if k == 0 or k == len(ground) - 1:
+                # we only move these vertically to prevent the ground profile
                 # from shortening
                 angle = np.pi/2
             else:
-                dp = sand_profile[k+1] - sand_profile[k-1]
+                dp = ground[k+1] - ground[k-1]
                 angle = np.arctan2(dp[0], dp[1]) # y-coord, x-coord
                 
             # extract the region around the point used for fitting
             region = image[p[1]-spacing : p[1]+spacing+1, p[0]-spacing : p[0]+spacing+1].copy()
-            sand_profile_model.set_data(region, angle) 
+            ground_model.set_data(region, angle) 
 
-            # move the sand profile model perpendicular until it fits best
+            # move the ground profile model perpendicular until it fits best
             x, _, infodict, _, _ = \
-                leastsq(sand_profile_model.get_difference, [0], xtol=0.1, full_output=True)
+                leastsq(ground_model.get_difference, [0], xtol=0.1, full_output=True)
             
             # calculate goodness of fit
             ss_err = (infodict['fvec']**2).sum()
@@ -684,7 +688,7 @@ class FirstPass(DataHandler):
                 rsquared = 1 - ss_err/ss_tot
 
             # Note, that we never remove the first and the last point
-            if rsquared > 0.1 or k == 0 or k == len(sand_profile) - 1:
+            if rsquared > 0.1 or k == 0 or k == len(ground) - 1:
                 # we are rather confident that this point is better than it was
                 # before and thus add it to the result list
                 p_x = p[0] + x[0]*np.cos(angle)
@@ -697,40 +701,29 @@ class FirstPass(DataHandler):
             # add up the total deviations from the previous profile
             deviation += abs(x[0])
             
-        self.sand_profile = np.array(corrected_points)
+        self.ground = np.array(corrected_points)
         return deviation 
             
 
-    def find_initial_sand_profile(self, image):
-        """ finds the sand profile given an image of an antfarm """
+    def find_initial_ground(self, image):
+        """ finds the ground profile given an image of an antfarm """
 
         # get an estimate of a profile
-        self.sand_profile = self.find_rough_sand_profile(image)
+        self.ground = self.find_rough_ground(image)
         
         # iterate until the profile does not change significantly anymore
         deviation, iterations = np.inf, 0
-        while deviation > len(self.sand_profile) and iterations < 50:
-            deviation = self.refine_sand_profile(image)
+        while deviation > len(self.ground) and iterations < 50:
+            deviation = self.refine_ground(image)
             iterations += 1
             
-        logging.info('We found a sand profile of length %g after %d iterations',
-                     curve_length(self.sand_profile), iterations)
+        logging.info('We found a ground profile of length %g after %d iterations',
+                     curve_length(self.ground), iterations)
         
 
     #===========================================================================
     # DEBUGGING
     #===========================================================================
-
-
-    def log_event(self, name, description):
-        """ stores and/or outputs the time and date of the event given by name """
-        now = datetime.datetime.now() 
-            
-        # log the event
-        logging.info(str(now) + ': ' + description)
-        
-        # save the event in the result structure
-        self.result['events'][name] = now
 
 
     def debug_setup(self):
@@ -772,9 +765,9 @@ class FirstPass(DataHandler):
         if 'video' in self.debug:
             debug_video = self.debug['video']
             
-            # plot the sand profile
-            debug_video.add_polygon(self.sand_profile, is_closed=False, color='y')
-            debug_video.add_points(self.sand_profile, radius=2, color='y')
+            # plot the ground profile
+            debug_video.add_polygon(self.ground, is_closed=False, color='y')
+            debug_video.add_points(self.ground, radius=2, color='y')
         
             # indicate the mouse position
             if len(self.tracks) > 0:
@@ -814,9 +807,9 @@ class FirstPass(DataHandler):
             # set the background
             debug_video.set_frame(128*self.explored_area)
             
-            # plot the sand profile
-            debug_video.add_polygon(self.sand_profile, is_closed=False, color='y')
-            debug_video.add_points(self.sand_profile, radius=2, color='y')
+            # plot the ground profile
+            debug_video.add_polygon(self.ground, is_closed=False, color='y')
+            debug_video.add_points(self.ground, radius=2, color='y')
 
 
     def debug_finalize(self):
