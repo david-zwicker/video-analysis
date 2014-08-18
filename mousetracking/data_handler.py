@@ -16,57 +16,57 @@ import h5py
 
 from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
-from video.utils import ensure_directory_exists, prepare_data_for_yaml
+from video.utils import NestedDict, ensure_directory_exists, prepare_data_for_yaml
 from video.analysis.curves import point_distance
 
 
 PARAMETERS_DEFAULT = {
     # number of initial frames to not analyze
-    'video.ignore_initial_frames': 0,
+    'video/ignore_initial_frames': 0,
     # radius of the blur filter [in pixel]
-    'video.blur_radius': 3,
+    'video/blur_radius': 3,
     
     # thresholds for cage dimension [in pixel]
-    'cage.width_min': 650,
-    'cage.width_max': 800,
-    'cage.height_min': 400,
-    'cage.height_max': 500,
+    'cage/width_min': 650,
+    'cage/width_max': 800,
+    'cage/height_min': 400,
+    'cage/height_max': 500,
                                
     # how often are the color estimates adapted [in frames]
-    'colors.adaptation_interval': 1000,
+    'colors/adaptation_interval': 1000,
                                
     # determines the rate with which the background is adapted [in 1/frames]
-    'background.adaptation_rate': 0.01,
+    'background/adaptation_rate': 0.01,
     
     # spacing of the points in the sand profile [in pixel]
-    'sand_profile.point_spacing': 20,
+    'sand_profile/point_spacing': 20,
     # adapt the sand profile only every number of frames [in frames]
-    'sand_profile.adaptation_interval': 100,
+    'sand_profile/adaptation_interval': 100,
     # width of the ridge [in pixel]
-    'sand_profile.width': 5,
+    'sand_profile/width': 5,
     
     # relative weight of distance vs. size of objects [dimensionless]
-    'objects.matching_weigth': 0.5,
+    'objects/matching_weigth': 0.5,
     # size of the window used for motion detection [in frames]
-    'objects.matching_moving_window': 20,
+    'objects/matching_moving_window': 20,
         
     # `mouse.intensity_threshold` determines how much brighter than the
     # background (usually the sky) has the mouse to be. This value is
     # measured in terms of standard deviations of the sky color
-    'mouse.intensity_threshold': 1,
+    'mouse/intensity_threshold': 1,
     # radius of the mouse model [in pixel]
-    'mouse.model_radius': 25,
+    'mouse/model_radius': 25,
     # minimal area of a feature to be considered in tracking [in pixel^2]
-    'mouse.min_area': 100,
+    'mouse/min_area': 100,
     # maximal speed of the mouse [in pixel per frame]
-    'mouse.max_speed': 30, 
+    'mouse/max_speed': 30, 
     # maximal area change allowed between consecutive frames [dimensionless]
-    'mouse.max_rel_area_change': 0.5,
+    'mouse/max_rel_area_change': 0.5,
 
     # how often are the burrow shapes adapted [in frames]
-    'burrows.adaptation_interval': 100,
+    'burrows/adaptation_interval': 100,
     # what is a typical radius of a burrow [in pixel]
-    'burrows.radius': 10
+    'burrows/radius': 10
 }
 
 
@@ -78,14 +78,14 @@ class DataHandler(object):
     def __init__(self, folder, prefix='', parameters=None, **kwargs):
 
         # initialize tracking parameters        
-        self.data = {}
-        self.data['parameters'] = PARAMETERS_DEFAULT.copy()
+        self.data = NestedDict()
+        self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
         if parameters is not None:
             self.data['parameters'].update(parameters)
 
         # set extra parameters that were given
-        self.data['video'] = {'frames_specified': kwargs.get('frames', None),
-                              'region_specified': kwargs.get('crop', None)} 
+        self.data['video/frames_specified'] = kwargs.get('frames', None)
+        self.data['video/region_specified'] = kwargs.get('crop', None)
             
         # initialize additional properties
         self.data['analysis-status'] = 'Initialized parameters'
@@ -122,13 +122,13 @@ class DataHandler(object):
         
         # initialize video
         self.video = VideoFileStack(os.path.join(self.folder, self.video_filename_pattern))
-        self.data['video']['raw'] = {'filename_pattern': self.video_filename_pattern,
-                                     'frame_count': self.video.frame_count,
-                                     'size': '%d x %d' % self.video.size,
-                                     'fps': self.video.fps}
+        self.data['video/raw'].from_dict({'filename_pattern': self.video_filename_pattern,
+                                          'frame_count': self.video.frame_count,
+                                          'size': '%d x %d' % self.video.size,
+                                          'fps': self.video.fps})
         
         # restrict the analysis to an interval of frames
-        frames = self.data['video']['frames_specified']
+        frames = self.data['video/frames_specified']
         if frames is not None:
             self.video = self.video[frames[0]:frames[1]]
         else:
@@ -160,52 +160,56 @@ class DataHandler(object):
             rect_given = video_crop.rect
             
         return video_crop
-              
-
+            
+            
     def write_data(self):
         """ writes the results to a file """
 
-        # contains all the result as a python array
+        # prepare writing the data
         main_result = self.data.copy()
         hdf_name = self.get_filename('results.hdf5')
         hdf_file = h5py.File(self.get_filename('results.hdf5', 'results'), 'w')
         
-        # prepare sand profile to write to file
-        sand_profile = []
-        for index, profile in enumerate(main_result['pass1']['sand_profile']):
-            sand_profile.append(profile.to_array())
+        def write_object_list(key, has_index=False, column_names=None):
+            """ helper function that writes a list of objects to HDF5.
+            If has_index is True, the first column of the array returned by calling
+            to_array() on each object serves as an index to distinguish the object.
+            """
+            # turn the list of objects into a numpy array
+            if has_index:
+                result = [obj.to_array() for obj in main_result[key]]
+                
+            else:
+                result = []
+                for index, obj in enumerate(main_result[key]):
+                    data = obj.to_array()
+                    index_array = np.zeros((len(obj), 1), np.int) + index
+                    result.append(np.hstack((index_array, data)))
+                    
+                if column_names is not None:
+                    column_names = ['Automatic Index'] + column_names                    
+                
+            if len(result) > 0:
+                result = np.concatenate(result) 
         
-        if sand_profile:
-            main_result['pass1']['sand_profile'] = np.concatenate(sand_profile)
-        else:
-            main_result['pass1']['sand_profile'] = []
-        
-        # prepare object trajectories
-        trajectories = []
-        for index, trajectory in enumerate(main_result['pass1']['objects.trajectories']):
-            data = trajectory.to_array()
-            index_array = np.zeros((len(trajectory), 1), np.int) + index
-            trajectories.append(np.hstack((index_array, data)))
-        
-        if trajectories:
-            main_result['pass1']['objects.trajectories'] = np.concatenate(trajectories)
-        else:
-            main_result['pass1']['objects.trajectories'] = []
-        
-        # write the data to the file
-        for key in ['sand_profile', 'objects.trajectories']:
-            hdf_key = 'pass1/' + key
-            logging.debug('Writing dataset `%s` to file `%s`', hdf_key, hdf_name)
-            dataset = hdf_file.create_dataset(hdf_key, data=np.asarray(main_result['pass1'][key]))
-            main_result['pass1'][key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
+            # write the numpy array to HDF5
+            logging.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
+            dataset = hdf_file.create_dataset(key, data=result)
+            if column_names is not None:
+                hdf_file[key].attrs['column_names'] = column_names
             
-        # set meta information
-        hdf_file['pass1']['sand_profile'].attrs['column_names'] = \
-            ['Frame ID', 'Position X', 'Position Y']
-        hdf_file['pass1']['objects.trajectories'].attrs['column_names'] = \
-            ['Track ID', 'Frame ID', 'Position X', 'Position Y', 'Object Area'] 
+            # replace the original data with a reference to the HDF5 data
+            main_result[key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
+        
+        
+        # write large data to HDF5
+        write_object_list('pass1/sand_profile', True,
+                          ['Frame ID', 'Position X', 'Position Y'])
 
-        # write the main result file
+        write_object_list('pass1/objects/tracks', False,
+                          ['Frame ID', 'Position X', 'Position Y', 'Object Area'])
+        
+        # write the main result file to YAML
         filename = self.get_filename('results.yaml', 'results')
         with open(filename, 'w') as outfile:
             yaml.dump(prepare_data_for_yaml(main_result),
@@ -213,7 +217,7 @@ class DataHandler(object):
                       default_flow_style=False,
                       indent=4)        
         
-            
+    
     def read_data(self):
         """ read the data from result files """
         
@@ -221,53 +225,45 @@ class DataHandler(object):
         filename = self.get_filename('results.yaml', 'results')
         with open(filename, 'r') as infile:
             data = yaml.load(infile)
-            self.data.update(data)
-            
-        # handle the sand profile
-        data_str = self.data['pass1']['sand_profile']
-        hdf_filename, dataset = data_str.split(':')
-        hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
-        hdf_file = h5py.File(hdf_filepath, 'r')
         
-        # iterate over the data and store it in the format that we expect
-        self.data['pass1']['sand_profile'] = []
-        sand_profile = self.data['pass1']['sand_profile']
-        index, data = 0, []
-        for line in hdf_file[dataset]:
-            if line[0] == index:
-                # append object to the current trajectory
-                data.append(line[1:])
+        # copy the data into the internal data representation
+        self.data.from_dict(data)
+                    
+        def read_object_list(key, cls=tuple):
+            """ function that reads lists of objects from the linked HDF5 file """
+            # read the link
+            data_str = self.data[key]
+            hdf_filename, dataset = data_str.split(':')
+            
+            # open the associated HDF5 file
+            hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
+            hdf_file = h5py.File(hdf_filepath, 'r')
+            
+            # check whether the first column has been prepended automatically
+            if hdf_file[dataset].attrs['column_names'][0] == 'Automatic Index':
+                data_start = 1
             else:
-                # save the trajectory and start a new one
-                if data:
-                    sand_profile.append(SandProfile(index, np.array(data)))
-                data = [line[1:]]
-                index = line[0]
-                
-        sand_profile.append(SandProfile(index, np.array(data)))
-        
-        # handle object trajectories
-        data_str = self.data['pass1']['objects.trajectories']
-        hdf_filename, dataset = data_str.split(':')
-        hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
-        hdf_file = h5py.File(hdf_filepath, 'r')
-        
-        # iterate over the data and store it in the format that we expect
-        self.data['pass1']['objects.trajectories'] = []
-        trajectories = self.data['pass1']['objects.trajectories']
-        index, trajectory = 0, ObjectTrajectory()
-        for line in hdf_file[dataset]:
-            if line[0] != index:
-                # save the trajectory and start a new one
-                trajectories.append(trajectory)
-                trajectory = ObjectTrajectory()
-                index = line[0]
-
-            # append object to the current trajectory
-            obj = Object(pos=(line[2], line[3]), size=line[4])
-            trajectory.append(line[1], obj)
+                data_start = 0
             
-        trajectories.append(trajectory)
+            # iterate over the data and create objects from it
+            self.data[key] = []
+            index, obj_data = 0, []
+            for line in hdf_file[dataset]:
+                if line[0] == index:
+                    # append object to the current track
+                    obj_data.append(line[data_start:])
+                else:
+                    # save the track and start a new one
+                    if obj_data:
+                        self.data[key].append(cls.from_array(obj_data))
+                    obj_data = [line[data_start:]]
+                    index = line[0]
+            
+            self.data[key].append(cls.from_array(obj_data))
+
+
+        read_object_list('pass1/sand_profile', SandProfile)
+        read_object_list('pass1/objects/tracks', ObjectTrack)
         
  
     #===========================================================================
@@ -291,7 +287,7 @@ class Object(object):
 
 
 
-class ObjectTrajectory(object):
+class ObjectTrack(object):
     """ represents a time course of objects """
     # TODO: hold everything inside lists, not list of objects
     # TODO: speed up by keeping track of velocity vectors
@@ -302,12 +298,12 @@ class ObjectTrajectory(object):
         self.moving_window = moving_window
         
     def __repr__(self):
-        if len(self) == 0:
-            return 'ObjectTrajectory([])'
-        elif len(self) == 1:
-            return 'ObjectTrajectory(time=%d)' % (self.times[0])
+        if len(self.times) == 0:
+            return 'ObjectTrack([])'
+        elif len(self.times) == 1:
+            return 'ObjectTrack(time=%d)' % (self.times[0])
         else:
-            return 'ObjectTrajectory(time=%d..%d)' % (self.times[0], self.times[-1])
+            return 'ObjectTrack(time=%d..%d)' % (self.times[0], self.times[-1])
         
     def __len__(self):
         return len(self.times)
@@ -335,7 +331,7 @@ class ObjectTrajectory(object):
         """
         return self.objects[-1].pos
         
-    def get_trajectory(self):
+    def get_track(self):
         """ return a list of positions over time """
         return [obj.pos for obj in self.objects]
 
@@ -357,7 +353,15 @@ class ObjectTrajectory(object):
         return np.array([(time, obj.pos[0], obj.pos[1], obj.size)
                          for time, obj in itertools.izip(self.times, self.objects)],
                         dtype=np.int)
-        
+
+    @classmethod
+    def from_array(cls, data):
+        """ constructs an object from an array previously created by to_array() """
+        res = cls()
+        res.times = [d[0] for d in data]
+        res.objects = [Object(pos=(d[1], d[2]), size=d[3]) for d in data]
+        return res
+
 
 
 class SandProfile(object):
@@ -376,3 +380,14 @@ class SandProfile(object):
         useful for storing the data """
         time_array = np.zeros((len(self.points), 1), np.int) + self.time
         return np.hstack((time_array, self.points))
+
+    @classmethod
+    def from_array(cls, data):
+        """ constructs an object from an array previously created by to_array() """
+        data = np.asarray(data)
+        return cls(data[0, 0], data[1:, :])
+        
+       
+        
+        
+        

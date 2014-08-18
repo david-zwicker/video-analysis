@@ -32,7 +32,7 @@ from video.utils import display_progress
 from video.composer import VideoComposerListener, VideoComposer
 
 
-from .data_handler import DataHandler, ObjectTrajectory, Object, SandProfile
+from .data_handler import DataHandler, ObjectTrack, Object, SandProfile
 from .burrow_finder import BurrowFinder
 
 import debug
@@ -54,7 +54,6 @@ class FirstPass(DataHandler):
         # initialize the data handler
         super(FirstPass, self).__init__(folder, prefix, parameters, **kwargs)
         self.params = self.data['parameters']
-        self.data['pass1'] = {}
         self.result = self.data['pass1'] 
         
         self.log_event('init_begin', 'Start initializing the video analysis.')
@@ -68,21 +67,22 @@ class FirstPass(DataHandler):
         self._mouse_pos_estimate = []  # list of estimated mouse positions
         self.explored_area = None      # region the mouse has explored yet
         self.frame_id = None           # id of the current frame
-        self.result['mouse.has_moved'] = False
+        self.result['mouse/has_moved'] = False
         self.debug_output = [] if debug_output is None else debug_output
 
         # load the video ... 
         self.video = self.load_video()
+        
         # ... and restrict to the region of interest (the cage)
-        region_specified = self.data['video']['region_specified']
+        region_specified = self.data['video/region_specified']
         cropping_rect = self.crop_video_to_cage(region_specified)
-        self.data['video']['analyzed'] = {'frame_count': self.video.frame_count,
-                                          'region_cage': cropping_rect,
-                                          'size': '%d x %d' % self.video.size,
-                                          'fps': self.video.fps}
+        self.data['video/analyzed'].from_dict({'frame_count': self.video.frame_count,
+                                               'region_cage': cropping_rect,
+                                               'size': '%d x %d' % self.video.size,
+                                               'fps': self.video.fps})
 
         # blur the video to reduce noise effects    
-        self.video_blurred = FilterBlur(self.video, self.params['video.blur_radius'])
+        self.video_blurred = FilterBlur(self.video, self.params['video/blur_radius'])
         first_frame = self.video_blurred[0]
 
         # initialize the background model
@@ -101,7 +101,7 @@ class FirstPass(DataHandler):
     def process_video(self):
         """ processes the entire video """
 
-        self.log_event('run1_begin', 'Start iterating through the frames.')
+        self.log_event('run_begin', 'Start iterating through the frames.')
         
         self.debug_setup()
         self.setup_processing()
@@ -110,15 +110,15 @@ class FirstPass(DataHandler):
             # iterate over the video and analyze it
             for self.frame_id, frame in enumerate(display_progress(self.video_blurred)):
                 
-                if self.frame_id % self.params['colors.adaptation_interval'] == 0:
+                if self.frame_id % self.params['colors/adaptation_interval'] == 0:
                     self.find_color_estimates(frame)
                 
-                if self.frame_id >= self.params['video.ignore_initial_frames']:
+                if self.frame_id >= self.params['video/ignore_initial_frames']:
                     # find the mouse
                     self.find_objects(frame)
                     
                     # use the background to find the current sand profile and burrows
-                    if self.frame_id % self.params['sand_profile.adaptation_interval'] == 0:
+                    if self.frame_id % self.params['sand_profile/adaptation_interval'] == 0:
                         self.refine_sand_profile(self._background)
                         sand_profile = SandProfile(self.frame_id, self.sand_profile)
                         self.result['sand_profile'].append(sand_profile)
@@ -134,17 +134,17 @@ class FirstPass(DataHandler):
                 
         except KeyboardInterrupt:
             logging.info('Tracking has been interrupted by user.')
-            self.log_event('run1_interrupted', 'Run has been interrupted.')
+            self.log_event('run_interrupted', 'Run has been interrupted.')
             
         else:
-            self.log_event('run1_end', 'Finished iterating through the frames.')
+            self.log_event('run_end', 'Finished iterating through the frames.')
         
         frames_analyzed = self.frame_id + 1
         if frames_analyzed == self.video.frame_count:
             self.data['analysis-status'] = 'Finished first pass'
         else:
             self.data['analysis-status'] = 'Partly finished first pass'
-        self.data['video']['analyzed']['frames_analyzed'] = frames_analyzed
+        self.data['video/analyzed/frames_analyzed'] = frames_analyzed
                     
         # cleanup and write out of data
         self.debug_finalize()
@@ -154,7 +154,7 @@ class FirstPass(DataHandler):
     def setup_processing(self):
         """ sets up the processing of the video by initializing caches etc """
         
-        self.result['objects.trajectories'] = []
+        self.result['objects/tracks'] = []
         self.result['sand_profile'] = []
 
         # creates a simple template for matching with the mouse.
@@ -164,8 +164,8 @@ class FirstPass(DataHandler):
         # region with gradually decreasing intensity.
         
         # determine the sizes of the different regions
-        size_core = self.params['mouse.model_radius']
-        size_ring = 3*self.params['mouse.model_radius']
+        size_core = self.params['mouse/model_radius']
+        size_ring = 3*self.params['mouse/model_radius']
         size_total = size_core + size_ring
 
         # build a filter for finding the mouse position
@@ -284,7 +284,7 @@ class FirstPass(DataHandler):
             rect_given = video_crop.rect
         
         # find the cage in the first frame of the movie
-        blurred_image = FilterBlur(video_crop, self.params['video.blur_radius'])[0]
+        blurred_image = FilterBlur(video_crop, self.params['video/blur_radius'])[0]
         rect_cage = self.find_cage(blurred_image)
         
         # determine the rectangle of the cage in global coordinates
@@ -294,8 +294,8 @@ class FirstPass(DataHandler):
         height = rect_cage[3] - rect_cage[3] % 2  # make sure its divisible by 2
         # Video dimensions should be divisible by two for some codecs
 
-        if not (self.params['cage.width_min'] < width < self.params['cage.width_max'] and
-                self.params['cage.height_min'] < height < self.params['cage.height_max']):
+        if not (self.params['cage/width_min'] < width < self.params['cage/width_max'] and
+                self.params['cage/height_min'] < height < self.params['cage/height_max']):
             raise RuntimeError('The cage bounding box (%dx%d) is out of the limits.' % (width, height)) 
         
         cropping_rect = [left, top, width, height]
@@ -341,11 +341,10 @@ class FirstPass(DataHandler):
 
         # determine the sky color
         sky_img = image[sky_sure.astype(np.bool)]
-        self.result['colors'] = {}
-        self.result['colors']['sky'] = sky_img.mean()
-        self.result['colors']['sky_std'] = sky_img.std()
+        self.result['colors/sky'] = sky_img.mean()
+        self.result['colors/sky_std'] = sky_img.std()
         logging.debug('The sky color was determined to be %d +- %d',
-                      self.result['colors']['sky'], self.result['colors']['sky_std'])
+                      self.result['colors/sky'], self.result['colors/sky_std'])
 
         # find the sand by looking at the largest bright region
         sand_mask = get_largest_region(binarized).astype(np.uint8)*255
@@ -360,10 +359,10 @@ class FirstPass(DataHandler):
         
         # determine the sky color
         sand_img = image[sand_sure.astype(np.bool)]
-        self.result['colors']['sand'] = sand_img.mean()
-        self.result['colors']['sand_std'] = sand_img.std()
+        self.result['colors/sand'] = sand_img.mean()
+        self.result['colors/sand_std'] = sand_img.std()
         logging.debug('The sand color was determined to be %d +- %d',
-                      self.result['colors']['sand'], self.result['colors']['sand_std'])
+                      self.result['colors/sand'], self.result['colors/sand_std'])
         
         
     def _get_mouse_template_slices(self, pos, i_shape, t_shape):
@@ -426,7 +425,7 @@ class FirstPass(DataHandler):
             mask = 1
 
         # adapt the background to current frame, but only inside the mask 
-        self._background += (self.params['background.adaptation_rate']  # adaptation rate 
+        self._background += (self.params['background/adaptation_rate']  # adaptation rate 
                              *mask                                      # mask 
                              *(frame - self._background))               # difference to current frame
 
@@ -449,7 +448,7 @@ class FirstPass(DataHandler):
         diff = -self._background + frame 
         
         # find movement by comparing the difference to a threshold 
-        mask_moving = (diff > self.params['mouse.intensity_threshold']*self.result['colors']['sky_std'])
+        mask_moving = (diff > self.params['mouse/intensity_threshold']*self.result['colors/sky_std'])
         mask_moving = 255*mask_moving.astype(np.uint8)
 
         # perform morphological opening to remove noise
@@ -488,7 +487,7 @@ class FirstPass(DataHandler):
             pos = (moments['m10']/area, moments['m01']/area)
             
             # check whether this object could be a mouse
-            if area > self.params['mouse.min_area']:
+            if area > self.params['mouse/min_area']:
                 objects.append(Object(pos, size=area))
                 
             elif area > max_area:
@@ -503,16 +502,16 @@ class FirstPass(DataHandler):
         return objects
 
 
-    def _handle_object_trajectories(self, frame, mask_moving):
+    def _handle_object_tracks(self, frame, mask_moving):
         """ analyzes objects in a single frame and tries to add them to
-        previous trajectories """
+        previous tracks """
         # get potential objects
         objects_found = self.find_objects_in_binary_image(mask_moving)
 
-        # check if there are previous trajectories        
+        # check if there are previous tracks        
         if len(self.tracks) == 0:
-            moving_window = self.params['objects.matching_moving_window']
-            self.tracks = [ObjectTrajectory(self.frame_id, mouse, moving_window=moving_window)
+            moving_window = self.params['objects/matching_moving_window']
+            self.tracks = [ObjectTrack(self.frame_id, mouse, moving_window=moving_window)
                            for mouse in objects_found]
             
             return # there is nothing to do anymore
@@ -522,7 +521,7 @@ class FirstPass(DataHandler):
                               [obj.predict_pos() for obj in self.tracks],
                               metric='euclidean')
         # normalize distance to the maximum speed
-        dist = dist/self.params['mouse.max_speed']
+        dist = dist/self.params['mouse/max_speed']
         
         # calculate the difference of areas between new and old objects
         def area_score(area1, area2):
@@ -533,10 +532,10 @@ class FirstPass(DataHandler):
                            for obj_e in self.tracks]
                           for obj_f in objects_found])
         # normalize area change such that 1 corresponds to the maximal allowed one
-        areas = areas/self.params['mouse.max_rel_area_change']
+        areas = areas/self.params['mouse/max_rel_area_change']
 
         # build a combined score from this
-        alpha = self.params['objects.matching_weigth']
+        alpha = self.params['objects/matching_weigth']
         score = alpha*dist + (1 - alpha)*areas
 
         # match previous estimates to this one
@@ -554,7 +553,7 @@ class FirstPass(DataHandler):
                 # find the indices of the match
                 i_f, i_e = np.argwhere(score == score_min)[0]
                 
-                # append new object to the trajectory of the old object
+                # append new object to the track of the old object
                 self.tracks[i_e].append(self.frame_id, objects_found[i_f])
                 
                 # eliminate both objects from further considerations
@@ -563,20 +562,20 @@ class FirstPass(DataHandler):
                 idx_f.remove(i_f)
                 idx_e.remove(i_e)
                 
-        # end trajectories that had no match in current frame 
+        # end tracks that had no match in current frame 
         for i_e in reversed(idx_e): # have to go backwards, since we delete items
-            logging.debug('%d: Copy mouse trajectory of length %d to results',
+            logging.debug('%d: Copy mouse track of length %d to results',
                           self.frame_id, len(self.tracks[i_e]))
-            # copy trajectory to result dictionary
-            self.result['objects.trajectories'].append(self.tracks[i_e])
+            # copy track to result dictionary
+            self.result['objects/tracks'].append(self.tracks[i_e])
             del self.tracks[i_e]
         
-        # start new trajectories for objects that had no previous match
+        # start new tracks for objects that had no previous match
         for i_f in idx_f:
-            logging.debug('%d: Start new mouse trajectory at %s', self.frame_id, objects_found[i_f].pos)
-            # start new trajectory
-            moving_window = self.params['objects.matching_moving_window']
-            track = ObjectTrajectory(self.frame_id, objects_found[i_f], moving_window=moving_window)
+            logging.debug('%d: Start new mouse track at %s', self.frame_id, objects_found[i_f].pos)
+            # start new track
+            moving_window = self.params['objects/matching_moving_window']
+            track = ObjectTrack(self.frame_id, objects_found[i_f], moving_window=moving_window)
             self.tracks.append(track)
         
         assert len(self.tracks) == len(objects_found)
@@ -589,22 +588,22 @@ class FirstPass(DataHandler):
         mask_moving = self.find_moving_features(frame)
         
         if mask_moving.sum() == 0:
-            # end all current trajectories if there are any
+            # end all current tracks if there are any
             if len(self.tracks) > 0:
-                logging.debug('%d: Copy %d trajectories to results', 
+                logging.debug('%d: Copy %d tracks to results', 
                               self.frame_id, len(self.tracks))
-                self.result['objects.trajectories'].extend(self.tracks)
+                self.result['objects/tracks'].extend(self.tracks)
                 self.tracks = []
 
         else:
             # some moving features have been found in the video 
-            self._handle_object_trajectories(frame, mask_moving)
+            self._handle_object_tracks(frame, mask_moving)
             
             # check whether objects moved and call them a mouse
             obj_moving = [obj.is_moving() for obj in self.tracks]
             if any(obj_moving):
-                self.result['mouse.has_moved'] = True
-                # remove the trajectories that didn't move
+                self.result['mouse/has_moved'] = True
+                # remove the tracks that didn't move
                 # this essentially assumes that there is only one mouse
                 self.tracks = [obj
                                for k, obj in enumerate(self.tracks)
@@ -615,7 +614,7 @@ class FirstPass(DataHandler):
         # keep track of the regions that the mouse explored
         for obj in self.tracks:
             cv2.circle(self.explored_area, obj.last_pos,
-                       radius=self.params['burrows.radius'],
+                       radius=self.params['burrows/radius'],
                        color=255, thickness=-1)
                                 
                 
@@ -637,7 +636,7 @@ class FirstPass(DataHandler):
         
         # TODO: we might want to replace that with the typical burrow radius
         # do morphological opening and closing to smooth the profile
-        s = 4*self.params['sand_profile.point_spacing']
+        s = 4*self.params['sand_profile/point_spacing']
         ys, xs = np.ogrid[-s:s+1, -s:s+1]
         kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8)
 
@@ -674,13 +673,13 @@ class FirstPass(DataHandler):
         in the direction perpendicular to the curve. """
                 
         points = self.sand_profile
-        spacing = self.params['sand_profile.point_spacing']
+        spacing = self.params['sand_profile/point_spacing']
             
         if not 'sand_profile.model' in self._cache or \
             self._cache['sand_profile.model'].size != spacing:
             
             self._cache['sand_profile.model'] = \
-                    RidgeProfile(spacing, self.params['sand_profile.width'])
+                    RidgeProfile(spacing, self.params['sand_profile/width'])
                 
         # make sure the curve has equidistant points
         sand_profile = make_curve_equidistant(points, spacing)
@@ -773,8 +772,6 @@ class FirstPass(DataHandler):
         logging.info(str(now) + ': ' + description)
         
         # save the event in the result structure
-        if 'events' not in self.result:
-            self.result['events'] = {}
         self.result['events'][name] = now
 
 
@@ -819,19 +816,19 @@ class FirstPass(DataHandler):
             # indicate the mouse position
             if len(self.tracks) > 0:
                 for obj in self.tracks:
-                    if not self.result['mouse.has_moved']:
+                    if not self.result['mouse/has_moved']:
                         color = 'r'
                     elif obj.is_moving():
                         color = 'w'
                     else:
                         color = 'b'
                         
-                    debug_video.add_polygon(obj.get_trajectory(), '0.5', is_closed=False)
-                    debug_video.add_circle(obj.last_pos, self.params['mouse.model_radius'], color, thickness=1)
+                    debug_video.add_polygon(obj.get_track(), '0.5', is_closed=False)
+                    debug_video.add_circle(obj.last_pos, self.params['mouse/model_radius'], color, thickness=1)
                 
-            else: # there are no current trajectories
+            else: # there are no current tracks
                 for mouse_pos in self._mouse_pos_estimate:
-                    debug_video.add_circle(mouse_pos, self.params['mouse.model_radius'], 'k', thickness=1)
+                    debug_video.add_circle(mouse_pos, self.params['mouse/model_radius'], 'k', thickness=1)
              
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
             debug_video.add_text('#objects:%d' % self.debug['object_count'], (120, 20), anchor='top')
