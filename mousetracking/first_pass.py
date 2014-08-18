@@ -61,13 +61,13 @@ class FirstPass(DataHandler):
         
         # setup internal structures that will be filled by analyzing the video
         self.burrow_finder = BurrowFinder(self.params)
-        self._cache = {}           # cache that some functions might want to use
-        self.debug = {}            # dictionary holding debug information
-        self.sand_profile = None   # current model of the sand profile
-        self.tracks = []             # list of plausible mouse models in current frame
+        self._cache = {}               # cache that some functions might want to use
+        self.debug = {}                # dictionary holding debug information
+        self.sand_profile = None       # current model of the sand profile
+        self.tracks = []               # list of plausible mouse models in current frame
         self._mouse_pos_estimate = []  # list of estimated mouse positions
-        self.explored_area = None # region the mouse has explored yet
-        self.frame_id = None       # id of the current frame
+        self.explored_area = None      # region the mouse has explored yet
+        self.frame_id = None           # id of the current frame
         self.result['mouse.has_moved'] = False
         self.debug_output = [] if debug_output is None else debug_output
 
@@ -115,7 +115,7 @@ class FirstPass(DataHandler):
                 
                 if self.frame_id >= self.params['video.ignore_initial_frames']:
                     # find the mouse
-                    self.find_mice(frame)
+                    self.find_objects(frame)
                     
                     # use the background to find the current sand profile and burrows
                     if self.frame_id % self.params['sand_profile.adaptation_interval'] == 0:
@@ -582,7 +582,7 @@ class FirstPass(DataHandler):
         assert len(self.tracks) == len(objects_found)
         
     
-    def find_mice(self, frame):
+    def find_objects(self, frame):
         """ adapts the current mouse position, if enough information is available """
 
         # find features that indicate that the mouse moved

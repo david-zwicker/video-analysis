@@ -36,11 +36,12 @@ def try_cmd(cmd):
         return False
     else:
         return True
-
+from subprocess import check_output
 
 # search for the ffmpeg command
 if try_cmd(['ffmpeg']):
     FFMPEG_BINARY = 'ffmpeg'
+    logging.debug('Found ffmpeg at: %s', check_output(['which', 'ffmpeg']).strip())
 elif try_cmd(['ffmpeg.exe']):
     FFMPEG_BINARY = 'ffmpeg.exe'
 else:

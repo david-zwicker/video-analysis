@@ -25,7 +25,8 @@ Performance improvements:
 	around the point of interest (move along perpendicular line, until overlap is maximal)
 * Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)
 * Generally cache all kernels for morphological operations, since these are costly to make
-
+* There are problems when ffmpeg can't encode the output videos fast enough:
+	 - Presumably, the ffmpeg pipe gets full and the whole process just stops
 
 Low priority enhancements:
 --------------------------
