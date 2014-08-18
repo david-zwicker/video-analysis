@@ -44,10 +44,6 @@ class FirstPass(DataHandler):
     analyzes mouse movies
     """
     
-    video_output_codec = 'libx264'
-    video_output_extension = '.mov'
-    video_output_bitrate = '2000k'
-    
     def __init__(self, folder, prefix='', parameters=None, debug_output=None, **kwargs):
         """ initializes the whole mouse tracking and prepares the video filters """
         
@@ -91,6 +87,7 @@ class FirstPass(DataHandler):
         self.find_color_estimates(first_frame)
         
         # estimate initial sand profile
+        logging.debug('Find the initial sand profile.')
         self.find_initial_sand_profile(first_frame)
 
         self.data['analysis-status'] = 'Initialized first pass'            
@@ -711,12 +708,13 @@ class FirstPass(DataHandler):
         self.sand_profile = self.find_rough_sand_profile(image)
         
         # iterate until the profile does not change significantly anymore
-        deviation = np.inf
-        while deviation > len(self.sand_profile):
+        deviation, iterations = np.inf, 0
+        while deviation > len(self.sand_profile) and iterations < 50:
             deviation = self.refine_sand_profile(image)
+            iterations += 1
             
-        logging.info('We found a sand profile of length %g',
-                     curve_length(self.sand_profile))
+        logging.info('We found a sand profile of length %g after %d iterations',
+                     curve_length(self.sand_profile), iterations)
         
 
     #===========================================================================
@@ -740,14 +738,19 @@ class FirstPass(DataHandler):
         self.debug['object_count'] = 0
         self.debug['text1'] = ''
         self.debug['text2'] = ''
+
+        # load parameters for video output        
+        video_extension = self.params['video/output/extension']
+        video_codec = self.params['video/output/codec']
+        video_bitrate = self.params['video/output/bitrate']
         
         # set up the general video output, if requested
         if 'video' in self.debug_output or 'video.show' in self.debug_output:
             # initialize the writer for the debug video
-            debug_file = self.get_filename('video' + self.video_output_extension, 'debug')
+            debug_file = self.get_filename('video' + video_extension, 'debug')
             self.debug['video'] = VideoComposerListener(debug_file, background=self.video,
-                                                        is_color=True, codec=self.video_output_codec,
-                                                        bitrate=self.video_output_bitrate)
+                                                        is_color=True, codec=video_codec,
+                                                        bitrate=video_bitrate)
             if 'video.show' in self.debug_output:
                 self.debug['video.show'] = ImageShow(self.debug['video'].shape, 'Debug video')
 
@@ -755,11 +758,11 @@ class FirstPass(DataHandler):
         for identifier in ('difference', 'background', 'explored_area'):
             if identifier in self.debug_output:
                 # determine the filename to be used
-                debug_file = self.get_filename(identifier + self.video_output_extension, 'debug')
+                debug_file = self.get_filename(identifier + video_extension, 'debug')
                 # set up the video file writer
                 video_writer = VideoComposer(debug_file, self.video.size, self.video.fps,
-                                               is_color=False, codec=self.video_output_codec,
-                                               bitrate=self.video_output_bitrate)
+                                               is_color=False, codec=video_codec,
+                                               bitrate=video_bitrate)
                 self.debug[identifier + '.video'] = video_writer
         
 

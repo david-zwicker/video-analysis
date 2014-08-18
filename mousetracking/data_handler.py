@@ -21,10 +21,17 @@ from video.analysis.curves import point_distance
 
 
 PARAMETERS_DEFAULT = {
+    # filename pattern used to look for videos
+    'video/filename_pattern': 'raw_video/*',
     # number of initial frames to not analyze
     'video/ignore_initial_frames': 0,
     # radius of the blur filter [in pixel]
     'video/blur_radius': 3,
+
+    # settings for video output    
+    'video/output/extension': '.mov',
+    'video/output/codec': 'libx264',
+    'video/output/bitrate': '2000k',
     
     # thresholds for cage dimension [in pixel]
     'cage/width_min': 650,
@@ -73,15 +80,13 @@ PARAMETERS_DEFAULT = {
 class DataHandler(object):
     """ class that handles the data and parameters of mouse tracking """
 
-    video_filename_pattern = 'raw_video/*'
-    
     def __init__(self, folder, prefix='', parameters=None, **kwargs):
 
         # initialize tracking parameters        
         self.data = NestedDict()
         self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
         if parameters is not None:
-            self.data['parameters'].update(parameters)
+            self.data['parameters'].from_dict(parameters)
 
         # set extra parameters that were given
         self.data['video/requested/frames'] = kwargs.get('frames', None)
@@ -121,9 +126,9 @@ class DataHandler(object):
         """ loads the video and applies a monochrome and cropping filter """
         
         # initialize video
-        self.video = VideoFileStack(os.path.join(self.folder, self.video_filename_pattern))
-        self.data['video/raw'].from_dict({'filename_pattern': self.video_filename_pattern,
-                                          'frame_count': self.video.frame_count,
+        video_filename_pattern = self.data['parameters/video/filename_pattern']
+        self.video = VideoFileStack(os.path.join(self.folder, video_filename_pattern))
+        self.data['video/raw'].from_dict({'frame_count': self.video.frame_count,
                                           'size': '%d x %d' % self.video.size,
                                           'fps': self.video.fps})
         try:
