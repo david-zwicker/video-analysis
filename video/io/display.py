@@ -23,9 +23,14 @@ def _show_image_from_pipe(pipe, image_array, title):
     """ function that runs in a separate process to display images """
     while True:
         # read next command from pipe
-        data = pipe.recv()
+        command = pipe.recv()
+        while pipe.poll():
+            command = pipe.recv()
+            if command == 'close':
+                break
         
-        if data == 'update':
+        # process the last command
+        if command == 'update':
             # update the image
             if image_array.ndim > 2:
                 # reverse the color axis, since this seems to be the opencv way
@@ -37,13 +42,12 @@ def _show_image_from_pipe(pipe, image_array, title):
             if cv2.waitKey(1) & 0xFF in {27, ord('q')}:
                 pipe.send('interrupt')
                 break
-                
-        elif data == 'close':
-            # break out of the loop if asked so
+
+        elif command == 'close':
             break
-        
+                
         else:
-            raise ValueError('Unknown command `%s`' % data)
+            raise ValueError('Unknown command `%s`' % command)
         
     # cleanup
     pipe.close()
@@ -56,7 +60,6 @@ class ImageShow(object):
     
     def __init__(self, size, title='', multiprocessing=True):
         self.title = title
-        self._data = None
         self._proc = None
         
         if multiprocessing:

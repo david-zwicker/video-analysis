@@ -103,8 +103,6 @@ class BurrowFinder(object):
             for k, p in enumerate(points):
                 color = 255 if free_points[k] else 128
                 cv2.circle(frame_roi, (int(p[0]), int(p[1])), 3, color, thickness=-1)
-#             cv2.circle(frame_roi, tuple(contour[p1]), 3, 128, thickness=-1)
-#             cv2.circle(frame_roi, tuple(contour[p2]), 3, 128, thickness=-1)
             debug.show_image(frame_roi)
 
 
@@ -120,6 +118,10 @@ class Burrow(object):
         self.outline = outline
         self.image = None
         
+        
+    def get_centerline(self):
+        raise NotImplementedError
+    
         
     def adjust_outline(self, deviations):
         """ adjust the current outline by moving points perpendicular by

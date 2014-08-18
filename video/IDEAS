@@ -1,6 +1,7 @@
 Mouse tracking
 --------------
 * Look into time smoothing (Gaussian smoothing across several frames)
+* Connect several tracks to a single mouse trajectory
 
 Burrow tracking
 ---------------

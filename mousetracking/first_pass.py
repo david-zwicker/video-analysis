@@ -16,7 +16,6 @@ from __future__ import division
 
 import datetime
 import logging
-import os
 
 import numpy as np
 import scipy.ndimage as ndimage
@@ -24,7 +23,7 @@ from scipy.optimize import leastsq
 from scipy.spatial import distance
 import cv2
 
-from video.io import VideoFileStack, ImageShow
+from video.io import ImageShow
 from video.filters import FilterBlur, FilterCrop, FilterMonochrome
 from video.analysis.regions import (get_largest_region, find_bounding_box,
                                     rect_to_slices, corners_to_rect)
@@ -45,60 +44,47 @@ class FirstPass(DataHandler):
     analyzes mouse movies
     """
     
-    video_filename_pattern = 'raw_video/*'
     video_output_codec = 'libx264'
     video_output_extension = '.mov'
     video_output_bitrate = '2000k'
     
-    def __init__(self, folder, frames=None, crop=None, prefix='',
-                 tracking_parameters=None, debug_output=None):
+    def __init__(self, folder, prefix='', parameters=None, debug_output=None, **kwargs):
         """ initializes the whole mouse tracking and prepares the video filters """
         
-        # initialize the dictionary holding result information
-        super(FirstPass, self).__init__(folder, prefix, tracking_parameters)
+        # initialize the data handler
+        super(FirstPass, self).__init__(folder, prefix, parameters, **kwargs)
+        self.params = self.data['parameters']
+        self.data['pass1'] = {}
+        self.result = self.data['pass1'] 
         
         self.log_event('init_begin', 'Start initializing the video analysis.')
-        
-        # initialize video
-        self.video = VideoFileStack(os.path.join(folder, self.video_filename_pattern))
-        self.data['video_raw'] = {'filename_pattern': self.video_filename_pattern,
-                                  'frame_count': self.video.frame_count,
-                                  'size': '%d x %d' % self.video.size,
-                                  'fps': self.video.fps}
-        
-        # restrict the analysis to an interval of frames
-        if frames is not None:
-            self.video = self.video[frames[0]:frames[1]]
-        else:
-            frames = (0, self.video.frame_count) 
-        
-        self.debug_output = [] if debug_output is None else debug_output
-        self.params = self.data['tracking_parameters']
         
         # setup internal structures that will be filled by analyzing the video
         self.burrow_finder = BurrowFinder(self.params)
         self._cache = {}           # cache that some functions might want to use
         self.debug = {}            # dictionary holding debug information
         self.sand_profile = None   # current model of the sand profile
-        self.mice = []             # list of plausible mouse models in current frame
+        self.tracks = []             # list of plausible mouse models in current frame
         self._mouse_pos_estimate = []  # list of estimated mouse positions
         self.explored_area = None # region the mouse has explored yet
         self.frame_id = None       # id of the current frame
-        self.data['mouse.has_moved'] = False
+        self.result['mouse.has_moved'] = False
+        self.debug_output = [] if debug_output is None else debug_output
 
-        # restrict the video to the region of interest (the cage)
-        cropping_rect = self.crop_video_to_cage(crop)
-        self.data['video_analyzed'] = {'frame_slice': '%d to %d' % frames,
-                                       'frame_count': self.video.frame_count,
-                                       'region_specified': crop,
-                                       'region_cage': cropping_rect,
-                                       'size': '%d x %d' % self.video.size,
-                                       'fps': self.video.fps}
+        # load the video ... 
+        self.video = self.load_video()
+        # ... and restrict to the region of interest (the cage)
+        region_specified = self.data['video']['region_specified']
+        cropping_rect = self.crop_video_to_cage(region_specified)
+        self.data['video']['analyzed'] = {'frame_count': self.video.frame_count,
+                                          'region_cage': cropping_rect,
+                                          'size': '%d x %d' % self.video.size,
+                                          'fps': self.video.fps}
 
         # blur the video to reduce noise effects    
         self.video_blurred = FilterBlur(self.video, self.params['video.blur_radius'])
         first_frame = self.video_blurred[0]
-        
+
         # initialize the background model
         self._background = np.array(first_frame, dtype=float)
 
@@ -108,7 +94,7 @@ class FirstPass(DataHandler):
         # estimate initial sand profile
         self.find_initial_sand_profile(first_frame)
 
-        self.data['progress'] = 'Initialized'            
+        self.data['analysis-status'] = 'Initialized first pass'            
         self.log_event('init_end', 'Finished initializing the video analysis.')
 
     
@@ -135,13 +121,13 @@ class FirstPass(DataHandler):
                     if self.frame_id % self.params['sand_profile.adaptation_interval'] == 0:
                         self.refine_sand_profile(self._background)
                         sand_profile = SandProfile(self.frame_id, self.sand_profile)
-                        self.data['sand_profile'].append(sand_profile)
+                        self.result['sand_profile'].append(sand_profile)
             
-                if self.frame_id % self.params['burrows.adaptation_interval'] == 0:
-                    self.burrow_finder.find_burrows(frame, self.explored_area, self.sand_profile)
+#                 if self.frame_id % self.params['burrows.adaptation_interval'] == 0:
+#                     self.burrow_finder.find_burrows(frame, self.explored_area, self.sand_profile)
             
                 # update the background model
-                self._update_background_model(frame)
+                self.update_background_model(frame)
                     
                 # store some information in the debug dictionary
                 self.debug_add_frame(frame)
@@ -155,10 +141,10 @@ class FirstPass(DataHandler):
         
         frames_analyzed = self.frame_id + 1
         if frames_analyzed == self.video.frame_count:
-            self.data['progress'] = 'Finished first pass'
+            self.data['analysis-status'] = 'Finished first pass'
         else:
-            self.data['progress'] = 'Partly finished first pass'
-        self.data['video_analyzed']['frames_analyzed'] = frames_analyzed
+            self.data['analysis-status'] = 'Partly finished first pass'
+        self.data['video']['analyzed']['frames_analyzed'] = frames_analyzed
                     
         # cleanup and write out of data
         self.debug_finalize()
@@ -168,8 +154,8 @@ class FirstPass(DataHandler):
     def setup_processing(self):
         """ sets up the processing of the video by initializing caches etc """
         
-        self.data['objects.trajectories'] = []
-        self.data['sand_profile'] = []
+        self.result['objects.trajectories'] = []
+        self.result['sand_profile'] = []
 
         # creates a simple template for matching with the mouse.
         # This template can be used to update the current mouse position based
@@ -196,6 +182,12 @@ class FirstPass(DataHandler):
         )  
         
         self._cache['mouse.template'] = mouse_template
+        
+        # prepare kernels for morphological operations
+        self._cache['find_moving_features.kernel_open'] = \
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        self._cache['find_moving_features.kernel_close'] = \
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         
         # setup more cache variables
         video_shape = (self.video.size[1], self.video.size[0]) 
@@ -260,6 +252,12 @@ class FirstPass(DataHandler):
     def crop_video_to_cage(self, user_crop):
         """ crops the video to a suitable cropping rectangle given by the cage """
         
+        # TODO: this should be rewritten, such that this function receives the 
+        # video which is already cropped to the region of interest
+        # this function then merely crops is further by applying an additional
+        # crop filter. We can then refactor FilterCrop to collapse nested
+        # FilterCrop for performance improvements
+         
         if user_crop is None:
             # use the full video
             if self.video.is_color:
@@ -343,11 +341,11 @@ class FirstPass(DataHandler):
 
         # determine the sky color
         sky_img = image[sky_sure.astype(np.bool)]
-        self.data['colors'] = {}
-        self.data['colors']['sky'] = sky_img.mean()
-        self.data['colors']['sky_std'] = sky_img.std()
+        self.result['colors'] = {}
+        self.result['colors']['sky'] = sky_img.mean()
+        self.result['colors']['sky_std'] = sky_img.std()
         logging.debug('The sky color was determined to be %d +- %d',
-                      self.data['colors']['sky'], self.data['colors']['sky_std'])
+                      self.result['colors']['sky'], self.result['colors']['sky_std'])
 
         # find the sand by looking at the largest bright region
         sand_mask = get_largest_region(binarized).astype(np.uint8)*255
@@ -362,10 +360,10 @@ class FirstPass(DataHandler):
         
         # determine the sky color
         sand_img = image[sand_sure.astype(np.bool)]
-        self.data['colors']['sand'] = sand_img.mean()
-        self.data['colors']['sand_std'] = sand_img.std()
+        self.result['colors']['sand'] = sand_img.mean()
+        self.result['colors']['sand_std'] = sand_img.std()
         logging.debug('The sand color was determined to be %d +- %d',
-                      self.data['colors']['sand'], self.data['colors']['sand_std'])
+                      self.result['colors']['sand'], self.result['colors']['sand_std'])
         
         
     def _get_mouse_template_slices(self, pos, i_shape, t_shape):
@@ -408,7 +406,7 @@ class FirstPass(DataHandler):
                 (slice(t_y, t_y + h), slice(t_x, t_x + w)))  # slice for the template
     
         
-    def _update_background_model(self, frame):
+    def update_background_model(self, frame):
         """ updates the background model using the current frame """
         
         if self._mouse_pos_estimate:
@@ -438,28 +436,20 @@ class FirstPass(DataHandler):
     #===========================================================================
       
     
-    def _find_moving_features(self, frame):
+    def find_moving_features(self, frame):
         """ finds moving features in a frame.
         This works by building a model of the current background and subtracting
         this from the current frame. Everything that deviates significantly from
         the background must be moving. Here, we additionally only focus on 
         features that become brighter, i.e. move forward.
         """
-        
-        # prepare the kernel for morphological opening if necessary
-        if 'find_moving_features.kernel_open' not in self._cache:
-            self._cache['find_moving_features.kernel_open'] = \
-                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-            self._cache['find_moving_features.kernel_close'] = \
-                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-#                 cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.params['mouse.model_radius']//2,)*2)
                         
         # calculate the difference to the current background model
         # Note that the first operand determines the dtype of the result.
         diff = -self._background + frame 
         
         # find movement by comparing the difference to a threshold 
-        mask_moving = (diff > self.params['mouse.intensity_threshold']*self.data['colors']['sky_std'])
+        mask_moving = (diff > self.params['mouse.intensity_threshold']*self.result['colors']['sky_std'])
         mask_moving = 255*mask_moving.astype(np.uint8)
 
         # perform morphological opening to remove noise
@@ -478,7 +468,7 @@ class FirstPass(DataHandler):
         return mask_moving
 
 
-    def _find_objects_in_binary_image(self, binary_image):
+    def find_objects_in_binary_image(self, binary_image):
         """ finds objects in a binary image.
         Returns a list with characteristic properties
         """
@@ -512,68 +502,24 @@ class FirstPass(DataHandler):
         
         return objects
 
-                
-    def _find_best_template_position(self, image, template, start_pos, max_deviation=None):
-        """
-        moves a template around until it has the largest overlap with image
-        start_pos refers to the the center of the template inside the image
-        max_deviation sets a maximal distance the template is moved from start_pos
-        """
-        
-        # lists for checking all points surrounding the current one
-        points_to_check, seen = [start_pos], set()
-        # variables storing the best fit
-        best_overlap, best_pos = -np.inf, None
-        
-        # iterate over all possible points 
-        while points_to_check:
-            
-            # get the next position to check, which refers to the top left image of the template
-            pos = points_to_check.pop()
-            seen.add(pos)
-
-            # get the slices required for comparing the template to the image
-            i_s, t_s = self._get_mouse_template_slices(pos, image.shape, template.shape)
-                        
-            # calculate the similarity
-            overlap = (image[i_s[0], i_s[1]]*template[t_s[0], t_s[1]]).sum()
-            
-            # compare it to the previously seen one
-            if overlap > best_overlap:
-                best_overlap = overlap
-                best_pos = pos
-                
-                # add points around the current one to the test list
-                for p in ((pos[0] - 1, pos[1]), (pos[0], pos[1] - 1),
-                          (pos[0] + 1, pos[1]), (pos[0], pos[1] + 1)):
-                    
-                    # points will only be added if they have not already been checked
-                    # and if the associated distance is below the threshold
-                    if (not p in seen 
-                        and (max_deviation is None or 
-                             np.hypot(p[0] - start_pos[0], 
-                                      p[1] - start_pos[1]) < max_deviation)
-                        ):
-                        points_to_check.append(p)
-                
-        return best_pos
-  
 
     def _handle_object_trajectories(self, frame, mask_moving):
-        """ analyzes a single frame and tries to join object trajectories """
-        # get potential positions
-        objects_found = self._find_objects_in_binary_image(mask_moving)
-        
-        if len(self.mice) == 0:
-            self.mice = [ObjectTrajectory(self.frame_id, mouse,
-                                     moving_window=self.params['objects.matching_moving_window'])
-                         for mouse in objects_found]
+        """ analyzes objects in a single frame and tries to add them to
+        previous trajectories """
+        # get potential objects
+        objects_found = self.find_objects_in_binary_image(mask_moving)
+
+        # check if there are previous trajectories        
+        if len(self.tracks) == 0:
+            moving_window = self.params['objects.matching_moving_window']
+            self.tracks = [ObjectTrajectory(self.frame_id, mouse, moving_window=moving_window)
+                           for mouse in objects_found]
             
             return # there is nothing to do anymore
             
         # calculate the distance between new and old objects
         dist = distance.cdist([obj.pos for obj in objects_found],
-                              [mouse.predict_pos() for mouse in self.mice],
+                              [obj.predict_pos() for obj in self.tracks],
                               metric='euclidean')
         # normalize distance to the maximum speed
         dist = dist/self.params['mouse.max_speed']
@@ -583,9 +529,9 @@ class FirstPass(DataHandler):
             """ helper function scoring area differences """
             return abs(area1 - area2)/(area1 + area2)
         
-        areas = np.array([[area_score(obj.size, mouse.last_size)
-                           for mouse in self.mice]
-                          for obj in objects_found])
+        areas = np.array([[area_score(obj_f.size, obj_e.last_size)
+                           for obj_e in self.tracks]
+                          for obj_f in objects_found])
         # normalize area change such that 1 corresponds to the maximal allowed one
         areas = areas/self.params['mouse.max_rel_area_change']
 
@@ -595,7 +541,7 @@ class FirstPass(DataHandler):
 
         # match previous estimates to this one
         idx_f = range(len(objects_found)) # indices of new objects
-        idx_e = range(len(self.mice))     # indices of old objects
+        idx_e = range(len(self.tracks))   # indices of old objects
         while True:
             # get the smallest score, which corresponds to best match            
             score_min = score.min()
@@ -609,7 +555,7 @@ class FirstPass(DataHandler):
                 i_f, i_e = np.argwhere(score == score_min)[0]
                 
                 # append new object to the trajectory of the old object
-                self.mice[i_e].append(self.frame_id, objects_found[i_f])
+                self.tracks[i_e].append(self.frame_id, objects_found[i_f])
                 
                 # eliminate both objects from further considerations
                 score[i_f, :] = np.inf
@@ -620,54 +566,55 @@ class FirstPass(DataHandler):
         # end trajectories that had no match in current frame 
         for i_e in reversed(idx_e): # have to go backwards, since we delete items
             logging.debug('%d: Copy mouse trajectory of length %d to results',
-                          self.frame_id, len(self.mice[i_e]))
+                          self.frame_id, len(self.tracks[i_e]))
             # copy trajectory to result dictionary
-            self.data['objects.trajectories'].append(self.mice[i_e])
-            del self.mice[i_e]
+            self.result['objects.trajectories'].append(self.tracks[i_e])
+            del self.tracks[i_e]
         
         # start new trajectories for objects that had no previous match
         for i_f in idx_f:
             logging.debug('%d: Start new mouse trajectory at %s', self.frame_id, objects_found[i_f].pos)
             # start new trajectory
-            self.mice.append(ObjectTrajectory(self.frame_id, objects_found[i_f],
-                                         moving_window=self.params['objects.matching_moving_window']))
+            moving_window = self.params['objects.matching_moving_window']
+            track = ObjectTrajectory(self.frame_id, objects_found[i_f], moving_window=moving_window)
+            self.tracks.append(track)
         
-        assert len(self.mice) == len(objects_found)
+        assert len(self.tracks) == len(objects_found)
         
     
     def find_mice(self, frame):
         """ adapts the current mouse position, if enough information is available """
 
         # find features that indicate that the mouse moved
-        mask_moving = self._find_moving_features(frame)
+        mask_moving = self.find_moving_features(frame)
         
         if mask_moving.sum() == 0:
             # end all current trajectories if there are any
-            if len(self.mice) > 0:
+            if len(self.tracks) > 0:
                 logging.debug('%d: Copy %d trajectories to results', 
-                              self.frame_id, len(self.mice))
-                self.data['objects.trajectories'].extend(self.mice)
-                self.mice = []
+                              self.frame_id, len(self.tracks))
+                self.result['objects.trajectories'].extend(self.tracks)
+                self.tracks = []
 
         else:
             # some moving features have been found in the video 
             self._handle_object_trajectories(frame, mask_moving)
             
             # check whether objects moved and call them a mouse
-            mice_moving = [mouse.is_moving() for mouse in self.mice]
-            if any(mice_moving):
-                self.data['mouse.has_moved'] = True
+            obj_moving = [obj.is_moving() for obj in self.tracks]
+            if any(obj_moving):
+                self.result['mouse.has_moved'] = True
                 # remove the trajectories that didn't move
                 # this essentially assumes that there is only one mouse
-                self.mice = [mouse
-                             for k, mouse in enumerate(self.mice)
-                             if mice_moving[k]]
+                self.tracks = [obj
+                               for k, obj in enumerate(self.tracks)
+                               if obj_moving[k]]
 
-            self._mouse_pos_estimate = [mouse.last_pos for mouse in self.mice]
+            self._mouse_pos_estimate = [obj.last_pos for obj in self.tracks]
         
         # keep track of the regions that the mouse explored
-        for mouse in self.mice:
-            cv2.circle(self.explored_area, mouse.last_pos,
+        for obj in self.tracks:
+            cv2.circle(self.explored_area, obj.last_pos,
                        radius=self.params['burrows.radius'],
                        color=255, thickness=-1)
                                 
@@ -677,7 +624,7 @@ class FirstPass(DataHandler):
     #===========================================================================
     
     
-    def _find_rough_sand_profile(self, image):
+    def find_rough_sand_profile(self, image):
         """ determines an estimate of the sand profile from a single image """
         
         # remove 10%/15% of each side of the image
@@ -740,13 +687,14 @@ class FirstPass(DataHandler):
         sand_profile = np.array(np.round(sand_profile),  np.int)
         
         # calculate the bounds for the points
-        p_min =  spacing 
+        p_min = spacing 
         y_max, x_max = image.shape[0] - spacing, image.shape[1] - spacing
 
         # iterate through all points and correct profile
         sand_profile_model = self._cache['sand_profile.model']
         corrected_points = []
         x_previous = spacing
+        deviation = 0
         for k, p in enumerate(sand_profile):
             
             # skip points that are too close to the boundary
@@ -790,25 +738,26 @@ class FirstPass(DataHandler):
                     corrected_points.append((int(p_x), int(p_y)))
                     x_previous = p_x
             
+            # add up the total deviations from the previous profile
+            deviation += abs(x[0])
+            
         self.sand_profile = np.array(corrected_points)
+        return deviation 
             
 
     def find_initial_sand_profile(self, image):
         """ finds the sand profile given an image of an antfarm """
 
         # get an estimate of a profile
-        self.sand_profile = self._find_rough_sand_profile(image)
+        self.sand_profile = self.find_rough_sand_profile(image)
         
         # iterate until the profile does not change significantly anymore
-        length_last, length_current = 0, curve_length(self.sand_profile)
-        iterations = 0
-        while abs(length_current - length_last)/length_current > 0.001 or iterations < 5:
-            self.refine_sand_profile(image)
-            length_last, length_current = length_current, curve_length(self.sand_profile)
-            iterations += 1
+        deviation = np.inf
+        while deviation > len(self.sand_profile):
+            deviation = self.refine_sand_profile(image)
             
-        logging.info('We found a sand profile of length %g after %d iterations',
-                     length_current, iterations)
+        logging.info('We found a sand profile of length %g',
+                     curve_length(self.sand_profile))
         
 
     #===========================================================================
@@ -824,9 +773,9 @@ class FirstPass(DataHandler):
         logging.info(str(now) + ': ' + description)
         
         # save the event in the result structure
-        if 'events' not in self.data:
-            self.data['events'] = {}
-        self.data['events'][name] = now
+        if 'events' not in self.result:
+            self.result['events'] = {}
+        self.result['events'][name] = now
 
 
     def debug_setup(self):
@@ -868,17 +817,17 @@ class FirstPass(DataHandler):
             debug_video.add_points(self.sand_profile, radius=2, color='y')
         
             # indicate the mouse position
-            if len(self.mice) > 0:
-                for mouse in self.mice:
-                    if not self.data['mouse.has_moved']:
+            if len(self.tracks) > 0:
+                for obj in self.tracks:
+                    if not self.result['mouse.has_moved']:
                         color = 'r'
-                    elif mouse.is_moving():
+                    elif obj.is_moving():
                         color = 'w'
                     else:
                         color = 'b'
                         
-                    debug_video.add_polygon(mouse.get_trajectory(), '0.5', is_closed=False)
-                    debug_video.add_circle(mouse.last_pos, self.params['mouse.model_radius'], color, thickness=1)
+                    debug_video.add_polygon(obj.get_trajectory(), '0.5', is_closed=False)
+                    debug_video.add_circle(obj.last_pos, self.params['mouse.model_radius'], color, thickness=1)
                 
             else: # there are no current trajectories
                 for mouse_pos in self._mouse_pos_estimate:
@@ -938,8 +887,7 @@ class RidgeProfile(object):
         angle defines the direction perpendicular to the profile 
         """
         
-        self.image = image
-        self.image_mean = image.mean()
+        self.image = image - image.mean()
         self.image_std = image.std()
         self._sina = np.sin(angle)
         self._cosa = np.cos(angle)
@@ -953,10 +901,11 @@ class RidgeProfile(object):
         py = -distance*self._sina
         
         # determine the distance from the ridge line
-        dist = (self.ys - py)*self._sina - (self.xs - px)*self._cosa + 0.5 # TODO: check the 0.5
+        dist = (self.ys - py)*self._sina - (self.xs - px)*self._cosa
         
         # apply sigmoidal function
         model = np.tanh(dist/self.width)
      
-        return np.ravel(self.image_mean + 1.5*self.image_std*model - self.image)
+        return np.ravel(self.image - 1.5*self.image_std*model)
+
 
