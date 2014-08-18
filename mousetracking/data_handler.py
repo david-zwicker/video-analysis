@@ -84,8 +84,8 @@ class DataHandler(object):
             self.data['parameters'].update(parameters)
 
         # set extra parameters that were given
-        self.data['video/frames_specified'] = kwargs.get('frames', None)
-        self.data['video/region_specified'] = kwargs.get('crop', None)
+        self.data['video/requested/frames'] = kwargs.get('frames', None)
+        self.data['video/requested/cropping_rect'] = kwargs.get('crop', None)
             
         # initialize additional properties
         self.data['analysis-status'] = 'Initialized parameters'
@@ -117,7 +117,7 @@ class DataHandler(object):
             return os.path.join(self.get_folder(folder), filename)
       
     
-    def load_video(self, cropping_rect=None):
+    def load_video(self):
         """ loads the video and applies a monochrome and cropping filter """
         
         # initialize video
@@ -126,14 +126,19 @@ class DataHandler(object):
                                           'frame_count': self.video.frame_count,
                                           'size': '%d x %d' % self.video.size,
                                           'fps': self.video.fps})
+        try:
+            self.data['video/raw/filecount'] = self.video.filecount
+        except AttributeError:
+            self.data['video/raw/filecount'] = 1
         
         # restrict the analysis to an interval of frames
-        frames = self.data['video/frames_specified']
+        frames = self.data['video/requested/frames']
         if frames is not None:
             self.video = self.video[frames[0]:frames[1]]
         else:
             frames = (0, self.video.frame_count)
             
+        cropping_rect = self.data['video/requested/cropping_rect']         
         if cropping_rect is None:
             # use the full video
             if self.video.is_color:
@@ -142,7 +147,7 @@ class DataHandler(object):
             else:
                 video_crop = self.video
                 
-            rect_given = [0, 0, self.video.size[0], self.video.size[1]]
+            #rect_given = [0, 0, self.video.size[0], self.video.size[1]]
 
         else: # user_crop is not None                
             # restrict video to green channel if it is a color video
@@ -157,7 +162,7 @@ class DataHandler(object):
                 video_crop = FilterCrop(self.video, rect=cropping_rect,
                                         color_channel=color_channel)
 
-            rect_given = video_crop.rect
+           # rect_given = video_crop.rect
             
         return video_crop
             

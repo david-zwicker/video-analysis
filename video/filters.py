@@ -158,14 +158,23 @@ class FilterCrop(VideoFilterBase):
                 height //= 2
                 top = source_height - height
         
-        # create the rectangle and store it 
-        self.rect = (left, top, width, height)
-        self.slices = rect_to_slices(self.rect)
-        
+        # contract with parent crop filters, if they exist 
+        while isinstance(source, FilterCrop):
+            logging.debug('Combine this crop filter with the parent crop filter.')
+            left += source.rect[0]
+            top += source.rect[1]
+            if source.color_channel is not None:
+                color_channel = source.color_channel
+            source = source._source
+                     
         # extract color information
         self.color_channel = color_channel
         is_color = None if color_channel is None else False
-        
+
+        # create the rectangle and store it 
+        self.rect = (left, top, width, height)
+        self.slices = rect_to_slices(self.rect)
+
         # correct the size, since we are going to crop the movie
         super(FilterCrop, self).__init__(source, size=self.rect[2:], is_color=is_color)
         logging.debug('Created filter for cropping to rectangle %s', self.rect)

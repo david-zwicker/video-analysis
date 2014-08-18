@@ -74,8 +74,7 @@ class FirstPass(DataHandler):
         self.video = self.load_video()
         
         # ... and restrict to the region of interest (the cage)
-        region_specified = self.data['video/region_specified']
-        cropping_rect = self.crop_video_to_cage(region_specified)
+        self.video, cropping_rect = self.crop_video_to_cage()
         self.data['video/analyzed'].from_dict({'frame_count': self.video.frame_count,
                                                'region_cage': cropping_rect,
                                                'size': '%d x %d' % self.video.size,
@@ -249,47 +248,14 @@ class FirstPass(DataHandler):
         return corners_to_rect(p1, p2)
 
   
-    def crop_video_to_cage(self, user_crop):
+    def crop_video_to_cage(self):
         """ crops the video to a suitable cropping rectangle given by the cage """
         
-        # TODO: this should be rewritten, such that this function receives the 
-        # video which is already cropped to the region of interest
-        # this function then merely crops is further by applying an additional
-        # crop filter. We can then refactor FilterCrop to collapse nested
-        # FilterCrop for performance improvements
-         
-        if user_crop is None:
-            # use the full video
-            if self.video.is_color:
-                # restrict video to green channel if it is a color video
-                video_crop = FilterMonochrome(self.video, 1)
-            else:
-                video_crop = self.video
-                
-            rect_given = [0, 0, self.video.size[0], self.video.size[1]]
-
-        else: # user_crop is not None                
-            # restrict video to green channel if it is a color video
-            color_channel = 1 if self.video.is_color else None
-            
-            if isinstance(user_crop, str):
-                # crop according to the supplied string
-                video_crop = FilterCrop(self.video, quadrant=user_crop,
-                                        color_channel=color_channel)
-            else:
-                # crop to the given rect
-                video_crop = FilterCrop(self.video, rect=user_crop,
-                                        color_channel=color_channel)
-
-            rect_given = video_crop.rect
-        
         # find the cage in the first frame of the movie
-        blurred_image = FilterBlur(video_crop, self.params['video/blur_radius'])[0]
+        blurred_image = FilterBlur(self.video, self.params['video/blur_radius'])[0]
         rect_cage = self.find_cage(blurred_image)
         
         # determine the rectangle of the cage in global coordinates
-        left = rect_given[0] + rect_cage[0]
-        top = rect_given[1] + rect_cage[1]
         width = rect_cage[2] - rect_cage[2] % 2   # make sure its divisible by 2
         height = rect_cage[3] - rect_cage[3] % 2  # make sure its divisible by 2
         # Video dimensions should be divisible by two for some codecs
@@ -298,18 +264,12 @@ class FirstPass(DataHandler):
                 self.params['cage/height_min'] < height < self.params['cage/height_max']):
             raise RuntimeError('The cage bounding box (%dx%d) is out of the limits.' % (width, height)) 
         
-        cropping_rect = [left, top, width, height]
+        rect_cage = (rect_cage[0], rect_cage[1], width, height)
         
-        logging.debug('The cage was determined to lie in the rectangle %s', cropping_rect)
+        logging.debug('The cage was determined to lie in the rectangle %s', rect_cage)
 
         # crop the video to the cage region
-        if self.video.is_color:
-            # restrict video to green channel
-            self.video = FilterCrop(self.video, cropping_rect, color_channel=1)
-        else:
-            self.video = FilterCrop(self.video, cropping_rect)
-            
-        return cropping_rect
+        return FilterCrop(self.video, rect_cage), rect_cage
             
             
     #===========================================================================

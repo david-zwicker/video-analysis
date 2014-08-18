@@ -128,6 +128,11 @@ class VideoFileStack(VideoBase):
                                              fps=movie.fps, is_color=movie.is_color)
 
 
+    @property
+    def filecount(self):
+        return len(self._movies)
+    
+
     def get_movie_index(self, frame_index):
         """ returns the movie and local frame_index to which a certain frame belongs """
         
