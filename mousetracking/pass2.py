@@ -15,7 +15,7 @@ class SecondPass(DataHandler):
     def __init__(self, folder, prefix='', parameters=None):
         super(SecondPass, self).__init__(folder, prefix, parameters)
         self.params = self.data['parameters']
-        self.pass1 = self.data['pass1']        
+        #self.pass1 = self.data['pass1']        
 
 
     @classmethod

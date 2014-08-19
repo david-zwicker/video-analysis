@@ -98,6 +98,7 @@ class DataHandler(object):
 
         # initialize tracking parameters        
         self.data = Data()
+        self.data.create_child('parameters')
         self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
         if parameters is not None:
             self.data['parameters'].from_dict(parameters)
@@ -147,9 +148,9 @@ class DataHandler(object):
         # initialize video
         video_filename_pattern = self.data['parameters/video/filename_pattern']
         self.video = VideoFileStack(os.path.join(self.folder, video_filename_pattern))
-        self.data['video/raw'].from_dict({'frame_count': self.video.frame_count,
-                                          'size': '%d x %d' % self.video.size,
-                                          'fps': self.video.fps})
+        self.data.create_child('video/raw', {'frame_count': self.video.frame_count,
+                                             'size': '%d x %d' % self.video.size,
+                                             'fps': self.video.fps})
         try:
             self.data['video/raw/filecount'] = self.video.filecount
         except AttributeError:
@@ -305,7 +306,7 @@ class DataHandler(object):
        
         
 
-class Data(defaultdict):
+class Data(dict):
     """ special dictionary class representing nested dictionaries.
     This class allows easy access to nested properties using a single key:
     
@@ -323,7 +324,7 @@ class Data(defaultdict):
     sep = '/'
     
     def __init__(self, data=None):
-        super(Data, self).__init__(Data)
+        super(Data, self).__init__()
         if data is not None:
             self.from_dict(data)
     
@@ -342,7 +343,13 @@ class Data(defaultdict):
         
         if self.sep in key:
             parent, rest = key.split(self.sep, 1)
-            super(Data, self).__getitem__(parent)[rest] = value
+            try:
+                super(Data, self).__getitem__(parent)[rest] = value
+            except KeyError:
+                # create new child if it does not exists
+                child = Data()
+                child[rest] = value
+                self[parent] = child
         else:
             super(Data, self).__setitem__(key, value)
     
@@ -357,6 +364,11 @@ class Data(defaultdict):
             
     def __repr__(self):
         return 'Data(' + dict.__repr__(self) + ')'
+
+
+    def create_child(self, key, values=None):
+        """ creates a child dictionary and fills it with values """
+        self[key] = self.__class__(values)
 
 
     def copy(self):

@@ -53,6 +53,7 @@ class FirstPass(DataHandler):
         # initialize the data handler
         super(FirstPass, self).__init__(folder, prefix, parameters)
         self.params = self.data['parameters']
+        self.data.create_child('pass1')
         self.result = self.data['pass1'] 
         
         self.log_event('Started initializing the video analysis.')
@@ -73,10 +74,10 @@ class FirstPass(DataHandler):
         self.video = self.load_video()
         # ... and restrict to the region of interest (the cage)
         self.video, cropping_rect = self.crop_video_to_cage()
-        self.data['video/analyzed'].from_dict({'frame_count': self.video.frame_count,
-                                               'region_cage': cropping_rect,
-                                               'size': '%d x %d' % self.video.size,
-                                               'fps': self.video.fps})
+        self.data.create_child('video/analyzed', {'frame_count': self.video.frame_count,
+                                                  'region_cage': cropping_rect,
+                                                  'size': '%d x %d' % self.video.size,
+                                                  'fps': self.video.fps})
 
         # blur the video to reduce noise effects    
         self.video_blurred = FilterBlur(self.video, self.params['video/blur_radius'])
