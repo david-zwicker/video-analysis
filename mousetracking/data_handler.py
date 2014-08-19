@@ -6,6 +6,7 @@ Created on Aug 16, 2014
 
 from __future__ import division
 
+from collections import defaultdict
 import datetime
 import logging
 import itertools
@@ -18,7 +19,7 @@ import h5py
 from .burrow_finder import Burrow
 from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
-from video.utils import NestedDict, ensure_directory_exists, prepare_data_for_yaml
+from video.utils import ensure_directory_exists, prepare_data_for_yaml
 from video.analysis.curves import point_distance
 
 
@@ -79,236 +80,7 @@ PARAMETERS_DEFAULT = {
 }
 
 
-class DataHandler(object):
-    """ class that handles the data and parameters of mouse tracking """
 
-    def __init__(self, folder, prefix='', parameters=None, **kwargs):
-
-        # initialize tracking parameters        
-        self.data = NestedDict()
-        self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
-        if parameters is not None:
-            self.data['parameters'].from_dict(parameters)
-
-        # set extra parameters that were given
-        self.data['video/requested/frames'] = kwargs.get('frames', None)
-        self.data['video/requested/cropping_rect'] = kwargs.get('crop', None)
-            
-        # initialize additional properties
-        self.data['analysis-status'] = 'Initialized parameters'
-        self.folder = folder
-        self.prefix = prefix + '_' if prefix else ''
-        
-        #TODO check unused kwargs
-
-
-    def get_folder(self, folder):
-        """ makes sure that a folder exists and returns its path """
-        if folder == 'results':
-            folder = os.path.join(self.folder, 'results')
-        elif folder == 'debug':
-            folder = os.path.join(self.folder, 'debug')
-            
-        ensure_directory_exists(folder)
-        return folder
-
-
-    def get_filename(self, filename, folder=None):
-        """ returns a filename, optionally with a folder prepended """ 
-        filename = self.prefix + filename
-        
-        # check the folder
-        if folder is None:
-            return filename
-        else:
-            return os.path.join(self.get_folder(folder), filename)
-      
-
-    def log_event(self, description):
-        """ stores and/or outputs the time and date of the event given by name """
-        event = str(datetime.datetime.now()) + ': ' + description 
-        logging.info(event)
-        
-        # save the event in the result structure
-        if 'event_log' not in self.data:
-            self.data['event_log'] = []
-        self.data['event_log'].append(event)
-
-    
-    def load_video(self):
-        """ loads the video and applies a monochrome and cropping filter """
-        
-        # initialize video
-        video_filename_pattern = self.data['parameters/video/filename_pattern']
-        self.video = VideoFileStack(os.path.join(self.folder, video_filename_pattern))
-        self.data['video/raw'].from_dict({'frame_count': self.video.frame_count,
-                                          'size': '%d x %d' % self.video.size,
-                                          'fps': self.video.fps})
-        try:
-            self.data['video/raw/filecount'] = self.video.filecount
-        except AttributeError:
-            self.data['video/raw/filecount'] = 1
-        
-        # restrict the analysis to an interval of frames
-        frames = self.data['video/requested/frames']
-        if frames is not None:
-            self.video = self.video[frames[0]:frames[1]]
-        else:
-            frames = (0, self.video.frame_count)
-            
-        cropping_rect = self.data['video/requested/cropping_rect']         
-        if cropping_rect is None:
-            # use the full video
-            if self.video.is_color:
-                # restrict video to green channel if it is a color video
-                video_crop = FilterMonochrome(self.video, 'g')
-            else:
-                video_crop = self.video
-                
-        else: # user_crop is not None                
-            # restrict video to green channel if it is a color video
-            color_channel = 1 if self.video.is_color else None
-            
-            if isinstance(cropping_rect, str):
-                # crop according to the supplied string
-                video_crop = FilterCrop(self.video, quadrant=cropping_rect,
-                                        color_channel=color_channel)
-            else:
-                # crop to the given rect
-                video_crop = FilterCrop(self.video, rect=cropping_rect,
-                                        color_channel=color_channel)
-
-        return video_crop
-            
-            
-    def write_data(self):
-        """ writes the results to a file """
-
-        self.log_event('Started writing out all data.')
-
-        # prepare writing the data
-        main_result = self.data.copy()
-        hdf_name = self.get_filename('results.hdf5')
-        hdf_file = h5py.File(self.get_filename('results.hdf5', 'results'), 'w')
-        
-        def write_object_list(key):
-            """ helper function that writes a list of objects to HDF5.
-            If has_index is True, the first column of the array returned by calling
-            to_array() on each object serves as an index to distinguish the object.
-            """
-            # read column_names from the object
-            column_names = main_result[key][0].array_columns
-            index_columns = main_result[key][0].index_columns
-            
-            # turn the list of objects into a numpy array
-            if index_columns > 0:
-                # the first columns are enough to separate the data
-                result = [obj.to_array() for obj in main_result[key]]
-                
-            else:
-                # we have to add an extra index to separate the data later
-                result = []
-                for index, obj in enumerate(main_result[key]):
-                    data = obj.to_array()
-                    index_array = np.zeros((len(obj), 1), np.int) + index
-                    result.append(np.hstack((index_array, data)))
-                    
-                if column_names is not None:
-                    column_names = ['Automatic Index'] + column_names                    
-                
-            if len(result) > 0:
-                result = np.concatenate(result) 
-        
-            # write the numpy array to HDF5
-            logging.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
-            dataset = hdf_file.create_dataset(key, data=result)
-            if column_names is not None:
-                hdf_file[key].attrs['column_names'] = column_names
-            
-            # replace the original data with a reference to the HDF5 data
-            main_result[key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
-        
-        
-        # write large data to HDF5
-        write_object_list('pass1/ground/profile')
-        write_object_list('pass1/objects/tracks')
-        write_object_list('pass1/burrows/data')
-        
-        # write the main result file to YAML
-        filename = self.get_filename('results.yaml', 'results')
-        with open(filename, 'w') as outfile:
-            yaml.dump(prepare_data_for_yaml(main_result),
-                      outfile,
-                      default_flow_style=False,
-                      indent=4)        
-        
-    
-    def read_data(self):
-        """ read the data from result files """
-        
-        # read the main result file
-        filename = self.get_filename('results.yaml', 'results')
-        with open(filename, 'r') as infile:
-            data = yaml.load(infile)
-        
-        # copy the data into the internal data representation
-        self.data.from_dict(data)
-                    
-        def read_object_list(key, cls=tuple):
-            """ function that reads lists of objects from the linked HDF5 file """
-            # read the link
-            data_str = self.data[key]
-            hdf_filename, dataset = data_str.split(':')
-            
-            # open the associated HDF5 file
-            hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
-            hdf_file = h5py.File(hdf_filepath, 'r')
-            
-            # check whether the first column has been prepended automatically
-            if hdf_file[dataset].attrs['column_names'][0] == 'Automatic Index':
-                data_start = 1    #< data starts at first column
-                index_columns = 1 #< the first column is used as an index
-            else:
-                data_start = 0    #< all items are considered data 
-                try:
-                    # try to retrieve the length of the index
-                    index_columns = cls.index_columns
-                except AttributeError:
-                    # otherwise, it defaults to the first column
-                    index_columns = 1
-            
-            # iterate over the data and create objects from it
-            self.data[key] = []
-            index, obj_data = [], []
-            for line in hdf_file[dataset]:
-                if line[:index_columns] == index:
-                    # append object to the current track
-                    obj_data.append(line[data_start:])
-                else:
-                    # save the track and start a new one
-                    if obj_data:
-                        self.data[key].append(cls.from_array(obj_data))
-                    obj_data = [line[data_start:]]
-                    index = line[:index_columns]
-            
-            self.data[key].append(cls.from_array(obj_data))
-
-        read_object_list('pass1/ground/profile', GroundProfile)
-        read_object_list('pass1/objects/tracks', ObjectTrack)
-        read_object_list('pass1/burrows/data', Burrow)
-        
- 
-    #===========================================================================
-    # DATA ANALYSIS
-    #===========================================================================
-        
-    def mouse_underground(self, position):
-        """ checks whether the mouse is under ground """
-        ground_y = np.interp(position[0], self.ground[:, 0], self.ground[:, 1])
-        return position[1] - self.params['mouse.model_radius']/2 > ground_y
-
-
-       
 class Object(object):
     """ represents a single object by its position and size """
     __slots__ = ['pos', 'size'] #< save some memory
@@ -425,7 +197,308 @@ class GroundProfile(object):
         data = np.asarray(data)
         return cls(data[0, 0], data[1:, :])
         
+
+
+class DataHandler(object):
+    """ class that handles the data and parameters of mouse tracking """
+
+    LARGE_DATA = {'pass1/ground/profile': GroundProfile,
+                  'pass1/objects/tracks': ObjectTrack,
+                  'pass1/burrows/data': Burrow,}
+
+    def __init__(self, folder, prefix='', parameters=None, **kwargs):
+
+        # initialize tracking parameters        
+        self.data = Data()
+        self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
+        if parameters is not None:
+            self.data['parameters'].from_dict(parameters)
+
+        # set extra parameters that were given
+        self.data['video/requested/frames'] = kwargs.get('frames', None)
+        self.data['video/requested/cropping_rect'] = kwargs.get('crop', None)
+            
+        # initialize additional properties
+        self.data['analysis-status'] = 'Initialized parameters'
+        self.folder = folder
+        self.prefix = prefix + '_' if prefix else ''
+        
+        #TODO check unused kwargs
+
+
+    def get_folder(self, folder):
+        """ makes sure that a folder exists and returns its path """
+        if folder == 'results':
+            folder = os.path.join(self.folder, 'results')
+        elif folder == 'debug':
+            folder = os.path.join(self.folder, 'debug')
+            
+        ensure_directory_exists(folder)
+        return folder
+
+
+    def get_filename(self, filename, folder=None):
+        """ returns a filename, optionally with a folder prepended """ 
+        filename = self.prefix + filename
+        
+        # check the folder
+        if folder is None:
+            return filename
+        else:
+            return os.path.join(self.get_folder(folder), filename)
+      
+
+    def log_event(self, description):
+        """ stores and/or outputs the time and date of the event given by name """
+        event = str(datetime.datetime.now()) + ': ' + description 
+        logging.info(event)
+        
+        # save the event in the result structure
+        if 'event_log' not in self.data:
+            self.data['event_log'] = []
+        self.data['event_log'].append(event)
+
+    
+    def load_video(self):
+        """ loads the video and applies a monochrome and cropping filter """
+        
+        # initialize video
+        video_filename_pattern = self.data['parameters/video/filename_pattern']
+        self.video = VideoFileStack(os.path.join(self.folder, video_filename_pattern))
+        self.data['video/raw'].from_dict({'frame_count': self.video.frame_count,
+                                          'size': '%d x %d' % self.video.size,
+                                          'fps': self.video.fps})
+        try:
+            self.data['video/raw/filecount'] = self.video.filecount
+        except AttributeError:
+            self.data['video/raw/filecount'] = 1
+        
+        # restrict the analysis to an interval of frames
+        frames = self.data['video/requested/frames']
+        if frames is not None:
+            self.video = self.video[frames[0]:frames[1]]
+        else:
+            frames = (0, self.video.frame_count)
+            
+        cropping_rect = self.data['video/requested/cropping_rect']         
+        if cropping_rect is None:
+            # use the full video
+            if self.video.is_color:
+                # restrict video to green channel if it is a color video
+                video_crop = FilterMonochrome(self.video, 'g')
+            else:
+                video_crop = self.video
+                
+        else: # user_crop is not None                
+            # restrict video to green channel if it is a color video
+            color_channel = 1 if self.video.is_color else None
+            
+            if isinstance(cropping_rect, str):
+                # crop according to the supplied string
+                video_crop = FilterCrop(self.video, quadrant=cropping_rect,
+                                        color_channel=color_channel)
+            else:
+                # crop to the given rect
+                video_crop = FilterCrop(self.video, rect=cropping_rect,
+                                        color_channel=color_channel)
+
+        return video_crop
+            
+            
+    def write_data(self):
+        """ writes the results to a file """
+
+        self.log_event('Started writing out all data.')
+
+        # prepare writing the data
+        main_result = self.data.copy()
+        hdf_name = self.get_filename('results.hdf5')
+        hdf_file = h5py.File(self.get_filename('results.hdf5', 'results'), 'w')
+        
+        # write large data to HDF5
+        for key, cls in self.LARGE_DATA.iteritems():
+            # read column_names from the underlying class
+            column_names = cls.array_columns
+            
+            # turn the list of objects into a numpy array
+            if cls.index_columns > 0:
+                # the first columns are enough to separate the data
+                result = [obj.to_array() for obj in main_result[key]]
+                
+            else:
+                # we have to add an extra index to separate the data later
+                result = []
+                for index, obj in enumerate(main_result[key]):
+                    data = obj.to_array()
+                    index_array = np.zeros((len(obj), 1), np.int) + index
+                    result.append(np.hstack((index_array, data)))
+                    
+                if column_names is not None:
+                    column_names = ['Automatic Index'] + column_names                    
+                
+            if len(result) > 0:
+                result = np.concatenate(result) 
+        
+            # write the numpy array to HDF5
+            logging.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
+            dataset = hdf_file.create_dataset(key, data=result)
+            if column_names is not None:
+                hdf_file[key].attrs['column_names'] = column_names
+            
+            # replace the original data with a reference to the HDF5 data
+            main_result[key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
+        
+        
+        # write the main result file to YAML
+        filename = self.get_filename('results.yaml', 'results')
+        with open(filename, 'w') as outfile:
+            yaml.dump(prepare_data_for_yaml(main_result),
+                      outfile,
+                      default_flow_style=False,
+                      indent=4)        
+        
+    
+    def read_data(self):
+        """ read the data from result files """
+        
+        # read the main result file
+        filename = self.get_filename('results.yaml', 'results')
+        with open(filename, 'r') as infile:
+            data = yaml.load(infile)
+        
+        # copy the data into the internal data representation
+        self.data.from_dict(data)
+                    
+        for key, cls in self.LARGE_DATA.iteritems():
+            # read the link
+            data_str = self.data[key]
+            hdf_filename, dataset = data_str.split(':')
+            
+            # open the associated HDF5 file
+            hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
+            hdf_file = h5py.File(hdf_filepath, 'r')
+            
+            # check whether the first column has been prepended automatically
+            if hdf_file[dataset].attrs['column_names'][0] == 'Automatic Index':
+                data_start = 1    #< data starts at first column
+                index_columns = 1 #< the first column is used as an index
+            else:
+                data_start = 0    #< all items are considered data 
+                try:
+                    # try to retrieve the length of the index
+                    index_columns = cls.index_columns
+                except AttributeError:
+                    # otherwise, it defaults to the first column
+                    index_columns = 1
+            
+            # iterate over the data and create objects from it
+            self.data[key] = []
+            index, obj_data = [], []
+            for line in hdf_file[dataset]:
+                if line[:index_columns] == index:
+                    # append object to the current track
+                    obj_data.append(line[data_start:])
+                else:
+                    # save the track and start a new one
+                    if obj_data:
+                        self.data[key].append(cls.from_array(obj_data))
+                    obj_data = [line[data_start:]]
+                    index = line[:index_columns]
+            
+            self.data[key].append(cls.from_array(obj_data))
+
+ 
+    #===========================================================================
+    # DATA ANALYSIS
+    #===========================================================================
+        
+    def mouse_underground(self, position):
+        """ checks whether the mouse is under ground """
+        ground_y = np.interp(position[0], self.ground[:, 0], self.ground[:, 1])
+        return position[1] - self.params['mouse.model_radius']/2 > ground_y
+
+
        
+        
+
+class Data(defaultdict):
+    """ special dictionary class representing nested dictionaries.
+    This class allows easy access to nested properties using a single key:
+    
+    d = Data({'a': {'b': 1}})
+    
+    d['a/b']
+    >>>> 1
+    
+    d['c/d'] = 2
+    
+    d
+    >>>> {'a': {'b': 1}, 'c': {'d': 2}}
+    """
+    
+    sep = '/'
+    
+    def __init__(self, data=None):
+        super(Data, self).__init__(Data)
+        if data is not None:
+            self.from_dict(data)
+    
+    
+    def __getitem__(self, key):
+        if self.sep in key:
+            parent, rest = key.split(self.sep, 1)
+            return super(Data, self).__getitem__(parent)[rest]
+        else:
+            return super(Data, self).__getitem__(key)
+        
+        
+    def __setitem__(self, key, value):
+        if not isinstance(key, basestring):
+            raise KeyError('Keys have to be strings in Data.')
+        
+        if self.sep in key:
+            parent, rest = key.split(self.sep, 1)
+            super(Data, self).__getitem__(parent)[rest] = value
+        else:
+            super(Data, self).__setitem__(key, value)
+    
+    
+    def __delitem__(self, key):
+        if self.sep in key:
+            parent, rest = key.split(self.sep, 1)
+            del super(Data, self).__getitem__(parent)[rest]
+        else:
+            super(Data, self).__delattr__(key)
+           
+            
+#     def __repr__(self):
+#         return dict.__repr__(self)
+
+
+    def copy(self):
+        res = Data()
+        for key, value in self.iteritems():
+            if isinstance(value, dict):
+                value = value.copy()
+            res[key] = value
+        return res
+
+
+    def from_dict(self, data):
+        for key, value in data.iteritems():
+            if isinstance(value, dict):
+                self[key] = Data(value)
+            else:
+                self[key] = value
+
+            
+    def to_dict(self):
+        res = {}
+        for key, value in self.iteritems():
+            if isinstance(value, Data):
+                value = value.to_dict()
+            res[key] = value
+        return res
         
         
         

@@ -8,6 +8,7 @@ import numpy as np
 import cv2
 
 from .utils import get_color
+from .analysis.regions import rect_to_corners
 from .io.file import VideoFileWriter
 
 
@@ -104,8 +105,8 @@ class VideoComposer(VideoFileWriter):
     
     def add_rectangle(self, rect, color='w', width=1):
         """ add a rect=(top, left, height, width) to the frame """
-        cv2.rectangle(self.frame, rect[0, 1], rect[:2] + rect[2:],
-                      get_color(color), width)
+        cv2.rectangle(self.frame, *rect_to_corners(rect),
+                      color=get_color(color), thickness=width)
         
         
     def add_circle(self, pos, radius=2, color='w', thickness=-1):
@@ -156,7 +157,7 @@ class VideoComposerListener(VideoComposer):
     
     def __init__(self, filename, background, is_color=None, **kwargs):
         
-        self._background = background
+        self.background = background
         background.register_listener(self.set_frame)
         
         super(VideoComposerListener, self).__init__(filename, background.size,

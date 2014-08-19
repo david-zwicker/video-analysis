@@ -25,7 +25,8 @@ import cv2
 from video.io import ImageShow
 from video.filters import FilterBlur, FilterCrop
 from video.analysis.regions import (get_largest_region, find_bounding_box,
-                                    rect_to_slices, corners_to_rect)
+                                    rect_to_slices, corners_to_rect,
+                                    get_overlapping_slices)
 from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve
 from video.utils import display_progress
 from video.composer import VideoComposerListener, VideoComposer
@@ -54,16 +55,17 @@ class FirstPass(DataHandler):
         self.log_event('Started initializing the video analysis.')
         
         # setup internal structures that will be filled by analyzing the video
-        self.burrow_finder = BurrowFinder(self.params)
         self._cache = {}               # cache that some functions might want to use
         self.debug = {}                # dictionary holding debug information
         self.ground = None             # current model of the ground profile
         self.tracks = []               # list of plausible mouse models in current frame
         self._mouse_pos_estimate = []  # list of estimated mouse positions
         self.explored_area = None      # region the mouse has explored yet
+        self.burrows = []              # list of burrows found in the last frame
         self.frame_id = None           # id of the current frame
         self.result['mouse/has_moved'] = False
         self.debug_output = [] if debug_output is None else debug_output
+        self.burrow_finder = BurrowFinder(self.params, self.debug)
 
         # load the video ... 
         self.video = self.load_video()
@@ -80,7 +82,7 @@ class FirstPass(DataHandler):
         first_frame = self.video_blurred[0]
 
         # initialize the background model
-        self._background = np.array(first_frame, dtype=float)
+        self.background = np.array(first_frame, dtype=float)
 
         # estimate colors of sand and sky
         self.find_color_estimates(first_frame)
@@ -116,14 +118,14 @@ class FirstPass(DataHandler):
                     
                     # use the background to find the current ground profile and burrows
                     if self.frame_id % self.params['ground/adaptation_interval'] == 0:
-                        self.refine_ground(self._background)
+                        self.refine_ground(self.background)
                         ground = GroundProfile(self.frame_id, self.ground)
                         self.result['ground/profile'].append(ground)
             
                 if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
-                    burrows = self.burrow_finder.find_burrows(frame, self.frame_id,
-                                                              self.explored_area, self.ground)
-                    self.result['burrows/data'].extend(burrows)
+                    self.burrows = self.burrow_finder.find_burrows(self.frame_id, self.background,
+                                                                   self.explored_area, self.ground)
+                    self.result['burrows/data'].extend(self.burrows)
             
                 # update the background model
                 self.update_background_model(frame)
@@ -325,47 +327,7 @@ class FirstPass(DataHandler):
         logging.debug('The sand color was determined to be %d +- %d',
                       self.result['colors/sand'], self.result['colors/sand_std'])
         
-        
-    def _get_mouse_template_slices(self, pos, i_shape, t_shape):
-        """ calculates the slices necessary to compare a template to an image.
-        Here, we assume that the image is larger than the template.
-        pos refers to the center of the template
-        """
-        
-        # get dimensions to determine center position         
-        t_top  = t_shape[0]//2
-        t_left = t_shape[1]//2
-        pos = (pos[0] - t_left, pos[1] - t_top)
-
-        # get the dimensions of the overlapping region        
-        h = min(t_shape[0], i_shape[0] - pos[1])
-        w = min(t_shape[1], i_shape[1] - pos[0])
-        if h <= 0 or w <= 0:
-            raise RuntimeError('Template and image do not overlap')
-        
-        # get the leftmost point in both images
-        if pos[0] >= 0:
-            i_x, t_x = pos[0], 0
-        elif pos[0] <= -t_shape[1]:
-            raise RuntimeError('Template and image do not overlap')
-        else: # pos[0] < 0:
-            i_x, t_x = 0, -pos[0]
-            w += pos[0]
-            
-        # get the upper point in both images
-        if pos[1] >= 0:
-            i_y, t_y = pos[1], 0
-        elif pos[1] <= -t_shape[0]:
-            raise RuntimeError('Template and image do not overlap')
-        else: # pos[1] < 0:
-            i_y, t_y = 0, -pos[1]
-            h += pos[1]
-            
-        # build the slices used to extract the information
-        return ((slice(i_y, i_y + h), slice(i_x, i_x + w)),  # slice for the image
-                (slice(t_y, t_y + h), slice(t_x, t_x + w)))  # slice for the template
-    
-        
+                
     def update_background_model(self, frame):
         """ updates the background model using the current frame """
         
@@ -378,7 +340,7 @@ class FirstPass(DataHandler):
             # cut out holes from the mask for each mouse estimate
             for mouse_pos in self._mouse_pos_estimate:
                 # get the slices required for comparing the template to the image
-                i_s, t_s = self._get_mouse_template_slices(mouse_pos, frame.shape, template.shape)
+                i_s, t_s = get_overlapping_slices(mouse_pos, frame.shape, template.shape)
                 mask[i_s[0], i_s[1]] *= template[t_s[0], t_s[1]]
                 
         else:
@@ -386,9 +348,9 @@ class FirstPass(DataHandler):
             mask = 1
 
         # adapt the background to current frame, but only inside the mask 
-        self._background += (self.params['background/adaptation_rate']  # adaptation rate 
+        self.background += (self.params['background/adaptation_rate']  # adaptation rate 
                              *mask                                      # mask 
-                             *(frame - self._background))               # difference to current frame
+                             *(frame - self.background))               # difference to current frame
 
                         
     #===========================================================================
@@ -406,7 +368,7 @@ class FirstPass(DataHandler):
                         
         # calculate the difference to the current background model
         # Note that the first operand determines the dtype of the result.
-        diff = -self._background + frame 
+        diff = -self.background + frame 
         
         # find movement by comparing the difference to a threshold 
         mask_moving = (diff > self.params['mouse/intensity_threshold']*self.result['colors/sky_std'])
@@ -769,6 +731,10 @@ class FirstPass(DataHandler):
             debug_video.add_polygon(self.ground, is_closed=False, color='y')
             debug_video.add_points(self.ground, radius=2, color='y')
         
+            # indicate the burrow shapes
+            for burrow in self.burrows:
+                debug_video.add_polygon(burrow.outline, 'k', is_closed=False)
+        
             # indicate the mouse position
             if len(self.tracks) > 0:
                 for obj in self.tracks:
@@ -790,16 +756,18 @@ class FirstPass(DataHandler):
             debug_video.add_text('#objects:%d' % self.debug['object_count'], (120, 20), anchor='top')
             debug_video.add_text(self.debug['text1'], (300, 20), anchor='top')
             debug_video.add_text(self.debug['text2'], (300, 50), anchor='top')
+            if self.debug.get('rect1'):
+                debug_video.add_rectangle(self.debug['rect1'])
             
             if 'video.show' in self.debug:
                 self.debug['video.show'].show(debug_video.frame)
                 
         if 'difference.video' in self.debug:
-            diff = np.clip(frame.astype(int) - self._background + 128, 0, 255)
+            diff = np.clip(frame.astype(int) - self.background + 128, 0, 255)
             self.debug['difference.video'].write_frame(diff.astype(np.uint8))
                 
         if 'background.video' in self.debug:
-            self.debug['background.video'].write_frame(self._background)
+            self.debug['background.video'].write_frame(self.background)
 
         if 'explored_area.video' in self.debug:
             debug_video = self.debug['explored_area.video']

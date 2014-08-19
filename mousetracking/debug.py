@@ -6,6 +6,8 @@ Created on Aug 8, 2014
 
 from __future__ import division
 
+import math
+
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport
 
 
@@ -14,8 +16,16 @@ def show_image(*images, **kwargs):
     import matplotlib.pyplot as plt
 
     num_plots = len(images)
+    if num_plots <= 2:
+        num_rows = 1
+    elif num_plots <= 6:
+        num_rows = 2
+    else:
+        num_rows = 3
+    num_cols = int(math.ceil(num_plots/num_rows))
+    
     for k, image in enumerate(images):
-        plt.subplot(1, num_plots, k + 1)
+        plt.subplot(num_rows, num_cols, k + 1)
         plt.imshow(image, interpolation='none')
         plt.gray()
         

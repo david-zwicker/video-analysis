@@ -33,6 +33,52 @@ def rect_to_slices(rect):
     return slice_y, slice_x
 
 
+def get_overlapping_slices(t_pos, i_shape, t_shape, anchor='center'):
+    """ calculates slices to compare parts of two images with each other
+    i_shape is the shape of the larger image in which a smaller image of
+    shape t_shape will be placed.
+    Here, t_pos specifies the position of the smaller image in the large one.
+    """
+    
+    # get dimensions to determine center position         
+    t_top  = t_shape[0]//2
+    t_left = t_shape[1]//2
+    if anchor == 'center':
+        pos = (t_pos[0] - t_left, t_pos[1] - t_top)
+    elif anchor == 'upper left':
+        pos = t_pos
+    else:
+        raise ValueError('Unknown anchor point: %s' % anchor)
+
+    # get the dimensions of the overlapping region        
+    h = min(t_shape[0], i_shape[0] - pos[1])
+    w = min(t_shape[1], i_shape[1] - pos[0])
+    if h <= 0 or w <= 0:
+        raise RuntimeError('Template and image do not overlap')
+    
+    # get the leftmost point in both images
+    if pos[0] >= 0:
+        i_x, t_x = pos[0], 0
+    elif pos[0] <= -t_shape[1]:
+        raise RuntimeError('Template and image do not overlap')
+    else: # pos[0] < 0:
+        i_x, t_x = 0, -pos[0]
+        w += pos[0]
+        
+    # get the upper point in both images
+    if pos[1] >= 0:
+        i_y, t_y = pos[1], 0
+    elif pos[1] <= -t_shape[0]:
+        raise RuntimeError('Template and image do not overlap')
+    else: # pos[1] < 0:
+        i_y, t_y = 0, -pos[1]
+        h += pos[1]
+        
+    # build the slices used to extract the information
+    return ((slice(i_y, i_y + h), slice(i_x, i_x + w)),  # slice for the image
+            (slice(t_y, t_y + h), slice(t_x, t_x + w)))  # slice for the template
+
+
 def find_bounding_box(mask):
     """ finds the rectangle, which bounds a white region in a mask.
     The rectangle is returned as [left, top, width, height]

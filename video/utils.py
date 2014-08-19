@@ -6,7 +6,6 @@ Created on Aug 2, 2014
 
 from __future__ import division
 
-from collections import defaultdict
 import logging
 import os
 
@@ -114,83 +113,4 @@ get_color.converter = None
 
 
 
-class NestedDict(defaultdict):
-    """ special dictionary class representing nested dictionaries.
-    This class allows easy access to nested properties using a single key:
-    
-    d = NestedDict({'a': {'b': 1}})
-    
-    d['a/b']
-    >>>> 1
-    
-    d['c/d'] = 2
-    
-    d
-    >>>> {'a': {'b': 1}, 'c': {'d': 2}}
-    """
-    
-    sep = '/'
-    
-    def __init__(self, data=None):
-        super(NestedDict, self).__init__(NestedDict)
-        if data is not None:
-            self.from_dict(data)
-    
-    
-    def __getitem__(self, key):
-        if self.sep in key:
-            parent, rest = key.split(self.sep, 1)
-            return super(NestedDict, self).__getitem__(parent)[rest]
-        else:
-            return super(NestedDict, self).__getitem__(key)
-        
-        
-    def __setitem__(self, key, value):
-        if not isinstance(key, basestring):
-            raise KeyError('Keys have to be strings in NestedDict.')
-        
-        if self.sep in key:
-            parent, rest = key.split(self.sep, 1)
-            super(NestedDict, self).__getitem__(parent)[rest] = value
-        else:
-            super(NestedDict, self).__setitem__(key, value)
-    
-    
-    def __delitem__(self, key):
-        if self.sep in key:
-            parent, rest = key.split(self.sep, 1)
-            del super(NestedDict, self).__getitem__(parent)[rest]
-        else:
-            super(NestedDict, self).__delattr__(key)
-           
-            
-#     def __repr__(self):
-#         return dict.__repr__(self)
-
-
-    def copy(self):
-        res = NestedDict()
-        for key, value in self.iteritems():
-            if isinstance(value, dict):
-                value = value.copy()
-            res[key] = value
-        return res
-
-
-    def from_dict(self, data):
-        for key, value in data.iteritems():
-            if isinstance(value, dict):
-                self[key] = NestedDict(value)
-            else:
-                self[key] = value
-
-            
-    def to_dict(self):
-        res = {}
-        for key, value in self.iteritems():
-            if isinstance(value, NestedDict):
-                value = value.to_dict()
-            res[key] = value
-        return res
-        
     

@@ -10,7 +10,7 @@ import numpy as np
 import cv2
 
 from video.analysis.curves import make_curve_equidistant, simplify_curve
-from video.analysis.regions import expand_rectangle, rect_to_slices
+from video.analysis.regions import expand_rectangle, rect_to_slices, get_overlapping_slices
 
 import debug
 
@@ -21,9 +21,9 @@ class BurrowFinder(object):
     the logic should separated from the main run
     """
     
-    def __init__(self, tracking_parameters):
+    def __init__(self, tracking_parameters, debug=None):
         self.params = tracking_parameters
-        
+        self.debug = {} if debug is None else debug
                     
     #===========================================================================
     # FIND BURROWS 
@@ -40,13 +40,13 @@ class BurrowFinder(object):
         return points
 
 
-    def find_burrows(self, frame, frame_id, explored_area, ground_profile):
+    def find_burrows(self, frame_id, frame, explored_area, ground_profile):
         """ locates burrows by combining the information of the ground profile
         and the explored area """
         
         # build a mask with potential burrows
         height, width = frame.shape
-        ground_mask = np.zeros_like(frame, np.uint8)
+        ground = np.zeros_like(frame, np.uint8)
         
         # create a mask for the region below the current ground profile
         ground_points = np.empty((len(ground_profile) + 4, 2), np.int)
@@ -55,26 +55,33 @@ class BurrowFinder(object):
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
         ground_points[-1, :] = (0, ground_points[0, 1])
-        #ground_contour = np.array([ground_points], np.int)
-        cv2.fillPoly(ground_mask, np.array([ground_points], np.int), color=128)
+        cv2.fillPoly(ground, np.array([ground_points], np.int), color=128)
 
         # erode the mask slightly, since the ground profile is not perfect        
         w = self.params['ground/width'] + self.params['mouse/model_radius']
-        # TODO: cache this kernel
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
-        cv2.erode(ground_mask, kernel, dst=ground_mask)
+        ground_mask = cv2.erode(ground, kernel)#, dst=ground_mask)
         
         w = self.params['burrows/radius']
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
-        cv2.morphologyEx(explored_area, cv2.MORPH_CLOSE, kernel, dst=explored_area)
+        potential_burrows = cv2.morphologyEx(explored_area, cv2.MORPH_CLOSE, kernel)
+        
+        # remove accidental burrows at borders
+        potential_burrows[: 30, :] = 0
+        potential_burrows[-30:, :] = 0
+        potential_burrows[:, : 30] = 0
+        potential_burrows[:, -30:] = 0
 
         # combine with the information of what areas have been explored
-        burrows_mask = cv2.bitwise_and(ground_mask, explored_area)
+        burrows_mask = cv2.bitwise_and(ground_mask, potential_burrows)
         
-        # find the contours of the features
-        contours, hierarchy = cv2.findContours(burrows_mask.copy(), # we want to use the mask later again
-                                               cv2.RETR_EXTERNAL,
-                                               cv2.CHAIN_APPROX_SIMPLE)
+        if burrows_mask.sum() == 0:
+            contours = []
+        else:
+            # find the contours of the features
+            contours, hierarchy = cv2.findContours(burrows_mask.copy(), # we want to use the mask later again
+                                                   cv2.RETR_EXTERNAL,
+                                                   cv2.CHAIN_APPROX_SIMPLE)
         
         burrows = []
         for contour in np.array(contours, np.int):
@@ -82,26 +89,39 @@ class BurrowFinder(object):
             rect = cv2.boundingRect(contour)
             rect = expand_rectangle(rect, 30)
             
+            self.debug['video'].add_rectangle(rect)
+            
             # focus on this part of the problem
+            #slices, _ = get_overlapping_slices(rect[:2], frame.shape,
+#                                                (rect[3], rect[2]), anchor='upper left')
+            
             slices = rect_to_slices(rect)
-#             ground_mask_roi = ground_mask[slices]
-#             burrow_mask = burrows_mask[slices]
-            frame_roi = frame[slices]
+            ground_roi = ground[slices]
+            burrow_mask = cv2.bitwise_and(ground[slices], potential_burrows[slices])
+            #burrow_mask = cv2.morphologyEx(explored_area[], cv2.MORPH_CLOSE, kernel)
+
+            #burrow_mask = burrows_mask[slices]
+            frame_roi = frame[slices].astype(np.uint8)
             contour = np.squeeze(contour) - np.array([[rect[0], rect[1]]], np.int)
 
             # find the combined contour of burrow and ground profile
-#             combined_mask = cv2.bitwise_xor(burrow_mask, ground_mask_roi)
-            _, mask = cv2.threshold(frame_roi, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            mask = cv2.bitwise_xor(burrow_mask, ground_roi)
+#             _, mask = cv2.threshold(frame_roi, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            
+            #debug.show_image(frame_roi, ground_roi, burrow_mask, mask)
+            
             points, hierarchy = cv2.findContours(mask,
                                                  cv2.RETR_EXTERNAL,
                                                  cv2.CHAIN_APPROX_SIMPLE)
             
             
+            #debug.show_image(frame_roi, burrows_mask[slices])
+            
             assert len(points) == 1
-            points = points[0]
+            points = np.squeeze(points[0])
             
             # simplify the curve
-            epsilon = 0.02*cv2.arcLength(points, True)
+            epsilon = 0.001*cv2.arcLength(points, True)
             points = cv2.approxPolyDP(points, epsilon, True)
             points = points[:, 0, :]
 
@@ -111,7 +131,6 @@ class BurrowFinder(object):
             for k, p in enumerate(points):
                 if p[0] == 1 or p[1] == 1 or p[0] == roi_w - 2 or p[1] == roi_h - 2:
                     free_points[k] = False
-                    
             
             burrow = Burrow(points, image=frame_roi)
             outline = self.refine_burrow_outline(burrow, free_points)
@@ -119,10 +138,12 @@ class BurrowFinder(object):
             outline = [(p[0] + rect[0], p[1] + rect[1])
                        for p in outline]
             
-            burrows.append(Burrow(outline, time=frame_id))
+            if len(outline) > 0:
+                burrows.append(Burrow(outline, time=frame_id))
             
         return burrows
                          
+
 
 class Burrow(object):
     """ represents a single burrow to compare it against an image in fitting """
@@ -180,6 +201,7 @@ class Burrow(object):
     
     def to_array(self):
         """ converts the internal representation to a single array """
+        self.outline = np.asarray(self.outline)
         time_array = np.zeros((len(self.outline), 1), np.int) + self.time
         return np.hstack((time_array, self.outline))
 

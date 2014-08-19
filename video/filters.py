@@ -265,7 +265,7 @@ class FilterBackground(VideoFilterBase):
     """ filter that filters out the background of a video """
     
     def __init__(self, source, timescale=128):
-        self._background = None
+        self.background = None
         self.timescale = timescale
         super(FilterBackground, self).__init__(source)
     
@@ -274,11 +274,11 @@ class FilterBackground(VideoFilterBase):
         # adapt the current background model
         # Here, the cut-off sets the relaxation time scale
         #diff_max = 128/self.background_history
-        #self._background += np.clip(diff, -diff_max, diff_max)
-        self._background = np.minimum(self._background, frame)
+        #self.background += np.clip(diff, -diff_max, diff_max)
+        self.background = np.minimum(self.background, frame)
 
         # pass the frame to the parent function
-        return super(FilterBackground, self)._process_frame(self._background)
+        return super(FilterBackground, self)._process_frame(self.background)
     
     
     
