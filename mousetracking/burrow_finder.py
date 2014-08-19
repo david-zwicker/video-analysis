@@ -106,33 +106,34 @@ class BurrowFinder(object):
 #             _, mask = cv2.threshold(frame_roi, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             
             #debug.show_image(frame_roi, ground_roi, burrow_mask, mask)
+
+            #debug.show_image(frame_roi, burrow_mask, ground_roi, mask)
             
             points, hierarchy = cv2.findContours(mask,
                                                  cv2.RETR_EXTERNAL,
                                                  cv2.CHAIN_APPROX_SIMPLE)
             
-            assert len(points) == 1
-            
-            # simplify the curve
-            epsilon = 0.001*cv2.arcLength(points[0], True)
-            points = cv2.approxPolyDP(points[0], epsilon, True)
-            points = points[:, 0, :]
-
-            # identify points that are free to be modified in the fitting
-            free_points = np.ones(len(points), np.bool)
-            roi_h, roi_w = mask.shape
-            for k, p in enumerate(points):
-                if p[0] == 1 or p[1] == 1 or p[0] == roi_w - 2 or p[1] == roi_h - 2:
-                    free_points[k] = False
-            
-            burrow = Burrow(points, image=frame_roi)
-            outline = self.refine_burrow_outline(burrow, free_points)
-            
-            outline = [(p[0] + rect[0], p[1] + rect[1])
-                       for p in outline]
-            
-            if len(outline) > 0:
-                burrows.append(Burrow(outline, time=frame_id))
+            if len(points) == 1:
+                # simplify the curve
+                epsilon = 0.001*cv2.arcLength(points[0], True)
+                points = cv2.approxPolyDP(points[0], epsilon, True)
+                points = points[:, 0, :]
+    
+                # identify points that are free to be modified in the fitting
+                free_points = np.ones(len(points), np.bool)
+                roi_h, roi_w = mask.shape
+                for k, p in enumerate(points):
+                    if p[0] == 1 or p[1] == 1 or p[0] == roi_w - 2 or p[1] == roi_h - 2:
+                        free_points[k] = False
+                
+                burrow = Burrow(points, image=frame_roi)
+                outline = self.refine_burrow_outline(burrow, free_points)
+                
+                outline = [(p[0] + rect[0], p[1] + rect[1])
+                           for p in outline]
+                
+                if len(outline) > 0:
+                    burrows.append(Burrow(outline, time=frame_id))
             
         return burrows
                          
