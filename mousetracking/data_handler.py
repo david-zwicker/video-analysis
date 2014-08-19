@@ -9,18 +9,16 @@ from __future__ import division
 from collections import defaultdict
 import datetime
 import logging
-import itertools
 import os
 
 import numpy as np
 import yaml
 import h5py
 
-from .burrow_finder import Burrow
+from .mouse_objects import ObjectTrack, GroundProfile, Burrow
 from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists, prepare_data_for_yaml
-from video.analysis.curves import point_distance
 
 
 PARAMETERS_DEFAULT = {
@@ -47,6 +45,7 @@ PARAMETERS_DEFAULT = {
                                
     # determines the rate with which the background is adapted [in 1/frames]
     'background/adaptation_rate': 0.01,
+    'explored_area/adaptation_rate': 1e-4,
     
     # spacing of the points in the ground profile [in pixel]
     'ground/point_spacing': 20,
@@ -86,126 +85,6 @@ PARAMETERS_DEFAULT = {
     'burrows/outline_simplification_threshold': 0.005,
 }
 
-
-
-class Object(object):
-    """ represents a single object by its position and size """
-    __slots__ = ['pos', 'size', 'label'] #< save some memory
-    
-    def __init__(self, pos, size, label=None):
-        self.pos = (int(pos[0]), int(pos[1]))
-        self.size = size
-        self.label = label
-
-
-
-class ObjectTrack(object):
-    """ represents a time course of objects """
-    # TODO: hold everything inside lists, not list of objects
-    # TODO: speed up by keeping track of velocity vectors
-    
-    array_columns = ['Frame ID', 'Position X', 'Position Y', 'Object Area']
-    index_columns = 0
-    
-    def __init__(self, time=None, obj=None, moving_window=20, moving_threshold=10):
-        self.times = [] if time is None else [time]
-        self.objects = [] if obj is None else [obj]
-        self.moving_window = moving_window
-        self.moving_threshold = moving_threshold*moving_window
-        
-    def __repr__(self):
-        if len(self.times) == 0:
-            return 'ObjectTrack([])'
-        elif len(self.times) == 1:
-            return 'ObjectTrack(time=%d)' % (self.times[0])
-        else:
-            return 'ObjectTrack(time=%d..%d)' % (self.times[0], self.times[-1])
-        
-    def __len__(self):
-        return len(self.times)
-    
-    @property
-    def last_pos(self):
-        """ return the last position of the object """
-        return self.objects[-1].pos
-    
-    @property
-    def last_size(self):
-        """ return the last size of the object """
-        return self.objects[-1].size
-    
-    def predict_pos(self):
-        """ predict the position in the next frame.
-        It turned out that setting the current position is the best predictor.
-        This is because mice are often stationary (especially in complicated
-        tracking situations, like inside burrows). Additionally, when mice
-        throw out dirt, there are frames, where dirt + mouse are considered 
-        being one object, which moves the center of mass in direction of the
-        dirt. If in the next frame two objects are found, than it is likely
-        that the dirt would be seen as the mouse, if we'd predict the position
-        based on the continuation of the previous movement
-        """
-        return self.objects[-1].pos
-        
-    def get_track(self):
-        """ return a list of positions over time """
-        return [obj.pos for obj in self.objects]
-
-    def append(self, time, obj):
-        """ append a new object with a time code """
-        self.times.append(time)
-        self.objects.append(obj)
-        
-    def is_moving(self):
-        """ return if the object has moved in the last frames """
-        pos = self.objects[-1].pos
-        dist = sum(point_distance(pos, obj.pos)
-                   for obj in self.objects[-self.moving_window:])
-        return dist > self.moving_threshold
-    
-    def to_array(self):
-        """ converts the internal representation to a single array
-        useful for storing the data """
-        return np.array([(time, obj.pos[0], obj.pos[1], obj.size)
-                         for time, obj in itertools.izip(self.times, self.objects)],
-                        dtype=np.int32)
-
-    @classmethod
-    def from_array(cls, data):
-        """ constructs an object from an array previously created by to_array() """
-        res = cls()
-        res.times = [d[0] for d in data]
-        res.objects = [Object(pos=(d[1], d[2]), size=d[3]) for d in data]
-        return res
-
-
-
-class GroundProfile(object):
-    """ dummy class representing a single ground profile at a certain point
-    in time """
-    
-    array_columns = ['Time', 'Position X', 'Position Y']
-    index_columns = 1
-    
-    def __init__(self, time, points):
-        self.time = time
-        self.points = points
-        
-    def __repr__(self):
-        return 'GroundProfile(time=%d, %d points)' % (self.time, len(self.points))
-        
-    def to_array(self):
-        """ converts the internal representation to a single array
-        useful for storing the data """
-        time_array = np.zeros((len(self.points), 1), np.int32) + self.time
-        return np.hstack((time_array, self.points))
-
-    @classmethod
-    def from_array(cls, data):
-        """ constructs an object from an array previously created by to_array() """
-        data = np.asarray(data)
-        return cls(data[0, 0], data[1:, :])
-        
 
 
 class DataHandler(object):
@@ -355,7 +234,7 @@ class DataHandler(object):
                     hdf_file[key].attrs['column_names'] = column_names
                 
                 # replace the original data with a reference to the HDF5 data
-                main_result[key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
+                main_result[key] = '@%s:%s' % (hdf_name, dataset.name.encode('ascii', 'replace'))
                 
             else:
                 main_result[key] = []
@@ -382,7 +261,7 @@ class DataHandler(object):
                     
         for key, cls in self.LARGE_DATA.iteritems():
             # read the link
-            data_str = self.data[key]
+            data_str = self.data[key][1:] # the first character should be an @
             hdf_filename, dataset = data_str.split(':')
             
             # open the associated HDF5 file

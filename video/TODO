@@ -7,14 +7,18 @@
 * Build collection of extracts from movies which are hard to analyze (use this for semi-automatic testing)
 * Write script to be able to easily extract problematic parts of the video and save them in a separate file 
 * Add better anchoring support to writing text to movies
-* Explored area should degrade over time (with a very slow time scale)
-	- maybe not with time, but with the information we gain (i.e. explored area should only be above ground and inside burrows
-	- we need burrow fitting for this to make sense, i.e. for burrows to be able to shrink, too
 * Lazy-load the extra data in a NestedDict 
 * Distinguish between debug and release runs:
 	- different default level of output
 	- different logging behavior (log to file for release run!)
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
+* Burrows should be fitted to background frame
+	- burrows should only be initialized with explored area, otherwise, we don't really care
+	- burrows might only need an update if the mouse (i.e. its explored area) is close
+	- here we should make sure that the explored area is always inside burrows
+	- burrows thus might potentially be extended to accommodate the mouse  
+* Burrow outlines should be stored as shapely objects, such that we can quickly decide whether the mouse
+	is close to the burrow or not 
 
 Performance improvements:
 -------------------------

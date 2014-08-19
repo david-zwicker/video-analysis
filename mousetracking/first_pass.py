@@ -20,20 +20,21 @@ import numpy as np
 import scipy.ndimage as ndimage
 from scipy.optimize import leastsq
 from scipy.spatial import distance
+import shapely.geometry as geometry
 import cv2
 
 from video.io import ImageShow
 from video.filters import FilterBlur, FilterCrop
 from video.analysis.regions import (get_largest_region, find_bounding_box,
                                     rect_to_slices, corners_to_rect,
-                                    get_overlapping_slices)
+                                    get_overlapping_slices, expand_rectangle)
 from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve
 from video.utils import display_progress
 from video.composer import VideoComposerListener, VideoComposer
 
 
 from .data_handler import DataHandler, ObjectTrack, Object, GroundProfile
-from .burrow_finder import BurrowFinder
+from .mouse_objects import Burrow, RidgeProfile
 
 import debug
 
@@ -59,17 +60,15 @@ class FirstPass(DataHandler):
         self.debug = {}                # dictionary holding debug information
         self.ground = None             # current model of the ground profile
         self.tracks = []               # list of plausible mouse models in current frame
+        self.burrows = []              # list of all the burrows
         self._mouse_pos_estimate = []  # list of estimated mouse positions
         self.explored_area = None      # region the mouse has explored yet
-        self.burrows = []              # list of burrows found in the last frame
         self.frame_id = None           # id of the current frame
         self.result['mouse/has_moved'] = False
         self.debug_output = [] if debug_output is None else debug_output
-        self.burrow_finder = BurrowFinder(self.params, self.debug)
-
+        
         # load the video ... 
         self.video = self.load_video()
-        
         # ... and restrict to the region of interest (the cage)
         self.video, cropping_rect = self.crop_video_to_cage()
         self.data['video/analyzed'].from_dict({'frame_count': self.video.frame_count,
@@ -123,8 +122,7 @@ class FirstPass(DataHandler):
                         self.result['ground/profile'].append(ground)
             
                 if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
-                    self.burrows = self.burrow_finder.find_burrows(self.frame_id, self.background,
-                                                                   self.explored_area, self.ground)
+                    self.burrows = self.find_burrows(frame)
                     self.result['burrows/data'].extend(self.burrows)
             
                 # update the background model
@@ -193,7 +191,7 @@ class FirstPass(DataHandler):
         
         # setup more cache variables
         video_shape = (self.video.size[1], self.video.size[0]) 
-        self.explored_area = np.zeros(video_shape, np.uint8)
+        self.explored_area = np.zeros(video_shape, np.double)
         self._cache['background.mask'] = np.ones(video_shape, np.double)
         
             
@@ -504,8 +502,14 @@ class FirstPass(DataHandler):
     
     def update_explored_area(self, tracks, labels, num_features):
         """ update the explored area using the found objects """
+        
+        # degrade old information
+        self.explored_area -= self.params['explored_area/adaptation_rate']
+        self.explored_area[self.explored_area < 0] = 0
+        
+        # add new information
         for track in self.tracks:
-            self.explored_area[labels == track.objects[-1].label] = 255
+            self.explored_area[labels == track.objects[-1].label] = 1
 
     
     def find_objects(self, frame):
@@ -687,6 +691,164 @@ class FirstPass(DataHandler):
         logging.info('We found a ground profile of length %g after %d iterations',
                      curve_length(self.ground), iterations)
         
+        
+    #===========================================================================
+    # FINDING BURROWS
+    #===========================================================================
+   
+    
+    def refine_burrow_outline(self, burrow, offset):
+        """ takes a single burrow and refines its outline """
+
+        # identify points that are free to be modified in the fitting
+        ground = geometry.LineString(np.array(self.ground, np.double))
+        roi_h, roi_w = burrow.image.shape
+
+        # move points close to the ground profile on top of it
+        in_burrow = False
+        outline = []
+        last_point = None
+        for p in burrow.outline:
+            # get the point in global coordinates
+            point = geometry.Point((p[0] + offset[0], p[1] + offset[1]))
+
+            if p[0] == 1 or p[1] == 1 or p[0] == roi_w - 2 or p[1] == roi_h - 2:
+                # points at the boundary are definitely outside the burrow
+                point_outside = True
+                
+            elif point.distance(ground) < self.params['burrows/radius']:
+                # points close to the ground profile are outside
+                point_outside = True
+                # we also move these points onto the ground profile
+                # see http://stackoverflow.com/a/24440122/932593
+                point_new = ground.interpolate(ground.project(point))
+                p = (point_new.x - offset[0], point_new.y - offset[1])
+                
+            else:
+                point_outside = False
+            
+            if point_outside:
+                # current point is a point outside the burrow
+                if in_burrow:
+                    # if we currently reaping, add this point and exit
+                    outline.append(p)
+                    break
+                # otherwise save the point, since we might need it in the next iteration
+                last_point = p
+                    
+            else:
+                # current point is inside the burrow
+                if not in_burrow:
+                    # start reaping points
+                    in_burrow = True
+                    if last_point is not None:
+                        outline = [last_point]
+                # definitely add this point
+                outline.append(p)
+                
+        if not outline:
+            # return immediately if we didn't find any burrow shape
+            return []
+                
+        # simplify the burrow outline
+        outline = geometry.LineString(np.array(outline, np.double))
+        tolerance = self.params['burrows/outline_simplification_threshold'] * outline.length
+        outline = outline.simplify(tolerance, preserve_topology=False)
+        burrow.outline = list(outline.coords)                
+        
+        # adjust the outline until it explains the burrow best 
+        
+        
+        # return the burrow outline in global coordinates
+        points = [(p[0] + offset[0], p[1] + offset[1]) for p in burrow.outline]
+        
+        return points
+
+
+    def find_burrows(self, frame):
+        """ locates burrows by combining the information of the ground profile
+        and the explored area """
+        
+        # build a mask with potential burrows
+        height, width = frame.shape
+        ground = np.zeros_like(frame, np.uint8)
+        
+        # create a mask for the region below the current ground profile
+        ground_points = np.empty((len(self.ground) + 4, 2), np.int32)
+        ground_points[:-4, :] = self.ground
+        ground_points[-4, :] = (width, ground_points[-5, 1])
+        ground_points[-3, :] = (width, height)
+        ground_points[-2, :] = (0, height)
+        ground_points[-1, :] = (0, ground_points[0, 1])
+        cv2.fillPoly(ground, np.array([ground_points], np.int32), color=128)
+
+        # erode the mask slightly, since the ground profile is not perfect        
+        w = 2*self.params['mouse/model_radius']
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
+        ground_mask = cv2.erode(ground, kernel)#, dst=ground_mask)
+        
+        w = self.params['burrows/radius']
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
+        explored_area = 255*(self.explored_area >= self.params['explored_area/adaptation_rate'])
+        potential_burrows = cv2.morphologyEx(explored_area.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
+        
+        # remove accidental burrows at borders
+        potential_burrows[: 30, :] = 0
+        potential_burrows[-30:, :] = 0
+        potential_burrows[:, : 30] = 0
+        potential_burrows[:, -30:] = 0
+
+        # combine with the information of what areas have been explored
+        burrows_mask = cv2.bitwise_and(ground_mask, potential_burrows)
+        
+        if burrows_mask.sum() == 0:
+            contours = []
+        else:
+            # find the contours of the features
+            contours, _ = cv2.findContours(burrows_mask.copy(), # copy, because we use it later again
+                                           cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE)
+        
+        burrows = []
+        for contour in contours:
+            contour = np.array(contour, np.int32) 
+
+            # get enclosing rectangle
+            rect = cv2.boundingRect(contour)
+            burrow_fitting_margin = self.params['burrows/fitting_margin']
+            rect = expand_rectangle(rect, burrow_fitting_margin)
+
+            # focus on this part of the problem            
+            slices = rect_to_slices(rect)
+            ground_roi = ground[slices]
+            burrow_mask = cv2.bitwise_and(ground[slices], potential_burrows[slices])
+            #burrow_mask = cv2.morphologyEx(explored_area[], cv2.MORPH_CLOSE, kernel)
+
+            #burrow_mask = burrows_mask[slices]
+            frame_roi = frame[slices].astype(np.uint8)
+            contour = np.squeeze(contour) - np.array([[rect[0], rect[1]]], np.int32)
+
+            # find the combined contour of burrow and ground profile
+            mask = cv2.bitwise_xor(burrow_mask, ground_roi)
+            
+            points, _ = cv2.findContours(mask,
+                                         cv2.RETR_EXTERNAL,
+                                         cv2.CHAIN_APPROX_SIMPLE)
+            
+            if len(points) == 1:
+                # define the burrow and refine its outline
+                burrow = Burrow(np.squeeze(points), image=frame_roi)
+                outline = self.refine_burrow_outline(burrow, (rect[0], rect[1]))
+                
+                if len(outline) > 0:
+                    burrows.append(Burrow(outline, time=self.frame_id))
+                    
+            else:
+                logging.warn('We found multiple potential burrows in a small region. '
+                             'This part will not be analyzed.')
+            
+        return burrows
+                                 
 
     #===========================================================================
     # DEBUGGING
@@ -794,46 +956,3 @@ class FirstPass(DataHandler):
         cv2.destroyAllWindows()
             
     
-    
-class RidgeProfile(object):
-    """ represents a ridge profile to compare it against an image in fitting """
-    
-    def __init__(self, size, profile_width=1):
-        """ initialize the structure
-        size is half the width of the region of interest
-        profile_width determines the blurriness of the ridge
-        """
-        self.size = size
-        self.ys, self.xs = np.ogrid[-size:size+1, -size:size+1]
-        self.width = profile_width
-        self.image = None
-        
-        
-    def set_data(self, image, angle):
-        """ sets initial data used for fitting
-        image denotes the data we compare the model to
-        angle defines the direction perpendicular to the profile 
-        """
-        
-        self.image = image - image.mean()
-        self.image_std = image.std()
-        self._sina = np.sin(angle)
-        self._cosa = np.cos(angle)
-        
-        
-    def get_difference(self, distance):
-        """ calculates the difference between image and model, when the 
-        model is moved by a certain distance in its normal direction """ 
-        # determine center point
-        px =  distance*self._cosa
-        py = -distance*self._sina
-        
-        # determine the distance from the ridge line
-        dist = (self.ys - py)*self._sina - (self.xs - px)*self._cosa
-        
-        # apply sigmoidal function
-        model = np.tanh(dist/self.width)
-     
-        return np.ravel(self.image - 1.5*self.image_std*model)
-
-
