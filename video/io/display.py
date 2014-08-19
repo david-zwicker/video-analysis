@@ -107,12 +107,18 @@ class ImageShow(object):
                 raise KeyboardInterrupt
         
         
-    def __del__(self):
-        if self._proc:
+    def close(self):
+        if self._proc is not None:
             # shut down the process
             self._pipe.send('close')
             self._proc.join()
             self._pipe.close()
+            self._proc = None
+            
         else:
             # delete the opencv window
             cv2.destroyWindow(self.title)
+
+
+    def __del__(self):
+        self.close()

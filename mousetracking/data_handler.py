@@ -94,24 +94,18 @@ class DataHandler(object):
                   'pass1/objects/tracks': ObjectTrack,
                   'pass1/burrows/data': Burrow,}
 
-    def __init__(self, folder, prefix='', parameters=None, **kwargs):
+    def __init__(self, folder, prefix='', parameters=None):
 
         # initialize tracking parameters        
         self.data = Data()
         self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
         if parameters is not None:
             self.data['parameters'].from_dict(parameters)
-
-        # set extra parameters that were given
-        self.data['video/requested/frames'] = kwargs.get('frames', None)
-        self.data['video/requested/cropping_rect'] = kwargs.get('crop', None)
             
         # initialize additional properties
         self.data['analysis-status'] = 'Initialized parameters'
         self.folder = folder
         self.prefix = prefix + '_' if prefix else ''
-        
-        #TODO check unused kwargs
 
 
     def get_folder(self, folder):
@@ -162,13 +156,13 @@ class DataHandler(object):
             self.data['video/raw/filecount'] = 1
         
         # restrict the analysis to an interval of frames
-        frames = self.data['video/requested/frames']
+        frames = self.data['parameters/video/frames']
         if frames is not None:
             self.video = self.video[frames[0]:frames[1]]
         else:
             frames = (0, self.video.frame_count)
             
-        cropping_rect = self.data['video/requested/cropping_rect']         
+        cropping_rect = self.data['parameters/video/cropping_rect']         
         if cropping_rect is None:
             # use the full video
             if self.video.is_color:
@@ -366,6 +360,7 @@ class Data(defaultdict):
 
 
     def copy(self):
+        """ makes a shallow copy of the data """
         res = Data()
         for key, value in self.iteritems():
             if isinstance(value, dict):
@@ -375,6 +370,7 @@ class Data(defaultdict):
 
 
     def from_dict(self, data):
+        """ fill the object with data from a dictionary """
         for key, value in data.iteritems():
             if isinstance(value, dict):
                 self[key] = Data(value)
@@ -383,12 +379,21 @@ class Data(defaultdict):
 
             
     def to_dict(self):
+        """ convert object to a nested dictionary structure """
         res = {}
         for key, value in self.iteritems():
             if isinstance(value, Data):
                 value = value.to_dict()
             res[key] = value
         return res
+
+    
+    def pprint(self, *args, **kwargs):
+        """ pretty print the current structure as nested dictionaries """
+        from pprint import pprint
+        pprint(self.to_dict(), *args, **kwargs)
+
+
         
         
         

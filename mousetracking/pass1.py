@@ -8,6 +8,8 @@ Thus, a point in an image is referred to as image[coord_y, coord_x]
 However, a single point is stored as point = (coord_x, coord_y)
 Similarly, we store rectangles as (coord_x, coord_y, width, height)
 
+Furthermore, the color space in OpenCV is typically BGR instead of RGB
+
 Generally, x-values increase from left to right, while y-values increase from
 top to bottom. The origin is thus in the upper left corner.
 '''
@@ -45,11 +47,11 @@ class FirstPass(DataHandler):
     analyzes mouse movies
     """
     
-    def __init__(self, folder, prefix='', parameters=None, debug_output=None, **kwargs):
+    def __init__(self, folder, prefix='', parameters=None, debug_output=None):
         """ initializes the whole mouse tracking and prepares the video filters """
         
         # initialize the data handler
-        super(FirstPass, self).__init__(folder, prefix, parameters, **kwargs)
+        super(FirstPass, self).__init__(folder, prefix, parameters)
         self.params = self.data['parameters']
         self.result = self.data['pass1'] 
         
@@ -951,7 +953,15 @@ class FirstPass(DataHandler):
 
     def debug_finalize(self):
         """ close the video streams when done iterating """
-        self.debug.clear()
+        # close the window displaying the video
+        if 'video.show' in self.debug:
+            self.debug['video.show'].close()
+        
+        # close the open video streams
+        for i in ('video', 'difference.video', 'background.video', 'explored_area.video'):
+            if i in self.debug:
+                self.debug[i].close() 
+
         # remove all windows that may have been opened
         cv2.destroyAllWindows()
             

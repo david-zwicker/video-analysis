@@ -138,12 +138,12 @@ class VideoComposer(VideoFileWriter):
                     fontScale=size, color=get_color(color), thickness=1)
         
         
-    def __del__(self):
+    def close(self):
         # write the last frame
         if self.frame is not None:
             self.write_frame(self.frame)
         # close the video writer
-        super(VideoComposer, self).__del__()
+        super(VideoComposer, self).close()
         
     
         
@@ -156,10 +156,17 @@ class VideoComposerListener(VideoComposer):
     
     
     def __init__(self, filename, background, is_color=None, **kwargs):
-        
         self.background = background
         background.register_listener(self.set_frame)
         
         super(VideoComposerListener, self).__init__(filename, background.size,
                                                     background.fps, is_color, **kwargs)
         
+        
+    def close(self):
+        try:
+            self.background.unregister_listener(self.set_frame)
+        except ValueError:
+            # apparently, the listener is already removed 
+            pass
+        super(VideoComposerListener, self).close()
