@@ -4,10 +4,11 @@ Created on Aug 16, 2014
 @author: zwicker
 '''
 
-import itertools
+import logging
 
 import numpy as np
 import cv2
+import shapely.geometry as geometry
 
 from video.analysis.curves import make_curve_equidistant, simplify_curve
 from video.analysis.regions import expand_rectangle, rect_to_slices
@@ -24,18 +25,73 @@ class BurrowFinder(object):
     def __init__(self, tracking_parameters, debug=None):
         self.params = tracking_parameters
         self.debug = {} if debug is None else debug
-                    
+    
+    
     #===========================================================================
     # FIND BURROWS 
     #===========================================================================
 
-    def refine_burrow_outline(self, burrow, free_points):
-        #burrow.show_image(free_points)
+
+    def refine_burrow_outline(self, burrow, ground_profile, offset):
+        """ takes a single burrow and refines its outline """
+
+        # identify points that are free to be modified in the fitting
+        ground = geometry.LineString(np.array(ground_profile, np.double))
+        roi_h, roi_w = burrow.image.shape
+
+        # move points close to the ground profile on top of it
+        in_burrow = False
+        outline = []
+        last_point = None
+        for p in burrow.outline:
+            # get the point in global coordinates
+            point = geometry.Point((p[0] + offset[0], p[1] + offset[1]))
+
+            if p[0] == 1 or p[1] == 1 or p[0] == roi_w - 2 or p[1] == roi_h - 2:
+                # points at the boundary are definitely outside the burrow
+                point_outside = True
+                
+            elif point.distance(ground) < self.params['burrows/radius']:
+                # points close to the ground profile are outside
+                point_outside = True
+                # we also move these points onto the ground profile
+                # see http://stackoverflow.com/a/24440122/932593
+                point_new = ground.interpolate(ground.project(point))
+                p = (point_new.x - offset[0], point_new.y - offset[1])
+                
+            else:
+                point_outside = False
+            
+            if point_outside:
+                # current point is a point outside the burrow
+                if in_burrow:
+                    # if we currently reaping, add this point and exit
+                    outline.append(p)
+                    break
+                # otherwise save the point, since we might need it in the next iteration
+                last_point = p
+                    
+            else:
+                # current point is inside the burrow
+                if not in_burrow:
+                    # start reaping points
+                    in_burrow = True
+                    if last_point is not None:
+                        outline = [last_point]
+                # definitely add this point
+                outline.append(p)
+                
+        # simplify the burrow outline
+        outline = geometry.LineString(np.array(outline, np.double))
+        tolerance = self.params['burrows/outline_simplification_threshold'] * outline.length
+        outline = outline.simplify(tolerance, preserve_topology=False)
+        burrow.outline = list(outline.coords)                
+        
+        # adjust the outline until it explains the burrow best 
+        
         
         # remove the fixed points from the final burrow object
-        points = [p
-                  for k, p in enumerate(burrow.outline)
-                  if free_points[k]]
+        points = [(p[0] + offset[0], p[1] + offset[1]) for p in burrow.outline]
         
         return points
 
@@ -89,7 +145,8 @@ class BurrowFinder(object):
 
             # get enclosing rectangle
             rect = cv2.boundingRect(contour)
-            rect = expand_rectangle(rect, 30)
+            burrow_fitting_margin = self.params['burrows/fitting_margin']
+            rect = expand_rectangle(rect, burrow_fitting_margin)
 
             # focus on this part of the problem            
             slices = rect_to_slices(rect)
@@ -103,37 +160,22 @@ class BurrowFinder(object):
 
             # find the combined contour of burrow and ground profile
             mask = cv2.bitwise_xor(burrow_mask, ground_roi)
-#             _, mask = cv2.threshold(frame_roi, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            
-            #debug.show_image(frame_roi, ground_roi, burrow_mask, mask)
-
-            #debug.show_image(frame_roi, burrow_mask, ground_roi, mask)
             
             points, hierarchy = cv2.findContours(mask,
                                                  cv2.RETR_EXTERNAL,
                                                  cv2.CHAIN_APPROX_SIMPLE)
             
             if len(points) == 1:
-                # simplify the curve
-                epsilon = 0.001*cv2.arcLength(points[0], True)
-                points = cv2.approxPolyDP(points[0], epsilon, True)
-                points = points[:, 0, :]
-    
-                # identify points that are free to be modified in the fitting
-                free_points = np.ones(len(points), np.bool)
-                roi_h, roi_w = mask.shape
-                for k, p in enumerate(points):
-                    if p[0] == 1 or p[1] == 1 or p[0] == roi_w - 2 or p[1] == roi_h - 2:
-                        free_points[k] = False
-                
-                burrow = Burrow(points, image=frame_roi)
-                outline = self.refine_burrow_outline(burrow, free_points)
-                
-                outline = [(p[0] + rect[0], p[1] + rect[1])
-                           for p in outline]
+                # define the burrow and refine its outline
+                burrow = Burrow(np.squeeze(points), image=frame_roi)
+                outline = self.refine_burrow_outline(burrow, ground_profile, (rect[0], rect[1]))
                 
                 if len(outline) > 0:
                     burrows.append(Burrow(outline, time=frame_id))
+                    
+            else:
+                logging.warn('We found multiple potential burrows in a small region. '
+                             'This part will not be analyzed.')
             
         return burrows
                          

@@ -59,6 +59,8 @@ PARAMETERS_DEFAULT = {
     'objects/matching_weigth': 0.5,
     # size of the window used for motion detection [in frames]
     'objects/matching_moving_window': 20,
+    # threshold above which an objects is said to be moving [in pixels/frame]
+    'objects/matching_moving_threshold': 10,
         
     # `mouse.intensity_threshold` determines how much brighter than the
     # background (usually the sky) has the mouse to be. This value is
@@ -74,9 +76,14 @@ PARAMETERS_DEFAULT = {
     'mouse/max_rel_area_change': 0.5,
 
     # how often are the burrow shapes adapted [in frames]
-    'burrows/adaptation_interval': 10,
+    'burrows/adaptation_interval': 10, # 100
     # what is a typical radius of a burrow [in pixel]
-    'burrows/radius': 10
+    'burrows/radius': 10,
+    # extra number of pixel around burrow outline used for fitting
+    'burrows/fitting_margin': 20,
+    # determines how much the burrow outline might be simplified. The quantity 
+    # determines by what fraction the total outline length is allowed to change 
+    'burrows/outline_simplification_threshold': 0.005,
 }
 
 
@@ -100,10 +107,11 @@ class ObjectTrack(object):
     array_columns = ['Frame ID', 'Position X', 'Position Y', 'Object Area']
     index_columns = 0
     
-    def __init__(self, time=None, obj=None, moving_window=20):
+    def __init__(self, time=None, obj=None, moving_window=20, moving_threshold=10):
         self.times = [] if time is None else [time]
         self.objects = [] if obj is None else [obj]
         self.moving_window = moving_window
+        self.moving_threshold = moving_threshold*moving_window
         
     def __repr__(self):
         if len(self.times) == 0:
@@ -153,7 +161,7 @@ class ObjectTrack(object):
         pos = self.objects[-1].pos
         dist = sum(point_distance(pos, obj.pos)
                    for obj in self.objects[-self.moving_window:])
-        return dist > 5*self.moving_window
+        return dist > self.moving_threshold
     
     def to_array(self):
         """ converts the internal representation to a single array

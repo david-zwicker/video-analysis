@@ -431,7 +431,8 @@ class FirstPass(DataHandler):
         # check if there are previous tracks        
         if len(self.tracks) == 0:
             moving_window = self.params['objects/matching_moving_window']
-            self.tracks = [ObjectTrack(self.frame_id, obj, moving_window=moving_window)
+            moving_threshold = self.params['objects/matching_moving_threshold']
+            self.tracks = [ObjectTrack(self.frame_id, obj, moving_window, moving_threshold)
                            for obj in objects_found]
             
             return # there is nothing to do anymore
@@ -737,7 +738,9 @@ class FirstPass(DataHandler):
         
             # indicate the burrow shapes
             for burrow in self.burrows:
-                debug_video.add_polygon(burrow.outline, 'k', is_closed=False)
+                debug_video.add_polygon(burrow.outline, 'orange', is_closed=False)
+                for p in burrow.outline:
+                    debug_video.add_circle(p, 3, 'orange', thickness=-1)
         
             # indicate the mouse position
             if len(self.tracks) > 0:
