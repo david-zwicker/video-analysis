@@ -590,7 +590,7 @@ class FirstPass(DataHandler):
         # simplify the curve        
         points = simplify_curve(points, epsilon=2)
 
-        return np.array(points, np.int)
+        return np.array(points, np.int32)
    
         
     def refine_ground(self, image):
@@ -610,7 +610,7 @@ class FirstPass(DataHandler):
                 
         # make sure the curve has equidistant points
         ground = make_curve_equidistant(points, spacing)
-        ground = np.array(np.round(ground),  np.int)
+        ground = np.array(np.round(ground),  np.int32)
         
         # calculate the bounds for the points
         p_min = spacing 

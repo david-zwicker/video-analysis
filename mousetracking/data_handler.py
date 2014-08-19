@@ -160,7 +160,7 @@ class ObjectTrack(object):
         useful for storing the data """
         return np.array([(time, obj.pos[0], obj.pos[1], obj.size)
                          for time, obj in itertools.izip(self.times, self.objects)],
-                        dtype=np.int)
+                        dtype=np.int32)
 
     @classmethod
     def from_array(cls, data):
@@ -189,7 +189,7 @@ class GroundProfile(object):
     def to_array(self):
         """ converts the internal representation to a single array
         useful for storing the data """
-        time_array = np.zeros((len(self.points), 1), np.int) + self.time
+        time_array = np.zeros((len(self.points), 1), np.int32) + self.time
         return np.hstack((time_array, self.points))
 
     @classmethod
@@ -331,7 +331,7 @@ class DataHandler(object):
                 result = []
                 for index, obj in enumerate(main_result[key]):
                     data = obj.to_array()
-                    index_array = np.zeros((len(obj), 1), np.int) + index
+                    index_array = np.zeros((len(obj), 1), np.int32) + index
                     result.append(np.hstack((index_array, data)))
                     
                 if column_names is not None:

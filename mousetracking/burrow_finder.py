@@ -49,13 +49,13 @@ class BurrowFinder(object):
         ground = np.zeros_like(frame, np.uint8)
         
         # create a mask for the region below the current ground profile
-        ground_points = np.empty((len(ground_profile) + 4, 2), np.int)
+        ground_points = np.empty((len(ground_profile) + 4, 2), np.int32)
         ground_points[:-4, :] = ground_profile
         ground_points[-4, :] = (width, ground_points[-5, 1])
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
         ground_points[-1, :] = (0, ground_points[0, 1])
-        cv2.fillPoly(ground, np.array([ground_points], np.int), color=128)
+        cv2.fillPoly(ground, np.array([ground_points], np.int32), color=128)
 
         # erode the mask slightly, since the ground profile is not perfect        
         w = self.params['ground/width'] + self.params['mouse/model_radius']
@@ -84,7 +84,7 @@ class BurrowFinder(object):
                                                    cv2.CHAIN_APPROX_SIMPLE)
         
         burrows = []
-        for contour in np.array(contours, np.int):
+        for contour in np.array(contours, np.int32):
             # get enclosing rectangle 
             rect = cv2.boundingRect(contour)
             rect = expand_rectangle(rect, 30)
@@ -97,7 +97,7 @@ class BurrowFinder(object):
 
             #burrow_mask = burrows_mask[slices]
             frame_roi = frame[slices].astype(np.uint8)
-            contour = np.squeeze(contour) - np.array([[rect[0], rect[1]]], np.int)
+            contour = np.squeeze(contour) - np.array([[rect[0], rect[1]]], np.int32)
 
             # find the combined contour of burrow and ground profile
             mask = cv2.bitwise_xor(burrow_mask, ground_roi)
@@ -184,7 +184,7 @@ class Burrow(object):
     def show_image(self, mark_points):
         # draw burrow
         image = self.image.copy()
-        cv2.drawContours(image, np.array([self.outline], np.int), -1, 255, 1)
+        cv2.drawContours(image, np.array([self.outline], np.int32), -1, 255, 1)
         for k, p in enumerate(self.outline):
             color = 255 if mark_points[k] else 128
             cv2.circle(image, (int(p[0]), int(p[1])), 3, color, thickness=-1)
@@ -194,7 +194,7 @@ class Burrow(object):
     def to_array(self):
         """ converts the internal representation to a single array """
         self.outline = np.asarray(self.outline)
-        time_array = np.zeros((len(self.outline), 1), np.int) + self.time
+        time_array = np.zeros((len(self.outline), 1), np.int32) + self.time
         return np.hstack((time_array, self.outline))
 
 
