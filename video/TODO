@@ -11,6 +11,10 @@
 	- maybe not with time, but with the information we gain (i.e. explored area should only be above ground and inside burrows
 	- we need burrow fitting for this to make sense, i.e. for burrows to be able to shrink, too
 * Lazy-load the extra data in a NestedDict 
+* Distinguish between debug and release runs:
+	- different default level of output
+	- different logging behavior (log to file for release run!)
+	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 
 Performance improvements:
 -------------------------

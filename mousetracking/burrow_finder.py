@@ -10,7 +10,7 @@ import numpy as np
 import cv2
 
 from video.analysis.curves import make_curve_equidistant, simplify_curve
-from video.analysis.regions import expand_rectangle, rect_to_slices, get_overlapping_slices
+from video.analysis.regions import expand_rectangle, rect_to_slices
 
 import debug
 
@@ -58,7 +58,7 @@ class BurrowFinder(object):
         cv2.fillPoly(ground, np.array([ground_points], np.int32), color=128)
 
         # erode the mask slightly, since the ground profile is not perfect        
-        w = self.params['ground/width'] + self.params['mouse/model_radius']
+        w = 2*self.params['mouse/model_radius']
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
         ground_mask = cv2.erode(ground, kernel)#, dst=ground_mask)
         

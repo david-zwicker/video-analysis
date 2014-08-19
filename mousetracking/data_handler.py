@@ -472,8 +472,8 @@ class Data(defaultdict):
             super(Data, self).__delattr__(key)
            
             
-#     def __repr__(self):
-#         return dict.__repr__(self)
+    def __repr__(self):
+        return 'Data(' + dict.__repr__(self) + ')'
 
 
     def copy(self):
