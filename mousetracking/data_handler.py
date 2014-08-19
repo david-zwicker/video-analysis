@@ -6,7 +6,7 @@ Created on Aug 16, 2014
 
 from __future__ import division
 
-from collections import defaultdict
+import collections
 import datetime
 import logging
 import os
@@ -157,13 +157,13 @@ class DataHandler(object):
             self.data['video/raw/filecount'] = 1
         
         # restrict the analysis to an interval of frames
-        frames = self.data['parameters/video/frames']
+        frames = self.data.get('parameters/video/frames', None)
         if frames is not None:
             self.video = self.video[frames[0]:frames[1]]
         else:
             frames = (0, self.video.frame_count)
             
-        cropping_rect = self.data['parameters/video/cropping_rect']         
+        cropping_rect = self.data.get('parameters/video/cropping_rect', None)         
         if cropping_rect is None:
             # use the full video
             if self.video.is_color:
@@ -303,10 +303,8 @@ class DataHandler(object):
         return position[1] - self.params['mouse.model_radius']/2 > ground_y
 
 
-       
         
-
-class Data(dict):
+class Data(collections.MutableMapping):
     """ special dictionary class representing nested dictionaries.
     This class allows easy access to nested properties using a single key:
     
@@ -324,46 +322,51 @@ class Data(dict):
     sep = '/'
     
     def __init__(self, data=None):
-        super(Data, self).__init__()
+        self.data = {}
         if data is not None:
             self.from_dict(data)
+    
+    
+    def __len__(self):
+        return len(self.data)
+    
+    
+    def __iter__(self):
+        return self.data.__iter__()
     
     
     def __getitem__(self, key):
         if self.sep in key:
             parent, rest = key.split(self.sep, 1)
-            return super(Data, self).__getitem__(parent)[rest]
+            return self.data[parent][rest]
         else:
-            return super(Data, self).__getitem__(key)
+            return self.data[key]
         
         
     def __setitem__(self, key, value):
-        if not isinstance(key, basestring):
-            raise KeyError('Keys have to be strings in Data.')
-        
         if self.sep in key:
             parent, rest = key.split(self.sep, 1)
             try:
-                super(Data, self).__getitem__(parent)[rest] = value
+                self.data[parent][rest] = value
             except KeyError:
                 # create new child if it does not exists
                 child = Data()
                 child[rest] = value
-                self[parent] = child
+                self.data[parent] = child
         else:
-            super(Data, self).__setitem__(key, value)
+            self.data[key] = value
     
     
     def __delitem__(self, key):
         if self.sep in key:
             parent, rest = key.split(self.sep, 1)
-            del super(Data, self).__getitem__(parent)[rest]
+            del self.data[parent][rest]
         else:
-            super(Data, self).__delattr__(key)
+            del self.data[key]
            
             
     def __repr__(self):
-        return 'Data(' + dict.__repr__(self) + ')'
+        return 'Data(' + repr(self.data) + ')'
 
 
     def create_child(self, key, values=None):
