@@ -33,8 +33,8 @@ from video.utils import display_progress
 from video.composer import VideoComposerListener, VideoComposer
 
 
-from .data_handler import DataHandler, ObjectTrack, Object, GroundProfile
-from .mouse_objects import Burrow, RidgeProfile
+from .data_handler import DataHandler
+from .mouse_objects import Burrow, RidgeProfile, Object, ObjectTrack, GroundProfile
 
 import debug
 
