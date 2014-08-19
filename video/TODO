@@ -8,7 +8,8 @@
 * Write script to be able to easily extract problematic parts of the video and save them in a separate file 
 * Add better anchoring support to writing text to movies
 * Explored area should degrade over time (with a very slow time scale)
-* Burrows should only be searched inside the box and not close to the border
+	- maybe not with time, but with the information we gain (i.e. explored area should only be above ground and inside burrows
+	- we need burrow fitting for this to make sense, i.e. for burrows to be able to shrink, too
 * Lazy-load the extra data in a NestedDict 
 
 Performance improvements:

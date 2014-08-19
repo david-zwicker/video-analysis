@@ -88,13 +88,8 @@ class BurrowFinder(object):
             # get enclosing rectangle 
             rect = cv2.boundingRect(contour)
             rect = expand_rectangle(rect, 30)
-            
-            self.debug['video'].add_rectangle(rect)
-            
-            # focus on this part of the problem
-            #slices, _ = get_overlapping_slices(rect[:2], frame.shape,
-#                                                (rect[3], rect[2]), anchor='upper left')
-            
+
+            # focus on this part of the problem            
             slices = rect_to_slices(rect)
             ground_roi = ground[slices]
             burrow_mask = cv2.bitwise_and(ground[slices], potential_burrows[slices])
@@ -113,9 +108,6 @@ class BurrowFinder(object):
             points, hierarchy = cv2.findContours(mask,
                                                  cv2.RETR_EXTERNAL,
                                                  cv2.CHAIN_APPROX_SIMPLE)
-            
-            
-            #debug.show_image(frame_roi, burrows_mask[slices])
             
             assert len(points) == 1
             points = np.squeeze(points[0])

@@ -74,7 +74,7 @@ PARAMETERS_DEFAULT = {
     'mouse/max_rel_area_change': 0.5,
 
     # how often are the burrow shapes adapted [in frames]
-    'burrows/adaptation_interval': 100,
+    'burrows/adaptation_interval': 10,
     # what is a typical radius of a burrow [in pixel]
     'burrows/radius': 10
 }
@@ -83,11 +83,12 @@ PARAMETERS_DEFAULT = {
 
 class Object(object):
     """ represents a single object by its position and size """
-    __slots__ = ['pos', 'size'] #< save some memory
+    __slots__ = ['pos', 'size', 'label'] #< save some memory
     
-    def __init__(self, pos, size):
+    def __init__(self, pos, size, label=None):
         self.pos = (int(pos[0]), int(pos[1]))
         self.size = size
+        self.label = label
 
 
 

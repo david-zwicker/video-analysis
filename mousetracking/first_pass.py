@@ -377,7 +377,8 @@ class FirstPass(DataHandler):
         # perform morphological opening to remove noise
         cv2.morphologyEx(mask_moving, cv2.MORPH_OPEN, 
                          self._cache['find_moving_features.kernel_open'],
-                         dst=mask_moving)     
+                         dst=mask_moving)    
+         
         # perform morphological closing to join distinct features
         cv2.morphologyEx(mask_moving, cv2.MORPH_CLOSE, 
                          self._cache['find_moving_features.kernel_close'],
@@ -390,18 +391,14 @@ class FirstPass(DataHandler):
         return mask_moving
 
 
-    def find_objects_in_binary_image(self, binary_image):
+    def find_objects_in_binary_image(self, labels, num_features):
         """ finds objects in a binary image.
         Returns a list with characteristic properties
         """
         
-        # find all distinct features and label them
-        labels, num_features = ndimage.measurements.label(binary_image)
-        self.debug['object_count'] = num_features
-
         # find large objects (which could be the mouse)
         objects = []
-        max_area, max_pos = 0, None
+        largest_obj = Object((0, 0), 0)
         for label in xrange(1, num_features + 1):
             # calculate the image moments
             moments = cv2.moments((labels == label).astype(np.uint8))
@@ -411,31 +408,31 @@ class FirstPass(DataHandler):
             
             # check whether this object could be a mouse
             if area > self.params['mouse/min_area']:
-                objects.append(Object(pos, size=area))
+                objects.append(Object(pos, size=area, label=label))
                 
-            elif area > max_area:
+            elif area > largest_obj.size:
                 # determine the maximal area during the loop
-                max_area, max_pos = area, pos
+                largest_obj = Object(pos, size=area, label=label)
         
         if len(objects) == 0:
             # if we haven't found anything yet, we just take the best guess,
             # which is the object with the largest area
-            objects.append(Object(max_pos, size=max_area))
+            objects.append(largest_obj)
         
         return objects
 
 
-    def _handle_object_tracks(self, frame, mask_moving):
+    def _handle_object_tracks(self, frame, labels, num_features):
         """ analyzes objects in a single frame and tries to add them to
         previous tracks """
         # get potential objects
-        objects_found = self.find_objects_in_binary_image(mask_moving)
+        objects_found = self.find_objects_in_binary_image(labels, num_features)
 
         # check if there are previous tracks        
         if len(self.tracks) == 0:
             moving_window = self.params['objects/matching_moving_window']
-            self.tracks = [ObjectTrack(self.frame_id, mouse, moving_window=moving_window)
-                           for mouse in objects_found]
+            self.tracks = [ObjectTrack(self.frame_id, obj, moving_window=moving_window)
+                           for obj in objects_found]
             
             return # there is nothing to do anymore
             
@@ -504,13 +501,23 @@ class FirstPass(DataHandler):
         assert len(self.tracks) == len(objects_found)
         
     
+    def update_explored_area(self, tracks, labels, num_features):
+        """ update the explored area using the found objects """
+        for track in self.tracks:
+            self.explored_area[labels == track.objects[-1].label] = 255
+
+    
     def find_objects(self, frame):
         """ adapts the current mouse position, if enough information is available """
 
         # find features that indicate that the mouse moved
         mask_moving = self.find_moving_features(frame)
         
-        if mask_moving.sum() == 0:
+        # find all distinct features and label them
+        labels, num_features = ndimage.measurements.label(mask_moving)
+        self.debug['object_count'] = num_features
+        
+        if num_features == 0:
             # end all current tracks if there are any
             if len(self.tracks) > 0:
                 logging.debug('%d: Copy %d tracks to results', 
@@ -520,7 +527,7 @@ class FirstPass(DataHandler):
 
         else:
             # some moving features have been found in the video 
-            self._handle_object_tracks(frame, mask_moving)
+            self._handle_object_tracks(frame, labels, num_features)
             
             # check whether objects moved and call them a mouse
             obj_moving = [obj.is_moving() for obj in self.tracks]
@@ -534,12 +541,9 @@ class FirstPass(DataHandler):
 
             self._mouse_pos_estimate = [obj.last_pos for obj in self.tracks]
         
-        # keep track of the regions that the mouse explored
-        for obj in self.tracks:
-            cv2.circle(self.explored_area, obj.last_pos,
-                       radius=self.params['burrows/radius'],
-                       color=255, thickness=-1)
-                                
+            # keep track of the regions that the mouse explored
+            self.update_explored_area(self.tracks, labels, num_features)
+                
                 
     #===========================================================================
     # FINDING THE GROUND PROFILE
