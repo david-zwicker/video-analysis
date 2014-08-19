@@ -110,11 +110,10 @@ class BurrowFinder(object):
                                                  cv2.CHAIN_APPROX_SIMPLE)
             
             assert len(points) == 1
-            points = np.squeeze(points[0])
             
             # simplify the curve
-            epsilon = 0.001*cv2.arcLength(points, True)
-            points = cv2.approxPolyDP(points, epsilon, True)
+            epsilon = 0.001*cv2.arcLength(points[0], True)
+            points = cv2.approxPolyDP(points[0], epsilon, True)
             points = points[:, 0, :]
 
             # identify points that are free to be modified in the fitting
