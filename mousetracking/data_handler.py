@@ -340,15 +340,17 @@ class DataHandler(object):
             if len(result) > 0:
                 result = np.concatenate(result) 
         
-            # write the numpy array to HDF5
-            logging.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
-            dataset = hdf_file.create_dataset(key, data=result)
-            if column_names is not None:
-                hdf_file[key].attrs['column_names'] = column_names
-            
-            # replace the original data with a reference to the HDF5 data
-            main_result[key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
-        
+                # write the numpy array to HDF5
+                logging.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
+                dataset = hdf_file.create_dataset(key, data=result)
+                if column_names is not None:
+                    hdf_file[key].attrs['column_names'] = column_names
+                
+                # replace the original data with a reference to the HDF5 data
+                main_result[key] = hdf_name + ':' + dataset.name.encode('ascii', 'replace')
+                
+            else:
+                main_result[key] = []
         
         # write the main result file to YAML
         filename = self.get_filename('results.yaml', 'results')
