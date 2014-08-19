@@ -84,8 +84,10 @@ class BurrowFinder(object):
                                                    cv2.CHAIN_APPROX_SIMPLE)
         
         burrows = []
-        for contour in np.array(contours, np.int32):
-            # get enclosing rectangle 
+        for contour in contours:
+            contour = np.array(contour, np.int32) 
+
+            # get enclosing rectangle
             rect = cv2.boundingRect(contour)
             rect = expand_rectangle(rect, 30)
 
