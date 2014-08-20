@@ -32,11 +32,7 @@ def _show_image_from_pipe(pipe, image_array, title):
         # process the last command
         if command == 'update':
             # update the image
-            if image_array.ndim > 2:
-                # reverse the color axis, since this seems to be the opencv way
-                cv2.imshow(title, image_array[:, :, ::-1])
-            else:
-                cv2.imshow(title, image_array)
+            cv2.imshow(title, image_array)
             
             # check whether the user wants to abort
             if cv2.waitKey(1) & 0xFF in {27, ord('q')}:
@@ -90,6 +86,10 @@ class ImageShow(object):
         """ show an image.
         May raise KeyboardInterrupt, if the user opted to exit
         """ 
+        if image.ndim > 2:
+            # reverse the color axis, to get BGR image required by OpenCV
+            image = image[:, :, ::-1]
+        
         if self._proc:
             # copy data to shared memory
             self._data[:] = image
@@ -101,7 +101,7 @@ class ImageShow(object):
 
         else:
             # update the image
-            cv2.imshow(self.title, image)
+            cv2.imshow(self.title, image.astype(np.uint8))
             # check whether the user wants to quit
             if cv2.waitKey(1) & 0xFF in {27, ord('q')}:
                 raise KeyboardInterrupt
