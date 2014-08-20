@@ -10,10 +10,11 @@ import itertools
 
 import numpy as np
 import cv2
+import shapely
 import shapely.geometry as geometry
 
 from video.analysis.curves import point_distance
-from video.analysis.regions import corners_to_rect, expand_rectangle
+from video.analysis.regions import corners_to_rect, expand_rectangle, get_enclosing_outline
 
 import debug
 
@@ -149,7 +150,7 @@ class Burrow(object):
     def __init__(self, outline, time=None, image=None, mask=None):
         """ initialize the structure
         """
-        self.outline = outline
+        self.outline = np.asarray(outline, np.double)
         self.time = time
         
         # internal caches used for fitting
@@ -178,35 +179,61 @@ class Burrow(object):
         return len(self.outline)
         
         
+    def __repr__(self):
+        polygon = self.polygon
+        center = polygon.centroid
+        return 'Burrow(center=(%d, %d), area=%s, points=%d)' % \
+                            (center.x, center.y, polygon.area, len(self))
+        
+        
     def get_centerline(self):
         raise NotImplementedError
     
     
+    @property
+    def polygon(self):
+        return geometry.Polygon(np.asarray(self.outline, np.double))    
+    
+        
     def contains(self, point):
         """ returns True if the point is inside the burrow """
-        burrow_shape = geometry.Polygon(self.outline)
-        return burrow_shape.contains(geometry.Point(point))
+        return self.polygon.contains(geometry.Point(point))
     
     
     def intersects(self, polygon):
         """ returns True if polygon intersects the burrow """
+        try:
+            return not self.polygon.intersection(polygon).is_empty
+        except shapely.geos.TopologicalError:
+            return False
+    
+    
+    def simplify_outline(self, tolerance=0.1):
+        """ simplifies the outline """
+        outline = geometry.LineString(self.outline)
+        tolerance = tolerance*outline.length
+        outline = outline.simplify(tolerance, preserve_topology=True)
+        self.outline = np.array(outline.coords, np.double)
     
     
     def get_bounding_rect(self, margin=0):
         """ returns the bounding rectangle of the burrow """
-        burrow_shape = geometry.Polygon(self.outline)
-        bounds = burrow_shape.bounds
+        bounds = self.polygon.bounds
         bound_rect = corners_to_rect(bounds[:2], bounds[2:])
         return expand_rectangle(bound_rect, margin)
     
     
-    def extend_outline(self, polygon):
+    def extend_outline(self, extension_polygon):
         """ extends the outline of the burrow to also enclose the object given
         by polygon """
         # get the union of the burrow and the extension
-        burrow = geometry.Polygon(self.outline)
-        outline = burrow.union(polygon).boundary
+        burrow = self.polygon.union(extension_polygon)
+        
+        # determine the outline of the union
+        outline = get_enclosing_outline(burrow)
         outline = np.asarray(outline, np.int32).tolist()
+
+        # debug.show_shape(burrow, polygon, outline)
         
         # find indices of the anchor points
         i1 = outline.index([int(self.outline[ 0][0]), int(self.outline[ 0][1])])
@@ -220,51 +247,7 @@ class Burrow(object):
         else:
             # the right outline goes from i2 .. -1 and start 0 .. i1
             self.outline = outline[i2:] + outline[:i1]  
-        
-        
-    def prepare_fitting(self):
-        """ prepares some variables for fitting """
-        self.mask = np.asarray(self.mask, np.bool)
-        self.outline = np.asarray(self.outline, np.double)
-
-        # determine the local slope of the profile, which fixes the angle 
-        self._angles = np.array([np.arctan2(p2[1] - p0[1], p2[0] - p0[0]) # y-coord, x-coord
-                                 for p2, p0 in itertools.izip(self.outline[2:], self.outline[:-2])])
-                        # p2 and p0 are the next and the previous point, respectively
-                        
-        # prepare a mask to measure the colors
-        self._model = np.zeros_like(self.image, np.uint8)
-        cv2.fillPoly(self._model, np.array([self.outline], np.int32), color=1)
-        burrow_mask = self._model.astype(np.bool)
-        
-        self._color_burrow = self.image[self.mask & burrow_mask].mean()
-        self._color_sand = self.image[self.mask - burrow_mask].mean()
-            
-    
-    def get_residual(self, deviations):
-        """ calculates the difference between image and model, when the 
-        model is moved by a certain distance in its normal direction """
-        # adjust the original outline using the given deviations
-        outline = self.outline.copy()
-        outline[1:-1, 0] += np.cos(self._angles)*deviations
-        outline[1:-1, 1] -= np.sin(self._angles)*deviations
-        
-        # use the outline to create the burrow image
-        self._model.fill(self._color_sand)
-        cv2.fillPoly(self._model, np.array([outline], np.int32), color=self._color_burrow)
-
-        return np.ravel(self.image[self.mask] - self._model[self.mask])
-    
-    
-    def finish_fitting(self, deviations):
-        """ adjust the current outline and deletes caches """
-        # adjust the burrow outline using the given deviations
-        self.outline[1:-1, 0] += np.cos(self._angles)*np.array(deviations)
-        self.outline[1:-1, 1] -= np.sin(self._angles)*np.array(deviations)
-        
-        # delete data which we don't need anymore
-        self.clear_cache()
-
+     
 
     def show_image(self, mark_points):
         # draw burrow

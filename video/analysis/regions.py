@@ -6,6 +6,8 @@ Created on Aug 4, 2014
 
 import numpy as np
 import scipy.ndimage as ndimage
+import shapely
+import shapely.geometry as geometry
 
 
 def corners_to_rect(p1, p2):
@@ -134,3 +136,21 @@ def get_largest_region(mask):
     ) + 1
     
     return labels == label_max
+
+
+def get_enclosing_outline(polygon):
+    """ gets the enclosing outline of a (possibly complex) polygon """
+    # get the outline
+    outline = polygon.boundary
+    
+    if isinstance(outline, geometry.multilinestring.MultiLineString):
+        largest_polygon = None
+        # find the largest polygon, which should be the enclosing outline
+        for line in outline:
+            poly = geometry.Polygon(line)
+            if largest_polygon is None or poly.area > largest_polygon.area:
+                largest_polygon = poly
+        outline = largest_polygon.boundary
+    return outline
+    
+

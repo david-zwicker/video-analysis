@@ -53,7 +53,7 @@ def show_image(*images, **kwargs):
     
     
     
-def plot_shapes(*shapes, **kwargs):
+def show_shape(*shapes, **kwargs):
     """ plots several shapes """
     import matplotlib.pyplot as plt
     import shapely.geometry as geometry
@@ -71,13 +71,20 @@ def plot_shapes(*shapes, **kwargs):
                                            ec=kwargs.get('ec', 'none'),
                                            fc=kwargs.get('color', colors.next()), alpha=0.5)
             ax.add_patch(patch)
+            
         elif isinstance(shape, geometry.LineString):
             x, y = shape.xy
             ax.plot(x, y, color=kwargs.get('color', colors.next()), lw=kwargs.get('lw', 3))
+            
+        elif isinstance(shape, geometry.multilinestring.MultiLineString):
+            for line in shape:
+                x, y = line.xy
+                ax.plot(x, y, color=kwargs.get('color', colors.next()), lw=kwargs.get('lw', 3))
+            
         else:
             raise ValueError("Don't know how to plot %r" % shape)
         
-
+    ax.margins(0.1)
     ax.autoscale_view(tight=False, scalex=True, scaley=True)
             
     plt.show()
