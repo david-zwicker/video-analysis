@@ -29,7 +29,7 @@ from video.io import ImageShow
 from video.filters import FilterBlur, FilterCrop
 from video.analysis.regions import (get_largest_region, find_bounding_box,
                                     rect_to_slices, corners_to_rect,
-                                    get_overlapping_slices, expand_rectangle)
+                                    get_overlapping_slices)
 from video.analysis.curves import curve_length, make_curve_equidistant, simplify_curve, point_distance
 from video.utils import display_progress
 from video.composer import VideoComposerListener, VideoComposer
@@ -825,7 +825,7 @@ class FirstPass(DataHandler):
             return np.ravel(burrow_image[ground_mask] - model[ground_mask])
 
         # move the ground profile model perpendicular until it fits best
-        displacements, ier = leastsq(get_residual, np.zeros(len(outline)),
+        displacements, _ = leastsq(get_residual, np.zeros(len(outline)),
                                      xtol=0.5, epsfcn=np.sqrt(2))
         
 #         get_residual(np.zeros(len(outline)), True)

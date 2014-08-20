@@ -1,14 +1,14 @@
 Necessary python packages:
-cv2
-h5py
-matplotlib
-numpy
-scipy
-shapely
-yaml 
+cv2         -- OpenCV python bindings
+h5py        -- HDF5 python binding for writing out data
+matplotlib  -- Plotting library used for output
+numpy		-- Array library used for manipulating data
+scipy       -- Miscellaneous scientific functions
+shapely     -- for manipulating shapes
+yaml        -- YAML binding for writing out data
 
 
 Optional python packages:
-tqdm      -- for showing a progress bar while iterating
-sharedmem -- for showing the debug video in a separate process while iterating 
-descartes -- for debug plotting of shapes
+tqdm        -- for showing a progress bar while iterating
+sharedmem   -- for showing the debug video in a separate process while iterating 
+descartes   -- for debug plotting of shapes

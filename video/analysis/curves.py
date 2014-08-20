@@ -9,7 +9,9 @@ contains functions that are useful for curve analysis
 import itertools
 import math
 import numpy as np
-from ._rdp import rdp as simplify_curve # make it available under current scope
+
+# make simplify_curve available under current scope 
+from ._rdp import rdp as simplify_curve # @UnusedImport
 
 
 def point_distance(p1, p2):

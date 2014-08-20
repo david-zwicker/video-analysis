@@ -5,8 +5,5 @@ Mouse tracking
 
 Burrow tracking
 ---------------
-* Write separate class, which represents a burrow by and outline (similar to sand profile):
-	- The two anchor points should be anchored to the sand profile line (and should probably be forbidden to move)
-* We should be able to fit the burrow shape to the real data, using the explored area as an initial guess
 * We could use a post-process run to extrapolate the predug size (considering the first frame should be sufficient here)
 * This fitting should happen only every ~1000 frames and be done in a separate thread (such that we have about 40s per burrow)

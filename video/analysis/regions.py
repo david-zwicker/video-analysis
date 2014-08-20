@@ -6,7 +6,6 @@ Created on Aug 4, 2014
 
 import numpy as np
 import scipy.ndimage as ndimage
-import shapely
 import shapely.geometry as geometry
 
 
