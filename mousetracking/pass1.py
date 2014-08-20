@@ -807,10 +807,10 @@ class FirstPass(DataHandler):
         model = np.zeros_like(burrow_image, np.uint8)
         cv2.fillPoly(model, np.array([outline], np.int32), color=1)
         burrow_mask = model.astype(np.bool)
-        color_burrow = burrow_image[ground_mask & burrow_mask].mean()
-        color_sand = burrow_image[ground_mask - burrow_mask].mean()
+        color_burrow = np.median(burrow_image[ground_mask & burrow_mask])
+        color_sand = np.median(burrow_image[ground_mask - burrow_mask])
 
-        def get_residual(displacements):
+        def get_residual(displacements, show_image=False):
             line = outline.copy()
             line[:, 0] += np.cos(angles)*displacements
             line[:, 1] -= np.sin(angles)*displacements
@@ -819,13 +819,17 @@ class FirstPass(DataHandler):
             model.fill(color_sand)
             cv2.fillPoly(model, np.array([line], np.int32), color=color_burrow)
     
-#             debug.show_image(model, burrow_image, equalize_colors=True)
+            if show_image:
+                debug.show_image(model, burrow_image, equalize_colors=True)
     
             return np.ravel(burrow_image[ground_mask] - model[ground_mask])
 
         # move the ground profile model perpendicular until it fits best
         displacements, ier = leastsq(get_residual, np.zeros(len(outline)),
-                                     xtol=0.1, epsfcn=np.sqrt(2))
+                                     xtol=0.5, epsfcn=np.sqrt(2))
+        
+#         get_residual(np.zeros(len(outline)), True)
+#         get_residual(displacements, True)
         
         # limit the maximal displacement
         max_dis = self.params['burrows/radius']

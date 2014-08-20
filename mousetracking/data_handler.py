@@ -75,7 +75,7 @@ PARAMETERS_DEFAULT = {
     'mouse/max_rel_area_change': 0.5,
 
     # how often are the burrow shapes adapted [in frames]
-    'burrows/adaptation_interval': 1, # 100
+    'burrows/adaptation_interval': 10, # 100
     # what is a typical radius of a burrow [in pixel]
     'burrows/radius': 10,
     # extra number of pixel around burrow outline used for fitting [in pixel]
