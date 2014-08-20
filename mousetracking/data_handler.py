@@ -75,7 +75,7 @@ PARAMETERS_DEFAULT = {
     'mouse/max_rel_area_change': 0.5,
 
     # how often are the burrow shapes adapted [in frames]
-    'burrows/adaptation_interval': 10, # 100
+    'burrows/adaptation_interval': 100, # 100
     # what is a typical radius of a burrow [in pixel]
     'burrows/radius': 10,
     # extra number of pixel around burrow outline used for fitting
@@ -92,7 +92,7 @@ class DataHandler(object):
 
     LARGE_DATA = {'pass1/ground/profile': GroundProfile,
                   'pass1/objects/tracks': ObjectTrack,
-                  'pass1/burrows/data': Burrow,}
+                  'pass1/burrows/data': Burrow}
 
     def __init__(self, folder, prefix='', parameters=None):
 
@@ -213,7 +213,7 @@ class DataHandler(object):
                 result = []
                 for index, obj in enumerate(main_result[key]):
                     data = obj.to_array()
-                    index_array = np.zeros((len(obj), 1), np.int32) + index
+                    index_array = np.zeros((data.shape[0], 1), np.int32) + index
                     result.append(np.hstack((index_array, data)))
                     
                 if column_names is not None:
@@ -327,14 +327,6 @@ class Data(collections.MutableMapping):
             self.from_dict(data)
     
     
-    def __len__(self):
-        return len(self.data)
-    
-    
-    def __iter__(self):
-        return self.data.__iter__()
-    
-    
     def __getitem__(self, key):
         if self.sep in key:
             parent, rest = key.split(self.sep, 1)
@@ -363,6 +355,18 @@ class Data(collections.MutableMapping):
             del self.data[parent][rest]
         else:
             del self.data[key]
+
+
+    # Miscellaneous dictionary methods are just mapped to data
+    def __len__(self): return len(self.data)
+    def __iter__(self): return self.data.__iter__()
+    def keys(self): return self.data.keys()
+    def values(self): return self.data.values()
+    def items(self): return self.data.items()
+    def iterkeys(self): return self.data.iterkeys()
+    def itervalues(self): return self.data.itervalues()
+    def iteritems(self): return self.data.iteritems()
+    def clear(self): self.data.clear()
            
             
     def __repr__(self):

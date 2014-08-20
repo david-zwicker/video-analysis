@@ -36,7 +36,8 @@ from video.composer import VideoComposerListener, VideoComposer
 
 
 from .data_handler import DataHandler
-from .mouse_objects import Burrow, RidgeProfile, Object, ObjectTrack, GroundProfile
+from .mouse_objects import (Object, ObjectTrack, Burrow, BurrowTrack,
+                            GroundProfile, RidgeProfile)
 
 import debug
 
@@ -63,7 +64,6 @@ class FirstPass(DataHandler):
         self.debug = {}                # dictionary holding debug information
         self.ground = None             # current model of the ground profile
         self.tracks = []               # list of plausible mouse models in current frame
-        self.burrows = []              # list of all the burrows
         self._mouse_pos_estimate = []  # list of estimated mouse positions
         self.explored_area = None      # region the mouse has explored yet
         self.frame_id = None           # id of the current frame
@@ -125,8 +125,7 @@ class FirstPass(DataHandler):
                         self.result['ground/profile'].append(ground)
             
                 if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
-                    self.burrows = self.find_burrows(frame)
-                    self.result['burrows/data'].extend(self.burrows)
+                    self.find_burrows(frame)
             
                 # update the background model
                 self.update_background_model(frame)
@@ -650,8 +649,8 @@ class FirstPass(DataHandler):
             ground_model.set_data(region, angle) 
 
             # move the ground profile model perpendicular until it fits best
-            x, _, infodict, _, _ = \
-                leastsq(ground_model.get_difference, [0], xtol=0.1, full_output=True)
+            x, _, infodict, _, _ = leastsq(ground_model.get_difference, [0],
+                                           xtol=0.5, epsfcn=0.5, full_output=True)
             
             # calculate goodness of fit
             ss_err = (infodict['fvec']**2).sum()
@@ -699,21 +698,23 @@ class FirstPass(DataHandler):
     # FINDING BURROWS
     #===========================================================================
    
-    
-    def refine_burrow_outline(self, burrow, offset):
-        """ takes a single burrow and refines its outline """
-
-        # identify points that are free to be modified in the fitting
-        ground = geometry.LineString(np.array(self.ground, np.double))
+   
+    def prepare_burrow_shape(self, burrow, offset):
+        """ prepares the burrow shape.
+        This adjusts points to the ground profile and also identifies two
+        anchor points at the ends of the burrow outline. Furthermore, the
+        outline is simplified.
+        """
+        # translate ground profile to local coordinates
+        ground = geometry.LineString(np.array(self.ground, np.double) - np.array(offset))
         roi_h, roi_w = burrow.image.shape
-
+        
         # move points close to the ground profile on top of it
         in_burrow = False
         outline = []
         last_point = None
         for p in burrow.outline:
-            # get the point in global coordinates
-            point = geometry.Point((p[0] + offset[0], p[1] + offset[1]))
+            point = geometry.Point(p)
 
             if p[0] == 1 or p[1] == 1 or p[0] == roi_w - 2 or p[1] == roi_h - 2:
                 # points at the boundary are definitely outside the burrow
@@ -725,7 +726,7 @@ class FirstPass(DataHandler):
                 # we also move these points onto the ground profile
                 # see http://stackoverflow.com/a/24440122/932593
                 point_new = ground.interpolate(ground.project(point))
-                p = (point_new.x - offset[0], point_new.y - offset[1])
+                p = (point_new.x, point_new.y)
                 
             else:
                 point_outside = False
@@ -733,7 +734,7 @@ class FirstPass(DataHandler):
             if point_outside:
                 # current point is a point outside the burrow
                 if in_burrow:
-                    # if we currently reaping, add this point and exit
+                    # if we currently collect points, add this point and exit
                     outline.append(p)
                     break
                 # otherwise save the point, since we might need it in the next iteration
@@ -742,7 +743,7 @@ class FirstPass(DataHandler):
             else:
                 # current point is inside the burrow
                 if not in_burrow:
-                    # start reaping points
+                    # start collecting points
                     in_burrow = True
                     if last_point is not None:
                         outline = [last_point]
@@ -757,16 +758,25 @@ class FirstPass(DataHandler):
         outline = geometry.LineString(np.array(outline, np.double))
         tolerance = self.params['burrows/outline_simplification_threshold'] * outline.length
         outline = outline.simplify(tolerance, preserve_topology=False)
-        burrow.outline = list(outline.coords)                
         
-        # adjust the outline until it explains the burrow best 
+        # set the outline
+        burrow.outline = np.array(outline.coords)
+    
+    
+    def refine_burrow_outline(self, burrow, offset):
+        """ takes a single burrow and refines its outline """
+        self.prepare_burrow_shape(burrow, offset)
         
-        
-        # return the burrow outline in global coordinates
-        points = [(p[0] + offset[0], p[1] + offset[1]) for p in burrow.outline]
-        
-        return points
+        # adjust the outline until it explains the burrow best
+        # TODO: move the fitting methods from the Burrow class to here
+        burrow.prepare_fitting()
 
+        # move the ground profile model perpendicular until it fits best
+        x, ier = leastsq(burrow.get_residual, np.zeros(len(burrow) - 2),
+                         xtol=0.5, epsfcn=0.5)
+        
+        burrow.finish_fitting(x)
+        
 
     def find_burrows(self, frame):
         """ locates burrows by combining the information of the ground profile
@@ -811,47 +821,79 @@ class FirstPass(DataHandler):
             contours, _ = cv2.findContours(burrows_mask.copy(), # copy, because we use it later again
                                            cv2.RETR_EXTERNAL,
                                            cv2.CHAIN_APPROX_SIMPLE)
-        
-        burrows = []
+            
         for contour in contours:
-            contour = np.array(contour, np.int32) 
-
-            # get enclosing rectangle
-            rect = cv2.boundingRect(contour)
-            burrow_fitting_margin = self.params['burrows/fitting_margin']
-            rect = expand_rectangle(rect, burrow_fitting_margin)
-
-            # focus on this part of the problem            
-            slices = rect_to_slices(rect)
-            ground_roi = ground[slices]
-            burrow_mask = cv2.bitwise_and(ground[slices], potential_burrows[slices])
-            #burrow_mask = cv2.morphologyEx(explored_area[], cv2.MORPH_CLOSE, kernel)
-
-            #burrow_mask = burrows_mask[slices]
-            frame_roi = frame[slices].astype(np.uint8)
-            contour = np.squeeze(contour) - np.array([[rect[0], rect[1]]], np.int32)
-
-            # find the combined contour of burrow and ground profile
-            mask = cv2.bitwise_xor(burrow_mask, ground_roi)
+            #convert contour into polygon
+            contour_points = np.squeeze(np.asarray(contour, np.double))
+            if contour_points.ndim < 2:
+                continue
+            contour_poly = geometry.Polygon(contour_points)
             
-            points, _ = cv2.findContours(mask,
-                                         cv2.RETR_EXTERNAL,
-                                         cv2.CHAIN_APPROX_SIMPLE)
-            
-            if len(points) == 1:
-                # define the burrow and refine its outline
-                burrow = Burrow(np.squeeze(points), image=frame_roi)
-                outline = self.refine_burrow_outline(burrow, (rect[0], rect[1]))
-                
-                if len(outline) > 0:
-                    burrows.append(Burrow(outline, time=self.frame_id))
+            # check whether the contour overlaps with any of the found burrows
+            for burrow_track in self.result['burrows/data']:
+                if burrow_track.last.intersects(contour_poly):
+                    # take the data from the previous burrow
+                    burrow = burrow_track.last.copy()
+                    # add the current contour to the burrow outline
+                    burrow.extend_outline(contour_poly)
+                    # extract the region of interest and copy it to he burrow object     
+                    rect = burrow.get_bounding_rect(self.params['burrows/fitting_margin'])
+                    slices = rect_to_slices(rect)
+                    burrow.image = self.background[slices].astype(np.uint8)
+                    burrow.mask = ground[slices]
                     
+                    # refine the burrow outline using the current data
+                    burrow.outline = [(p[0] - rect[0], p[1] - rect[1]) for p in burrow.outline]
+                    self.refine_burrow_outline(burrow, (rect[0], rect[1]))
+                    burrow.outline = [(p[0] + rect[0], p[1] + rect[1]) for p in burrow.outline]
+                    # append the new burrow shape to the track
+                    burrow_track.append(self.frame_id, burrow)
+                    break
+                
             else:
-                logging.warn('We found multiple potential burrows in a small region. '
-                             'This part will not be analyzed.')
+                # this burrow does not seem to correspond to any of the older burrows
+                # we thus create a new burrow
+
+                # get enclosing rectangle
+                rect = cv2.boundingRect(contour)
+                burrow_fitting_margin = self.params['burrows/fitting_margin']
+                rect = expand_rectangle(rect, burrow_fitting_margin)
+    
+                # focus on the burrow region            
+                slices = rect_to_slices(rect)
+                ground_roi = ground[slices]
+                burrow_mask = cv2.bitwise_and(ground[slices], potential_burrows[slices])
+                #burrow_mask = cv2.morphologyEx(explored_area[], cv2.MORPH_CLOSE, kernel)
+    
+                #burrow_mask = burrows_mask[slices]
+                burrow_img = self.background[slices].astype(np.uint8)
+                contour = np.squeeze(contour) - np.array([[rect[0], rect[1]]], np.int32)
+    
+                # find the combined contour of burrow and ground profile
+                mask = cv2.bitwise_xor(burrow_mask, ground_roi)
+                
+                points, _ = cv2.findContours(mask,
+                                             cv2.RETR_EXTERNAL,
+                                             cv2.CHAIN_APPROX_SIMPLE)
+                
+                if len(points) == 1:
+                    # define the burrow and refine its outline
+                    burrow = Burrow(np.squeeze(points), image=burrow_img, mask=ground_roi)
+                    
+                    self.refine_burrow_outline(burrow, (rect[0], rect[1]))
+
+                    # return the burrow outline in global coordinates
+                    burrow.outline = [(p[0] + rect[0], p[1] + rect[1])
+                                      for p in burrow.outline]
+                    
+                    if len(burrow) > 2:
+                        burrow_track = BurrowTrack(self.frame_id, burrow)
+                        self.result['burrows/data'].append(burrow_track)
+                        
+                else:
+                    logging.warn('We found multiple potential burrows in a small region. '
+                                 'This part will not be analyzed.')
             
-        return burrows
-                                 
 
     #===========================================================================
     # DEBUGGING
@@ -901,11 +943,13 @@ class FirstPass(DataHandler):
             debug_video.add_polygon(self.ground, is_closed=False, color='y')
             debug_video.add_points(self.ground, radius=2, color='y')
         
-            # indicate the burrow shapes
-            for burrow in self.burrows:
-                debug_video.add_polygon(burrow.outline, 'orange', is_closed=False)
-                for p in burrow.outline:
-                    debug_video.add_circle(p, 3, 'orange', thickness=-1)
+            # indicate the currently active burrow shapes
+            for burrow_track in self.result['burrows/data']:
+                if burrow_track.last_seen >= self.frame_id - self.params['burrows/adaptation_interval']:
+                    burrow = burrow_track.last
+                    debug_video.add_polygon(burrow.outline, 'orange', is_closed=False)
+                    for p in burrow.outline:
+                        debug_video.add_circle(p, 3, 'orange', thickness=-1)
         
             # indicate the mouse position
             if len(self.tracks) > 0:
@@ -923,13 +967,17 @@ class FirstPass(DataHandler):
             else: # there are no current tracks
                 for mouse_pos in self._mouse_pos_estimate:
                     debug_video.add_circle(mouse_pos, self.params['mouse/model_radius'], 'k', thickness=1)
-             
+            
+            # add additional debug information
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
             debug_video.add_text('#objects:%d' % self.debug['object_count'], (120, 20), anchor='top')
             debug_video.add_text(self.debug['text1'], (300, 20), anchor='top')
             debug_video.add_text(self.debug['text2'], (300, 50), anchor='top')
             if self.debug.get('rect1'):
                 debug_video.add_rectangle(self.debug['rect1'])
+            if self.debug.get('points'):
+                for p in self.debug['points']:
+                    debug_video.add_circle(p, radius=4)
             
             if 'video.show' in self.debug:
                 self.debug['video.show'].show(debug_video.frame)

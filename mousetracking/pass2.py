@@ -25,8 +25,7 @@ class SecondPass(DataHandler):
         obj.data = first_pass.data
         obj.params = first_pass.data['parameters']
         obj.pass1 = first_pass.data['pass1'] 
-        obj.tracks = first_pass.tracks
-        obj.burrows = first_pass.burrows       
+        obj.tracks = first_pass.tracks       
 
 
     def process_data(self):

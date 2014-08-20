@@ -9,5 +9,6 @@ yaml
 
 
 Optional python packages:
-tqdm
-sharedmem
+tqdm      -- for showing a progress bar while iterating
+sharedmem -- for showing the debug video in a separate process while iterating 
+descartes -- for debug plotting of shapes

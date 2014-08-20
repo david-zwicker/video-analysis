@@ -10,8 +10,11 @@ import itertools
 
 import numpy as np
 import cv2
+import shapely.geometry as geometry
 
 from video.analysis.curves import point_distance
+from video.analysis.regions import corners_to_rect, expand_rectangle
+
 import debug
 
 
@@ -32,7 +35,7 @@ class ObjectTrack(object):
     # TODO: hold everything inside lists, not list of objects
     # TODO: speed up by keeping track of velocity vectors
     
-    array_columns = ['Frame ID', 'Position X', 'Position Y', 'Object Area']
+    array_columns = ['Time', 'Position X', 'Position Y', 'Object Area']
     index_columns = 0
     
     def __init__(self, time=None, obj=None, moving_window=20, moving_threshold=10):
@@ -139,18 +142,36 @@ class GroundProfile(object):
 class Burrow(object):
     """ represents a single burrow to compare it against an image in fitting """
     
-    array_columns = ['Time', 'Position X', 'Position Y']
+    array_columns = ['Position X', 'Position Y']
     index_columns = 0 #< there could be multiple burrows at each time point
     # Hence, time can not be used as an index
     
-    def __init__(self, outline, time=None, image=None):
+    def __init__(self, outline, time=None, image=None, mask=None):
         """ initialize the structure
-        size is half the width of the region of interest
-        profile_width determines the blurriness of the ridge
         """
         self.outline = outline
-        self.image = image
         self.time = time
+        
+        # internal caches used for fitting
+        self.image = image
+        self.mask = mask
+        self._angles = None #< internal cache
+        self._color_burrow = None
+        self._color_sand = None
+        self._model = None 
+
+    
+    def clear_cache(self):
+        self.image = None
+        self.mask = None
+        self._angles = None
+        self._color_burrow = None
+        self._color_sand = None
+        self._model = None 
+
+
+    def copy(self):
+        return Burrow(self.outline)
 
         
     def __len__(self):
@@ -160,26 +181,91 @@ class Burrow(object):
     def get_centerline(self):
         raise NotImplementedError
     
-        
-    def adjust_outline(self, deviations):
-        """ adjust the current outline by moving points perpendicular by
-        a distance given by `deviations` """
-        pass
     
+    def contains(self, point):
+        """ returns True if the point is inside the burrow """
+        burrow_shape = geometry.Polygon(self.outline)
+        return burrow_shape.contains(geometry.Point(point))
+    
+    
+    def intersects(self, polygon):
+        """ returns True if polygon intersects the burrow """
+    
+    
+    def get_bounding_rect(self, margin=0):
+        """ returns the bounding rectangle of the burrow """
+        burrow_shape = geometry.Polygon(self.outline)
+        bounds = burrow_shape.bounds
+        bound_rect = corners_to_rect(bounds[:2], bounds[2:])
+        return expand_rectangle(bound_rect, margin)
+    
+    
+    def extend_outline(self, polygon):
+        """ extends the outline of the burrow to also enclose the object given
+        by polygon """
+        # get the union of the burrow and the extension
+        burrow = geometry.Polygon(self.outline)
+        outline = burrow.union(polygon).boundary
+        outline = np.asarray(outline, np.int32).tolist()
         
-    def get_difference(self, deviations):
+        # find indices of the anchor points
+        i1 = outline.index([int(self.outline[ 0][0]), int(self.outline[ 0][1])])
+        i2 = outline.index([int(self.outline[-1][0]), int(self.outline[-1][1])])
+        i1, i2 = min(i1, i2), max(i1, i2)
+        
+        # figure out in what direction we have to go around the polygon
+        if i2 - i1 > len(outline)//2:
+            # the right outline goes from i1 .. i2
+            self.outline = outline[i1:i2+1]
+        else:
+            # the right outline goes from i2 .. -1 and start 0 .. i1
+            self.outline = outline[i2:] + outline[:i1]  
+        
+        
+    def prepare_fitting(self):
+        """ prepares some variables for fitting """
+        self.mask = np.asarray(self.mask, np.bool)
+        self.outline = np.asarray(self.outline, np.double)
+
+        # determine the local slope of the profile, which fixes the angle 
+        self._angles = np.array([np.arctan2(p2[1] - p0[1], p2[0] - p0[0]) # y-coord, x-coord
+                                 for p2, p0 in itertools.izip(self.outline[2:], self.outline[:-2])])
+                        # p2 and p0 are the next and the previous point, respectively
+                        
+        # prepare a mask to measure the colors
+        self._model = np.zeros_like(self.image, np.uint8)
+        cv2.fillPoly(self._model, np.array([self.outline], np.int32), color=1)
+        burrow_mask = self._model.astype(np.bool)
+        
+        self._color_burrow = self.image[self.mask & burrow_mask].mean()
+        self._color_sand = self.image[self.mask - burrow_mask].mean()
+            
+    
+    def get_residual(self, deviations):
         """ calculates the difference between image and model, when the 
         model is moved by a certain distance in its normal direction """
-        raise NotImplementedError 
+        # adjust the original outline using the given deviations
+        outline = self.outline.copy()
+        outline[1:-1, 0] += np.cos(self._angles)*deviations
+        outline[1:-1, 1] -= np.sin(self._angles)*deviations
         
-        dist = 1
-           
-        # apply sigmoidal function
-        model = np.tanh(dist/self.width)
-     
-        return np.ravel(self.image_mean + 1.5*self.image_std*model - self.image)
+        # use the outline to create the burrow image
+        self._model.fill(self._color_sand)
+        cv2.fillPoly(self._model, np.array([outline], np.int32), color=self._color_burrow)
+
+        return np.ravel(self.image[self.mask] - self._model[self.mask])
     
     
+    def finish_fitting(self, deviations):
+        """ adjust the current outline and deletes caches """
+        # adjust the burrow outline using the given deviations
+        self.outline[1:-1, 0] += np.cos(self._angles)*np.array(deviations)
+        self.outline[1:-1, 1] -= np.sin(self._angles)*np.array(deviations)
+        
+        # delete data which we don't need anymore
+        self.clear_cache()
+
+
     def show_image(self, mark_points):
         # draw burrow
         image = self.image.copy()
@@ -192,16 +278,87 @@ class Burrow(object):
     
     def to_array(self):
         """ converts the internal representation to a single array """
-        self.outline = np.asarray(self.outline)
-        time_array = np.zeros((len(self.outline), 1), np.int32) + self.time
-        return np.hstack((time_array, self.outline))
+        return np.asarray(self.outline, np.int32)
 
 
     @classmethod
     def from_array(cls, data):
-        data = np.asarray(data)
-        return cls(outline=data[1:, :], time=data[0, 0])
+        return cls(outline=data)
         
+    
+
+class BurrowTrack(object):
+    array_columns = ['Time', 'Position X', 'Position Y']
+    index_columns = 0 #< there could be multiple burrows at each time point
+    
+    def __init__(self, time=None, burrow=None):
+        self.times = [] if time is None else [time]
+        self.burrows = [] if burrow is None else [burrow]
+        
+        
+    def __repr__(self):
+        if len(self.times) == 0:
+            return 'BurrowTrack([])'
+        elif len(self.times) == 1:
+            return 'BurrowTrack(time=%d)' % (self.times[0])
+        else:
+            return 'BurrowTrack(time=%d..%d)' % (self.times[0], self.times[-1])
+        
+        
+    def __len__(self):
+        return len(self.times)
+    
+    
+    @property
+    def last(self):
+        """ return the last position of the object """
+        return self.burrows[-1]
+    
+    
+    @property
+    def last_seen(self):
+        return self.times[-1]
+    
+    
+    def append(self, time, burrow):
+        """ append a new burrow with a time code """
+        self.times.append(time)
+        self.burrows.append(burrow)
+    
+    
+    def to_array(self):
+        """ converts the internal representation to a single array
+        useful for storing the data """
+        res = []
+        for time, burrow in itertools.izip(self.times, self.burrows):
+            time_array = np.zeros((len(burrow), 1), np.int32) + time
+            res.append(np.hstack((time_array, burrow.to_array())))
+        if res:
+            return np.vstack(res)
+        else:
+            return []
+
+
+    @classmethod
+    def from_array(cls, data):
+        """ constructs an object from an array previously created by to_array() """
+        burrow_track = cls()
+        outline = []
+        time_cur = -1
+        for d in data:
+            if d[0] != time_cur:
+                if outline is not None:
+                    burrow_track.append(time_cur, outline)
+                time_cur = d[0]
+                outline = [d[1:]]
+            else:
+                outline.append(d[1:])
+
+        if outline is not None:
+            burrow_track.append(time_cur, outline)
+
+        return burrow_track
+    
     
     
 class RidgeProfile(object):
