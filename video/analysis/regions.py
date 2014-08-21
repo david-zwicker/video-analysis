@@ -34,11 +34,15 @@ def rect_to_slices(rect):
     return slice_y, slice_x
 
 
-def get_overlapping_slices(t_pos, i_shape, t_shape, anchor='center'):
+def get_overlapping_slices(t_pos, t_shape, i_shape, anchor='center', ret_rect=False):
     """ calculates slices to compare parts of two images with each other
     i_shape is the shape of the larger image in which a smaller image of
     shape t_shape will be placed.
     Here, t_pos specifies the position of the smaller image in the large one.
+    The input variables follow this convention:
+        t_pos = (x-position, y-position)
+        t_shape = (template-height, template-width)
+        i_shape = (image-height, image-width)
     """
     
     # get dimensions to determine center position         
@@ -76,8 +80,13 @@ def get_overlapping_slices(t_pos, i_shape, t_shape, anchor='center'):
         h += pos[1]
         
     # build the slices used to extract the information
-    return ((slice(i_y, i_y + h), slice(i_x, i_x + w)),  # slice for the image
-            (slice(t_y, t_y + h), slice(t_x, t_x + w)))  # slice for the template
+    slices= ((slice(t_y, t_y + h), slice(t_x, t_x + w)),  # slice for the template
+             (slice(i_y, i_y + h), slice(i_x, i_x + w)))  # slice for the image
+    
+    if ret_rect:
+        return slices, (i_x, i_y, w, h)
+    else:
+        return slices
 
 
 def find_bounding_box(mask):

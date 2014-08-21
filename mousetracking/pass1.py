@@ -340,7 +340,7 @@ class FirstPass(DataHandler):
             # cut out holes from the mask for each mouse estimate
             for mouse_pos in self._mouse_pos_estimate:
                 # get the slices required for comparing the template to the image
-                i_s, t_s = get_overlapping_slices(mouse_pos, frame.shape, template.shape)
+                t_s, i_s = get_overlapping_slices(mouse_pos, template.shape, frame.shape)
                 mask[i_s[0], i_s[1]] *= template[t_s[0], t_s[1]]
                 
         else:
@@ -349,7 +349,7 @@ class FirstPass(DataHandler):
 
         # adapt the background to current frame, but only inside the mask 
         self.background += (self.params['background/adaptation_rate']  # adaptation rate 
-                             *mask                                      # mask 
+                             *mask                                     # mask 
                              *(frame - self.background))               # difference to current frame
 
                         
@@ -661,7 +661,7 @@ class FirstPass(DataHandler):
                 rsquared = 1 - ss_err/ss_tot
 
             # Note, that we never remove the first and the last point
-            if rsquared > 0.1 or k == 0 or k == len(ground) - 1:
+            if rsquared > 0 or k == 0 or k == len(ground) - 1:
                 # we are rather confident that this point is better than it was
                 # before and thus add it to the result list
                 p_x = p[0] + x[0]*np.cos(angle)
@@ -773,15 +773,8 @@ class FirstPass(DataHandler):
                 outline.insert(k + 1, p)
             k += 1
         
-        # extract the region of interest and copy it to he burrow object
-        rect = burrow.get_bounding_rect(self.params['burrows/fitting_margin'])
-        slices = rect_to_slices(rect)
-        burrow_image = self.background[slices].astype(np.uint8)
-        ground_mask = np.asarray(ground_mask[slices], np.bool)
-        outline = [(p[0] - rect[0], p[1] - rect[1]) for p in outline]
-        outline = np.array(outline, np.double)
-
         def get_closest_point(point):
+            """ determines the point on the ground profile closest to `point` """
             point = geometry.Point(point)
             distances = [point.distance(p) for p in ground_points]
             cp = ground_points[np.argmin(distances)]
@@ -792,8 +785,10 @@ class FirstPass(DataHandler):
         for k, p in enumerate(outline):
             if k == 0:
                 p0, p2 = get_closest_point(p), p
+                self.debug['points'] = [p0]
             elif k == len(outline) - 1:
                 p0, p2 = p, get_closest_point(p)
+                self.debug['points'].append(p2)
             else:
                 p0, p2 = outline[k-1], outline[k+1]
             angles.append(np.arctan2(p2[1] - p0[1], p2[0] - p0[0])) # y-coord, x-coord
@@ -802,6 +797,16 @@ class FirstPass(DataHandler):
         angles[ 0] += np.pi/2
         angles[-1] += np.pi/2
         angles = np.array(angles)
+                      
+        # extract the region of interest and copy it to he burrow object
+        rect = burrow.get_bounding_rect(self.params['burrows/fitting_margin'])
+        (_, slices_img), rect = get_overlapping_slices(rect[:2], (rect[3], rect[2]), ground_mask.shape,
+                                                       anchor='upper left', ret_rect=True)
+        
+        burrow_image = self.background[slices_img].astype(np.uint8)
+        ground_mask = np.asarray(ground_mask[slices_img], np.bool)
+        outline = [(p[0] - rect[0], p[1] - rect[1]) for p in outline]
+        outline = np.array(outline, np.double)
                         
         # prepare a mask to measure the colors
         model = np.zeros_like(burrow_image, np.uint8)
@@ -811,6 +816,7 @@ class FirstPass(DataHandler):
         color_sand = np.median(burrow_image[ground_mask - burrow_mask])
 
         def get_residual(displacements, show_image=False):
+            """ calculates the difference between the model burrow and the image """
             line = outline.copy()
             line[:, 0] += np.cos(angles)*displacements
             line[:, 1] -= np.sin(angles)*displacements
@@ -818,6 +824,8 @@ class FirstPass(DataHandler):
             # use the outline to create the burrow image
             model.fill(color_sand)
             cv2.fillPoly(model, np.array([line], np.int32), color=color_burrow)
+    
+            cv2.GaussianBlur(model, (0, 0), 3, dst=model)
     
             if show_image:
                 debug.show_image(model, burrow_image, equalize_colors=True)
@@ -832,7 +840,7 @@ class FirstPass(DataHandler):
 #         get_residual(displacements, True)
         
         # limit the maximal displacement
-        max_dis = self.params['burrows/radius']
+        max_dis = self.params['burrows/radius']/2
         displacements = np.clip(displacements, -max_dis, max_dis)
         
 #         print 'Corrected burrow by', sum(abs(p) for p in displacements)
