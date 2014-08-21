@@ -69,6 +69,8 @@ class ImageShow(object):
                     # initialize the process that shows the image
                     self._proc = Process(target=_show_image_from_pipe,
                                          args=(pipe_child, self._data, title))
+                    
+                    # FIXME: process should be daemon
                     self._proc.start()
                     logging.debug('Started background process for displaying images')
                     

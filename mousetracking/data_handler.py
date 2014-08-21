@@ -45,7 +45,7 @@ PARAMETERS_DEFAULT = {
                                
     # determines the rate with which the background is adapted [in 1/frames]
     'background/adaptation_rate': 0.01,
-    'explored_area/adaptation_rate': 1e-4,
+    'explored_area/adaptation_rate': 1e-4, # 1e-4
     
     # spacing of the points in the ground profile [in pixel]
     'ground/point_spacing': 20,
@@ -75,9 +75,11 @@ PARAMETERS_DEFAULT = {
     'mouse/max_rel_area_change': 0.5,
 
     # how often are the burrow shapes adapted [in frames]
-    'burrows/adaptation_interval': 10, # 100
+    'burrows/adaptation_interval': 1, # 100
     # what is a typical radius of a burrow [in pixel]
     'burrows/radius': 10,
+    # minimal area a burrow cross section has to have
+    'burrows/min_area': 100,
     # extra number of pixel around burrow outline used for fitting [in pixel]
     'burrows/fitting_margin': 20,
     # determines how much the burrow outline might be simplified. The quantity 
@@ -227,7 +229,7 @@ class DataHandler(object):
                 dataset = hdf_file.create_dataset(key, data=result)
                 if column_names is not None:
                     hdf_file[key].attrs['column_names'] = column_names
-                
+                    
                 # replace the original data with a reference to the HDF5 data
                 main_result[key] = '@%s:%s' % (hdf_name, dataset.name.encode('ascii', 'replace'))
                 

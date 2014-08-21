@@ -12,7 +12,11 @@
 * Burrows should be fitted to background frame
 	- burrows might only need an update if the mouse (i.e. its explored area) is close
 	- the burrow outline geometry should be checked for consistency (must be a simple line according to shapely)
-	- we have to be more tolerant about bad burrow outlines (remove the ones, which collapsed to a line)  
+	- we have to be more tolerant about bad burrow outlines (remove the ones, which collapsed to a line)
+	- do linescans perpendicular to the centerline to find the burrow width
+		- linescans can be implemented using cv2.getRotationMatrix2D and cv2.warpAffine
+	- set burrow front by a different method (maybe just update it from explored area)
+		- also, we could just do a linescan along the center line  
 
 Performance improvements:
 -------------------------
@@ -22,7 +26,8 @@ Performance improvements:
 * Generally cache all kernels for morphological operations, since these are costly to make
 * There are problems when ffmpeg can't encode the output videos fast enough:
 	 - Presumably, the ffmpeg pipe gets full and the whole process just stops
-* Lazy-load the extra data in a NestedDict 
+* Lazy-load the extra data in a NestedDict
+* Calculate the Jacobian for the fitting explicitly 
 
 
 Low priority enhancements:

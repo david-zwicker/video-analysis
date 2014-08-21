@@ -1,0 +1,11 @@
+Necessary python packages:
+cv2        -- OpenCV python bindings
+numpy      -- Array library used for manipulating data 
+
+The following python packages are necessary to use the video.analysis package:
+scipy      -- for manipulating images
+shapely    -- for manipulating shapes
+
+Optional python packages:
+tqdm      -- for showing a progress bar while iterating
+sharedmem -- for showing the debug video in a separate process while iterating

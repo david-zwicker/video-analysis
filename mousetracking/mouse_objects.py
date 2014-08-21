@@ -172,7 +172,7 @@ class Burrow(object):
 
 
     def copy(self):
-        return Burrow(self.outline)
+        return Burrow(self.outline.copy())
 
         
     def __len__(self):
@@ -194,7 +194,7 @@ class Burrow(object):
     def polygon(self):
         return geometry.Polygon(np.asarray(self.outline, np.double))    
     
-        
+                
     def contains(self, point):
         """ returns True if the point is inside the burrow """
         return self.polygon.contains(geometry.Point(point))
@@ -226,6 +226,9 @@ class Burrow(object):
     def extend_outline(self, extension_polygon):
         """ extends the outline of the burrow to also enclose the object given
         by polygon """
+        # FIXME: This function often raises ERROR:shapely.geos:TopologyException: 
+        # Input geom 0 is invalid: Self-intersection at or near point
+        
         # get the union of the burrow and the extension
         burrow = self.polygon.union(extension_polygon)
         
@@ -268,6 +271,59 @@ class Burrow(object):
     def from_array(cls, data):
         return cls(outline=data)
         
+    
+class BurrowLine(object):
+    
+    def __init__(self, centerline, widths):
+        self.centerline = centerline
+        self.widths = widths
+        
+    
+    def copy(self):
+        # np.array is called to make sure we get copies of the data
+        return BurrowLine(np.array(self.centerline), np.array(self.widths))
+        
+        
+    def __len__(self):
+        return len(self.widths)
+       
+    
+    @property
+    def outline(self):
+        """ constructs the burrow outline from the centerline and the widths """
+        centerline = self.centerline
+        line1, line2 = [], []
+        
+        # iterate and build the two side lines
+        for k, p in enumerate(centerline):
+            if k == 0:
+                p1, p2 = centerline[0], centerline[1]
+            elif k == len(self)-1:
+                p1, p2 = centerline[-2], centerline[-1]
+            else:
+                p1, p2 = centerline[k-1], centerline[k+1]
+            
+            w = self.widths[k]
+            dx = p2[0] - p1[0]
+            dy = p2[1] - p1[1]
+            dist = np.sqrt(dx**2 + dy**2)
+
+            # get first point
+            if k == 0:        
+                line2.append((p[0] - w*dx/dist, p[1] - w*dy/dist))
+            
+            line1.append((p[0] + w*dy/dist, p[1] - w*dx/dist))
+            line2.append((p[0] - w*dy/dist, p[1] + w*dx/dist))
+
+        # construct the outline
+        return line1[::-1] + line2
+        
+        
+    @property
+    def polygon(self):
+        """ returns the burrow outline polygon """
+        return geometry.Polygon(np.array(self.outline, np.double))
+
     
 
 class BurrowTrack(object):

@@ -104,7 +104,7 @@ class VideoComposer(VideoFileWriter):
         
     
     def add_rectangle(self, rect, color='w', width=1):
-        """ add a rect=(top, left, height, width) to the frame """
+        """ add a rect=(left, top, width, height) to the frame """
         cv2.rectangle(self.frame, *rect_to_corners(rect),
                       color=get_color(color), thickness=width)
         
