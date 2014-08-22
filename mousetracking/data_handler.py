@@ -84,7 +84,7 @@ PARAMETERS_DEFAULT = {
     'burrows/fitting_margin': 20,
     # determines how much the burrow outline might be simplified. The quantity 
     # determines by what fraction the total outline length is allowed to change 
-    'burrows/outline_simplification_threshold': 0.01#0.005,
+    'burrows/outline_simplification_threshold': 0.01,#0.005,
 }
 
 

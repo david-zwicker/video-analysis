@@ -308,15 +308,16 @@ class BurrowLine(object):
             dy = p2[1] - p1[1]
             dist = np.sqrt(dx**2 + dy**2)
 
-            # get first point
-            if k == 0:        
-                line2.append((p[0] - w*dx/dist, p[1] - w*dy/dist))
+#             # get first point
+#             if k == 0:        
+#                 line2.append((p[0] - w*dx/dist, p[1] - w*dy/dist))
             
-            line1.append((p[0] + w*dy/dist, p[1] - w*dx/dist))
-            line2.append((p[0] - w*dy/dist, p[1] + w*dx/dist))
+            if k > 0:
+                line1.append((p[0] + w*dy/dist, p[1] - w*dx/dist))
+                line2.append((p[0] - w*dy/dist, p[1] + w*dx/dist))
 
         # construct the outline
-        return line1[::-1] + line2
+        return line1[::-1] + [centerline[0]] + line2
         
         
     @property

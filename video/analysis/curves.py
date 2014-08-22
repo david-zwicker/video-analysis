@@ -10,6 +10,8 @@ import itertools
 import math
 import numpy as np
 
+import shapely.geometry as geometry
+
 # make simplify_curve available under current scope 
 from ._rdp import rdp as simplify_curve # @UnusedImport
 
@@ -52,3 +54,11 @@ def make_curve_equidistant(points, spacing):
         result.append(points[-1])
         
     return result
+
+
+def get_projection_point(line, point):
+    """ determines the point on the line closest to `point` """
+    point = geometry.Point(point)
+    point = line.interpolate(line.project(point))
+    return (point.x, point.y)
+

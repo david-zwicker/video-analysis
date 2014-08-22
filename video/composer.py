@@ -92,7 +92,7 @@ class VideoComposer(VideoFileWriter):
         """
         if copy:
             mask = mask.copy()
-        contours, hierarchy = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(self.frame, contours, -1,  get_color(color), thickness=thickness)
     
     

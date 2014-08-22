@@ -92,7 +92,7 @@ def display_progress(iterator, total=None):
     """
     displays a progress bar when iterating
     """
-    if tqdm is not None and logging_level() <= logging.INFO:
+    if tqdm is not None and logging.DEBUG < logging_level() <= logging.INFO:
         return tqdm(iterator, total=total, leave=True)
     else:
         return iterator
