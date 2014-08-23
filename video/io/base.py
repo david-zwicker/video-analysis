@@ -375,23 +375,20 @@ class VideoSlice(VideoFilterBase):
     
     
     
-class _VideoForkChild(VideoBase):
-    """ internal class representing the child of a VideoFork """
+class _VideoForkClient(VideoBase):
+    """ internal class representing the client of a VideoFork """
     
     def __init__(self, video_fork):
-        """ initializes a private video fork child """
+        """ initializes a private video fork client """
         self._parent = video_fork
-        super(_VideoForkChild, self).__init__(size=video_fork.size,
-                                              frame_count=video_fork.frame_count,
-                                              fps=video_fork.fps,
-                                              is_color=video_fork.is_color)
+        super(_VideoForkClient, self).__init__(**video_fork.video_format)
         
         
     def get_frame(self, index):
         """
         this function is called by the next method of the iterator.
         Instead of iterating the source video itself, it asks the parent for
-        the current frame. Depending on the state of the other fork children,
+        the current frame. Depending on the state of the other fork clients,
         the parent may return a cached frame or retrieve a new one
         """
         frame = self._parent.get_frame(index)
@@ -402,6 +399,11 @@ class _VideoForkChild(VideoBase):
             raise StopIteration
         
         return frame
+
+
+
+class SynchronizationError(RuntimeError):
+    pass
 
 
     
@@ -419,23 +421,30 @@ class VideoFork(VideoFilterBase):
         
         for frame_1, frame_2 in itertools.izip(video_1, video_2):
             compare_frames(frame_1, frame_2)
+            
+    VideoFork has a simple test whether all clients are synchronized, which is
+    based on the number of times a frame has been requested.
     """
     
-    def __init__(self, source):
-        """ initialize the video fork """
+    def __init__(self, source, synchronized=True):
+        """ initialize the video fork
+        If synchronized is True, all clients must be iterated together
+        """
         self._iterators = []
         self._frame = None
         self._frame_index = -1
+        self.synchronized = synchronized
+        self._retrieve_count = np.inf #< how often was the current frame retrieved?
         super(VideoFork, self).__init__(source)
         
         logging.debug('Created video fork.')
 
-    
+
     def set_frame_pos(self, index):
-        """ set the position pointer for the video fork and all children """
+        """ set the position pointer for the video fork and all clients """
         super(VideoFork, self).set_frame_pos(index)
         
-        # synchronize all the children
+        # synchronize all the clients
         for iterator in self._iterators:
             iterator.set_frame_pos(index)
 
@@ -453,10 +462,15 @@ class VideoFork(VideoFilterBase):
         """
         if index == self._frame_index:
             # just return the cached frame
-            pass
+            self._retrieve_count += 1
         
         elif index == self._frame_index + 1:
             # retrieve the next frame from the source video
+            
+            # check whether the other clients are synchronized
+            if self.synchronized and self._retrieve_count < len(self._iterators):
+                raise SynchronizationError('The other clients have not yet read '
+                                           'the previous frame.')
             
             # save the index of the frame, which we are about to get
             self._frame_index = self.get_frame_pos()
@@ -465,15 +479,16 @@ class VideoFork(VideoFilterBase):
             try:
                 self._frame = self._source_iter.next()
             except StopIteration:
-                self._end_iterating()
+                #self._end_iterating()
                 self._frame = StopIteration
                 
+            self._retrieve_count = 1
             self._frame_pos += 1
             
         else:
-            raise RuntimeError('The children of the video fork ran out of sync. '
-                               'The parent process is at frame %d, while one child '
-                               'requested frame %d' % (self._frame_index, index))
+            raise SynchronizationError('The clients of the video fork ran out of sync. '
+                                       'The parent process is at frame %d, while one client '
+                                       'requested frame %d' % (self._frame_index, index))
         
         return self._frame
         
@@ -484,31 +499,30 @@ class VideoFork(VideoFilterBase):
         
     def _end_iterating(self):
         """
-        ends the iteration and removes all the fork children.
-        Note that the children may still retrieve the last frame.
+        ends the iteration and removes all the fork clients.
+        Note that the clients may still retrieve the last frame.
         """
         # remove all the iterators
         self._iterators = []
-        logging.debug('Finished iterating and unregistered all children of '
-                      'of the video fork.')
+        logging.debug('Finished iterating and unregistered all clients of '
+                      'the video fork.')
         super(VideoFork, self)._end_iterating()
 
 
     def __iter__(self):
         """
-        returns a new fork child, which can then be used for iteration.
+        returns a new fork client, which can then be used for iteration.
         """
-        # the iteration of this class is initialized when the first child is iterated over
+        # the iteration of this class is initialized when the first client is iterated over
         if len(self._iterators) == 0:
             self._start_iterating()
 
-        # create and register the child iterator
-        child = _VideoForkChild(self)
-        self._iterators.append(child)
-        logging.debug('Registered child %d for video fork.', 
+        # create and register the client iterator
+        client = _VideoForkClient(self)
+        self._iterators.append(client)
+        logging.debug('Registered client %d for video fork.', 
                       len(self._iterators))
         
-        # return the child
-        return iter(child)
+        return iter(client)
     
         
