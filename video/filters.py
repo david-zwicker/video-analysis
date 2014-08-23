@@ -123,11 +123,11 @@ def _check_coordinate(value, max_value):
 class FilterCrop(VideoFilterBase):
     """ crops the video to the given rect=(top, left, height, width) """
     
-    def __init__(self, source, rect=None, quadrant='', color_channel=None):
+    def __init__(self, source, rect=None, region='', color_channel=None):
         """
         initialized the filter that crops to the given rect=(left, top, width, height)
         Alternative, the class understands the special strings 'lower', 'upper', 'left',
-        and 'right, which can be given in the quadrant parameter. 
+        and 'right, which can be given in the region parameter. 
         If color_channel is given, it is assumed that the input video is a color
         video and only the specified color channel is returned, thus turning
         the video into a monochrome one
@@ -143,18 +143,18 @@ class FilterCrop(VideoFilterBase):
                     
         else:
             # construct the rect from the given string
-            quadrant = quadrant.lower()
+            region = region.lower()
             left, top = 0, 0
             width, height = source_width, source_height
-            if 'left' in quadrant:
+            if 'left' in region:
                 width //= 2 
-            elif 'right' in quadrant:
+            elif 'right' in region:
                 width //= 2
                 left = source_width - width 
             
-            if 'upper' in quadrant:
+            if 'upper' in region:
                 height //= 2
-            elif 'lower' in quadrant:
+            elif 'lower' in region:
                 height //= 2
                 top = source_height - height
         
