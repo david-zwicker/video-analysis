@@ -6,6 +6,7 @@ Created on Aug 2, 2014
 
 from __future__ import division
 
+import collections
 import logging
 import os
 
@@ -59,7 +60,7 @@ def prepare_data_for_yaml(data):
         return float(data)
     elif isinstance(data, np.integer):
         return int(data)
-    elif isinstance(data, dict):
+    elif isinstance(data, collections.MutableMapping):
         return {k: prepare_data_for_yaml(v) for k, v in data.iteritems()}
     elif isinstance(data, (list, tuple)):
         return [prepare_data_for_yaml(v) for v in data]

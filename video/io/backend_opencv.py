@@ -111,9 +111,13 @@ class VideoOpenCV(VideoBase):
             raise IndexError('OpenCV could not read frame.')
             
                     
-    def __del__(self):
+    def close(self):
         self._movie.release()
-
+                    
+                    
+    def __del__(self):
+        self.close()
+        
 
 
 class VideoImageStackOpenCV(VideoImageStackBase):

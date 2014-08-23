@@ -59,4 +59,10 @@ class VideoMemory(VideoBase):
         # delegate the writing to the data directly
         self.data[key] = value  
         
+        
+        
+class VideoMemoryBuffer(VideoBase):
+    """ class which receives frames from another video and holds them in memory
+    until they are consumed. This class thus acts as a video buffer """
+    pass
 

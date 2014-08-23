@@ -84,6 +84,14 @@ class VideoBase(object):
         return shape
     
     
+    @property
+    def video_format(self):
+        return {'size': self.size,
+                'frame_count': self.frame_count,
+                'fps': self.fps,
+                'is_color': self.is_color}
+    
+    
     def register_listener(self, listener_callback):
         """ registers a listener function, which will be called if this video is advanced """
         self._listeners.append(listener_callback)

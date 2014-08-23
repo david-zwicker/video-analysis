@@ -208,3 +208,7 @@ class VideoFileStack(VideoBase):
         movie_index, frame_index = self.get_movie_index(index)
         return self._movies[movie_index].get_frame(frame_index)
             
+
+    def close(self):
+        for movie in self._movies:
+            movie.close()
