@@ -28,11 +28,13 @@ PARAMETERS_DEFAULT = {
     'video/ignore_initial_frames': 0,
     # radius of the blur filter [in pixel]
     'video/blur_radius': 3,
-
-    # settings for video output    
-    'video/output/extension': '.mov',
-    'video/output/codec': 'libx264',
-    'video/output/bitrate': '2000k',
+    
+    # locations and properties of output
+    'output/result_folder': './results/',
+    'output/video/folder': './debug/',
+    'output/video/extension': '.mov',
+    'output/video/codec': 'libx264',
+    'output/video/bitrate': '2000k',
     
     # thresholds for cage dimension [in pixel]
     'cage/width_min': 650,
@@ -96,7 +98,7 @@ class DataHandler(object):
                   'pass1/objects/tracks': ObjectTrack,
                   'pass1/burrows/data': Burrow}
 
-    def __init__(self, folder, prefix='', parameters=None):
+    def __init__(self, name='', video=None, parameters=None):
 
         # initialize tracking parameters        
         self.data = Data()
@@ -106,17 +108,17 @@ class DataHandler(object):
             self.data['parameters'].from_dict(parameters)
             
         # initialize additional properties
+        self.video = video
+        self.name = name
         self.data['analysis-status'] = 'Initialized parameters'
-        self.folder = folder
-        self.prefix = prefix + '_' if prefix else ''
 
 
     def get_folder(self, folder):
         """ makes sure that a folder exists and returns its path """
         if folder == 'results':
-            folder = os.path.join(self.folder, 'results')
+            folder = os.path.abspath(self.data['parameters/output/result_folder'])
         elif folder == 'debug':
-            folder = os.path.join(self.folder, 'debug')
+            folder = os.path.abspath(self.data['parameters/output/video/folder'])
             
         ensure_directory_exists(folder)
         return folder
@@ -124,7 +126,7 @@ class DataHandler(object):
 
     def get_filename(self, filename, folder=None):
         """ returns a filename, optionally with a folder prepended """ 
-        filename = self.prefix + filename
+        filename = self.name + filename
         
         # check the folder
         if folder is None:
@@ -148,8 +150,8 @@ class DataHandler(object):
         """ loads the video and applies a monochrome and cropping filter """
         
         # initialize video
-        video_filename_pattern = self.data['parameters/video/filename_pattern']
-        self.video = VideoFileStack(os.path.join(self.folder, video_filename_pattern))
+        video_filename_pattern = os.path.join(self.data['parameters/video/filename_pattern'])
+        self.video = VideoFileStack(video_filename_pattern)
         self.data.create_child('video/raw', {'frame_count': self.video.frame_count,
                                              'size': '%d x %d' % self.video.size,
                                              'fps': self.video.fps})
@@ -180,7 +182,7 @@ class DataHandler(object):
             
             if isinstance(cropping_rect, str):
                 # crop according to the supplied string
-                video_crop = FilterCrop(self.video, quadrant=cropping_rect,
+                video_crop = FilterCrop(self.video, region=cropping_rect,
                                         color_channel=color_channel)
             else:
                 # crop to the given rect

@@ -54,16 +54,16 @@ class FirstPass(DataHandler):
     analyzes mouse movies
     """
     
-    def __init__(self, folder, prefix='', parameters=None, debug_output=None):
+    def __init__(self, name='', video=None, parameters=None, debug_output=None):
         """ initializes the whole mouse tracking and prepares the video filters """
         
         # initialize the data handler
-        super(FirstPass, self).__init__(folder, prefix, parameters)
+        super(FirstPass, self).__init__(name, video, parameters)
         self.params = self.data['parameters']
         self.data.create_child('pass1')
         self.result = self.data['pass1'] 
         
-        self.log_event('Started initializing the video analysis.')
+        self.log_event('Pass 1 - Started initializing the video analysis.')
         
         # setup internal structures that will be filled by analyzing the video
         self._cache = {}               # cache that some functions might want to use
@@ -73,12 +73,17 @@ class FirstPass(DataHandler):
         self._mouse_pos_estimate = []  # list of estimated mouse positions
         self.explored_area = None      # region the mouse has explored yet
         self.frame_id = None           # id of the current frame
-        self.result['mouse/moved_first_in'] = None
+        self.result['mouse/moved_first_in_frame'] = None
         self.debug_output = [] if debug_output is None else debug_output
         
-        # load the video ... 
-        self.video = self.load_video()
-        # ... and restrict to the region of interest (the cage)
+        # load the video if it is not already loaded 
+        if not self.video: 
+            self.video = self.load_video()
+        self.data.create_child('video/input', {'frame_count': self.video.frame_count,
+                                               'size': '%d x %d' % self.video.size,
+                                               'fps': self.video.fps})
+        
+        # restrict the video to the region of interest (the cage)
         self.video, cropping_rect = self.crop_video_to_cage()
         self.data.create_child('video/analyzed', {'frame_count': self.video.frame_count,
                                                   'region_cage': cropping_rect,
@@ -100,18 +105,18 @@ class FirstPass(DataHandler):
         self.find_initial_ground(first_frame)
 
         self.data['analysis-status'] = 'Initialized first pass'            
-        self.log_event('Finished initializing the video analysis.')
+        self.log_event('Pass 1 - Finished initializing the video analysis.')
 
     
     def process_video(self):
         """ processes the entire video """
 
-        self.log_event('Setting up the cache and debug objects.')
+        self.log_event('Pass 1 - Setting up the cache and debug objects.')
         
         self.debug_setup()
         self.setup_processing()
 
-        self.log_event('Started iterating through the video.')
+        self.log_event('Pass 1 - Started iterating through the video.')
         
         try:
             # iterate over the video and analyze it
@@ -144,10 +149,10 @@ class FirstPass(DataHandler):
                 
         except KeyboardInterrupt:
             logging.info('Tracking has been interrupted by user.')
-            self.log_event('Analysis run has been interrupted.')
+            self.log_event('Pass 1 - Analysis run has been interrupted.')
             
         else:
-            self.log_event('Finished iterating through the frames.')
+            self.log_event('Pass 1 - Finished iterating through the frames.')
         
         frames_analyzed = self.frame_id + 1
         if frames_analyzed == self.video.frame_count:
@@ -545,8 +550,8 @@ class FirstPass(DataHandler):
             # check whether objects moved and call them a mouse
             obj_moving = [obj.is_moving() for obj in self.tracks]
             if any(obj_moving):
-                if self.result['mouse/moved_first_in'] is None:
-                    self.result['mouse/moved_first_in'] = self.frame_id
+                if self.result['mouse/moved_first_in_frame'] is None:
+                    self.result['mouse/moved_first_in_frame'] = self.frame_id
                 # remove the tracks that didn't move
                 # this essentially assumes that there is only one mouse
                 self.tracks = [obj
@@ -1481,9 +1486,9 @@ class FirstPass(DataHandler):
         self.debug['video.mark.text2'] = ''
 
         # load parameters for video output        
-        video_extension = self.params['video/output/extension']
-        video_codec = self.params['video/output/codec']
-        video_bitrate = self.params['video/output/bitrate']
+        video_extension = self.params['output/video/extension']
+        video_codec = self.params['output/video/codec']
+        video_bitrate = self.params['output/video/bitrate']
         
         # set up the general video output, if requested
         if 'video' in self.debug_output or 'video.show' in self.debug_output:
@@ -1529,7 +1534,7 @@ class FirstPass(DataHandler):
             # indicate the mouse position
             if len(self.tracks) > 0:
                 for obj in self.tracks:
-                    if self.result['mouse/moved_first_in'] is None:
+                    if self.result['mouse/moved_first_in_frame'] is None:
                         color = 'r'
                     elif obj.is_moving():
                         color = 'w'
