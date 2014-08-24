@@ -43,15 +43,21 @@ class VideoSender(VideoFilterBase):
 
     
     def try_getting_frame(self):
+        """ tries to retrieve a frame from the video and copy it to the shared
+        buffer """
         try:
+            # get the next frame
             self.frame_buffer[:] = next(self)
+            
         except SynchronizationError:
             # frame is not ready yet, wait another round
             self._waiting_for_frame = True
+            
         except StopIteration:
-            # we are out of frames and the iteration should be stopped
+            # we reached the end of the video and the iteration should stop
             self._waiting_for_frame = False
             self.pipe.send(StopIteration)
+            
         else:
             # frame is ready and was copied to the shared buffer
             self._waiting_for_frame = False
@@ -78,7 +84,10 @@ class VideoSender(VideoFilterBase):
             logging.debug('Sender%s closed itself.',
                           '' if self.name is None else ' `%s`' % self.name)
             self.running = False
-    
+            
+        else:
+            raise VideoPipeError('Unknown command `%s`', command)
+
             
     def check(self):
         """ handles a command if one has been sent """
@@ -86,7 +95,7 @@ class VideoSender(VideoFilterBase):
         if self._waiting_for_frame:
             self.try_getting_frame()
             
-        # otherwise check the pipe
+        # otherwise check the pipe for new commands
         if self.pipe.poll():
             command = self.pipe.recv()
             self.handle_command(command)
@@ -98,6 +107,7 @@ class VideoSender(VideoFilterBase):
         """ starts the event loop which handles commands until the receiver
         is finished """
         while self.running:
+            # wait for a command of the receiver
             command = self.pipe.recv()
             self.handle_command(command)
             
@@ -121,6 +131,7 @@ class VideoReceiver(VideoBase):
     def send_command(self, command):
         """ send a command to the associated VideoSender """
         self.pipe.send(command)
+        # wait for the sender to acknowledge the command
         if self.pipe.recv() != command + '_OK':
             raise VideoPipeError('Command `%s` failed' % command)
         
@@ -147,6 +158,9 @@ class VideoReceiver(VideoBase):
         
         elif command == StopIteration:
             raise StopIteration
+        
+        else:
+            raise VideoPipeError('Unknown reply `%s`', command)
 
         
     def close(self):

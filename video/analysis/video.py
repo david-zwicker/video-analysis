@@ -33,6 +33,7 @@ def measure_mean(video):
     return mean
         
         
+        
 def measure_mean_std(video):
     """
     measures the mean and the standard deviation of each movie pixel over time

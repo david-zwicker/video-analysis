@@ -275,12 +275,18 @@ class VideoFilterBase(VideoBase):
         super(VideoFilterBase, self)._start_iterating()
 
 
-    def _end_iterating(self):
-        """ internal function called when we finished iterating """
-        # The recursive call is necessary in case some filter in the filter chain
-        # decides to end the iteration (i.e. the VideoSlice class).
-        # Under normal circumstances, the video source should end the iteration 
-        self._source._end_iterating()
+    def _end_iterating(self, propagate=False):
+        """ internal function called when we finished iterating
+        If propagate is True, this signal is propagated to the source file.
+        This can be important if a filter in the filter chain decides to end
+        the iteration (i.e. the VideoSlice class).  Under normal
+        circumstances, the video source should end the iteration
+        """
+        if propagate:
+            if isinstance(self._source, VideoFilterBase):
+                self._source._end_iterating(propagate=True)
+            else:
+                self._source._end_iterating()
         
         # end the iteration of the current class
         self._source_iter = None
@@ -358,8 +364,8 @@ class VideoSlice(VideoFilterBase):
     def next(self):
         # check whether we reached the end
         if self.get_frame_pos() >= self.frame_count:
-            self._source._end_iterating()
-            self._end_iterating()
+            # propagate ending the iteration through the filter chain
+            self._end_iterating(propagate=True)
             raise StopIteration
         
         if self._step == 1:
@@ -479,7 +485,7 @@ class VideoFork(VideoFilterBase):
             try:
                 self._frame = self._source_iter.next()
             except StopIteration:
-                #self._end_iterating()
+                self._end_iterating()
                 self._frame = StopIteration
                 
             self._retrieve_count = 1
@@ -497,7 +503,7 @@ class VideoFork(VideoFilterBase):
         raise RuntimeError('VideoFork cannot be directly iterated over')
     
         
-    def _end_iterating(self):
+    def _end_iterating(self, propagate=False):
         """
         ends the iteration and removes all the fork clients.
         Note that the clients may still retrieve the last frame.
@@ -506,7 +512,7 @@ class VideoFork(VideoFilterBase):
         self._iterators = []
         logging.debug('Finished iterating and unregistered all clients of '
                       'the video fork.')
-        super(VideoFork, self)._end_iterating()
+        super(VideoFork, self)._end_iterating(propagate=propagate)
 
 
     def __iter__(self):
