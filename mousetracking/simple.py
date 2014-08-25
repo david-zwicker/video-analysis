@@ -26,12 +26,12 @@ def scan_video(video, name, parameters=None, **kwargs):
         parameters['video/cropping_rect'] = kwargs.pop('crop')
 
     # do first pass
-    job = FirstPass(name, parameters=parameters,
+    job = FirstPass(name, video=video, parameters=parameters,
                     debug_output=kwargs.get('debug_output', None))
     job.process_video()
     
     # do second pass
-    job = SecondPass.from_first_pass(job)
+    #job = SecondPass.from_first_pass(job)
     
     
 

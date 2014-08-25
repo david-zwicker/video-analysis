@@ -9,6 +9,8 @@ The module provides two classes, which are used to send and receive videos,
 respectively. Here, the synchronization and communication between these classes
 is handled using normal pipes, while frames are transported using the
 sharedmem package.
+
+TODO: Allow receiver to request specific frame
 '''
 
 from __future__ import division
@@ -33,21 +35,25 @@ class VideoSender(VideoFilterBase):
     """ class that can send video frames to a VideoReceiver.
     This class uses a sharedmem to transport the data. """
     
-    def __init__(self, video, pipe, name=None):
+    
+    def __init__(self, video, name=None):
         super(VideoSender, self).__init__(video)
-        self.pipe = pipe
+        self.pipe, self.pipe_receiver = multiprocessing.Pipe(duplex=True)
         self.frame_buffer = sharedmem.empty(video.shape[1:], np.uint8)
         self.name = name
         self.running = True
         self._waiting_for_frame = False
 
-    
-    def try_getting_frame(self):
+
+    def try_getting_frame(self, index=None):
         """ tries to retrieve a frame from the video and copy it to the shared
         buffer """
         try:
             # get the next frame
-            self.frame_buffer[:] = next(self)
+            if index is None:
+                self.frame_buffer[:] = next(self)
+            else:
+                self.frame_buffer[:] = self.get_frame(index)
             
         except SynchronizationError:
             # frame is not ready yet, wait another round
@@ -67,18 +73,28 @@ class VideoSender(VideoFilterBase):
     def handle_command(self, command):
         """ handles commands received from the VideoReceiver """ 
         if command == 'next_frame':
+            # receiver requests the next frame
             self.try_getting_frame()
             
         elif command == 'start_iterating':
+            # receiver initializes the iterating
             self._start_iterating()
             self.pipe.send('start_iterating_OK')
             
         elif command == 'end_iterating':
-            self._end_iterating()
+            # receiver reached the end of the iteration
+            self._end_iterating(propagate=True)
             self.pipe.send('end_iterating_OK')
             
+        elif command == 'specific_frame':
+            # receiver requests a specific frame
+            frame_id = self.pipe.recv()
+            logging.debug('Specific frame %d was requested from sender.', frame_id)
+            self.try_getting_frame(frame_id)
+            
         elif command == 'finished':
-            self._end_iterating()
+            # the receiver wants to terminate the video pipe
+            self._end_iterating(propagate=True)
             self.pipe.send('finished_OK')
             self.pipe.close()
             logging.debug('Sender%s closed itself.',
@@ -121,15 +137,16 @@ class VideoSender(VideoFilterBase):
 class VideoReceiver(VideoBase):
     """ class that receives frames from a VideoSender """
     
-    def __init__(self, pipe, video_format, frame_buffer, name=None):
-        super(VideoReceiver, self).__init__(**video_format)
-        self.pipe = pipe
-        self.frame_buffer = frame_buffer
-        self.name = name
+    def __init__(self, sender):
+        super(VideoReceiver, self).__init__(**sender.video_format)
+        self.pipe = sender.pipe_receiver
+        self.frame_buffer = sender.frame_buffer
+        self.name = sender.name
         
     
     def send_command(self, command):
         """ send a command to the associated VideoSender """
+        logging.debug('Send command `%s`.', command)
         self.pipe.send(command)
         # wait for the sender to acknowledge the command
         if self.pipe.recv() != command + '_OK':
@@ -151,7 +168,11 @@ class VideoReceiver(VideoBase):
                     
         
     def next(self):
+        """ request the next frame from the sender """
+        # send the request
         self.pipe.send('next_frame')
+        
+        # wait for the reply
         command = self.pipe.recv()
         if command == 'frame_ready':
             return self.frame_buffer
@@ -162,6 +183,20 @@ class VideoReceiver(VideoBase):
         else:
             raise VideoPipeError('Unknown reply `%s`', command)
 
+
+    def get_frame(self, index):
+        """ request a specific frame from the sender """
+        # send the request
+        self.pipe.send('specific_frame')
+        self.pipe.send(index)
+
+        # wait for the reply
+        command = self.pipe.recv()
+        if command == 'frame_ready':
+            return self.frame_buffer
+        else:
+            raise VideoPipeError('Unknown reply `%s`', command)
+
         
     def close(self):
         self.send_command('finished')
@@ -169,13 +204,3 @@ class VideoReceiver(VideoBase):
         logging.debug('Receiver%s closed itself.',
                       '' if self.name is None else ' `%s`' % self.name)
         
-
-        
-def get_video_pipe(video, name=None):
-    """ creates a video pipe and returns a sender and receiver """
-    # create a pipe for communication between sender and receiver
-    pipe_sender, pipe_receiver = multiprocessing.Pipe(duplex=True)
-    # construct the sender and the receiver 
-    sender = VideoSender(video, pipe_sender, name=name)
-    receiver = VideoReceiver(pipe_receiver, sender.video_format, sender.frame_buffer, name=name)
-    return sender, receiver

@@ -181,7 +181,7 @@ class VideoBase(object):
             return self.get_frame(key)
         
         else:
-            raise TypeError("Invalid key for indexing")
+            raise TypeError("Invalid key `%r` for indexing" % key)
         
         
     def __setitem__(self, key, value):
@@ -321,7 +321,13 @@ class VideoFilterBase(VideoBase):
             self._end_iterating()
             raise
     
-
+    
+    def close(self, propagate=True):
+        """ closes a video and releases all resources it holds """
+        if propagate and isinstance(self._source, VideoFilterBase):
+            self._source.close(propagate=True)
+            
+        
 
 class VideoSlice(VideoFilterBase):
     """ Video that iterates only over a part of the frames """
@@ -397,7 +403,7 @@ class _VideoForkClient(VideoBase):
         the current frame. Depending on the state of the other fork clients,
         the parent may return a cached frame or retrieve a new one
         """
-        frame = self._parent.get_frame(index)
+        frame = self._parent.get_next_frame(index)
 
         # check whether we exhausted the iterator        
         if frame is StopIteration:
@@ -405,7 +411,7 @@ class _VideoForkClient(VideoBase):
             raise StopIteration
         
         return frame
-
+    
 
 
 class SynchronizationError(RuntimeError):
@@ -432,18 +438,27 @@ class VideoFork(VideoFilterBase):
     based on the number of times a frame has been requested.
     """
     
-    def __init__(self, source, synchronized=True):
+    def __init__(self, source, synchronized=True, client_count=None):
         """ initialize the video fork
         If synchronized is True, all clients must be iterated together
         """
-        self._iterators = []
+        self.synchronized = synchronized
+        self._client_count = client_count
+        self._clients = []
         self._frame = None
         self._frame_index = -1
-        self.synchronized = synchronized
         self._retrieve_count = np.inf #< how often was the current frame retrieved?
         super(VideoFork, self).__init__(source)
         
         logging.debug('Created video fork.')
+
+
+    @property
+    def client_count(self):
+        if self._client_count is None:
+            return len(self._clients)
+        else:
+            return self._client_count
 
 
     def set_frame_pos(self, index):
@@ -451,8 +466,8 @@ class VideoFork(VideoFilterBase):
         super(VideoFork, self).set_frame_pos(index)
         
         # synchronize all the clients
-        for iterator in self._iterators:
-            iterator.set_frame_pos(index)
+        for client in self._clients:
+            client.set_frame_pos(index)
 
         self._frame = None
         self._frame_index = index - 1
@@ -461,20 +476,30 @@ class VideoFork(VideoFilterBase):
     def get_frame(self, index):
         """ 
         returns the frame with a specific index.
+        """
+        return self._source.get_frame(index)
+        
+     
+    def get_next_frame(self, index):
+        """ 
+        returns the next frame for a VideoForkClient.
         If the frame is in the cache it is directly returned.
         If the frame is the next in line it is retrieved from the source.
         In any other case a RuntimeError is raised, since it is assumed
         that this function is only used to iterate sequentially.
         """
         if index == self._frame_index:
-            # just return the cached frame
+            # increase the counter and return the cached frame
             self._retrieve_count += 1
+
+        elif not self._is_iterating:
+            raise RuntimeError('VideoFork is not iterating')
         
         elif index == self._frame_index + 1:
-            # retrieve the next frame from the source video
+            # retrieve the next frame from the source video iterator
             
             # check whether the other clients are synchronized
-            if self.synchronized and self._retrieve_count < len(self._iterators):
+            if self.synchronized and self._retrieve_count < self.client_count:
                 raise SynchronizationError('The other clients have not yet read '
                                            'the previous frame.')
             
@@ -496,20 +521,20 @@ class VideoFork(VideoFilterBase):
                                        'The parent process is at frame %d, while one client '
                                        'requested frame %d' % (self._frame_index, index))
         
-        return self._frame
-        
+        return self._frame    
+     
         
     def next(self):
         raise RuntimeError('VideoFork cannot be directly iterated over')
     
-        
+                
     def _end_iterating(self, propagate=False):
         """
         ends the iteration and removes all the fork clients.
         Note that the clients may still retrieve the last frame.
         """
         # remove all the iterators
-        self._iterators = []
+        self._clients = []
         logging.debug('Finished iterating and unregistered all clients of '
                       'the video fork.')
         super(VideoFork, self)._end_iterating(propagate=propagate)
@@ -520,15 +545,19 @@ class VideoFork(VideoFilterBase):
         returns a new fork client, which can then be used for iteration.
         """
         # the iteration of this class is initialized when the first client is iterated over
-        if len(self._iterators) == 0:
+        if len(self._clients) == 0:
             self._start_iterating()
+        
+        if self._client_count is not None and len(self._clients) >= self._client_count:
+            raise ValueError('We already registered %d clients.' % self._client_count)
 
         # create and register the client iterator
         client = _VideoForkClient(self)
-        self._iterators.append(client)
+        self._clients.append(client)
         logging.debug('Registered client %d for video fork.', 
-                      len(self._iterators))
+                      len(self._clients))
+        
+        self._retrieve_count = np.inf
         
         return iter(client)
     
-        

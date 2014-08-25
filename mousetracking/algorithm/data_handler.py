@@ -110,6 +110,7 @@ class DataHandler(object):
         # initialize additional properties
         self.video = video
         self.name = name
+        self.logger = logging.getLogger(name)
         self.data['analysis-status'] = 'Initialized parameters'
 
 
@@ -138,7 +139,7 @@ class DataHandler(object):
     def log_event(self, description):
         """ stores and/or outputs the time and date of the event given by name """
         event = str(datetime.datetime.now()) + ': ' + description 
-        logging.info(event)
+        self.logger.info(event)
         
         # save the event in the result structure
         if 'event_log' not in self.data:
@@ -227,7 +228,7 @@ class DataHandler(object):
                 result = np.concatenate(result) 
         
                 # write the numpy array to HDF5
-                logging.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
+                self.logger.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
                 dataset = hdf_file.create_dataset(key, data=result)
                 if column_names is not None:
                     hdf_file[key].attrs['column_names'] = column_names

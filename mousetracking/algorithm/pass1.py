@@ -16,8 +16,6 @@ top to bottom. The origin is thus in the upper left corner.
 
 from __future__ import division
 
-import logging
-
 import numpy as np
 import scipy.ndimage as ndimage
 from scipy.optimize import leastsq, fmin
@@ -93,7 +91,6 @@ class FirstPass(DataHandler):
         # blur the video to reduce noise effects    
         self.video_blurred = FilterBlur(self.video, self.params['video/blur_radius'])
         first_frame = self.video_blurred[0]
-
         # initialize the background model
         self.background = np.array(first_frame, dtype=float)
 
@@ -101,7 +98,7 @@ class FirstPass(DataHandler):
         self.find_color_estimates(first_frame)
         
         # estimate initial ground profile
-        logging.debug('Find the initial ground profile.')
+        self.logger.debug('Find the initial ground profile.')
         self.find_initial_ground(first_frame)
 
         self.data['analysis-status'] = 'Initialized first pass'            
@@ -148,7 +145,7 @@ class FirstPass(DataHandler):
                 self.debug_add_frame(frame)
                 
         except KeyboardInterrupt:
-            logging.info('Tracking has been interrupted by user.')
+            self.logger.info('Tracking has been interrupted by user.')
             self.log_event('Pass 1 - Analysis run has been interrupted.')
             
         else:
@@ -283,7 +280,7 @@ class FirstPass(DataHandler):
         
         rect_cage = (rect_cage[0], rect_cage[1], width, height)
         
-        logging.debug('The cage was determined to lie in the rectangle %s', rect_cage)
+        self.logger.debug('The cage was determined to lie in the rectangle %s', rect_cage)
 
         # crop the video to the cage region
         return FilterCrop(self.video, rect_cage), rect_cage
@@ -320,8 +317,8 @@ class FirstPass(DataHandler):
         sky_img = image[sky_sure.astype(np.bool)]
         self.result['colors/sky'] = sky_img.mean()
         self.result['colors/sky_std'] = sky_img.std()
-        logging.debug('The sky color was determined to be %d +- %d',
-                      self.result['colors/sky'], self.result['colors/sky_std'])
+        self.logger.debug('The sky color was determined to be %d +- %d',
+                          self.result['colors/sky'], self.result['colors/sky_std'])
 
         # find the sand by looking at the largest bright region
         sand_mask = get_largest_region(binarized).astype(np.uint8)*255
@@ -338,8 +335,8 @@ class FirstPass(DataHandler):
         sand_img = image[sand_sure.astype(np.bool)]
         self.result['colors/sand'] = sand_img.mean()
         self.result['colors/sand_std'] = sand_img.std()
-        logging.debug('The sand color was determined to be %d +- %d',
-                      self.result['colors/sand'], self.result['colors/sand_std'])
+        self.logger.debug('The sand color was determined to be %d +- %d',
+                          self.result['colors/sand'], self.result['colors/sand_std'])
         
                 
     def update_background_model(self, frame):
@@ -499,15 +496,15 @@ class FirstPass(DataHandler):
                 
         # end tracks that had no match in current frame 
         for i_e in reversed(idx_e): # have to go backwards, since we delete items
-            logging.debug('%d: Copy mouse track of length %d to results',
-                          self.frame_id, len(self.tracks[i_e]))
+            self.logger.debug('%d: Copy mouse track of length %d to results',
+                              self.frame_id, len(self.tracks[i_e]))
             # copy track to result dictionary
             self.result['objects/tracks'].append(self.tracks[i_e])
             del self.tracks[i_e]
         
         # start new tracks for objects that had no previous match
         for i_f in idx_f:
-            logging.debug('%d: Start new mouse track at %s', self.frame_id, objects_found[i_f].pos)
+            self.logger.debug('%d:New mouse track at %s', self.frame_id, objects_found[i_f].pos)
             # start new track
             moving_window = self.params['objects/matching_moving_window']
             track = ObjectTrack(self.frame_id, objects_found[i_f], moving_window=moving_window)
@@ -538,8 +535,8 @@ class FirstPass(DataHandler):
         if num_features == 0:
             # end all current tracks if there are any
             if len(self.tracks) > 0:
-                logging.debug('%d: Copy %d tracks to results', 
-                              self.frame_id, len(self.tracks))
+                self.logger.debug('%d: Copy %d tracks to results', 
+                                  self.frame_id, len(self.tracks))
                 self.result['objects/tracks'].extend(self.tracks)
                 self.tracks = []
 
@@ -702,8 +699,8 @@ class FirstPass(DataHandler):
             deviation = self.refine_ground(image)
             iterations += 1
             
-        logging.info('We found a ground profile of length %g after %d iterations',
-                     curve_length(self.ground), iterations)
+        self.logger.info('We found a ground profile of length %g after %d iterations',
+                         curve_length(self.ground), iterations)
         
         
     #===========================================================================
@@ -1026,7 +1023,7 @@ class FirstPass(DataHandler):
             if np.abs(dist[idx]) <= w:
                 res = (p_next[0] - dist[idx]*np.cos(angles[idx]),
                        p_next[1] - dist[idx]*np.sin(angles[idx]))
-                logging.debug('%d: Found new burrow end point %s', self.frame_id, res)
+                self.logger.debug('%d: Found new burrow end point %s', self.frame_id, res)
                 
         return res       
         
@@ -1127,7 +1124,7 @@ class FirstPass(DataHandler):
                 dw = np.clip((p_r + p_l)/2 - w, -3, 3)
                 pnt = (p[0] - dw*dy/dist, p[1] + dw*dx/dist)
             else:
-                logging.debug('%d: Rejected %d. burrow point at %s', self.frame_id, k + 1, p)
+                self.logger.debug('%d: Rejected %d. burrow point at %s', self.frame_id, k + 1, p)
                 wdth = width[k]
                 pnt = p 
             
@@ -1399,8 +1396,8 @@ class FirstPass(DataHandler):
                     # start a new burrow track
                     burrow_track = BurrowTrack(self.frame_id, burrow)
                     self.result['burrows/data'].append(burrow_track)
-                    logging.debug('%d: Found new burrow at %s',
-                                  self.frame_id, burrow.polygon.centroid)
+                    self.logger.debug('%d: Found new burrow at %s',
+                                      self.frame_id, burrow.polygon.centroid)
 
     
 
