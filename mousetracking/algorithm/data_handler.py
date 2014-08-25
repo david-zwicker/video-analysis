@@ -29,6 +29,9 @@ PARAMETERS_DEFAULT = {
     # radius of the blur filter [in pixel]
     'video/blur_radius': 3,
     
+    # where to write the log files to
+    'logging/folder': None,
+    
     # locations and properties of output
     'output/result_folder': './results/',
     'output/video/folder': './debug/',
@@ -106,11 +109,20 @@ class DataHandler(object):
         self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
         if parameters is not None:
             self.data['parameters'].from_dict(parameters)
-            
+
         # initialize additional properties
         self.video = video
         self.name = name
+
+        # set up logging
         self.logger = logging.getLogger(name)
+        if self.data['parameters/logging/folder'] is not None:
+            handler = logging.FileHandler(self.get_filename('log.log', self.data['parameters/logging/folder']),
+                                          mode='w')
+            formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler) 
+            
         self.data['analysis-status'] = 'Initialized parameters'
 
 
@@ -126,8 +138,11 @@ class DataHandler(object):
 
 
     def get_filename(self, filename, folder=None):
-        """ returns a filename, optionally with a folder prepended """ 
-        filename = self.name + filename
+        """ returns a filename, optionally with a folder prepended """
+        if self.name: 
+            filename = self.name + '_' + filename
+        else:
+            filename = filename
         
         # check the folder
         if folder is None:

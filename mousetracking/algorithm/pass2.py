@@ -16,7 +16,8 @@ class SecondPass(DataHandler):
         super(SecondPass, self).__init__(name, video, parameters)
         self.params = self.data['parameters']
         #self.pass1 = self.data['pass1']        
-
+        self.log_event('Pass 2 - Started initializing the analysis.')
+        
 
     @classmethod
     def from_first_pass(cls, first_pass):

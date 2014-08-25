@@ -21,10 +21,12 @@ QUADRANTS = {'UL': 'upper left',
   
 
 
-def scan_video_quadrants(video, parameters=None, **kwargs):
+def scan_video_quadrants(video, **kwargs):
     """ Takes a video and scans all four quadrants in parallel.
     Here, the video is read in one process, split into four video streams
-    and analyzed in four separate processes """
+    and analyzed in four separate processes
+    Additional parameters include a dictionary 'parameters'
+    """
     
     # create a fork, such that the data can be analyzed by multiple consumers
     video_fork = VideoFork(video, synchronized=True, client_count=len(QUADRANTS))
