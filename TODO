@@ -20,10 +20,11 @@
 	- Have two different Burrow classes for long burrows and very unshaped ones (fit only the first one to data!)
 		Maybe one class suffices (where we only do the burrow fitting if the burrow is elongated, otherwise
 		we only estimate the shape based on the explored area)
+* We should be able to interrupt parallel processing
+	- This requires to send a signal to the other processes
 
 Performance improvements:
 -------------------------
-* Write code to read one video and split it, such that other processes can work on it
 * Speed up sand profile fitting by having a library of profiles with certain angles and just matching these
 	around the point of interest (move along perpendicular line, until overlap is maximal)
 * Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)

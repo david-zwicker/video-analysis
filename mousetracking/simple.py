@@ -31,7 +31,7 @@ def scan_video(video, name, parameters=None, **kwargs):
     job.process_video()
     
     # do second pass
-    #job = SecondPass.from_first_pass(job)
+    job = SecondPass.from_first_pass(job)
     
     
 

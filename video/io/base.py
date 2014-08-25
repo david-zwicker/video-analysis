@@ -5,6 +5,13 @@ Created on Jul 31, 2014
 
 Package provides an abstract base classes to define an interface and common
 functions for video handling.
+
+All video classes support the iterator interface. For convenience, the methods
+_start_iterating and _end_iterating are called to initialize and finalize the
+iteration. Iteration is initialized implicitly when iter(video) is called.
+Conversely, the iterator is finalized when its exhausted (at which point the
+StopIteration exception is also raised). Additionally, an iteration may be
+aborted by the user by calling the abort method.
 '''
 
 from __future__ import division
@@ -86,6 +93,7 @@ class VideoBase(object):
     
     @property
     def video_format(self):
+        """ return a dictionary specifying properties of the video """
         return {'size': self.size,
                 'frame_count': self.frame_count,
                 'fps': self.fps,
@@ -146,6 +154,11 @@ class VideoBase(object):
         self._is_iterating = False
 
 
+    def abort_iteration(self):
+        """ stop the current iteration """
+        self._end_iterating()
+
+
     def __iter__(self):
         """ initializes the iterator """
         self._start_iterating()
@@ -170,6 +183,11 @@ class VideoBase(object):
         # set the internal pointer to the next frame
         self._frame_pos += 1
         return frame
+    
+    
+    def close(self):
+        """ close the video and free acquired resources """
+        pass
 
 
     def __getitem__(self, key):
@@ -275,23 +293,23 @@ class VideoFilterBase(VideoBase):
         super(VideoFilterBase, self)._start_iterating()
 
 
-    def _end_iterating(self, propagate=False):
+    def _end_iterating(self):
         """ internal function called when we finished iterating
         If propagate is True, this signal is propagated to the source file.
         This can be important if a filter in the filter chain decides to end
         the iteration (i.e. the VideoSlice class).  Under normal
         circumstances, the video source should end the iteration
         """
-        if propagate:
-            if isinstance(self._source, VideoFilterBase):
-                self._source._end_iterating(propagate=True)
-            else:
-                self._source._end_iterating()
-        
         # end the iteration of the current class
         self._source_iter = None
         super(VideoFilterBase, self)._end_iterating()
 
+    
+    def abort_iteration(self):
+        """ stop the current iteration """
+        self._source.abort_iteration()
+        super(VideoFilterBase, self).abort_iteration()
+        
         
     def set_frame_pos(self, index):
         self._source.set_frame_pos(index)
@@ -326,6 +344,8 @@ class VideoFilterBase(VideoBase):
         """ closes a video and releases all resources it holds """
         if propagate and isinstance(self._source, VideoFilterBase):
             self._source.close(propagate=True)
+        else:
+            self._source.close()
             
         
 
@@ -371,7 +391,7 @@ class VideoSlice(VideoFilterBase):
         # check whether we reached the end
         if self.get_frame_pos() >= self.frame_count:
             # propagate ending the iteration through the filter chain
-            self._end_iterating(propagate=True)
+            self.abort_iteration()
             raise StopIteration
         
         if self._step == 1:
@@ -411,6 +431,16 @@ class _VideoForkClient(VideoBase):
             raise StopIteration
         
         return frame
+
+
+    def abort_iteration(self):
+        self._parent.abort_iteration()
+        super(_VideoForkClient, self).abort_iteration()
+    
+    
+    def close(self):
+        """ ask video fork to send SystemExit to all clients """
+        self._parent.abort_iteration()
     
 
 
@@ -448,6 +478,7 @@ class VideoFork(VideoFilterBase):
         self._frame = None
         self._frame_index = -1
         self._retrieve_count = np.inf #< how often was the current frame retrieved?
+        self.status = 'normal'
         super(VideoFork, self).__init__(source)
         
         logging.debug('Created video fork.')
@@ -488,6 +519,10 @@ class VideoFork(VideoFilterBase):
         In any other case a RuntimeError is raised, since it is assumed
         that this function is only used to iterate sequentially.
         """
+        if self.status == 'aborting':
+            raise SystemExit('Another client of the VideoFork requested to '
+                             'abort the iteration.')
+        
         if index == self._frame_index:
             # increase the counter and return the cached frame
             self._retrieve_count += 1
@@ -537,7 +572,14 @@ class VideoFork(VideoFilterBase):
         self._clients = []
         logging.debug('Finished iterating and unregistered all clients of '
                       'the video fork.')
-        super(VideoFork, self)._end_iterating(propagate=propagate)
+        
+    
+    def abort_iteration(self):
+        """ send SystemExit to all other clients """
+        logging.info('The video fork is aborting by sending a SystemExit '
+                     'signal to clients.')
+        self.status = 'aborting'
+        super(VideoFork, self).abort_iteration()
 
 
     def __iter__(self):

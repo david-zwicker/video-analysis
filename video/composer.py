@@ -130,8 +130,8 @@ class VideoComposer(VideoFileWriter):
         """
         
         if anchor == 'top':
-            text_size, baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_COMPLEX_SMALL,
-                                                  fontScale=size, thickness=1)
+            text_size, _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                                           fontScale=size, thickness=1)
             pos = (pos[0], pos[1] + text_size[1])
             
         cv2.putText(self.frame, text, pos, cv2.FONT_HERSHEY_COMPLEX_SMALL,
@@ -142,6 +142,8 @@ class VideoComposer(VideoFileWriter):
         # write the last frame
         if self.frame is not None:
             self.write_frame(self.frame)
+            self.frame = None
+                
         # close the video writer
         super(VideoComposer, self).close()
         
@@ -166,7 +168,7 @@ class VideoComposerListener(VideoComposer):
     def close(self):
         try:
             self.background.unregister_listener(self.set_frame)
-        except ValueError:
+        except (AttributeError, ValueError):
             # apparently, the listener is already removed 
             pass
         super(VideoComposerListener, self).close()

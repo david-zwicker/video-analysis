@@ -182,7 +182,8 @@ class VideoWriterFFMPEG(object):
     def close(self):
         """ finishes the process, which should also make the video available """
         if self.proc is not None:
-            self.proc.stdin.close()
+            if self.proc.stdin is not None:
+                self.proc.stdin.close()
             if self.proc.stderr is not None:
                 self.proc.stderr.close()
             self.proc.wait()

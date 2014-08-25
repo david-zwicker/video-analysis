@@ -21,32 +21,36 @@ except ImportError:
         
 def _show_image_from_pipe(pipe, image_array, title):
     """ function that runs in a separate process to display images """
-    while True:
-        # read next command from pipe
-        command = pipe.recv()
-        while pipe.poll():
+    try:
+        while True:
+            # read next command from pipe
             command = pipe.recv()
-            if command == 'close':
-                break
-        
-        # process the last command
-        if command == 'update':
-            # update the image
-            cv2.imshow(title, image_array)
+            while pipe.poll():
+                command = pipe.recv()
+                if command == 'close':
+                    break
             
-            # check whether the user wants to abort
-            if cv2.waitKey(1) & 0xFF in {27, ord('q')}:
-                pipe.send('interrupt')
-                break
-
-        elif command == 'close':
-            break
+            # process the last command
+            if command == 'update':
+                # update the image
+                cv2.imshow(title, image_array)
                 
-        else:
-            raise ValueError('Unknown command `%s`' % command)
+                # check whether the user wants to abort
+                if cv2.waitKey(1) & 0xFF in {27, ord('q')}:
+                    pipe.send('interrupt')
+                    break
+    
+            elif command == 'close':
+                break
+                    
+            else:
+                raise ValueError('Unknown command `%s`' % command)
+            
+    except KeyboardInterrupt:
+        pipe.send('interrupt')
         
     # cleanup
-    pipe.close()
+    #pipe.close()
     cv2.destroyWindow(title)
 
 
@@ -97,6 +101,7 @@ class ImageShow(object):
             self._data[:] = image
             # tell the process to update window
             self._pipe.send('update')
+            
             # check whether the user wants to quit
             if self._pipe.poll() and self._pipe.recv() == 'interrupt':
                 raise KeyboardInterrupt

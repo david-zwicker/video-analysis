@@ -144,12 +144,19 @@ class FirstPass(DataHandler):
                 # store some information in the debug dictionary
                 self.debug_add_frame(frame)
                 
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, SystemExit):
+            # abort the video analysis
+            self.video_blurred.abort_iteration()
             self.logger.info('Tracking has been interrupted by user.')
             self.log_event('Pass 1 - Analysis run has been interrupted.')
             
         else:
+            # finished analysis successfully
             self.log_event('Pass 1 - Finished iterating through the frames.')
+            
+        finally:
+            # clean up
+            self.video_blurred.close()
         
         frames_analyzed = self.frame_id + 1
         if frames_analyzed == self.video.frame_count:
@@ -1589,7 +1596,10 @@ class FirstPass(DataHandler):
         # close the open video streams
         for i in ('video', 'difference.video', 'background.video', 'explored_area.video'):
             if i in self.debug:
-                self.debug[i].close() 
+                try:
+                    self.debug[i].close()
+                except IOError:
+                    self.logger.exception('Error while writing out the debug video') 
 
         # remove all windows that may have been opened
         cv2.destroyAllWindows()
