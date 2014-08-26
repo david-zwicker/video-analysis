@@ -43,7 +43,7 @@ class FilterFunction(VideoFilterBase):
         frame = self._function(frame)
         # pass it to the parent function
         return super(FilterFunction, self)._process_frame(frame)
-    
+
     
     
 class FilterNormalize(VideoFilterBase):
@@ -415,7 +415,7 @@ class FilterOpticalFlow(FilterDiffBase):
                                             winsize=2, iterations=3, poly_n=5,
                                             poly_sigma=1.2, flags=0)
     
-        mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+        mag, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
 
         return mag
     

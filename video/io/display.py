@@ -6,7 +6,7 @@ Created on Aug 14, 2014
 
 from __future__ import division
 
-from multiprocessing import Process, Pipe
+import multiprocessing as mp
 import logging
 import numpy as np
 
@@ -67,12 +67,12 @@ class ImageShow(object):
             if sharedmem:
                 try:
                     # create the pipe to talk to the child
-                    self._pipe, pipe_child = Pipe(duplex=True)
+                    self._pipe, pipe_child = mp.Pipe(duplex=True)
                     # setup the shared memory area
                     self._data = sharedmem.empty(size, np.uint8)
                     # initialize the process that shows the image
-                    self._proc = Process(target=_show_image_from_pipe,
-                                         args=(pipe_child, self._data, title))
+                    self._proc = mp.Process(target=_show_image_from_pipe,
+                                            args=(pipe_child, self._data, title))
                     
                     # FIXME: process should be daemon
                     self._proc.start()

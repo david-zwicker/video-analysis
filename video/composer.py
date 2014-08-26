@@ -157,12 +157,14 @@ class VideoComposerListener(VideoComposer):
     """
     
     
-    def __init__(self, filename, background, is_color=None, **kwargs):
-        self.background = background
-        background.register_listener(self.set_frame)
+    def __init__(self, filename, background_video, is_color=None, **kwargs):
+        self.background_video = background_video
+        self.background_video.register_listener(self.set_frame)
         
-        super(VideoComposerListener, self).__init__(filename, background.size,
-                                                    background.fps, is_color, **kwargs)
+        super(VideoComposerListener, self).__init__(filename,
+                                                    self.background_video.size,
+                                                    self.background_video.fps,
+                                                    is_color, **kwargs)
         
         
     def close(self):

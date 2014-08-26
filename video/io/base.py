@@ -28,6 +28,10 @@ class VideoBase(object):
     Base class for videos.
     Every movie has an internal counter `frame_pos` stating which frame would
     be processed next.
+    
+    Furthermore, each video holds a list of callback functions called observers.
+    These functions are called when the video is advanced to the next frame
+    and can be used to observe the current progress or show the current frame. 
     """
 
     write_access = False  
@@ -126,6 +130,8 @@ class VideoBase(object):
     def _process_frame(self, frame):
         """ returns the frame with a filter applied """
         # notify potential observers
+        # This has to be done here and cannot be implemented as a filter, since
+        # a filter would have to be called directly. 
         for observer in self._listeners:
             observer(frame)
         return frame
