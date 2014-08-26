@@ -5,7 +5,7 @@ Created on Aug 22, 2014
 '''
 
 
-import multiprocessing
+import multiprocessing as mp
 import time
 
 from .simple import scan_video
@@ -38,9 +38,9 @@ def scan_video_quadrants(video, **kwargs):
         # construct the video sender 
         video_pipe = VideoPipe(video_crop, name=name)
         # launch a new process, where the receiver is going to live 
-        proc = multiprocessing.Process(target=scan_video,
-                                       args=(video_pipe.receiver, video_pipe.name),
-                                       kwargs=kwargs)
+        proc = mp.Process(target=scan_video,
+                          args=(video_pipe.receiver, video_pipe.name),
+                          kwargs=kwargs)
 
         proc.start()
         pipes.append(video_pipe)

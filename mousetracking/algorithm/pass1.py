@@ -1498,7 +1498,7 @@ class FirstPass(DataHandler):
         if 'video' in self.debug_output or 'video.show' in self.debug_output:
             # initialize the writer for the debug video
             debug_file = self.get_filename('video' + video_extension, 'debug')
-            self.debug['video'] = VideoComposerListener(debug_file, background=self.video,
+            self.debug['video'] = VideoComposerListener(debug_file, background_video=self.video,
                                                         is_color=True, codec=video_codec,
                                                         bitrate=video_bitrate)
             if 'video.show' in self.debug_output:
