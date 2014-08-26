@@ -13,7 +13,7 @@ import cv2
 import shapely
 import shapely.geometry as geometry
 
-from video.analysis.curves import point_distance
+from video.analysis import curves
 from video.analysis.regions import corners_to_rect, expand_rectangle, get_enclosing_outline
 
 import debug
@@ -91,7 +91,7 @@ class ObjectTrack(object):
     def is_moving(self):
         """ return if the object has moved in the last frames """
         pos = self.objects[-1].pos
-        dist = sum(point_distance(pos, obj.pos)
+        dist = sum(curves.point_distance(pos, obj.pos)
                    for obj in self.objects[-self.moving_window:])
         return dist > self.moving_threshold
     
@@ -147,28 +147,28 @@ class Burrow(object):
     index_columns = 0 #< there could be multiple burrows at each time point
     # Hence, time can not be used as an index
     
-    def __init__(self, outline, time=None, image=None, mask=None):
+    def __init__(self, outline, time=None):
         """ initialize the structure
         """
         self.outline = np.asarray(outline, np.double)
         self.time = time
         
         # internal caches used for fitting
-        self.image = image
-        self.mask = mask
-        self._angles = None #< internal cache
+#         self.image = image
+#         self.mask = mask
+#         self._angles = None #< internal cache
         self._color_burrow = None
         self._color_sand = None
-        self._model = None 
-
-    
-    def clear_cache(self):
-        self.image = None
-        self.mask = None
-        self._angles = None
-        self._color_burrow = None
-        self._color_sand = None
-        self._model = None 
+#         self._model = None
+        
+        
+#     def clear_cache(self):
+#         self.image = None
+#         self.mask = None
+#         self._angles = None
+#         self._color_burrow = None
+#         self._color_sand = None
+#         self._model = None 
 
 
     def copy(self):
@@ -185,14 +185,32 @@ class Burrow(object):
         return 'Burrow(center=(%d, %d), area=%s, points=%d)' % \
                             (center.x, center.y, polygon.area, len(self))
         
-        
-    def get_centerline(self):
-        raise NotImplementedError
-    
     
     @property
     def polygon(self):
         return geometry.Polygon(np.asarray(self.outline, np.double))    
+    
+    
+    @property
+    def area(self):
+        return self.polygon.area
+    
+    
+    @property
+    def is_valid(self):
+        return len(self.outline) > 3
+    
+    
+    @property
+    def eccentricity(self):
+        m = cv2.moments(np.asarray(self.outline, np.uint8))
+        a, b, c = m['mu20'], -m['mu11'], m['mu02']
+        e1 = (a + c) + np.sqrt(4*b**2 + (a - c)**2)
+        e2 = (a + c) - np.sqrt(4*b**2 + (a - c)**2)
+        if e1 == 0:
+            return 0
+        else:
+            return np.sqrt(1 - e2/e1)
     
                 
     def contains(self, point):
@@ -223,43 +241,75 @@ class Burrow(object):
         return expand_rectangle(bound_rect, margin)
     
     
-    def extend_outline(self, extension_polygon):
+    def extend_outline(self, extension_polygon, simplify_threshold):
         """ extends the outline of the burrow to also enclose the object given
         by polygon """
-        # FIXME: This function often raises ERROR:shapely.geos:TopologyException: 
-        # Input geom 0 is invalid: Self-intersection at or near point
-        
         # get the union of the burrow and the extension
         burrow = self.polygon.union(extension_polygon)
         
         # determine the outline of the union
         outline = get_enclosing_outline(burrow)
-        outline = np.asarray(outline, np.int32).tolist()
+        
+        outline = outline.simplify(simplify_threshold*outline.length)
+
+        self.outline = np.asarray(outline, np.int32)
 
         # debug.show_shape(burrow, polygon, outline)
         
-        # find indices of the anchor points
-        i1 = outline.index([int(self.outline[ 0][0]), int(self.outline[ 0][1])])
-        i2 = outline.index([int(self.outline[-1][0]), int(self.outline[-1][1])])
-        i1, i2 = min(i1, i2), max(i1, i2)
-        
-        # figure out in what direction we have to go around the polygon
-        if i2 - i1 > len(outline)//2:
-            # the right outline goes from i1 .. i2
-            self.outline = outline[i1:i2+1]
-        else:
-            # the right outline goes from i2 .. -1 and start 0 .. i1
-            self.outline = outline[i2:] + outline[:i1]  
+#         # find indices of the anchor points
+#         i1 = outline.index([int(self.outline[ 0][0]), int(self.outline[ 0][1])])
+#         i2 = outline.index([int(self.outline[-1][0]), int(self.outline[-1][1])])
+#         i1, i2 = min(i1, i2), max(i1, i2)
+#         
+#         # figure out in what direction we have to go around the polygon
+#         if i2 - i1 > len(outline)//2:
+#             # the right outline goes from i1 .. i2
+#             self.outline = outline[i1:i2+1]
+#         else:
+#             # the right outline goes from i2 .. -1 and start 0 .. i1
+#             self.outline = outline[i2:] + outline[:i1]  
      
 
-    def show_image(self, mark_points):
-        # draw burrow
-        image = self.image.copy()
-        cv2.drawContours(image, np.array([self.outline], np.int32), -1, 255, 1)
-        for k, p in enumerate(self.outline):
-            color = 255 if mark_points[k] else 128
-            cv2.circle(image, (int(p[0]), int(p[1])), 3, color, thickness=-1)
-        debug.show_image(image)
+#     def show_image(self, mark_points):
+#         # draw burrow
+#         image = self.image.copy()
+#         cv2.drawContours(image, np.array([self.outline], np.int32), -1, 255, 1)
+#         for k, p in enumerate(self.outline):
+#             color = 255 if mark_points[k] else 128
+#             cv2.circle(image, (int(p[0]), int(p[1])), 3, color, thickness=-1)
+#         debug.show_image(image)
+    
+    
+    def get_centerline(self, ground):
+        ground_line = geometry.LineString(np.array(ground, np.double))
+        
+        outline = curves.make_curve_equidistant(self.outline, 10)        
+        
+        outline = np.asarray(outline, np.double)
+        
+        dist = np.array([ground_line.distance(geometry.Point(p)) for p in outline])
+        
+        # estimate the burrow exit point
+        indices = (dist < 25)
+        if np.any(indices):
+            p_surface = outline[indices, :].mean(axis=0)
+        else:
+            p_surface = np.argmin(outline)
+        k0 = np.argmin(np.linalg.norm(outline - p_surface, axis=1))
+        kl = kr = k0
+        l = len(outline)
+        centerline = []
+        while kr - kl < l:
+            p = ((outline[kl%l][0] + outline[kr%l][0])/2,
+                 (outline[kl%l][1] + outline[kr%l][1])/2)
+            centerline.append(p)
+            kr += 1
+            kl -= 1
+        
+#        p_deep = self.outline[np.argmax(dist)]
+        
+        return centerline #(p_deep, p_surface)
+        
     
     
     def to_array(self):
@@ -270,6 +320,7 @@ class Burrow(object):
     @classmethod
     def from_array(cls, data):
         return cls(outline=data)
+        
         
     
 class BurrowLine(object):

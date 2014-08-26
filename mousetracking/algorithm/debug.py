@@ -84,6 +84,7 @@ def show_shape(*shapes, **kwargs):
         else:
             raise ValueError("Don't know how to plot %r" % shape)
         
+    ax.invert_yaxis()
     ax.margins(0.1)
     ax.autoscale_view(tight=False, scalex=True, scaley=True)
             

@@ -16,6 +16,8 @@ top to bottom. The origin is thus in the upper left corner.
 
 from __future__ import division
 
+import operator
+
 import numpy as np
 import scipy.ndimage as ndimage
 from scipy.optimize import leastsq, fmin
@@ -1407,6 +1409,30 @@ class FirstPass(DataHandler):
                                       self.frame_id, burrow.polygon.centroid)
 
     
+    def get_burrow_from_outline(self, contour):
+        # simplify the contour
+        tolerance = self.params['burrows/outline_simplification_threshold']*curve_length(contour)
+        contour = simplify_curve(contour, tolerance).tolist()
+        
+        # move points that are close to the boundary onto the boundary
+#         ground_line = geometry.LineString(np.array(self.ground, np.double))
+#         for k, p in enumerate(contour):
+#             point = geometry.Point(np.array(p, np.double))
+#             if ground_line.distance(point) < self.params['mouse/model_radius']:
+#                 contour[k] = get_projection_point(ground_line, point)
+
+        poly = geometry.Polygon(contour)
+        if not poly.is_valid: 
+            # regularize polygon
+            poly_simpl = geometry.Polygon(contour).buffer(0)
+            # retrieve the polygon with the largest area
+            if isinstance(poly_simpl, geometry.MultiPolygon):
+                poly_simpl = max(poly_simpl, key=operator.attrgetter('area'))
+            # and find its contour
+            contour = poly_simpl.exterior.coords
+        
+        return Burrow(contour)
+    
 
     def get_potential_burrows_mask(self, frame):
 
@@ -1424,15 +1450,17 @@ class FirstPass(DataHandler):
         cv2.fillPoly(ground_mask, np.array([ground_points], np.int32), color=128)
 
         # erode the mask slightly, since the ground_mask profile is not perfect        
-#         w = 2*self.params['mouse/model_radius']
+#         w = self.params['mouse/model_radius']//2
 #         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
 #         ground_mask_small = cv2.erode(ground_mask, kernel)#, dst=ground_mask_small)
-        ground_mask_small = ground_mask
+#         ground_mask_small = ground_mask
         
         # get potential burrows by looking at explored area
-        w = self.params['burrows/radius']
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
         explored_area = 255*(self.explored_area >= self.params['explored_area/adaptation_rate'])
+
+        # combine closeby patches in the mask
+        w = self.params['mouse/model_radius']//2
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
         potential_burrows = cv2.morphologyEx(explored_area.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
         
         # remove accidental burrows at borders
@@ -1441,11 +1469,11 @@ class FirstPass(DataHandler):
         potential_burrows[:, : 30] = 0
         potential_burrows[:, -30:] = 0
 
-        # combine with the information of what areas have been explored
-        burrows_mask = cv2.bitwise_and(ground_mask_small, potential_burrows)
+        # find explored area that is under the ground
+        burrows_mask = cv2.bitwise_and(ground_mask, potential_burrows)
 
         # remove small structures
-        w = self.params['mouse/model_radius']
+        w = self.params['mouse/model_radius']//2
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
         return cv2.morphologyEx(burrows_mask, cv2.MORPH_OPEN, kernel)
     
@@ -1458,22 +1486,39 @@ class FirstPass(DataHandler):
         labels, num_features = ndimage.measurements.label(burrows_mask)
             
         for label in xrange(1, num_features + 1):
-            # check other features of the burrow
+            # check other features of the region
             props = regionprops(labels == label)
-
-            # disregard small burrows
-            if props.area < 100:
-                continue
+            if props.area < self.params['burrows/min_area']:
+                continue # disregard small burrows
              
-            # check the eccentricity
-#             if props.eccentricity < 0.9:
-#                 continue
-
-            #convert contour into polygon
+            # find the contour of region
             contours, _ = cv2.findContours((labels == label).astype(np.uint8),
                                            cv2.RETR_EXTERNAL,
                                            cv2.CHAIN_APPROX_SIMPLE)
             contour_points = np.squeeze(np.asarray(contours[0], np.double))
+            if len(contour_points) < 3:
+                continue # skip small contours
+            
+            # build the polygon and the burrow object
+            contour_poly = geometry.Polygon(contour_points)
+            burrow = self.get_burrow_from_outline(contour_points)
+
+#             if burrow.area > 100 and burrow.eccentricity > 0.9:
+#                 centerline = burrow.get_centerline(self.ground)
+
+            if burrow.is_valid:
+                for burrow_track in self.result['burrows/data']:
+                    if burrow_track.last.intersects(contour_poly):
+                        burrow_track.append(self.frame_id, burrow)
+                        break
+                    
+                else:
+                    # start a new burrow track
+                    burrow_track = BurrowTrack(self.frame_id, burrow)
+                    self.result['burrows/data'].append(burrow_track)
+                    self.logger.debug('%d: Found new burrow at %s',
+                                      self.frame_id, burrow.polygon.centroid)
+
             self.debug['video'].add_polygon(contour_points, is_closed=True)
             
             
@@ -1531,8 +1576,8 @@ class FirstPass(DataHandler):
             for burrow_track in self.result['burrows/data']:
                 if burrow_track.last_seen > self.frame_id - self.params['burrows/adaptation_interval']:
                     burrow = burrow_track.last
-                    debug_video.add_polygon(burrow.centerline, 'orange', is_closed=False)
-                    debug_video.add_polygon(burrow.outline, 'orange', is_closed=False)
+                    debug_video.add_polygon(burrow.outline, 'orange', is_closed=True)
+                    debug_video.add_polygon(burrow.get_centerline(self.ground), 'orange', is_closed=False)
                     for p in burrow.outline:
                         debug_video.add_circle(p, 3, 'orange', thickness=-1)
         

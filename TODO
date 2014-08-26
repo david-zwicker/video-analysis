@@ -8,15 +8,10 @@
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 * Burrows should be fitted to background frame
 	- burrows might only need an update if the mouse (i.e. its explored area) is close
-	- the burrow outline geometry should be checked for consistency (must be a simple line according to shapely)
-	- we have to be more tolerant about bad burrow outlines (remove the ones, which collapsed to a line)
 	- do linescans perpendicular to the centerline to find the burrow width
-		- linescans can be implemented using cv2.getRotationMatrix2D and cv2.warpAffine
+		- but only if the burrow looks like a burrow (eccentricity > 0.9)
 	- set burrow front by a different method (maybe just update it from explored area)
 		- also, we could just do a linescan along the center line  
-	- Have two different Burrow classes for long burrows and very unshaped ones (fit only the first one to data!)
-		Maybe one class suffices (where we only do the burrow fitting if the burrow is elongated, otherwise
-		we only estimate the shape based on the explored area)
 
 Performance improvements:
 -------------------------
