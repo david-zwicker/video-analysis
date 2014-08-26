@@ -1577,7 +1577,8 @@ class FirstPass(DataHandler):
                 if burrow_track.last_seen > self.frame_id - self.params['burrows/adaptation_interval']:
                     burrow = burrow_track.last
                     debug_video.add_polygon(burrow.outline, 'orange', is_closed=True)
-                    debug_video.add_polygon(burrow.get_centerline(self.ground), 'orange', is_closed=False)
+                    debug_video.add_polygon(burrow.get_centerline(self.ground),
+                                            'red', is_closed=False, width=3)
                     for p in burrow.outline:
                         debug_video.add_circle(p, 3, 'orange', thickness=-1)
         

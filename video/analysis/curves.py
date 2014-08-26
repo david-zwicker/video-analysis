@@ -23,7 +23,7 @@ def point_distance(p1, p2):
 
 def curve_length(points):
     """ returns the total arc length of a curve defined by a number of points """
-    return np.sum(np.linalg.norm(p2 - p1)
+    return np.sum(point_distance(p1, p2)
                   for p1, p2 in itertools.izip(points, points[1:]))
 
 

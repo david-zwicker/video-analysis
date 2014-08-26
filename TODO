@@ -11,7 +11,8 @@
 	- do linescans perpendicular to the centerline to find the burrow width
 		- but only if the burrow looks like a burrow (eccentricity > 0.9)
 	- set burrow front by a different method (maybe just update it from explored area)
-		- also, we could just do a linescan along the center line  
+		- also, we could just do a linescan along the center line
+	- refine burrows by doing linescans and move the burrow outline (but not beyond the centerline)  
 
 Performance improvements:
 -------------------------

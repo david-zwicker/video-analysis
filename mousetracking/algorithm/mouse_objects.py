@@ -280,12 +280,37 @@ class Burrow(object):
 #         debug.show_image(image)
     
     
+    def get_centerline2(self, outline):
+        """
+        TODO: Use ideas from http://stackoverflow.com/a/4557203/932593
+        too expensive and doesn't work for wide burrows
+        """
+
+        # get bounding box        
+        outline = np.array([outline], np.int32)
+        x, y, w, h = cv2.boundingRect(outline)
+
+        # plot the polygon in a suitable rectangle
+        img = np.zeros((h, w), np.uint8)
+        points = outline - np.array((x, y))
+        cv2.fillPoly(img, points, color=1)
+        
+        # perform the distance transform
+        img_dist = cv2.distanceTransform(img, distanceType=cv2.cv.CV_DIST_L2, maskSize=3)
+        
+        debug.show_image(img, img_dist)
+    
+    
     def get_centerline(self, ground):
+        """ determine the centerline, given the outline and the ground profile.
+        The ground profile is used to determine the burrow exit. """
         ground_line = geometry.LineString(np.array(ground, np.double))
         
-        outline = curves.make_curve_equidistant(self.outline, 10)        
-        
+        outline = curves.make_curve_equidistant(self.outline, 10)
+    
         outline = np.asarray(outline, np.double)
+
+#         self.get_centerline2(outline)
         
         dist = np.array([ground_line.distance(geometry.Point(p)) for p in outline])
         
@@ -296,18 +321,51 @@ class Burrow(object):
         else:
             p_surface = np.argmin(outline)
         k0 = np.argmin(np.linalg.norm(outline - p_surface, axis=1))
-        kl = kr = k0
+
+        # estimate the centerline from there
+        kl, kr = k0 - 1, k0 + 1
         l = len(outline)
-        centerline = []
-        while kr - kl < l:
-            p = ((outline[kl%l][0] + outline[kr%l][0])/2,
-                 (outline[kl%l][1] + outline[kr%l][1])/2)
+        centerline = [outline[k0]]
+
+        #TODO: base centerline estimate by using circles of increasing radii
+        # - determine outline points in these circular regions
+        # - if there are exactly two line sections, average each of these and 
+        #     define the centerline point as the average of the resulting two points
+        
+        
+#         # first half doing simple iteration
+#         while kr - kl < l//2:
+#             # get new center line estimate 
+#             p = ((outline[kl%l][0] + outline[kr%l][0])/2,
+#                  (outline[kl%l][1] + outline[kr%l][1])/2)
+#             centerline.append(p)
+#             kl -= 1
+#             kr += 1        
+        
+        # second half doing minimized iteration 
+        pl, pr = outline[kl%l], outline[kr%l]
+        while kr - kl <= l:
+            # get candidate points
+            pl_c = ((outline[(kl - 1)%l][0] + pr[0])/2,
+                    (outline[(kl - 1)%l][1] + pr[1])/2)
+            pr_c = ((outline[(kr + 1)%l][0] + pl[0])/2,
+                    (outline[(kr + 1)%l][1] + pl[1])/2)
+            
+            if curves.point_distance(pl_c, pr) < curves.point_distance(pl, pr_c):
+                kl, pl = kl - 1, pl_c
+            else:
+                kr, pr = kr + 1, pr_c
+                
+            # get new center line estimate 
+            p = ((pl[0] + pr[0])/2, (pl[1] + pr[1])/2)
             centerline.append(p)
-            kr += 1
-            kl -= 1
-        
-#        p_deep = self.outline[np.argmax(dist)]
-        
+            
+        # remove first point, because the second is also on the outline
+        centerline = centerline[1:]
+        # simplify centerline
+        epsilon = 0.1*curves.curve_length(centerline)
+        centerline = curves.simplify_curve(centerline, epsilon)
+
         return centerline #(p_deep, p_surface)
         
     

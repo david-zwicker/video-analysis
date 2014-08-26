@@ -38,7 +38,7 @@ def show_image(*images, **kwargs):
     # plot all the images
     for k, image in enumerate(images):
         plt.subplot(num_rows, num_cols, k + 1)
-        plt.imshow(image, interpolation='none', vmin=vmin, vmax=vmax)
+        plt.imshow(image, interpolation='nearest', vmin=vmin, vmax=vmax)
         plt.gray()
         
         # recipe from http://stackoverflow.com/a/18195921/932593
