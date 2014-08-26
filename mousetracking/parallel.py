@@ -14,6 +14,7 @@ from video.io.pipe import VideoPipe
 from video.filters import FilterCrop
 
 
+# dictionary defining the four quadrants
 QUADRANTS = {'UL': 'upper left',
              'DL': 'lower left',
              'UR': 'upper right',

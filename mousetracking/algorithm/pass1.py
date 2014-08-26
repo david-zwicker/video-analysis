@@ -1461,13 +1461,13 @@ class FirstPass(DataHandler):
             # check other features of the burrow
             props = regionprops(labels == label)
 
-            # check the burrow area
+            # disregard small burrows
             if props.area < 100:
                 continue
              
             # check the eccentricity
-            if props.eccentricity < 0.9:
-                continue
+#             if props.eccentricity < 0.9:
+#                 continue
 
             #convert contour into polygon
             contours, _ = cv2.findContours((labels == label).astype(np.uint8),
@@ -1502,7 +1502,8 @@ class FirstPass(DataHandler):
                                                         is_color=True, codec=video_codec,
                                                         bitrate=video_bitrate)
             if 'video.show' in self.debug_output:
-                self.debug['video.show'] = ImageShow(self.debug['video'].shape, 'Debug video')
+                self.debug['video.show'] = ImageShow(self.debug['video'].shape,
+                                                     'Debug video' + ' [%s]'%self.name if self.name else '')
 
         # set up additional video writers
         for identifier in ('difference', 'background', 'explored_area'):

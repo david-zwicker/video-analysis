@@ -50,7 +50,7 @@ PARAMETERS_DEFAULT = {
                                
     # determines the rate with which the background is adapted [in 1/frames]
     'background/adaptation_rate': 0.01,
-    'explored_area/adaptation_rate': 1e-4, # 1e-4
+    'explored_area/adaptation_rate': 1e-5, # 1e-4
     
     # spacing of the points in the ground profile [in pixel]
     'ground/point_spacing': 20,
@@ -80,7 +80,7 @@ PARAMETERS_DEFAULT = {
     'mouse/max_rel_area_change': 0.5,
 
     # how often are the burrow shapes adapted [in frames]
-    'burrows/adaptation_interval': 1, # 100
+    'burrows/adaptation_interval': 100, # 100
     # what is a typical radius of a burrow [in pixel]
     'burrows/radius': 10,
     # minimal area a burrow cross section has to have

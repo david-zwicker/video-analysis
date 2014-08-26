@@ -1,9 +1,6 @@
 * Write a manual of assumption we make about the videos in order to track everything
-* The sand profile sometimes has two brightnesses - What's the origin of this?
-	- Maybe we could fit both of them simultaneously
 * Build collection of extracts from movies which are hard to analyze (use this for semi-automatic testing)
 * Write script to be able to easily extract problematic parts of the video and save them in a separate file 
-* Make logging reliable
 * Distinguish between debug/develop/release runs:
 	- different default level of output
 	- debug doesn't use multiprocessing to keep error messages clean
@@ -20,8 +17,6 @@
 	- Have two different Burrow classes for long burrows and very unshaped ones (fit only the first one to data!)
 		Maybe one class suffices (where we only do the burrow fitting if the burrow is elongated, otherwise
 		we only estimate the shape based on the explored area)
-* We should be able to interrupt parallel processing
-	- This requires to send a signal to the other processes
 
 Performance improvements:
 -------------------------
