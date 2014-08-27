@@ -26,7 +26,7 @@ def scan_video(name, video=None, parameters=None, **kwargs):
         params['video/frames'] = kwargs.pop('frames')
     if kwargs.get('crop', None) is not None:
         params['video/cropping_rect'] = kwargs.pop('crop')
-
+        
     # do first pass
     job = FirstPass(name, parameters=params,
                     debug_output=kwargs.get('debug_output', None))

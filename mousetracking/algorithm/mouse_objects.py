@@ -13,16 +13,15 @@ import cv2
 import shapely
 import shapely.geometry as geometry
 
-from video.analysis import curves
+from video.analysis import curves, regions
 from video.analysis.regions import corners_to_rect, expand_rectangle, get_enclosing_outline
 
 import debug
 
 
-# monkey patch to get compatibility with older shapely versions
+# monkey patch shapely.geometry to get compatibility with older shapely versions
 if not hasattr(geometry, 'LinearRing'):
     geometry.LinearRing = geometry.polygon.LinearRing
-
 
 
 
@@ -205,23 +204,11 @@ class Burrow(object):
     centerline_segment_length = 25
     
     
-    def __init__(self, outline, length=None):
+    def __init__(self, outline, centerline=None, length=None):
         """ initialize the structure using points on its outline """
         self._outline = np.asarray(outline, np.double)
+        self.centerline = None
         self.length = length
-        self._cache = {}
-
-
-    @property
-    def outline(self):
-        return self._outline
-
-    
-    @outline.setter
-    def outline(self, value):
-        self._outline = value
-        # reset cache
-        self.length = None
         self._cache = {}
 
 
@@ -238,8 +225,21 @@ class Burrow(object):
         center = polygon.centroid
         return ('Burrow(center=(%d, %d), area=%s, points=%d)' %
                 (center.x, center.y, polygon.area, len(self)))
-        
+
+
+    @property
+    def outline(self):
+        return self._outline
+
     
+    @outline.setter
+    def outline(self, value):
+        self._outline = value
+        # reset cache
+        self.centerline = None
+        self._cache = {}
+        
+        
     @cached_property
     def polygon(self):
         """ return the polygon of the burrow outline """
@@ -319,13 +319,13 @@ class Burrow(object):
         """ determine the centerline, given the outline and the ground profile.
         The ground profile is used to determine the burrow exit. """
         
-        if 'centerline' in self._cache:
-            return self._cache['centerline']
+        if self.centerline is not None:
+            return self.centerline
         
         # get the ground line 
         ground_line = geometry.LineString(np.array(ground, np.double))
         
-        # reparameterize the burrow outline
+        # reparameterize the burrow outline to locate the burrow exit reliably
         outline = curves.make_curve_equidistant(self.outline, 10)
         outline = np.asarray(outline, np.double)
 
@@ -354,7 +354,7 @@ class Burrow(object):
         angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0]) + np.pi/2
         p_anchor = (p_exit[0] + 5*np.cos(angle), p_exit[1] + 5*np.sin(angle))
         ray_length = np.inf
-        outline_poly = geometry.LinearRing(outline)
+        outline_poly = geometry.LinearRing(self.outline)
         
         centerline = [p_exit]
         while True:
@@ -363,26 +363,15 @@ class Burrow(object):
             for a in np.linspace(angle - self.centerline_angle,
                                  angle + self.centerline_angle, 16):
                 
-                p_test = (p_anchor[0] + 1000*np.cos(a), p_anchor[1] + 1000*np.sin(a))
-                ray = geometry.LineString((p_anchor, p_test))
-                # find the intersections between the ray and the burrow outline
-                inter = outline_poly.intersection(ray)
-                if isinstance(inter, geometry.Point):
-                    # check whether this points is farther away than the last match
-                    dist = curves.point_distance(inter.coords[0], p_anchor)
-                    if dist > dist_max:
-                        dist_max = dist
-                        point_max = inter.coords[0]
-                        angle = a
-    
-                elif not inter.is_empty:
-                    # find closest intersection if there are many points
-                    dists = [curves.point_distance(p.coords[0], p_anchor) for p in inter]
-                    k_min = np.argmin(dists)
-                    if dists[k_min] > dist_max:
-                        dist_max = dists[k_min]
-                        point_max = inter[k_min].coords[0]
-                        angle = a
+                p_far = (p_anchor[0] + 1000*np.cos(a),
+                         p_anchor[1] + 1000*np.sin(a))
+                
+                p_hit, dist_hit = regions.get_ray_hitpoint(p_anchor, p_far,
+                                                           outline_poly, ret_dist=True)
+                if dist_hit > dist_max:
+                    dist_max = dist_hit
+                    point_max = p_hit
+                    angle = a
                         
             # abort if the search was not successful
             if point_max is None:
@@ -399,10 +388,16 @@ class Burrow(object):
                 centerline.append(point_max)
                 break
                     
+        # save results                    
+        self.centerline = centerline
         self.length = curves.curve_length(centerline)
-                    
-        self._cache['centerline'] = centerline
         return centerline
+            
+        
+    def get_length(self, ground):
+        """ calculates the centerline and returns its length """
+        self.get_centerline(ground)
+        return self.length
             
     
     def to_array(self):

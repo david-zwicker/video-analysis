@@ -28,12 +28,7 @@ import cv2
 
 from video.io import ImageShow
 from video.filters import FilterBlur, FilterCrop
-from video.analysis.regions import (get_largest_region, find_bounding_box,
-                                    rect_to_slices, corners_to_rect,
-                                    get_overlapping_slices, expand_rectangle)
-from video.analysis.curves import (curve_length, make_curve_equidistant,
-                                   simplify_curve, point_distance, get_projection_point)
-from video.analysis.image import line_scan, get_steepest_point, regionprops
+from video.analysis import regions, curves, image
 from video.utils import display_progress
 from video.composer import VideoComposerListener, VideoComposer
 
@@ -44,9 +39,6 @@ from .mouse_objects import (Object, ObjectTrack, Burrow, BurrowTrack,
 
 import debug
 
-
-class BurrowFinderError(RuntimeError):
-    pass
 
 
 class FirstPass(DataHandler):
@@ -78,12 +70,9 @@ class FirstPass(DataHandler):
         """ load and prepare the video """
         self.log_event('Pass 1 - Started initializing the video analysis.')
         
-        # load the video 
+        # load the video if it is not already loaded 
         super(FirstPass, self).load_video(video)
                 
-        # load the video if it is not already loaded 
-        if not self.video:
-            self.video = self.load_video()
         self.data.create_child('video/input', {'frame_count': self.video.frame_count,
                                                'size': '%d x %d' % self.video.size,
                                                'fps': self.video.fps})
@@ -238,13 +227,13 @@ class FirstPass(DataHandler):
         _, binarized = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
         # find the largest bright are, which should contain the cage
-        cage_mask = get_largest_region(binarized)
+        cage_mask = regions.get_largest_region(binarized)
         
         # find an enclosing rectangle, which usually overestimates the cage bounding box
-        rect_large = find_bounding_box(cage_mask)
+        rect_large = regions.find_bounding_box(cage_mask)
          
         # crop image to this rectangle, which should surely contain the cage 
-        image = image[rect_to_slices(rect_large)]
+        image = image[regions.rect_to_slices(rect_large)]
 
         # initialize the rect coordinates
         top = 0 # start on first row
@@ -275,7 +264,7 @@ class FirstPass(DataHandler):
         # return the rectangle defined by two corner points
         p1 = (rect_large[0], rect_large[1] + top)
         p2 = (rect_large[0] + width - 1, rect_large[1] + bottom)
-        return corners_to_rect(p1, p2)
+        return regions.corners_to_rect(p1, p2)
 
   
     def crop_video_to_cage(self):
@@ -319,7 +308,7 @@ class FirstPass(DataHandler):
                                      cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         # find sky by locating the largest black areas
-        sky_mask = get_largest_region(1 - binarized).astype(np.uint8)*255
+        sky_mask = regions.get_largest_region(1 - binarized).astype(np.uint8)*255
 
         # Finding sure foreground area using a distance transform
         dist_transform = cv2.distanceTransform(sky_mask, cv2.cv.CV_DIST_L2, 5)
@@ -337,7 +326,7 @@ class FirstPass(DataHandler):
                           self.result['colors/sky'], self.result['colors/sky_std'])
 
         # find the sand by looking at the largest bright region
-        sand_mask = get_largest_region(binarized).astype(np.uint8)*255
+        sand_mask = regions.get_largest_region(binarized).astype(np.uint8)*255
         
         # Finding sure foreground area using a distance transform
         dist_transform = cv2.distanceTransform(sand_mask, cv2.cv.CV_DIST_L2, 5)
@@ -367,7 +356,8 @@ class FirstPass(DataHandler):
             # cut out holes from the mask for each mouse estimate
             for mouse_pos in self._mouse_pos_estimate:
                 # get the slices required for comparing the template to the image
-                t_s, i_s = get_overlapping_slices(mouse_pos, template.shape, frame.shape)
+                t_s, i_s = regions.get_overlapping_slices(mouse_pos, template.shape,
+                                                          frame.shape)
                 mask[i_s[0], i_s[1]] *= template[t_s[0], t_s[1]]
                 
         else:
@@ -620,7 +610,7 @@ class FirstPass(DataHandler):
                   for x, col in enumerate(mask.T)]            
 
         # simplify the curve        
-        points = simplify_curve(points, epsilon=2)
+        points = curves.simplify_curve(points, epsilon=2)
 
         return np.array(points, np.int32)
    
@@ -641,7 +631,7 @@ class FirstPass(DataHandler):
                     RidgeProfile(spacing, self.params['ground/width'])
                 
         # make sure the curve has equidistant points
-        ground = make_curve_equidistant(points, spacing)
+        ground = curves.make_curve_equidistant(points, spacing)
         ground = np.array(np.round(ground),  np.int32)
         
         # calculate the bounds for the points
@@ -716,262 +706,14 @@ class FirstPass(DataHandler):
             iterations += 1
             
         self.logger.info('We found a ground profile of length %g after %d iterations',
-                         curve_length(self.ground), iterations)
+                         curves.curve_length(self.ground), iterations)
         
         
     #===========================================================================
     # FINDING BURROWS
     #===========================================================================
    
-   
-    def estimate_burrow_from_contour(self, contour):
-        """ finds the entry of the burrow, which is defined by the points
-        closest to the ground line.
-        """
-        
-        # simplify the contour
-        tolerance = self.params['burrows/outline_simplification_threshold']*curve_length(contour)
-        contour = list(simplify_curve(contour, tolerance))
-        
-        # calculate the distance of each point to the ground
-        ground_line = geometry.LineString(np.array(self.ground, np.double))
-        dist = (ground_line.distance(geometry.Point(np.array(p, np.double)))
-                for p in contour)
-        
-        # move points that are close to the boundary onto the boundary
-        dist = [0 if d < 2*self.params['burrows/radius'] else d for d in dist]
-        
-        # remove points that are surrounded by points on the ground line
-        k = 1
-        while k < len(dist):
-            dr = dist[k+1] if k < len(dist) - 1 else dist[0]
-            if dist[k-1] == dr == 0:
-                del dist[k]
-                del contour[k]
-            k += 1
-                
-        # find the indices of the two closest points
-        i1 = np.argmin(dist)
-        dist[i1] = np.inf
-        i2 = np.argmin(dist)
-        i1, i2 = min(i1, i2), max(i1, i2)
-        
-        # figure out in what direction we have to go around the polygon
-        if i2 - i1 > len(contour)//2:
-            # the right outline goes from i1 .. i2
-            outline = contour[i1:i2+1]
-        else:
-            # the right outline goes from i2 .. -1 and start 0 .. i1
-            outline = np.vstack((contour[i2:], contour[:i1+1]))
-        
-#         debug.show_shape(geometry.Polygon(np.array(contour, np.double)),
-#                          geometry.LineString(np.array(outline, np.double)))
-        
-        return Burrow(outline)
-    
-    
-    def refine_burrow_outline(self, burrow, ground_mask):
-        """ takes a single burrow and refines its outline """
-        outline = np.array(burrow.outline, np.double) # need double for shapely to work
-        print '\nStart', geometry.Polygon(outline).area
-        
-        ground = np.asarray(self.ground, np.double)
-        ground_line = geometry.LineString(ground)
-        ground_points = geometry.MultiPoint(ground)
-
-        # remove points from both ends of the outline, if they are close to the
-        # ground profile
-        for p_idx, p in enumerate(outline):
-            if ground_line.distance(geometry.Point(p)) > 0*self.params['burrows/radius']:
-                # p_idx is now the first point inside burrow
-                break
-        outline = outline[max(0, p_idx - 1):]
-        
-        for p_idx, p in enumerate(outline[::-1]):
-            if ground_line.distance(geometry.Point(p)) > 0*self.params['burrows/radius']:
-                # -p_idx is now the last point inside burrow
-                break
-        p_idx -= 1
-        outline = outline[:-p_idx if p_idx > 0 else None]
-        
-        if len(outline) < 2:
-            return None
-        
-        print 'Points removed', geometry.Polygon(outline).area
-        
-        # make sure that the anchor points of the burrow lie on the ground outline
-        def move_to_ground_profile(point):
-            point = geometry.Point(point)
-            point = ground_line.interpolate(ground_line.project(point))
-            return (point.x, point.y)
-
-        outline[ 0][:] = move_to_ground_profile(outline[ 0])
-        outline[-1][:] = move_to_ground_profile(outline[-1])
-        
-        print 'Moved to ground', geometry.Polygon(outline).area
-        
-        # simplify the outline
-        #threshold = self.params['burrows/outline_simplification_threshold']*curve_length(outline)
-        #outline = simplify_curve(outline, threshold)
-        
-#         outline = make_curve_equidistant(outline, 15)
-#         if len(outline) < 3:
-#             return None
-        
-        # introduce extra support points into long segments
-        outline = list(outline) # for easy removal of points
-        dist_min = self.params['burrows/radius']
-        dist_max = 4.0*self.params['burrows/radius']
-        k = 0
-        while k < len(outline) - 1:
-            dist = point_distance(outline[k], outline[k+1])
-            if dist > dist_max:
-                p = ((outline[k][0] + outline[k+1][0])/2, (outline[k][1] + outline[k+1][1])/2)
-                outline.insert(k + 1, p)
-            elif dist < dist_min:
-                del outline[k+1]
-            else:
-                # go to the next point
-                k += 1
-
-        print 'Simplified', geometry.Polygon(outline).area
-        
-        def get_closest_point(point):
-            """ determines the point on the ground profile closest to `point` """
-            point = geometry.Point(point)
-            distances = [point.distance(p) for p in ground_points]
-            cp = ground_points[np.argmin(distances)]
-            return (cp.x, cp.y)
-
-        # determine the angles that restrict the movement of the points        
-        angles = []
-        for k, p in enumerate(outline):
-            if k == 0:
-                p0, p2 = get_closest_point(p), p
-                self.debug['points'] = [p0]
-            elif k == len(outline) - 1:
-                p0, p2 = p, get_closest_point(p)
-                self.debug['points'].append(p2)
-            else:
-                p0, p2 = outline[k-1], outline[k+1]
-            angles.append(np.arctan2(p2[1] - p0[1], p2[0] - p0[0])) # y-coord, x-coord
-            
-        # for k=0,-1, we want to move along the angles instead of perpendicular to them 
-        angles[ 0] += np.pi/2
-        angles[-1] += np.pi/2
-        angles = np.array(angles)
-
-        # find the region of interest                      
-        bounds = geometry.Polygon(outline).bounds
-        rect = corners_to_rect(bounds[:2], bounds[2:])
-        rect = expand_rectangle(rect, self.params['burrows/fitting_margin'])
-
-        print 'No change', geometry.Polygon(outline).area
-        
-        # extract the region of interest and copy it to he burrow object
-        (_, slices_img), rect = get_overlapping_slices(rect[:2], (rect[3], rect[2]),
-                                                       ground_mask.shape,
-                                                       anchor='upper left', ret_rect=True)
-        
-        burrow_image = self.background[slices_img].astype(np.uint8)
-        ground_mask = np.asarray(ground_mask[slices_img], np.bool)
-        outline = [(p[0] - rect[0], p[1] - rect[1]) for p in outline]
-        outline = np.array(outline, np.double)
-                        
-        # prepare a mask to measure the colors
-        model = np.zeros_like(burrow_image, np.uint8)
-#         cv2.fillPoly(model, np.array([outline], np.int32), color=1)
-#         burrow_mask = model.astype(np.bool)
-#         color_burrow = np.median(burrow_image[ground_mask & burrow_mask])
-#         color_sand = np.mean(burrow_image[ground_mask - burrow_mask])
-        color_burrow = self.result['colors/sky']
-        color_sand = self.result['colors/sand']
-
-        def get_residual(displacements, show_image=False):
-            """ calculates the difference between the model burrow and the image """
-            #max_dis = self.params['burrows/radius']/2
-            #displacements = np.clip(displacements, -max_dis, max_dis)
-            line = outline.copy()
-            line[:, 0] += np.cos(angles)*displacements
-            line[:, 1] -= np.sin(angles)*displacements
-            
-            # use the outline to create the burrow image
-            model.fill(color_burrow) # dark outside
-            model[ground_mask] = color_sand # bright under ground
-            cv2.fillPoly(model, np.array([line], np.int32), color=color_burrow)
-    
-            cv2.GaussianBlur(model, (0, 0), 3, dst=model)
-    
-            if show_image:
-                model[~ground_mask] = 100
-                burrow_image[~ground_mask] = 100
-                print '\nResidual', np.sum((burrow_image[ground_mask] - model[ground_mask])**2)
-                debug.show_image(model, burrow_image, equalize_colors=True, wait_for_key=False)
-    
-            return (burrow_image[ground_mask] - model[ground_mask])
-
-        # move the ground profile model perpendicular until it fits best
-        # TODO: maybe do the fitting by hand, i.e. sequentially  move each point by +- sqrt(2)
-        #     and put it at the position that has the best overlap - algorithm should converge eventually  
-        # TODO: try constrained optimization 
-        # TODO: Maybe the fit is not the problem, but the post-processing is
-#         displacements, cov_x, infodict, mesg, ier = leastsq(get_residual, np.zeros(len(outline)),
-#                                                             epsfcn=0.1, full_output=True)
-
-        print 'Before', geometry.Polygon(outline).area
-
-        displacements = np.zeros(len(outline))
-        res_last = np.sum(get_residual(displacements)**2)
-        for k in xrange(len(displacements)):
-            d_best = 0
-            for d in np.array((-5, -2, -1, 1, 2, 5))*np.sqrt(2):
-                displacements[k] = d
-                res_val = np.sum(get_residual(displacements)**2)
-                if res_val < res_last:
-                    res_last = res_val
-                    d_best = d
-            displacements[k] = d_best
-
-
-
-#         displacements, f, d = optimize.fmin_l_bfgs_b(
-#                                 lambda x: np.sum(get_residual(x)**2),
-#                                 np.zeros(len(outline)),
-#                                 bounds=np.zeros((len(outline), 2)) + np.array([[-10, 10]]),
-#                                 pgtol=1e-10, factr=1e12,
-#                                 approx_grad=True, epsilon=.01,
-#                                 disp=False)
-
-#         displacements = optimize.fmin_cg(lambda x: np.sum(get_residual(x)**2),
-#                                          np.zeros(len(outline)), epsilon=0.1, disp=False)
-        
-#         print '\n DISPLACEMENT', sum(np.abs(displacements)), f, d['warnflag'], d.get('task', '') 
-        
-        #print '\nResidual', np.sum(infodict['fvec'])
-        
-#         get_residual(np.zeros(len(outline)), True)
-#         get_residual(displacements, True)
-        
-        # limit the maximal displacement
-        max_dis = self.params['burrows/radius']/2
-        displacements = np.clip(displacements, -max_dis, max_dis)
-        
-#         print 'Corrected burrow by', sum(abs(p) for p in displacements)
-        
-        # adjust the burrow outline using the given deviations
-        outline[:, 0] += np.cos(angles)*np.array(displacements)
-        outline[:, 1] -= np.sin(angles)*np.array(displacements)
-
-        print 'After', geometry.Polygon(outline).area
-        
-        burrow.outline = np.array([(p[0] + rect[0], p[1] + rect[1]) for p in outline], np.double)
-        
-        if len(burrow) > 2:
-            return burrow
-        else:
-            return None
-
-
+  
     def _adjust_burrow_end_point(self, p_end, p_next, mask_moving):
         # default value that will be used if no better ones are found
         res = p_end
@@ -1012,7 +754,7 @@ class FirstPass(DataHandler):
                     
                 if len(inter) == 1:
                     # found one intersection
-                    dist.append(point_distance(inter[0], p_next))
+                    dist.append(curves.point_distance(inter[0], p_next))
                 else:
                     dist.append(-np.inf)
                     
@@ -1026,381 +768,12 @@ class FirstPass(DataHandler):
                 self.logger.debug('%d: Found new burrow end point %s', self.frame_id, res)
                 
         return res       
-        
-        
-    def _adjust_burrow_outlet(self, cline):
-        # move last point onto the ground profile
-        ground_line = geometry.LineString(np.array(self.ground, np.double))
-        for point in cline[::-1]:
-            if np.all(np.isfinite(point)):
-                return get_projection_point(ground_line, point)
-        return cline[-1]
-     
-     
-    def _prepare_burrow_centerline(self, cline, width):
-     
-        # make sure that the burrow  
-        
-        
-        # add and remove points from the centerline if necessary
-        dist_min = 1.0*self.params['burrows/radius']
-        dist_max = 3.0*self.params['burrows/radius']
-        k = 0
-        while k < len(cline) - 1:
-            dist = point_distance(cline[k], cline[k+1])
-            if dist > dist_max:
-                p = ((cline[k][0] + cline[k+1][0])/2, (cline[k][1] + cline[k+1][1])/2)
-                cline.insert(k + 1, p)
-                w = (width[k] + width[k + 1])/2
-                width.insert(k + 1, w)
-            elif dist < dist_min:
-                del cline[k + 1]
-                del width[k + 1]
-            else:
-                # go to the next point
-                k += 1     
-                
-        if len(cline) < 3:
-            raise BurrowFinderError('Burrow was shrunk and disappeared.')
-        
-        return cline, width
-
-        
-    def _fit_burrow_centerline(self, cline, width):
-        # iterate through the points on the centerline and do a perpendicular line scan
-        cline_new = []
-        width_new = []
-        for k, p in enumerate(cline):
-            if k == 0 or k == len(cline) - 1:
-                cline_new.append(p)
-                width_new.append(width[k])
-                continue
-                
-            p1, p2 = cline[k-1], cline[k+1]
-            dx = p2[0] - p1[0]
-            dy = p2[1] - p1[1]
-            dist = np.sqrt(dx**2 + dy**2)
-
-            # handle all the remaining points
-            w = 40
-
-#             if k == 0:
-#                 # do a line scan along the center line to maybe move p
-#                 p_a = (p[0] + 10*dx/dist, p[1] + 10*dy/dist)
-#                 p_b = (p[0] - w*dx/dist, p[1] - w*dy/dist)
-#                 profile = line_scan(self.background.astype(np.uint8), p_a, p_b, 2)
-#                 i_s = get_steepest_point(profile, direction=1, smoothing=2)
-#                 d = i_s - 10 - width[0]
-#                 print d
-#                 p = (p[0] - d*dx/dist, p[1] - d*dy/dist)
-                         
-            # do a line scan perpendicular
-            p_a = (p[0] + w*dy/dist, p[1] - w*dx/dist)
-            p_b = (p[0] - w*dy/dist, p[1] + w*dx/dist)
-            profile = line_scan(self.background.astype(np.uint8), p_a, p_b, 2)
-            
-            # find the transition points
-            p_m = np.argmin(profile)
-#             min_m = profile[p_m]
-#             max_l = np.max(profile[:p_m])
-#             p_l = np.argmin(np.abs(profile[:p_m] - (max_l + min_m)/2))
-#             max_r = np.max(profile[p_m:])
-#             p_r = p_m + np.argmin(np.abs(profile[p_m:] - (max_r + min_m)/2))
-            p_l = get_steepest_point(profile[:p_m], direction=-1, smoothing=2)
-            p_r = p_m + get_steepest_point(profile[p_m:], direction=1, smoothing=2)
-
-#             import matplotlib.pyplot as plt
-#             plt.plot(profile)
-#             plt.axvline(p_l)
-#             plt.axvline(p_m)
-#             plt.axvline(p_r)
-#             plt.show()
-
-            # TODO: only set the point if we are confident that it is good
-            if (np.isfinite(p_l) and (profile[p_l] - profile[p_m]) > 0.5*self.result['colors/sand_std'] and
-                np.isfinite(p_r) and (profile[p_r] - profile[p_m]) > 0.5*self.result['colors/sand_std']):
-                
-                wdth = np.clip((p_r - p_l)/2, 2, 30)
-                dw = np.clip((p_r + p_l)/2 - w, -3, 3)
-                pnt = (p[0] - dw*dy/dist, p[1] + dw*dx/dist)
-            else:
-                self.logger.debug('%d: Rejected %d. burrow point at %s', self.frame_id, k + 1, p)
-                wdth = width[k]
-                pnt = p 
-            
-            width_new.append(wdth)
-            cline_new.append(pnt)
-        
-        return cline_new, width_new
-
-       
-        
-    def refine_burrow_line(self, burrow, ground_mask):
-        """ refines a burrow by fitting it to the current image """
-        
-        # add and remove points from the centerline if necessary
-        cline = list(burrow.centerline) # for easy removal of points
-        width = list(burrow.widths) # for easy removal of points
-        dist_min = self.params['burrows/radius']
-        dist_max = 4.0*self.params['burrows/radius']
-        k = 0
-        while k < len(cline) - 1:
-            dist = point_distance(cline[k], cline[k+1])
-            if dist > dist_max:
-                p = ((cline[k][0] + cline[k+1][0])/2, (cline[k][1] + cline[k+1][1])/2)
-                cline.insert(k + 1, p)
-                w = (width[k] + width[k + 1])/2
-                width.insert(k + 1, w)
-            elif dist < dist_min:
-                del cline[k + 1]
-                del width[k + 1]
-            else:
-                # go to the next point
-                k += 1     
-                
-        if len(cline) < 3:
-            return None
-        burrow = Burrow(cline, width)
-
+ 
+         
     
-        # find the region of interest
-        bounds = burrow.polygon.bounds
-        rect = corners_to_rect(bounds[:2], bounds[2:])
-        rect = expand_rectangle(rect, self.params['burrows/fitting_margin'])
-
-        # extract the region of interest and copy it to he burrow object
-        (_, slices_img), rect = get_overlapping_slices(rect[:2], (rect[3], rect[2]),
-                                                       ground_mask.shape,
-                                                       anchor='upper left', ret_rect=True)
-        
-        burrow_image = self.background[slices_img].astype(np.uint8)
-        ground_mask = np.asarray(ground_mask[slices_img], np.bool)
-        cline = [(p[0] - rect[0], p[1] - rect[1]) for p in cline]
-                        
-        # fit the centerline to the picture
-        angles = []
-        dists = []
-        for k in xrange(1, len(burrow)):
-            dx = cline[k][0] - cline[k-1][0]
-            dy = cline[k][1] - cline[k-1][1]
-            dists.append(np.sqrt(dx**2 + dy**2))
-            angles.append(np.arctan2(dy, dx))
-            
-        
-        num = len(cline)
-        
-        # get the colors
-        model = np.zeros_like(burrow_image, np.uint8)
-        color_burrow = (self.result['colors/sky'] + self.result['colors/sand'])/2
-        color_sand = self.result['colors/sand']
-        
-        def get_burrow_from_data(data):
-            # get data
-            pos = data[:2]
-            width = data[2:num + 2]
-            angles = data[num + 2:]
-            assert len(pos) == 2
-            assert len(width) == num
-            assert len(angles) == num - 1
-            
-            # build centerline
-            cline = [pos]
-            for a, d in zip(angles, dists):
-                pos = (pos[0] + d*np.cos(a), pos[1] + d*np.sin(a))
-                cline.append(pos)
-            
-            # construct burrow
-            return Burrow(cline, width)
-
-        def residual(data, show_image=False):
-            
-            #print 'DATA', data
-            b = get_burrow_from_data(data)
-            
-            # use the outline to create the burrow image
-            model.fill(color_burrow) # dark outside
-            model[ground_mask] = color_sand # bright under ground
-            cv2.fillPoly(model, np.array([b.outline], np.int32), color=color_burrow)
-    
-            cv2.GaussianBlur(model, (0, 0), 3, dst=model)
-    
-            if show_image:
-                model[~ground_mask] = 100
-                burrow_image[~ground_mask] = 100
-                print '\nResidual', np.sum((burrow_image[ground_mask] - model[ground_mask])**2)
-                debug.show_image(model, burrow_image, equalize_colors=True, wait_for_key=False)
-                
-            res = burrow_image[ground_mask] - model[ground_mask]
-            return np.sum(res**2)
-              
-        data0 = list(cline[0]) + width + angles
-
-#         data, cov_x, infodict, mesg, ier = leastsq(residual, data0,
-#                                                    epsfcn=0.01, full_output=True)
-        
-        cmin = [data0[0] - 5, data0[1] - 5] + [ 1]*num + [-np.inf]*(num - 1)
-        cmax = [data0[0] + 5, data0[1] + 5] + [10]*num + [ np.inf]*(num - 1)
-        scale = [.5]*(num + 2) + [0.1]*(num - 1)
-        
-        data, nfeval, rc = optimize.fmin_tnc(residual, data0,
-                                             approx_grad=True, epsilon=0.01,
-                                             scale=scale, bounds=zip(cmin, cmax),
-                                             disp=0)
-
-#         residual(data0, show_image=True)
-
-        if residual(data0) < residual(data):
-            data = data0
-#         print '\nIn ', residual(data0), rc
-#         print 'Out', residual(data)
-
-#         data = data0
-#         res_last = np.sum(residual(data)**2)
-#         for k in xrange(len(data)):
-#             d_best = 0
-#             for d in np.array((-2, -1, 1, 2))*np.sqrt(2):
-#                 data[k] = d
-#                 res_val = np.sum(residual(data)**2)
-#                 if res_val < res_last:
-#                     res_last = res_val
-#                     d_best = d
-#             data[k] = d_best
-                    
-        #residual(data, show_image=True)
-        data[0] += rect[0]
-        data[1] += rect[1]
-        burrow = get_burrow_from_data(data)
-        
-        return burrow
-           
-
-    def get_potential_burrow_contours(self, frame):
-
-        # build a mask with potential burrows
-        height, width = frame.shape
-        ground_mask = np.zeros_like(frame, np.uint8)
-        
-        # create a mask for the region below the current ground_mask profile
-        ground_points = np.empty((len(self.ground) + 4, 2), np.int32)
-        ground_points[:-4, :] = self.ground
-        ground_points[-4, :] = (width, ground_points[-5, 1])
-        ground_points[-3, :] = (width, height)
-        ground_points[-2, :] = (0, height)
-        ground_points[-1, :] = (0, ground_points[0, 1])
-        cv2.fillPoly(ground_mask, np.array([ground_points], np.int32), color=128)
-
-        # erode the mask slightly, since the ground_mask profile is not perfect        
-#         w = 2*self.params['mouse/model_radius']
-#         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
-#         ground_mask_small = cv2.erode(ground_mask, kernel)#, dst=ground_mask_small)
-        ground_mask_small = ground_mask
-        
-        # get potential burrows by looking at explored area
-        w = self.params['burrows/radius']
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
-        explored_area = 255*(self.explored_area >= self.params['explored_area/adaptation_rate'])
-        potential_burrows = cv2.morphologyEx(explored_area.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
-        
-        # remove accidental burrows at borders
-        potential_burrows[: 30, :] = 0
-        potential_burrows[-30:, :] = 0
-        potential_burrows[:, : 30] = 0
-        potential_burrows[:, -30:] = 0
-
-        # combine with the information of what areas have been explored
-        burrows_mask = cv2.bitwise_and(ground_mask_small, potential_burrows)
-
-        # remove small structures
-        w = self.params['mouse/model_radius']
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
-        burrows_mask = cv2.morphologyEx(burrows_mask, cv2.MORPH_OPEN, kernel)
-        
-        # find the contours if there are any
-        if burrows_mask.sum() == 0:
-            contours = []
-        else:
-            contours, _ = cv2.findContours(burrows_mask,
-                                           cv2.RETR_EXTERNAL,
-                                           cv2.CHAIN_APPROX_SIMPLE)
-            
-        return contours, ground_mask
-            
-            
-    def find_burrows_old(self, frame, mask_moving):
-        """ locates burrows by combining the information of the ground_mask profile
-        and the explored area """
-        
-        contours, ground_mask = self.get_potential_burrow_contours(frame)
-            
-        for contour in contours:
-            #convert contour into polygon
-            contour_points = np.squeeze(np.asarray(contour, np.double))
-            if len(contour_points) < 3:
-                continue # skip small contours
-            contour_poly = geometry.Polygon(contour_points)
-            
-            # check whether the contour overlaps with any of the found burrows
-            for burrow_track in self.result['burrows/data']:
-                if True or burrow_track.last.intersects(contour_poly):
-                    # take the data from the previous burrow
-                    burrow = burrow_track.last.copy()
-                    
-                    # extend the burrow with the found contour if the mouse is inside
-                    # TODO: Make this work again (if necessary)
-#                     if any(burrow.contains(obj.last_pos) for obj in self.tracks):
-#                         burrow.extend_outline(contour_poly)
-#                         self.debug['video.mark.highlight'] = True
-                     
-                    #burrow = self.refine_burrow_outline(burrow, ground_mask)
-                    burrow = self.refine_burrow_line2(burrow, mask_moving)
-
-                    if burrow is not None and burrow.polygon.area > self.params['burrows/min_area']:
-                        burrow_track.append(self.frame_id, burrow)
-                    break
-                
-            else:
-                # this burrow does not seem to correspond to any of the older burrows
-                # we thus create a new burrow track
-                
-                burrow = self.estimate_burrow_line(np.squeeze(contour))
-                
-                burrow = self.refine_burrow_line2(burrow, mask_moving)
-                #burrow = self.refine_burrow_outline(burrow, ground_mask)
-                       
-                if burrow is not None:
-                    # start a new burrow track
-                    burrow_track = BurrowTrack(self.frame_id, burrow)
-                    self.result['burrows/data'].append(burrow_track)
-                    self.logger.debug('%d: Found new burrow at %s',
-                                      self.frame_id, burrow.polygon.centroid)
-
-    
-    def get_burrow_from_outline(self, contour):
-        # simplify the contour
-        tolerance = self.params['burrows/outline_simplification_threshold']*curve_length(contour)
-        contour = simplify_curve(contour, tolerance).tolist()
-        
-        # move points that are close to the boundary onto the boundary
-#         ground_line = geometry.LineString(np.array(self.ground, np.double))
-#         for k, p in enumerate(contour):
-#             point = geometry.Point(np.array(p, np.double))
-#             if ground_line.distance(point) < self.params['mouse/model_radius']:
-#                 contour[k] = get_projection_point(ground_line, point)
-
-        poly = geometry.Polygon(contour)
-        if not poly.is_valid: 
-            # regularize polygon
-            poly_simpl = geometry.Polygon(contour).buffer(0)
-            # retrieve the polygon with the largest area
-            if isinstance(poly_simpl, geometry.MultiPolygon):
-                poly_simpl = max(poly_simpl, key=operator.attrgetter('area'))
-            # and find its contour
-            contour = poly_simpl.exterior.coords
-        
-        return Burrow(contour)
-    
-
     def get_potential_burrows_mask(self, frame):
+        """ locates potential burrows by searching for underground regions that
+        the mouse explored """
 
         # build a mask with potential burrows
         height, width = frame.shape
@@ -1414,17 +787,11 @@ class FirstPass(DataHandler):
         ground_points[-2, :] = (0, height)
         ground_points[-1, :] = (0, ground_points[0, 1])
         cv2.fillPoly(ground_mask, np.array([ground_points], np.int32), color=128)
-
-        # erode the mask slightly, since the ground_mask profile is not perfect        
-#         w = self.params['mouse/model_radius']//2
-#         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
-#         ground_mask_small = cv2.erode(ground_mask, kernel)#, dst=ground_mask_small)
-#         ground_mask_small = ground_mask
         
         # get potential burrows by looking at explored area
         explored_area = 255*(self.explored_area >= self.params['explored_area/adaptation_rate'])
 
-        # combine closeby patches in the mask
+        # combine nearby patches in the mask
         w = self.params['mouse/model_radius']//2
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
         potential_burrows = cv2.morphologyEx(explored_area.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
@@ -1444,6 +811,101 @@ class FirstPass(DataHandler):
         return cv2.morphologyEx(burrows_mask, cv2.MORPH_OPEN, kernel)
     
         
+    def get_burrow_from_mask(self, mask):
+        """ creates a burrow object given a contour outline """
+    
+        # find the contour of the mask    
+        contours, _ = cv2.findContours(mask.astype(np.uint8),
+                                       cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_SIMPLE)
+        contour = np.squeeze(np.asarray(contours[0], np.double))
+
+        
+        # simplify the contour
+        tolerance = self.params['burrows/outline_simplification_threshold']*curves.curve_length(contour)
+        contour = curves.simplify_curve(contour, tolerance).tolist()
+
+        # investigate the resulting polygon        
+        poly = geometry.Polygon(contour)
+        if not poly.is_valid: 
+            # regularize polygon
+            poly_simpl = geometry.Polygon(contour).buffer(0)
+            # retrieve the polygon with the largest area
+            if isinstance(poly_simpl, geometry.MultiPolygon):
+                poly_simpl = max(poly_simpl, key=operator.attrgetter('area'))
+            # and find its contour
+            contour = poly_simpl.exterior.coords
+        
+        return Burrow(contour)
+    
+
+    def refine_burrow(self, burrow):
+        """ refines a elongated burrow by doing linescans perpendicular to
+        its centerline """
+        return burrow
+
+        # keep the points close to the ground line
+        ground_line = geometry.LineString(np.array(self.ground, np.double))
+        outline_new = sorted([p.coords[0]
+                              for p in geometry.MultiPoint(burrow.outline)
+                              if p.distance(ground_line) < 10])
+
+        # replace the remaining points by fitting perpendicular to the center line
+        outline = geometry.LinearRing(burrow.outline)
+        centerline = burrow.get_centerline(self.ground)
+        cline = [centerline[0]]
+        for k, p in enumerate(centerline[1:-1]):
+            # get points adjacent to p
+            p1 = centerline[k]
+            p2 = centerline[k+2]
+            
+            # find local slope of the centerline
+            dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+            dist = np.hypot(dx, dy)
+            dx /= dist; dy /= dist
+            
+            w = 40 #< length of line scan
+
+            # do a line scan perpendicular
+            p_a = (p[0] + w*dy, p[1] - w*dx)
+            p_b = (p[0] - w*dy, p[1] + w*dx)
+            profile = image.line_scan(self.background.astype(np.uint8), p_a, p_b, 2)
+            
+            # find the transition points by considering slopes
+            k_l = image.get_steepest_point(profile[:w], direction=-1, smoothing=2)
+            k_r = w + image.get_steepest_point(profile[w:], direction=1, smoothing=2)
+
+            d_l = w - k_l
+            d_r = w - k_r
+
+
+#             import matplotlib.pyplot as plt
+#             plt.plot(profile)
+#             plt.axvline(k_l)
+#             plt.axvline(w)
+#             plt.axvline(k_r)
+#             plt.title('%d | %d' % (d_l, d_r))
+#             plt.show()
+
+            # TODO: only set the point if we are confident that it is good
+            if np.isfinite(d_l) and np.isfinite(d_r):
+#                  and (profile[d_l] - profile[w]) > 0.5*self.result['colors/sand_std']
+#                   and (profile[d_r] - profile[w]) > 0.5*self.result['colors/sand_std']):
+                
+                # save the points
+                outline_new.append((p[0] + d_l*dy, p[1] - d_l*dx))
+                outline_new.insert(0, (p[0] + d_r*dy, p[1] - d_r*dx))
+                
+                d_c = (d_l + d_r)/2
+                cline.append((p[0] + d_c*dy, p[1] - d_c*dx))
+
+        # TODO: handle point at burrow front
+
+        debug.show_shape(outline, geometry.LinearRing(outline_new))
+
+        return Burrow(outline_new, centerline=cline)
+    
+    
     def find_burrows(self, frame, mask_moving):
         """ locates burrows by combining the information of the ground_mask profile
         and the explored area """
@@ -1451,42 +913,35 @@ class FirstPass(DataHandler):
         burrows_mask = self.get_potential_burrows_mask(frame)
         labels, num_features = ndimage.measurements.label(burrows_mask)
             
+        # iterate through all features that have been found
         for label in xrange(1, num_features + 1):
             # check other features of the region
-            props = regionprops(labels == label)
+            props = image.regionprops(labels == label)
             if props.area < self.params['burrows/min_area']:
-                continue # disregard small burrows
+                continue # disregard small features
              
-            # find the contour of region
-            contours, _ = cv2.findContours((labels == label).astype(np.uint8),
-                                           cv2.RETR_EXTERNAL,
-                                           cv2.CHAIN_APPROX_SIMPLE)
-            contour_points = np.squeeze(np.asarray(contours[0], np.double))
-            if len(contour_points) < 3:
-                continue # skip small contours
+            # get the burrow object from the contour of region
+            burrow = self.get_burrow_from_mask(labels == label)
+
+            # refine the burrow if it looks like a proper burrow
+            if (burrow.eccentricity > self.params['burrows/fitting_eccentricity_treshold'] or 
+                    burrow.get_length(self.ground) > self.params['burrows/fitting_length_treshold']):
+                burrow = self.refine_burrow(burrow)
             
-            # build the polygon and the burrow object
-            contour_poly = geometry.Polygon(contour_points)
-            burrow = self.get_burrow_from_outline(contour_points)
-
-#             if burrow.area > 100 and burrow.eccentricity > 0.9:
-#                 centerline = burrow.get_centerline(self.ground)
-
+            # add the burrow to our result list if it is valid
             if burrow.is_valid:
+                # see whether this burrow is already known
                 for burrow_track in self.result['burrows/data']:
-                    if burrow_track.last.intersects(contour_poly):
+                    if burrow_track.last.intersects(burrow.polygon):
                         burrow_track.append(self.frame_id, burrow)
                         break
                     
                 else:
-                    # start a new burrow track
+                    # otherwise, start a new burrow track
                     burrow_track = BurrowTrack(self.frame_id, burrow)
                     self.result['burrows/data'].append(burrow_track)
                     self.logger.debug('%d: Found new burrow at %s',
                                       self.frame_id, burrow.polygon.centroid)
-
-            self.debug['video'].add_polygon(contour_points, is_closed=True)
-            
             
 
     #===========================================================================

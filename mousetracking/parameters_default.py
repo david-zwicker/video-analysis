@@ -70,10 +70,16 @@ PARAMETERS_DEFAULT = {
     'burrows/adaptation_interval': 100,
     # what is a typical radius of a burrow [in pixel]
     'burrows/radius': 10,
-    # minimal area a burrow cross section has to have
+    # minimal area a burrow cross section has to have [in pixel^2]
     'burrows/min_area': 1000,
-    'burrows/centerline_angle': np.pi/6,
+    # length of a burrow segment [in pixel]
     'burrows/centerline_segment_length': 25,
+    # the maximal angle each segment is allowed to deviated from the previous one [rad] 
+    'burrows/centerline_angle': np.pi/6,
+    # the eccentricity above which burrows are refined by fitting [dimensionless]
+    'burrows/fitting_eccentricity_treshold': 0.95,
+    # the length above which burrows are refined by fitting [in pixel]
+    'burrows/fitting_length_treshold': 100,
     # extra number of pixel around burrow outline used for fitting [in pixel]
     'burrows/fitting_margin': 20,
     # determines how much the burrow outline might be simplified. The quantity 

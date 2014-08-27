@@ -125,14 +125,15 @@ class DataHandler(object):
         else:
             frames = (0, self.video.frame_count)
             
-        cropping_rect = self.data.get('parameters/video/cropping_rect', None)         
+        cropping_rect = self.data.get('parameters/video/cropping_rect', None)
+
         if cropping_rect is None:
             # use the full video
             if self.video.is_color:
                 # restrict video to green channel if it is a color video
-                video_crop = FilterMonochrome(self.video, 'g')
+                self.video = FilterMonochrome(self.video, 'g')
             else:
-                video_crop = self.video
+                self.video = self.video
                 
         else: # user_crop is not None                
             # restrict video to green channel if it is a color video
@@ -140,15 +141,13 @@ class DataHandler(object):
             
             if isinstance(cropping_rect, str):
                 # crop according to the supplied string
-                video_crop = FilterCrop(self.video, region=cropping_rect,
+                self.video = FilterCrop(self.video, region=cropping_rect,
                                         color_channel=color_channel)
             else:
                 # crop to the given rect
-                video_crop = FilterCrop(self.video, rect=cropping_rect,
+                self.video = FilterCrop(self.video, rect=cropping_rect,
                                         color_channel=color_channel)
 
-        return video_crop
-            
             
     def write_data(self):
         """ writes the results to a file """

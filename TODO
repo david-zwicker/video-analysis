@@ -7,12 +7,12 @@
 	- different logging behavior (log to file for release run!)
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 * Burrows should be fitted to background frame
-	- burrows might only need an update if the mouse (i.e. its explored area) is close
 	- do linescans perpendicular to the centerline to find the burrow width
 		- but only if the burrow looks like a burrow (eccentricity > 0.9)
 	- set burrow front by a different method (maybe just update it from explored area)
 		- also, we could just do a linescan along the center line
-	- refine burrows by doing linescans and move the burrow outline (but not beyond the centerline)  
+	- refine burrows by doing linescans and move the burrow outline (but not beyond the centerline)
+* Connect objects tracks to find one global mouse track
 
 
 Performance improvements:

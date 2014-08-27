@@ -8,6 +8,7 @@ import numpy as np
 import scipy.ndimage as ndimage
 import shapely.geometry as geometry
 
+import curves
 
 def corners_to_rect(p1, p2):
     """ creates a rectangle from two corner points.
@@ -162,3 +163,37 @@ def get_enclosing_outline(polygon):
     return outline
     
 
+def get_ray_hitpoint(point_anchor, point_far, line_string, ret_dist=False):
+    """ returns the point where a ray anchored at point_anchor hits the polygon
+    given by line_string. The ray extends out to point_far, which should be a
+    point beyond the polygon.
+    If ret_dist is True, the distance to the hit point is also returned.
+    """
+    
+    ray = geometry.LineString((point_anchor, point_far))
+    # find the intersections between the ray and the burrow outline
+    inter = line_string.intersection(ray)
+    if isinstance(inter, geometry.Point):
+        # check whether this points is farther away than the last match
+        if ret_dist:
+            dist = curves.point_distance(inter.coords[0], point_anchor)
+            return inter.coords[0], dist
+        else:
+            return inter.coords[0]
+
+    elif not inter.is_empty:
+        # find closest intersection if there are many points
+        dists = [curves.point_distance(p.coords[0], point_anchor) for p in inter]
+        k_min = np.argmin(dists)
+        if ret_dist:
+            return inter[k_min].coords[0], dists[k_min]
+        else:
+            return inter[k_min].coords[0]
+        
+    else:
+        if ret_dist:
+            return None, np.nan
+        else:
+            return None
+        
+    
