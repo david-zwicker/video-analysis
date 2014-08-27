@@ -19,112 +19,50 @@ from .mouse_objects import ObjectTrack, GroundProfile, Burrow
 from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists, prepare_data_for_yaml
-
-
-PARAMETERS_DEFAULT = {
-    # filename pattern used to look for videos
-    'video/filename_pattern': 'raw_video/*',
-    # number of initial frames to not analyze
-    'video/ignore_initial_frames': 0,
-    # radius of the blur filter [in pixel]
-    'video/blur_radius': 3,
-    
-    # where to write the log files to
-    'logging/folder': None,
-    
-    # locations and properties of output
-    'output/result_folder': './results/',
-    'output/video/folder': './debug/',
-    'output/video/extension': '.mov',
-    'output/video/codec': 'libx264',
-    'output/video/bitrate': '2000k',
-    
-    # thresholds for cage dimension [in pixel]
-    'cage/width_min': 650,
-    'cage/width_max': 800,
-    'cage/height_min': 400,
-    'cage/height_max': 500,
-                               
-    # how often are the color estimates adapted [in frames]
-    'colors/adaptation_interval': 1000,
-                               
-    # determines the rate with which the background is adapted [in 1/frames]
-    'background/adaptation_rate': 0.01,
-    'explored_area/adaptation_rate': 1e-4,
-    
-    # spacing of the points in the ground profile [in pixel]
-    'ground/point_spacing': 20,
-    # adapt the ground profile only every number of frames [in frames]
-    'ground/adaptation_interval': 100,
-    # width of the ridge [in pixel]
-    'ground/width': 5,
-    
-    # relative weight of distance vs. size of objects [dimensionless]
-    'objects/matching_weigth': 0.5,
-    # size of the window used for motion detection [in frames]
-    'objects/matching_moving_window': 20,
-    # threshold above which an objects is said to be moving [in pixels/frame]
-    'objects/matching_moving_threshold': 10,
-        
-    # `mouse.intensity_threshold` determines how much brighter than the
-    # background (usually the sky) has the mouse to be. This value is
-    # measured in terms of standard deviations of the sky color
-    'mouse/intensity_threshold': 1,
-    # radius of the mouse model [in pixel]
-    'mouse/model_radius': 25,
-    # minimal area of a feature to be considered in tracking [in pixel^2]
-    'mouse/min_area': 100,
-    # maximal speed of the mouse [in pixel per frame]
-    'mouse/max_speed': 30, 
-    # maximal area change allowed between consecutive frames [dimensionless]
-    'mouse/max_rel_area_change': 0.5,
-
-    # how often are the burrow shapes adapted [in frames]
-    'burrows/adaptation_interval': 100,
-    # what is a typical radius of a burrow [in pixel]
-    'burrows/radius': 10,
-    # minimal area a burrow cross section has to have
-    'burrows/min_area': 1000,
-    # extra number of pixel around burrow outline used for fitting [in pixel]
-    'burrows/fitting_margin': 20,
-    # determines how much the burrow outline might be simplified. The quantity 
-    # determines by what fraction the total outline length is allowed to change 
-    'burrows/outline_simplification_threshold': 0.01,#0.005,
-}
+from mousetracking.algorithm.mouse_objects import BurrowTrack
 
 
 
 class DataHandler(object):
     """ class that handles the data and parameters of mouse tracking """
 
-    LARGE_DATA = {'pass1/ground/profile': GroundProfile,
-                  'pass1/objects/tracks': ObjectTrack,
-                  'pass1/burrows/data': Burrow}
 
-    def __init__(self, name='', video=None, parameters=None):
+    def __init__(self, name='', parameters=None):
 
         # initialize tracking parameters        
         self.data = Data()
         self.data.create_child('parameters')
-        self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
-        if parameters is not None:
-            self.data['parameters'].from_dict(parameters)
 
         # initialize additional properties
-        self.video = video
         self.name = name
+        self.data['analysis-status'] = 'Initialized parameters'
 
+        if parameters is not None:
+            self.initialize_parameters(parameters)
+        
+
+    def initialize_parameters(self, parameters=None):
+        """ initialize parameters """
+        if parameters is not None:
+            self.data['parameters'].from_dict(parameters)
+            
         # set up logging
-        self.logger = logging.getLogger(name)
-        if self.data['parameters/logging/folder'] is not None:
-            handler = logging.FileHandler(self.get_filename('log.log', self.data['parameters/logging/folder']),
-                                          mode='w')
+        self.logger = logging.getLogger(self.name)
+        if self.data.get('parameters/logging/folder', None) is not None:
+            logfile = self.get_filename('log.log',self.data['parameters/logging/folder'])
+            handler = logging.FileHandler(logfile, mode='w')
             formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
             handler.setFormatter(formatter)
             self.logger.addHandler(handler) 
             
-        self.data['analysis-status'] = 'Initialized parameters'
-
+        # setup the mouse objects
+        centerline_angle = self.data.get('parameters/burrows/centerline_angle', None)
+        if centerline_angle:
+            Burrow.centerline_angle = centerline_angle 
+        centerline_segment_length = self.data.get('parameters/burrows/centerline_segment_length', None)
+        if centerline_segment_length:
+            Burrow.centerline_segment_length = centerline_segment_length
+            
 
     def get_folder(self, folder):
         """ makes sure that a folder exists and returns its path """
@@ -162,12 +100,16 @@ class DataHandler(object):
         self.data['event_log'].append(event)
 
     
-    def load_video(self):
+    def load_video(self, video=None):
         """ loads the video and applies a monochrome and cropping filter """
-        
-        # initialize video
-        video_filename_pattern = os.path.join(self.data['parameters/video/filename_pattern'])
-        self.video = VideoFileStack(video_filename_pattern)
+        # initialize the video
+        if video is None:
+            video_filename_pattern = os.path.join(self.data['parameters/video/filename_pattern'])
+            self.video = VideoFileStack(video_filename_pattern)
+        else:
+            self.video = video
+            
+        # save some data about the video
         self.data.create_child('video/raw', {'frame_count': self.video.frame_count,
                                              'size': '%d x %d' % self.video.size,
                                              'fps': self.video.fps})
@@ -215,44 +157,29 @@ class DataHandler(object):
 
         # prepare writing the data
         main_result = self.data.copy()
+        
+        # write large amounts of data to accompanying hdf file
         hdf_name = self.get_filename('results.hdf5')
-        hdf_file = h5py.File(self.get_filename('results.hdf5', 'results'), 'w')
-        
-        # write large data to HDF5
-        for key, cls in self.LARGE_DATA.iteritems():
-            # read column_names from the underlying class
-            column_names = cls.array_columns
-            
-            # turn the list of objects into a numpy array
-            if cls.index_columns > 0:
-                # the first columns are enough to separate the data
-                result = [obj.to_array() for obj in main_result[key]]
-                
-            else:
-                # we have to add an extra index to separate the data later
-                result = []
-                for index, obj in enumerate(main_result[key]):
-                    data = obj.to_array()
-                    index_array = np.zeros((data.shape[0], 1), np.int32) + index
-                    result.append(np.hstack((index_array, data)))
-                    
-                if column_names is not None:
-                    column_names = ['Automatic Index'] + column_names                    
-                
-            if len(result) > 0:
-                result = np.concatenate(result) 
-        
-                # write the numpy array to HDF5
-                self.logger.debug('Writing dataset `%s` to file `%s`', key, hdf_name)
-                dataset = hdf_file.create_dataset(key, data=result)
-                if column_names is not None:
-                    hdf_file[key].attrs['column_names'] = column_names
-                    
-                # replace the original data with a reference to the HDF5 data
-                main_result[key] = '@%s:%s' % (hdf_name, dataset.name.encode('ascii', 'replace'))
-                
-            else:
-                main_result[key] = []
+        hdf_uri = self.get_filename('results.hdf5', 'results')
+        with h5py.File(hdf_uri, 'w') as hdf_file:
+            # write the ground profile                
+            ground_profile = main_result['pass1/ground/profile']
+            data = [obj.to_array() for obj in ground_profile]
+            hdf_file.create_dataset('pass1/ground_profile', data=np.concatenate(data))
+            hdf_file['pass1/ground_profile'].attrs['column_names'] = ground_profile[0].array_columns
+            main_result['pass1/ground/profile'] = '@%s:pass1/ground_profile' % hdf_name
+    
+            # write out the object tracks
+            for index, object_track in enumerate(main_result['pass1/objects/tracks']):
+                object_track.save_to_hdf5(hdf_file, 'pass1/objects/%d' % index)
+            if main_result['pass1/objects/tracks']:
+                main_result['pass1/objects/tracks'] = '@%s:pass1/objects' % hdf_name
+    
+            # write out the burrow tracks
+            for index, burrow_track in enumerate(main_result['pass1/burrows/data']):
+                burrow_track.save_to_hdf5(hdf_file, 'pass1/burrows/%d' % index)
+            if main_result['pass1/burrows/data']:
+                main_result['pass1/burrows/data'] = '@%s:pass1/burrows' % hdf_name
         
         # write the main result file to YAML
         filename = self.get_filename('results.yaml', 'results')
@@ -260,57 +187,78 @@ class DataHandler(object):
             yaml.dump(prepare_data_for_yaml(main_result),
                       outfile,
                       default_flow_style=False,
-                      indent=4)        
+                      indent=4)       
+            
+            
+    def load_object_collection_from_hdf(self, key, cls): 
+        """ loads a list of data objects from the accompanied HDF file """
         
-    
-    def read_data(self):
-        """ read the data from result files """
+        # read the link
+        assert self.data[key][0] == '@'
+        data_str = self.data[key][1:] # strip the first character, which should be an @
+        hdf_filename, dataset = data_str.split(':')
+        
+        # open the associated HDF5 file
+        hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
+        with h5py.File(hdf_filepath, 'r') as hdf_file:
+            # iterate over the data and create objects from it
+            self.data[key] = []
+            for subset in hdf_file[dataset].itervalues():
+                print subset
+                obj = cls.from_array(subset)
+                self.data[key].append(obj)
+                        
+                        
+    def load_object_list_from_hdf(self, key, cls): 
+        """ load a data object from the accompanied HDF file """
+        
+        # read the link
+        assert self.data[key][0] == '@'
+        data_str = self.data[key][1:] # strip the first character, which should be an @
+        hdf_filename, dataset = data_str.split(':')
+        
+        # open the associated HDF5 file
+        hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
+        with h5py.File(hdf_filepath, 'r') as hdf_file:
+            self.data[key] = []
+            index, obj_data = None, None
+            # iterate over the data and create objects from it
+            for line in hdf_file[dataset]:
+                if line[0] == index:
+                    # append object to the current track
+                    obj_data.append(line)
+                else:
+                    # save the track and start a new one
+                    if obj_data:
+                        self.data[key].append(cls.from_array(obj_data))
+                    obj_data = [line]
+                    index = line[0]
+            
+            if obj_data:
+                self.data[key].append(cls.from_array(obj_data))
+            
+                        
+    def read_data(self, load_from_hdf=True):
+        """ read the data from result files.
+        If load_from_hdf is False, the data from the HDF file is not loaded.
+        """
         
         # read the main result file
         filename = self.get_filename('results.yaml', 'results')
         with open(filename, 'r') as infile:
             data = yaml.load(infile)
+            
+        # initialize the parameters read from the YAML file
+        self.initialize_parameters()
         
         # copy the data into the internal data representation
         self.data.from_dict(data)
-                    
-        for key, cls in self.LARGE_DATA.iteritems():
-            # read the link
-            data_str = self.data[key][1:] # the first character should be an @
-            hdf_filename, dataset = data_str.split(':')
-            
-            # open the associated HDF5 file
-            hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
-            hdf_file = h5py.File(hdf_filepath, 'r')
-            
-            # check whether the first column has been prepended automatically
-            if hdf_file[dataset].attrs['column_names'][0] == 'Automatic Index':
-                data_start = 1    #< data starts at first column
-                index_columns = 1 #< the first column is used as an index
-            else:
-                data_start = 0    #< all items are considered data 
-                try:
-                    # try to retrieve the length of the index
-                    index_columns = cls.index_columns
-                except AttributeError:
-                    # otherwise, it defaults to the first column
-                    index_columns = 1
-            
-            # iterate over the data and create objects from it
-            self.data[key] = []
-            index, obj_data = [], []
-            for line in hdf_file[dataset]:
-                if line[:index_columns] == index:
-                    # append object to the current track
-                    obj_data.append(line[data_start:])
-                else:
-                    # save the track and start a new one
-                    if obj_data:
-                        self.data[key].append(cls.from_array(obj_data))
-                    obj_data = [line[data_start:]]
-                    index = line[:index_columns]
-            
-            self.data[key].append(cls.from_array(obj_data))
+        
+        # load additional data if requested
+        if load_from_hdf:
+            self.load_object_list_from_hdf('pass1/ground/profile', GroundProfile)            
+            self.load_object_collection_from_hdf('pass1/objects/tracks', ObjectTrack)
+            self.load_object_collection_from_hdf('pass1/burrows/data', BurrowTrack)
 
  
     #===========================================================================
@@ -323,7 +271,7 @@ class DataHandler(object):
         return position[1] - self.params['mouse.model_radius']/2 > ground_y
 
 
-        
+
 class Data(collections.MutableMapping):
     """ special dictionary class representing nested dictionaries.
     This class allows easy access to nested properties using a single key:
@@ -396,6 +344,7 @@ class Data(collections.MutableMapping):
     def create_child(self, key, values=None):
         """ creates a child dictionary and fills it with values """
         self[key] = self.__class__(values)
+        return self[key]
 
 
     def copy(self):

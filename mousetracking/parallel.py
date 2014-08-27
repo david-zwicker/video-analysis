@@ -40,7 +40,7 @@ def scan_video_quadrants(video, **kwargs):
         video_pipe = VideoPipe(video_crop, name=name)
         # launch a new process, where the receiver is going to live 
         proc = mp.Process(target=scan_video,
-                          args=(video_pipe.receiver, video_pipe.name),
+                          args=(video_pipe.name, video_pipe.receiver),
                           kwargs=kwargs)
 
         proc.start()

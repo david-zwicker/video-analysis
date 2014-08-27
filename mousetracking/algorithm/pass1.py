@@ -39,7 +39,7 @@ from video.composer import VideoComposerListener, VideoComposer
 
 
 from .data_handler import DataHandler
-from .mouse_objects import (Object, ObjectTrack, Burrow, BurrowLine, BurrowTrack,
+from .mouse_objects import (Object, ObjectTrack, Burrow, BurrowTrack,
                             GroundProfile, RidgeProfile)
 
 import debug
@@ -54,16 +54,13 @@ class FirstPass(DataHandler):
     analyzes mouse movies
     """
     
-    def __init__(self, name='', video=None, parameters=None, debug_output=None):
+    def __init__(self, name='', parameters=None, debug_output=None):
         """ initializes the whole mouse tracking and prepares the video filters """
         
         # initialize the data handler
-        super(FirstPass, self).__init__(name, video, parameters)
+        super(FirstPass, self).__init__(name, parameters)
         self.params = self.data['parameters']
-        self.data.create_child('pass1')
-        self.result = self.data['pass1'] 
-        
-        self.log_event('Pass 1 - Started initializing the video analysis.')
+        self.result = self.data.create_child('pass1')
         
         # setup internal structures that will be filled by analyzing the video
         self._cache = {}               # cache that some functions might want to use
@@ -75,9 +72,17 @@ class FirstPass(DataHandler):
         self.frame_id = None           # id of the current frame
         self.result['mouse/moved_first_in_frame'] = None
         self.debug_output = [] if debug_output is None else debug_output
+
+
+    def load_video(self, video=None):
+        """ load and prepare the video """
+        self.log_event('Pass 1 - Started initializing the video analysis.')
         
+        # load the video 
+        super(FirstPass, self).load_video(video)
+                
         # load the video if it is not already loaded 
-        if not self.video: 
+        if not self.video:
             self.video = self.load_video()
         self.data.create_child('video/input', {'frame_count': self.video.frame_count,
                                                'size': '%d x %d' % self.video.size,
@@ -157,6 +162,8 @@ class FirstPass(DataHandler):
             self.log_event('Pass 1 - Finished iterating through the frames.')
             
         finally:
+            # add the currently active tracks to the result
+            self.result['objects/tracks'].extend(self.tracks)
             # clean up
             self.video_blurred.close()
         
@@ -965,22 +972,6 @@ class FirstPass(DataHandler):
             return None
 
 
-    def estimate_burrow_line(self, contour):
-        # estimate centerline reaching from the point farthest away from the ground
-        # line to the centroid of points close to the ground
-        ground_line = geometry.LineString(np.array(self.ground, np.double))
-        
-        contour = np.asarray(contour, np.double)
-        
-        dist = np.array([ground_line.distance(geometry.Point(p)) for p in contour])
-        p_deep = contour[np.argmax(dist)]
-        
-        p_surface = contour[dist < 5, :].mean(axis=0)
-        
-        burrow = BurrowLine((p_deep, p_surface), (10, 20))
-        
-        return burrow
-        
     def _adjust_burrow_end_point(self, p_end, p_next, mask_moving):
         # default value that will be used if no better ones are found
         res = p_end
@@ -1141,32 +1132,7 @@ class FirstPass(DataHandler):
             cline_new.append(pnt)
         
         return cline_new, width_new
-    
-       
-    def refine_burrow_line2(self, burrow, mask_moving):
-        # read the data of the current burrow into local scope
-        cline = list(burrow.centerline) # for easy removal of points
-        width = list(burrow.widths) # for easy removal of points
 
-        # handle the burrow end point         
-        cline[0] = self._adjust_burrow_end_point(cline[0], cline[1], mask_moving)
-        # handle the point close to the ground profile        
-        cline[-1] = self._adjust_burrow_outlet(cline)
-        
-        # handle the middle burrow points
-        try:
-            cline, width = self._prepare_burrow_centerline(cline, width)        
-            cline, width = self._fit_burrow_centerline(cline, width)
-        except BurrowFinderError:
-            return None
-        finally:
-            burrow = BurrowLine(cline, width)
-            
-
-        self.debug['video'].add_polygon(burrow.centerline, 'red', is_closed=False)
-        self.debug['video'].add_polygon(burrow.outline, 'red', is_closed=False)
-        
-        return burrow
        
         
     def refine_burrow_line(self, burrow, ground_mask):
@@ -1194,7 +1160,7 @@ class FirstPass(DataHandler):
                 
         if len(cline) < 3:
             return None
-        burrow = BurrowLine(cline, width)
+        burrow = Burrow(cline, width)
 
     
         # find the region of interest
@@ -1244,7 +1210,7 @@ class FirstPass(DataHandler):
                 cline.append(pos)
             
             # construct burrow
-            return BurrowLine(cline, width)
+            return Burrow(cline, width)
 
         def residual(data, show_image=False):
             

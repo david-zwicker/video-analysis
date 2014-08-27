@@ -25,6 +25,47 @@ if not hasattr(geometry, 'LinearRing'):
 
 
 
+
+class cached_property(object):
+    """Decorator to use a function as a cached property.
+
+    The function is only called the first time and each successive call returns
+    the cached result of the first call.
+
+        class Foo(object):
+
+            @cached_property
+            def foo(self):
+                return "Cached"
+
+    Adapted from <http://wiki.python.org/moin/PythonDecoratorLibrary>.
+
+    """
+
+    def __init__(self, func, name=None, doc=None):
+        self.__name__ = name or func.__name__
+        self.__module__ = func.__module__
+        self.__doc__ = doc or func.__doc__
+        self.func = func
+
+
+    def __get__(self, obj, type=None):
+        if obj is None:
+            return self
+
+        # try to retrieve from cache or call and store result in cache
+        try:
+            value = obj._cache[self.__name__]
+        except KeyError:
+            value = self.func(obj)
+            obj._cache[self.__name__] = value
+        except AttributeError:
+            value = self.func(obj)
+            obj._cache = {self.__name__: value}
+        return value
+
+
+
 class Object(object):
     """ represents a single object by its position and size """
     __slots__ = ['pos', 'size', 'label'] #< save some memory
@@ -42,7 +83,6 @@ class ObjectTrack(object):
     # TODO: speed up by keeping track of velocity vectors
     
     array_columns = ['Time', 'Position X', 'Position Y', 'Object Area']
-    index_columns = 0
     
     def __init__(self, time=None, obj=None, moving_window=20, moving_threshold=10):
         self.times = [] if time is None else [time]
@@ -54,9 +94,9 @@ class ObjectTrack(object):
         if len(self.times) == 0:
             return 'ObjectTrack([])'
         elif len(self.times) == 1:
-            return 'ObjectTrack(time=%d)' % (self.times[0])
+            return 'ObjectTrack(span=%d)' % (self.times[0])
         else:
-            return 'ObjectTrack(time=%d..%d)' % (self.times[0], self.times[-1])
+            return 'ObjectTrack(span=%d..%d)' % (self.times[0], self.times[-1])
         
     def __len__(self):
         return len(self.times)
@@ -116,13 +156,25 @@ class ObjectTrack(object):
         return res
 
 
+    def save_to_hdf5(self, hdf_file, key):
+        """ save the data of the current burrow to an HDF5 file """
+        hdf_file.create_dataset(key, data=self.to_array())
+        hdf_file[key].attrs['column_names'] = self.array_columns
+
+
+    @classmethod
+    def create_from_hdf5(cls, hdf_file, key):
+        """ creates a burrow track from data in a HDF5 file """
+        return cls.from_array(hdf_file[key])
+        
+
+
 
 class GroundProfile(object):
     """ dummy class representing a single ground profile at a certain point
     in time """
     
     array_columns = ['Time', 'Position X', 'Position Y']
-    index_columns = 1
     
     def __init__(self, time, points):
         self.time = time
@@ -146,20 +198,18 @@ class GroundProfile(object):
    
    
 class Burrow(object):
-    """ represents a single burrow to compare it against an image in fitting """
+    """ represents a single burrow """
     
-    array_columns = ['Position X', 'Position Y']
-    index_columns = 0 #< there could be multiple burrows at each time point
-    # Hence, time can not be used as an index
+    # parameters influencing how the centerline is determined
+    centerline_angle = np.pi/6
+    centerline_segment_length = 25
     
-    def __init__(self, outline, time=None):
-        """ initialize the structure
-        """
+    
+    def __init__(self, outline, length=None):
+        """ initialize the structure using points on its outline """
         self._outline = np.asarray(outline, np.double)
-        self.time = time
-        
-        # internal cache
-        self._centerline = None
+        self.length = length
+        self._cache = {}
 
 
     @property
@@ -171,7 +221,8 @@ class Burrow(object):
     def outline(self, value):
         self._outline = value
         # reset cache
-        self._centerline = None
+        self.length = None
+        self._cache = {}
 
 
     def copy(self):
@@ -185,17 +236,19 @@ class Burrow(object):
     def __repr__(self):
         polygon = self.polygon
         center = polygon.centroid
-        return 'Burrow(center=(%d, %d), area=%s, points=%d)' % \
-                            (center.x, center.y, polygon.area, len(self))
+        return ('Burrow(center=(%d, %d), area=%s, points=%d)' %
+                (center.x, center.y, polygon.area, len(self)))
         
     
-    @property
+    @cached_property
     def polygon(self):
+        """ return the polygon of the burrow outline """
         return geometry.Polygon(np.asarray(self.outline, np.double))    
     
     
     @property
     def area(self):
+        """ return the area of the burrow shape """
         return self.polygon.area
     
     
@@ -204,8 +257,12 @@ class Burrow(object):
         return len(self.outline) > 3
     
     
-    @property
+    @cached_property
     def eccentricity(self):
+        """ return the eccentricity of the burrow shape
+        The eccentricity will be between 0 and 1, corresponding to a circle
+        and a straight line, respectively.
+        """
         m = cv2.moments(np.asarray(self.outline, np.uint8))
         a, b, c = m['mu20'], -m['mu11'], m['mu02']
         e1 = (a + c) + np.sqrt(4*b**2 + (a - c)**2)
@@ -257,13 +314,13 @@ class Burrow(object):
 
         self.outline = np.asarray(outline, np.int32)
 
-     
+    
     def get_centerline(self, ground):
         """ determine the centerline, given the outline and the ground profile.
         The ground profile is used to determine the burrow exit. """
         
-        if self._centerline is not None:
-            return self._centerline
+        if 'centerline' in self._cache:
+            return self._cache['centerline']
         
         # get the ground line 
         ground_line = geometry.LineString(np.array(ground, np.double))
@@ -302,13 +359,16 @@ class Burrow(object):
         centerline = [p_exit]
         while True:
             dist_max, point_max = 0, None
-            # try some rays
-            for a in np.linspace(angle - np.pi/4, angle + np.pi/4, 16):
+            # try some rays distributed around `angle`
+            for a in np.linspace(angle - self.centerline_angle,
+                                 angle + self.centerline_angle, 16):
+                
                 p_test = (p_anchor[0] + 1000*np.cos(a), p_anchor[1] + 1000*np.sin(a))
                 ray = geometry.LineString((p_anchor, p_test))
+                # find the intersections between the ray and the burrow outline
                 inter = outline_poly.intersection(ray)
                 if isinstance(inter, geometry.Point):
-                    # check whether this points is farther away
+                    # check whether this points is farther away than the last match
                     dist = curves.point_distance(inter.coords[0], p_anchor)
                     if dist > dist_max:
                         dist_max = dist
@@ -328,90 +388,38 @@ class Burrow(object):
             if point_max is None:
                 break
             
-            # get the length of the ray
+            # get the length of the longest ray
             ray_length = curves.point_distance(p_anchor, point_max)
-            if ray_length > 25:
+            if ray_length > self.centerline_segment_length:
                 # continue shooting out rays
-                p_anchor = (p_anchor[0] + 25*np.cos(angle), p_anchor[1] + 25*np.sin(angle))
+                p_anchor = (p_anchor[0] + self.centerline_segment_length*np.cos(angle),
+                            p_anchor[1] + self.centerline_segment_length*np.sin(angle))
                 centerline.append(p_anchor)
             else:
                 centerline.append(point_max)
                 break
                     
-        self._centerline = centerline
+        self.length = curves.curve_length(centerline)
+                    
+        self._cache['centerline'] = centerline
         return centerline
             
     
-    
     def to_array(self):
         """ converts the internal representation to a single array """
-        return np.asarray(self.outline, np.int32)
-
+        return np.concatenate((np.array([[self.length, 0]], np.double),
+                               np.asarray(self.outline, np.double)))
+        
 
     @classmethod
     def from_array(cls, data):
-        return cls(outline=data)
+        """ creates a burrow track from a single array """
+        return cls(outline=data[1:], length=data[0][0])
         
         
-    
-class BurrowLine(object):
-    
-    def __init__(self, centerline, widths):
-        self.centerline = centerline
-        self.widths = widths
         
-    
-    def copy(self):
-        # np.array is called to make sure we get copies of the data
-        return BurrowLine(np.array(self.centerline), np.array(self.widths))
-        
-        
-    def __len__(self):
-        return len(self.widths)
-       
-    
-    @property
-    def outline(self):
-        """ constructs the burrow outline from the centerline and the widths """
-        centerline = self.centerline
-        line1, line2 = [], []
-        
-        # iterate and build the two side lines
-        for k, p in enumerate(centerline):
-            if k == 0:
-                p1, p2 = centerline[0], centerline[1]
-            elif k == len(self)-1:
-                p1, p2 = centerline[-2], centerline[-1]
-            else:
-                p1, p2 = centerline[k-1], centerline[k+1]
-            
-            w = self.widths[k]
-            dx = p2[0] - p1[0]
-            dy = p2[1] - p1[1]
-            dist = np.sqrt(dx**2 + dy**2)
-
-#             # get first point
-#             if k == 0:        
-#                 line2.append((p[0] - w*dx/dist, p[1] - w*dy/dist))
-            
-            if k > 0:
-                line1.append((p[0] + w*dy/dist, p[1] - w*dx/dist))
-                line2.append((p[0] - w*dy/dist, p[1] + w*dx/dist))
-
-        # construct the outline
-        return line1[::-1] + [centerline[0]] + line2
-        
-        
-    @property
-    def polygon(self):
-        """ returns the burrow outline polygon """
-        return geometry.Polygon(np.array(self.outline, np.double))
-
-    
-
 class BurrowTrack(object):
     array_columns = ['Time', 'Position X', 'Position Y']
-    index_columns = 0 #< there could be multiple burrows at each time point
     
     def __init__(self, time=None, burrow=None):
         self.times = [] if time is None else [time]
@@ -422,9 +430,9 @@ class BurrowTrack(object):
         if len(self.times) == 0:
             return 'BurrowTrack([])'
         elif len(self.times) == 1:
-            return 'BurrowTrack(time=%d)' % (self.times[0])
+            return 'BurrowTrack(span=%d)' % (self.times[0])
         else:
-            return 'BurrowTrack(time=%d..%d)' % (self.times[0], self.times[-1])
+            return 'BurrowTrack(span=%d..%d)' % (self.times[0], self.times[-1])
         
         
     def __len__(self):
@@ -453,35 +461,54 @@ class BurrowTrack(object):
         useful for storing the data """
         res = []
         for time, burrow in itertools.izip(self.times, self.burrows):
-            time_array = np.zeros((len(burrow), 1), np.int32) + time
-            res.append(np.hstack((time_array, burrow.to_array())))
+            burrow_data = burrow.to_array()
+            time_array = np.zeros((len(burrow_data), 1), np.int32) + time
+            res.append(np.hstack((time_array, burrow_data)))
         if res:
             return np.vstack(res)
         else:
             return []
-
-
+        
+        
     @classmethod
     def from_array(cls, data):
         """ constructs an object from an array previously created by to_array() """
         burrow_track = cls()
-        outline = []
+        burrow_data = None
         time_cur = -1
         for d in data:
+            print d
             if d[0] != time_cur:
-                if outline is not None:
-                    burrow_track.append(time_cur, outline)
+                if burrow_data is not None:
+                    burrow_track.append(time_cur, Burrow.from_array(burrow_data))
                 time_cur = d[0]
-                outline = [d[1:]]
+                burrow_data = [d[1:]]
             else:
-                outline.append(d[1:])
+                burrow_data.append(d[1:])
 
-        if outline is not None:
-            burrow_track.append(time_cur, outline)
+        if burrow_data is not None:
+            burrow_track.append(time_cur, Burrow.from_array(burrow_data))
 
         return burrow_track
     
-    
+ 
+    def save_to_hdf5(self, hdf_file, key):
+        """ save the data of the current burrow to an HDF5 file """
+        hdf_file.create_dataset(key, data=self.to_array())
+        hdf_file[key].attrs['column_names'] = self.array_columns
+        hdf_file[key].attrs['remark'] = (
+            'Each burrow is represented by its outline saved as a list of points '
+            'of the format (Time, X, Y), where all points with the same Time belong '
+            'to the same burrow. However, the first entry always contains the '
+            'burrow length and is not part of the burrow outline'
+        ) 
+
+
+    @classmethod
+    def create_from_hdf5(cls, hdf_file, key):
+        """ creates a burrow track from data in a HDF5 file """
+        return cls.from_array(hdf_file[key])
+   
     
 class RidgeProfile(object):
     """ represents a ridge profile to compare it against an image in fitting """
