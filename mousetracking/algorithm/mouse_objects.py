@@ -278,96 +278,87 @@ class Burrow(object):
 #             color = 255 if mark_points[k] else 128
 #             cv2.circle(image, (int(p[0]), int(p[1])), 3, color, thickness=-1)
 #         debug.show_image(image)
-    
-    
-    def get_centerline2(self, outline):
-        """
-        TODO: Use ideas from http://stackoverflow.com/a/4557203/932593
-        too expensive and doesn't work for wide burrows
-        """
 
-        # get bounding box        
-        outline = np.array([outline], np.int32)
-        x, y, w, h = cv2.boundingRect(outline)
-
-        # plot the polygon in a suitable rectangle
-        img = np.zeros((h, w), np.uint8)
-        points = outline - np.array((x, y))
-        cv2.fillPoly(img, points, color=1)
-        
-        # perform the distance transform
-        img_dist = cv2.distanceTransform(img, distanceType=cv2.cv.CV_DIST_L2, maskSize=3)
-        
-        debug.show_image(img, img_dist)
-    
     
     def get_centerline(self, ground):
         """ determine the centerline, given the outline and the ground profile.
         The ground profile is used to determine the burrow exit. """
+        
+        # get the ground line 
         ground_line = geometry.LineString(np.array(ground, np.double))
         
-        outline = curves.make_curve_equidistant(self.outline, 10)
-    
-        outline = np.asarray(outline, np.double)
+        # reparameterize the burrow outline
+        #outline = curves.make_curve_equidistant(self.outline, 10)
+        outline = np.asarray(self.outline, np.double)
 
-#         self.get_centerline2(outline)
-        
+        # calculate the distance of each outline point to the ground
         dist = np.array([ground_line.distance(geometry.Point(p)) for p in outline])
         
-        # estimate the burrow exit point
+        # get points at the burrow exit (close to the ground profile)
         indices = (dist < 25)
         if np.any(indices):
-            p_surface = outline[indices, :].mean(axis=0)
+            p_exit = outline[indices, :].mean(axis=0)
         else:
-            p_surface = np.argmin(outline)
-        k0 = np.argmin(np.linalg.norm(outline - p_surface, axis=1))
-
-        # estimate the centerline from there
-        kl, kr = k0 - 1, k0 + 1
-        l = len(outline)
-        centerline = [outline[k0]]
-
-        #TODO: base centerline estimate by using circles of increasing radii
-        # - determine outline points in these circular regions
-        # - if there are exactly two line sections, average each of these and 
-        #     define the centerline point as the average of the resulting two points
-        
-        
-#         # first half doing simple iteration
-#         while kr - kl < l//2:
-#             # get new center line estimate 
-#             p = ((outline[kl%l][0] + outline[kr%l][0])/2,
-#                  (outline[kl%l][1] + outline[kr%l][1])/2)
-#             centerline.append(p)
-#             kl -= 1
-#             kr += 1        
-        
-        # second half doing minimized iteration 
-        pl, pr = outline[kl%l], outline[kr%l]
-        while kr - kl <= l:
-            # get candidate points
-            pl_c = ((outline[(kl - 1)%l][0] + pr[0])/2,
-                    (outline[(kl - 1)%l][1] + pr[1])/2)
-            pr_c = ((outline[(kr + 1)%l][0] + pl[0])/2,
-                    (outline[(kr + 1)%l][1] + pl[1])/2)
+            p_exit = np.argmin(outline)
+        p_exit = curves.get_projection_point(ground_line, p_exit)
             
-            if curves.point_distance(pl_c, pr) < curves.point_distance(pl, pr_c):
-                kl, pl = kl - 1, pl_c
+        # get the two points closest to the exit point
+        dist = np.linalg.norm(outline - p_exit, axis=1)
+        k1 = np.argmin(dist)
+        dist[k1] = np.inf
+        k2 = np.argmin(dist)
+        p1, p2 = outline[k1], outline[k2]
+        # get the points such that p1 is left of p2
+        if p1[0] > p2[0]:
+            p1, p2 = p2, p1
+        
+        # send out rays perpendicular to the ground profile
+        angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0]) + np.pi/2
+        p_anchor = (p_exit[0] + 5*np.cos(angle), p_exit[1] + 5*np.sin(angle))
+        ray_length = np.inf
+        outline_poly = geometry.LinearRing(outline)
+        
+        centerline = [p_exit]
+        while True:
+            dist_max, point_max = 0, None
+            # try some rays
+            for a in np.linspace(angle - np.pi/4, angle + np.pi/4, 16):
+                p_test = (p_anchor[0] + 1000*np.cos(a), p_anchor[1] + 1000*np.sin(a))
+                ray = geometry.LineString((p_anchor, p_test))
+                inter = outline_poly.intersection(ray)
+                if isinstance(inter, geometry.Point):
+                    # check whether this points is farther away
+                    dist = curves.point_distance(inter.coords[0], p_anchor)
+                    if dist > dist_max:
+                        dist_max = dist
+                        point_max = inter.coords[0]
+                        angle = a
+    
+                elif not inter.is_empty:
+                    # find closest intersection if there are many points
+                    dists = [curves.point_distance(p.coords[0], p_anchor) for p in inter]
+                    k_min = np.argmin(dists)
+                    if dists[k_min] > dist_max:
+                        dist_max = dists[k_min]
+                        point_max = inter[k_min].coords[0]
+                        angle = a
+                        
+            # abort if the search was not successful
+            if point_max is None:
+                break
+            
+            # get the length of the ray
+            ray_length = curves.point_distance(p_anchor, point_max)
+            if ray_length > 25:
+                # continue shooting out rays
+                p_anchor = (p_anchor[0] + 25*np.cos(angle), p_anchor[1] + 25*np.sin(angle))
+                centerline.append(p_anchor)
             else:
-                kr, pr = kr + 1, pr_c
-                
-            # get new center line estimate 
-            p = ((pl[0] + pr[0])/2, (pl[1] + pr[1])/2)
-            centerline.append(p)
+                centerline.append(point_max)
+                break
+                    
+        return centerline
             
-        # remove first point, because the second is also on the outline
-        centerline = centerline[1:]
-        # simplify centerline
-        epsilon = 0.1*curves.curve_length(centerline)
-        centerline = curves.simplify_curve(centerline, epsilon)
-
-        return centerline #(p_deep, p_surface)
-        
     
     
     def to_array(self):
