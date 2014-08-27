@@ -19,6 +19,11 @@ from video.analysis.regions import corners_to_rect, expand_rectangle, get_enclos
 import debug
 
 
+# monkey patch to get compatibility with older shapely versions
+if not hasattr(geometry, 'LinearRing'):
+    geometry.LinearRing = geometry.polygon.LinearRing
+
+
 
 class Object(object):
     """ represents a single object by its position and size """
