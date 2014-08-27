@@ -155,25 +155,23 @@ class Burrow(object):
     def __init__(self, outline, time=None):
         """ initialize the structure
         """
-        self.outline = np.asarray(outline, np.double)
+        self._outline = np.asarray(outline, np.double)
         self.time = time
         
-        # internal caches used for fitting
-#         self.image = image
-#         self.mask = mask
-#         self._angles = None #< internal cache
-        self._color_burrow = None
-        self._color_sand = None
-#         self._model = None
-        
-        
-#     def clear_cache(self):
-#         self.image = None
-#         self.mask = None
-#         self._angles = None
-#         self._color_burrow = None
-#         self._color_sand = None
-#         self._model = None 
+        # internal cache
+        self._centerline = None
+
+
+    @property
+    def outline(self):
+        return self._outline
+
+    
+    @outline.setter
+    def outline(self, value):
+        self._outline = value
+        # reset cache
+        self._centerline = None
 
 
     def copy(self):
@@ -259,42 +257,20 @@ class Burrow(object):
 
         self.outline = np.asarray(outline, np.int32)
 
-        # debug.show_shape(burrow, polygon, outline)
-        
-#         # find indices of the anchor points
-#         i1 = outline.index([int(self.outline[ 0][0]), int(self.outline[ 0][1])])
-#         i2 = outline.index([int(self.outline[-1][0]), int(self.outline[-1][1])])
-#         i1, i2 = min(i1, i2), max(i1, i2)
-#         
-#         # figure out in what direction we have to go around the polygon
-#         if i2 - i1 > len(outline)//2:
-#             # the right outline goes from i1 .. i2
-#             self.outline = outline[i1:i2+1]
-#         else:
-#             # the right outline goes from i2 .. -1 and start 0 .. i1
-#             self.outline = outline[i2:] + outline[:i1]  
      
-
-#     def show_image(self, mark_points):
-#         # draw burrow
-#         image = self.image.copy()
-#         cv2.drawContours(image, np.array([self.outline], np.int32), -1, 255, 1)
-#         for k, p in enumerate(self.outline):
-#             color = 255 if mark_points[k] else 128
-#             cv2.circle(image, (int(p[0]), int(p[1])), 3, color, thickness=-1)
-#         debug.show_image(image)
-
-    
     def get_centerline(self, ground):
         """ determine the centerline, given the outline and the ground profile.
         The ground profile is used to determine the burrow exit. """
+        
+        if self._centerline is not None:
+            return self._centerline
         
         # get the ground line 
         ground_line = geometry.LineString(np.array(ground, np.double))
         
         # reparameterize the burrow outline
-        #outline = curves.make_curve_equidistant(self.outline, 10)
-        outline = np.asarray(self.outline, np.double)
+        outline = curves.make_curve_equidistant(self.outline, 10)
+        outline = np.asarray(outline, np.double)
 
         # calculate the distance of each outline point to the ground
         dist = np.array([ground_line.distance(geometry.Point(p)) for p in outline])
@@ -362,6 +338,7 @@ class Burrow(object):
                 centerline.append(point_max)
                 break
                     
+        self._centerline = centerline
         return centerline
             
     
