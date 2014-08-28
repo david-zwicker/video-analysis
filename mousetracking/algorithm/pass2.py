@@ -6,6 +6,8 @@ Created on Aug 19, 2014
 
 from __future__ import division
 
+import numpy as np
+
 from .data_handler import DataHandler
 
 
@@ -26,7 +28,6 @@ class SecondPass(DataHandler):
         obj = cls(first_pass.name)
         obj.data = first_pass.data
         obj.params = first_pass.data['parameters']
-        obj.pass1 = first_pass.data['pass1'] 
         obj.tracks = first_pass.tracks
         # initialize parameters
         obj.initialize_parameters()
@@ -41,4 +42,11 @@ class SecondPass(DataHandler):
         
         
     def find_mouse_track(self):
-        pass
+        tracks = self.data['pass1/objects/tracks']
+        
+        # find the longest track 
+        index = np.argmax([len(track) for track in tracks])
+        result = [tracks[index]]
+        tracks.remove(index) 
+
+        

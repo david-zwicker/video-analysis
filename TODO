@@ -6,12 +6,6 @@
 	- debug doesn't use multiprocessing to keep error messages clean
 	- different logging behavior (log to file for release run!)
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
-* Burrows should be fitted to background frame
-	- do linescans perpendicular to the centerline to find the burrow width
-		- but only if the burrow looks like a burrow (eccentricity > 0.9)
-	- set burrow front by a different method (maybe just update it from explored area)
-		- also, we could just do a linescan along the center line
-	- refine burrows by doing linescans and move the burrow outline (but not beyond the centerline)
 * Connect objects tracks to find one global mouse track
 
 
@@ -38,5 +32,6 @@ Low priority enhancements:
 	- see https://github.com/Zulko/moviepy/blob/master/moviepy/video/io/ffmpeg_reader.py
 	- This should also allow us to read the video in a separate process/thread, thus speeding up the
 		processing 
-* Ground fitting could use some "active snake" ideas
-	
+* Ground fitting could use some "active snake" ideas (http://en.wikipedia.org/wiki/Active_contour_model)
+* Extend the ground profile till the edge of the cage
+	- this should automatically allow us to track the burrows close to the edge 

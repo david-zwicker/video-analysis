@@ -11,6 +11,8 @@ import itertools
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport
 
+__all__ = ['show_image', 'show_shape', 'print_filter_chain']
+
 
 def show_image(*images, **kwargs):
     """ shows a collection of images using matplotlib and waits for the user to continue """

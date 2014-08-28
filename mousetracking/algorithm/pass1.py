@@ -31,8 +31,9 @@ from video.composer import VideoComposerListener, VideoComposer
 
 
 from .data_handler import DataHandler
-from .mouse_objects import (Object, ObjectTrack, Burrow, BurrowTrack,
-                            GroundProfile, RidgeProfile)
+from .objects.mouse import Object, ObjectTrack
+from .objects.ground import GroundProfile, RidgeProfile
+from .objects.burrow import Burrow, BurrowTrack
 
 import debug
 
@@ -347,7 +348,7 @@ class FirstPass(DataHandler):
         if self._mouse_pos_estimate:
             # load some values from the cache
             mask = self._cache['background.mask']
-            template = 1 - self._cache['mouse.template']
+            template = self._cache['mouse.template']
             mask.fill(1)
             
             # cut out holes from the mask for each mouse estimate
@@ -355,7 +356,7 @@ class FirstPass(DataHandler):
                 # get the slices required for comparing the template to the image
                 t_s, i_s = regions.get_overlapping_slices(mouse_pos, template.shape,
                                                           frame.shape)
-                mask[i_s[0], i_s[1]] *= template[t_s[0], t_s[1]]
+                mask[i_s[0], i_s[1]] *= 1 - template[t_s[0], t_s[1]]
                 
         else:
             # disable the mask if no mouse is known
@@ -363,8 +364,8 @@ class FirstPass(DataHandler):
 
         # adapt the background to current frame, but only inside the mask 
         self.background += (self.params['background/adaptation_rate']  # adaptation rate 
-                             *mask                                     # mask 
-                             *(frame - self.background))               # difference to current frame
+                            *mask                                      # mask 
+                            *(frame - self.background))                # difference to current frame
 
                         
     #===========================================================================
@@ -738,10 +739,11 @@ class FirstPass(DataHandler):
         potential_burrows = cv2.morphologyEx(explored_area, cv2.MORPH_CLOSE, kernel)
         
         # remove accidental burrows at borders
-        potential_burrows[: 30, :] = 0
-        potential_burrows[-30:, :] = 0
-        potential_burrows[:, : 30] = 0
-        potential_burrows[:, -30:] = 0
+        margin = self.params['burrows/cage_margin']
+        potential_burrows[: margin, :] = 0
+        potential_burrows[-margin:, :] = 0
+        potential_burrows[:, : margin] = 0
+        potential_burrows[:, -margin:] = 0
 
         # find explored area that is under the ground
         burrows_mask = cv2.bitwise_and(ground_mask, potential_burrows)
@@ -761,7 +763,6 @@ class FirstPass(DataHandler):
                                        cv2.CHAIN_APPROX_SIMPLE)
         contour = np.squeeze(np.asarray(contours[0], np.double))
 
-        
         # simplify the contour
         tolerance = self.params['burrows/outline_simplification_threshold']*curves.curve_length(contour)
         contour = curves.simplify_curve(contour, tolerance).tolist()
@@ -807,7 +808,7 @@ class FirstPass(DataHandler):
             # do a line scan perpendicular
             p_a = (p[0] + scan_length*dy, p[1] - scan_length*dx)
             p_b = (p[0] - scan_length*dy, p[1] + scan_length*dx)
-            profile = image.line_scan(self.background.astype(np.uint8), p_a, p_b, 2)
+            profile = image.line_scan(self.background.astype(np.uint8), p_a, p_b, 3)
             
             # find the transition points by considering slopes
             k_l = image.get_steepest_point(profile[:scan_length], direction=-1, smoothing=2)
@@ -821,6 +822,12 @@ class FirstPass(DataHandler):
                 # adjust the centerline
                 d_c = (d_l + d_r)/2
                 centerline_new.append((p[0] + d_c*dy, p[1] - d_c*dx))
+            
+            elif pa is not None and pb is not None:
+                # add the earlier estimates obtained without fitting 
+                outline_new.append(pa)
+                outline_new.insert(0, pb)
+                centerline_new.append(p)
 
         # handle point at the burrow front
         outline_new.append(centerline[-1])
@@ -850,8 +857,8 @@ class FirstPass(DataHandler):
             burrow = self.get_burrow_from_mask(labels == label)
 
             # refine the burrow if it looks like a proper burrow
-            if (burrow.eccentricity > self.params['burrows/fitting_eccentricity_treshold'] or 
-                    burrow.get_length(self.ground) > self.params['burrows/fitting_length_treshold']):
+            if (burrow.eccentricity > self.params['burrows/fitting_eccentricity_threshold'] and 
+                    burrow.get_length(self.ground) > self.params['burrows/fitting_length_threshold']):
                 burrow = self.refine_burrow(burrow)
             
             # add the burrow to our result list if it is valid

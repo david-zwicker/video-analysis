@@ -15,11 +15,10 @@ import numpy as np
 import yaml
 import h5py
 
-from .mouse_objects import ObjectTrack, GroundProfile, Burrow
+from .objects import ObjectTrack, GroundProfile, Burrow, BurrowTrack
 from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists, prepare_data_for_yaml
-from mousetracking.algorithm.mouse_objects import BurrowTrack
 
 
 
@@ -56,9 +55,9 @@ class DataHandler(object):
             self.logger.addHandler(handler) 
             
         # setup the mouse objects
-        centerline_angle = self.data.get('parameters/burrows/centerline_angle', None)
-        if centerline_angle:
-            Burrow.centerline_angle = centerline_angle 
+        curvature_radius_max = self.data.get('parameters/burrows/curvature_radius_max', None)
+        if curvature_radius_max:
+            Burrow.curvature_radius_max = curvature_radius_max 
         centerline_segment_length = self.data.get('parameters/burrows/centerline_segment_length', None)
         if centerline_segment_length:
             Burrow.centerline_segment_length = centerline_segment_length
