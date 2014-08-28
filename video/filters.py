@@ -26,6 +26,13 @@ from .analysis.regions import rect_to_slices
 from .utils import get_color_range
   
 
+# translation dictionary for color channels
+COLOR_CHANNELS = {'blue':  0, 'b': 0, 0: 0,
+                  'green': 1, 'g': 1, 1: 1,
+                  'red':   2, 'r': 2, 2: 2}
+    
+  
+
 class FilterFunction(VideoFilterBase):
     """ smoothes every frame """
     
@@ -122,7 +129,7 @@ def _check_coordinate(value, max_value):
 
 class FilterCrop(VideoFilterBase):
     """ crops the video to the given rect=(top, left, height, width) """
-    
+
     def __init__(self, source, rect=None, region='', color_channel=None):
         """
         initialized the filter that crops to the given rect=(left, top, width, height)
@@ -168,7 +175,7 @@ class FilterCrop(VideoFilterBase):
             source = source._source
                      
         # extract color information
-        self.color_channel = color_channel
+        self.color_channel = COLOR_CHANNELS.get(color_channel, color_channel)
         is_color = None if color_channel is None else False
 
         # create the rectangle and store it 
@@ -197,8 +204,8 @@ class FilterCrop(VideoFilterBase):
 class FilterMonochrome(VideoFilterBase):
     """ returns the video as monochrome """
     
-    def __init__(self, source, mode='normal'):
-        self.mode = mode.lower()
+    def __init__(self, source, mode='mean'):
+        self.mode = COLOR_CHANNELS.get(mode.lower(), mode.lower())
         super(FilterMonochrome, self).__init__(source, is_color=False)
 
         logging.debug('Created filter for converting video to monochrome with method `%s`', mode)
@@ -209,15 +216,12 @@ class FilterMonochrome(VideoFilterBase):
         reduces a single frame from color to monochrome, but keeps the
         extra dimension in the data
         """
-        if self.mode == 'normal':
-            frame = np.mean(frame, axis=2).astype(frame.dtype)
-        elif self.mode == 'r':
-            frame = frame[:, :, 0]
-        elif self.mode == 'g':
-            frame = frame[:, :, 1]
-        elif self.mode == 'b':
-            frame = frame[:, :, 2]
-        else:
+        try:
+            if self.mode == 'mean':
+                frame = np.mean(frame, axis=2).astype(frame.dtype)
+            else:
+                frame = frame[:, :, self.mode]
+        except ValueError:
             raise ValueError('Unsupported conversion method to monochrome: %s' % self.mode)
     
         # pass the frame to the parent function

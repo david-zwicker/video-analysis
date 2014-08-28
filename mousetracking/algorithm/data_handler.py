@@ -15,30 +15,29 @@ import numpy as np
 import yaml
 import h5py
 
+from .parameters_default import PARAMETERS_DEFAULT
 from .objects import ObjectTrack, GroundProfile, Burrow, BurrowTrack
 from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists, prepare_data_for_yaml
 
+import debug
 
 
 class DataHandler(object):
     """ class that handles the data and parameters of mouse tracking """
 
     def __init__(self, name='', parameters=None):
+        self.name = name
 
         # initialize tracking parameters        
         self.data = Data()
         self.data.create_child('parameters')
-
-        # initialize additional properties
-        self.name = name
-        self.data['analysis-status'] = 'Initialized parameters'
-
+        self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
         self.user_parameters = parameters
+        self.initialize_parameters(parameters)
 
-        if parameters is not None:
-            self.initialize_parameters(parameters)
+        self.data['analysis-status'] = 'Initialized parameters'
         
 
     def initialize_parameters(self, parameters=None):
@@ -103,7 +102,7 @@ class DataHandler(object):
         self.data['event_log'].append(event)
 
     
-    def load_video(self, video=None):
+    def load_video(self, video=None, crop_video=True):
         """ loads the video and applies a monochrome and cropping filter """
         # initialize the video
         if video is None:
@@ -130,17 +129,17 @@ class DataHandler(object):
             
         cropping_rect = self.data.get('parameters/video/cropping_rect', None)
 
-        if cropping_rect is None:
+        if crop_video and cropping_rect is None:
             # use the full video
             if self.video.is_color:
                 # restrict video to green channel if it is a color video
-                self.video = FilterMonochrome(self.video, 'g')
+                self.video = FilterMonochrome(self.video, 'green')
             else:
                 self.video = self.video
                 
         else: # user_crop is not None                
             # restrict video to green channel if it is a color video
-            color_channel = 1 if self.video.is_color else None
+            color_channel = 'green' if self.video.is_color else None
             
             if isinstance(cropping_rect, str):
                 # crop according to the supplied string
@@ -198,49 +197,51 @@ class DataHandler(object):
             
     def load_object_collection_from_hdf(self, key, cls): 
         """ loads a list of data objects from the accompanied HDF file """
-        
-        # read the link
-        assert self.data[key][0] == '@'
-        data_str = self.data[key][1:] # strip the first character, which should be an @
-        hdf_filename, dataset = data_str.split(':')
-        
-        # open the associated HDF5 file
-        hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
-        with h5py.File(hdf_filepath, 'r') as hdf_file:
-            # iterate over the data and create objects from it
-            data = hdf_file[dataset]
-            self.data[key] = [cls.from_array(data[index])
-                              for index in sorted(data.keys())]
-            # here we had to use sorted() to iterate in the correct order 
+        # check if the entry is not empty:
+        if self.data[key]:
+            # read the link
+            assert self.data[key][0] == '@'
+            data_str = self.data[key][1:] # strip the first character, which should be an @
+            hdf_filename, dataset = data_str.split(':')
+            
+            # open the associated HDF5 file
+            hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
+            with h5py.File(hdf_filepath, 'r') as hdf_file:
+                # iterate over the data and create objects from it
+                data = hdf_file[dataset]
+                self.data[key] = [cls.from_array(data[index])
+                                  for index in sorted(data.keys())]
+                # here we had to use sorted() to iterate in the correct order 
                         
                         
     def load_object_list_from_hdf(self, key, cls): 
         """ load a data object from the accompanied HDF file """
-        
-        # read the link
-        assert self.data[key][0] == '@'
-        data_str = self.data[key][1:] # strip the first character, which should be an @
-        hdf_filename, dataset = data_str.split(':')
-        
-        # open the associated HDF5 file
-        hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
-        with h5py.File(hdf_filepath, 'r') as hdf_file:
-            self.data[key] = []
-            index, obj_data = None, None
-            # iterate over the data and create objects from it
-            for line in hdf_file[dataset]:
-                if line[0] == index:
-                    # append object to the current track
-                    obj_data.append(line)
-                else:
-                    # save the track and start a new one
-                    if obj_data:
-                        self.data[key].append(cls.from_array(obj_data))
-                    obj_data = [line]
-                    index = line[0]
+        # check if the entry is not empty:
+        if self.data[key]:
+            # read the link
+            assert self.data[key][0] == '@'
+            data_str = self.data[key][1:] # strip the first character, which should be an @
+            hdf_filename, dataset = data_str.split(':')
             
-            if obj_data:
-                self.data[key].append(cls.from_array(obj_data))
+            # open the associated HDF5 file
+            hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
+            with h5py.File(hdf_filepath, 'r') as hdf_file:
+                self.data[key] = []
+                index, obj_data = None, None
+                # iterate over the data and create objects from it
+                for line in hdf_file[dataset]:
+                    if line[0] == index:
+                        # append object to the current track
+                        obj_data.append(line)
+                    else:
+                        # save the track and start a new one
+                        if obj_data:
+                            self.data[key].append(cls.from_array(obj_data))
+                        obj_data = [line]
+                        index = line[0]
+                
+                if obj_data:
+                    self.data[key].append(cls.from_array(obj_data))
             
                         
     def read_data(self, load_from_hdf=True):

@@ -31,7 +31,7 @@ from video.composer import VideoComposerListener, VideoComposer
 
 
 from .data_handler import DataHandler
-from .objects.mouse import Object, ObjectTrack
+from .objects.moving import MovingObject, ObjectTrack
 from .objects.ground import GroundProfile, RidgeProfile
 from .objects.burrow import Burrow, BurrowTrack
 
@@ -64,12 +64,16 @@ class FirstPass(DataHandler):
         self.debug_output = [] if debug_output is None else debug_output
 
 
-    def load_video(self, video=None):
-        """ load and prepare the video """
+    def load_video(self, video=None, crop_video=True):
+        """ load and prepare the video.
+        crop_video indicates whether the cropping to a quadrant (given in the
+        parameters dictionary) should be performed. The cropping to the mouse
+        cage is performed no matter what. 
+        """
         self.log_event('Pass 1 - Started initializing the video analysis.')
         
         # load the video if it is not already loaded 
-        super(FirstPass, self).load_video(video)
+        super(FirstPass, self).load_video(video, crop_video=crop_video)
                 
         self.data.create_child('video/input', {'frame_count': self.video.frame_count,
                                                'size': '%d x %d' % self.video.size,
@@ -413,7 +417,7 @@ class FirstPass(DataHandler):
         
         # find large objects (which could be the mouse)
         objects = []
-        largest_obj = Object((0, 0), 0)
+        largest_obj = MovingObject((0, 0), 0)
         for label in xrange(1, num_features + 1):
             # calculate the image moments
             moments = cv2.moments((labels == label).astype(np.uint8))
@@ -423,11 +427,11 @@ class FirstPass(DataHandler):
             
             # check whether this object could be a mouse
             if area > self.params['mouse/min_area']:
-                objects.append(Object(pos, size=area, label=label))
+                objects.append(MovingObject(pos, size=area, label=label))
                 
             elif area > largest_obj.size:
                 # determine the maximal area during the loop
-                largest_obj = Object(pos, size=area, label=label)
+                largest_obj = MovingObject(pos, size=area, label=label)
         
         if len(objects) == 0:
             # if we haven't found anything yet, we just take the best guess,
@@ -913,8 +917,8 @@ class FirstPass(DataHandler):
                 debug_file = self.get_filename(identifier + video_extension, 'debug')
                 # set up the video file writer
                 video_writer = VideoComposer(debug_file, self.video.size, self.video.fps,
-                                               is_color=False, codec=video_codec,
-                                               bitrate=video_bitrate)
+                                             is_color=False, codec=video_codec,
+                                             bitrate=video_bitrate)
                 self.debug[identifier + '.video'] = video_writer
         
 
@@ -973,9 +977,11 @@ class FirstPass(DataHandler):
         if 'difference.video' in self.debug:
             diff = np.clip(frame.astype(int) - self.background + 128, 0, 255)
             self.debug['difference.video'].write_frame(diff.astype(np.uint8))
+            self.debug['difference.video'].add_text(str(self.frame_id), (20, 20), anchor='top')   
                 
         if 'background.video' in self.debug:
             self.debug['background.video'].write_frame(self.background)
+            self.debug['background.video'].add_text(str(self.frame_id), (20, 20), anchor='top')   
 
         if 'explored_area.video' in self.debug:
             debug_video = self.debug['explored_area.video']
@@ -986,6 +992,8 @@ class FirstPass(DataHandler):
             # plot the ground profile
             debug_video.add_polygon(self.ground, is_closed=False, color='y')
             debug_video.add_points(self.ground, radius=2, color='y')
+
+            debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
 
 
     def debug_finalize(self):

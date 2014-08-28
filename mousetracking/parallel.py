@@ -22,18 +22,27 @@ QUADRANTS = {'UL': 'upper left',
   
 
 
-def scan_video_quadrants(video, **kwargs):
+def scan_video_quadrants(video, parameters=None, **kwargs):
     """ Takes a video and scans all four quadrants in parallel.
     Here, the video is read in one process, split into four video streams
     and analyzed in four separate processes
     Additional parameters include a dictionary 'parameters'
     """
     
+    if parameters is None:
+        parameters = {}
+    
+    # make sure that scan_video does not crop the video, since we already do
+    # it in this process (see below)
+    kwargs['crop_video'] = False
+    
     # create a fork, such that the data can be analyzed by multiple consumers
     video_fork = VideoFork(video, synchronized=True, client_count=len(QUADRANTS))
     
     pipes = []
     for name, crop in QUADRANTS.iteritems():
+        # save the cropping rectangle for further analysis later
+        parameters['video/cropping_rect'] = crop
         # crop the video to the right region
         video_crop = FilterCrop(video_fork, region=crop, color_channel=1)
         # construct the video sender 

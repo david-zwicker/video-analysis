@@ -14,7 +14,13 @@ PARAMETERS_DEFAULT = {
     'video/ignore_initial_frames': 0,
     # radius of the blur filter to remove noise [in pixel]
     'video/blur_radius': 3,
-    
+    # frames of the video which are analyzed [start and end index should be given]
+    'video/frames': None,
+    # rectangle to which the video is cropped
+    # this can be either four numbers [left, top, width, height] or some
+    # string like 'upper left', 'lower right', etc.
+    'video/cropping_rect': None,
+        
     # folder to which the log file is written
     'logging/folder': None,
     
@@ -96,6 +102,4 @@ PARAMETERS_DEFAULT = {
     # determines by what fraction the total outline length is allowed to change 
     'burrows/outline_simplification_threshold': 0.005,
     
-    # minimal a track has to have in order to be considered a mouse for sure
-    'tracking/min_length': 50, 
 }

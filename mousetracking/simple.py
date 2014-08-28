@@ -8,7 +8,7 @@ from __future__ import division
 
 import os
 
-from .parameters_default import PARAMETERS_DEFAULT
+from .algorithm.parameters_default import PARAMETERS_DEFAULT
 from .algorithm.data_handler import DataHandler
 from .algorithm.pass1 import FirstPass
 from .algorithm.pass2 import SecondPass
@@ -17,20 +17,22 @@ from .algorithm.pass2 import SecondPass
 def scan_video(name, video=None, parameters=None, **kwargs):
     """ scans a single video """
     # initialize parameters dictionary
-    params = PARAMETERS_DEFAULT.copy()
-    if parameters is not None:
-        params.update(parameters)
+    if parameters is None:
+        parameters = {}
+    
+    # check whether the video should be cropped
+    crop_video = kwargs.pop('crop_video', True)
     
     # set extra parameters that were given
     if kwargs.get('frames', None) is not None:
-        params['video/frames'] = kwargs.pop('frames')
+        parameters['video/frames'] = kwargs.pop('frames')
     if kwargs.get('crop', None) is not None:
-        params['video/cropping_rect'] = kwargs.pop('crop')
+        parameters['video/cropping_rect'] = kwargs.pop('crop')
         
     # do first pass
-    job = FirstPass(name, parameters=params,
+    job = FirstPass(name, parameters=parameters,
                     debug_output=kwargs.get('debug_output', None))
-    job.load_video(video)
+    job.load_video(video, crop_video=crop_video)
     job.process_video()
     
     # do second pass
@@ -54,15 +56,10 @@ def scan_video_in_folder(folder, name, parameters=None, **kwargs):
 
 
 
-def load_results(name, parameters=None):
+def load_results(name, parameters=None, cls=DataHandler, **kwargs):
     """ loads the results of a previously scanned video """
-    # initialize parameters dictionary
-    params = PARAMETERS_DEFAULT.copy()
-    if parameters is not None:
-        params.update(parameters)
-
     # set up the result structure
-    results = DataHandler(name, parameters=params)
+    results = cls(name, parameters=parameters, **kwargs)
     results.read_data()
     return results
 

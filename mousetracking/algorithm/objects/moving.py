@@ -16,7 +16,7 @@ from ..debug import *
 
 
 
-class Object(object):
+class MovingObject(object):
     """ represents a single object by its position and size """
     __slots__ = ['pos', 'size', 'label'] #< save some memory
     
@@ -24,6 +24,12 @@ class Object(object):
         self.pos = (int(pos[0]), int(pos[1]))
         self.size = size
         self.label = label
+        
+    def __repr__(self):
+        if self.label:
+            return 'MovingObject((%d, %d), %d, %s)' % (self.pos + (self.size, self.label))
+        else:
+            return 'MovingObject((%d, %d), %d)' % (self.pos + (self.size,))
 
 
 
@@ -50,8 +56,8 @@ class ObjectTrack(object):
             return 'ObjectTrack(span=%d..%d)' % (self.times[0], self.times[-1])
         
         
-    def __len__(self):
-        return len(self.times)
+    def __len__(self): return len(self.times)
+    def __getitem__(self, *args): return self.objects.__getitem__(*args)
     
     
     @property
@@ -119,7 +125,7 @@ class ObjectTrack(object):
         """ constructs an object from an array previously created by to_array() """
         res = cls()
         res.times = [d[0] for d in data]
-        res.objects = [Object(pos=(d[1], d[2]), size=d[3]) for d in data]
+        res.objects = [MovingObject(pos=(d[1], d[2]), size=d[3]) for d in data]
         return res
 
 
