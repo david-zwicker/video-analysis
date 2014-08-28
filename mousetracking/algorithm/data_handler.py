@@ -25,7 +25,6 @@ from video.utils import ensure_directory_exists, prepare_data_for_yaml
 class DataHandler(object):
     """ class that handles the data and parameters of mouse tracking """
 
-
     def __init__(self, name='', parameters=None):
 
         # initialize tracking parameters        
@@ -35,6 +34,8 @@ class DataHandler(object):
         # initialize additional properties
         self.name = name
         self.data['analysis-status'] = 'Initialized parameters'
+
+        self.user_parameters = parameters
 
         if parameters is not None:
             self.initialize_parameters(parameters)
@@ -171,14 +172,18 @@ class DataHandler(object):
             main_result['pass1/ground/profile'] = '@%s:pass1/ground_profile' % hdf_name
     
             # write out the object tracks
-            for index, object_track in enumerate(main_result['pass1/objects/tracks']):
-                object_track.save_to_hdf5(hdf_file, 'pass1/objects/%d' % index)
+            data = main_result['pass1/objects/tracks']
+            key_format = 'pass1/objects/%0{}d'.format(len(str(len(data))))
+            for index, object_track in enumerate(data):
+                object_track.save_to_hdf5(hdf_file, key_format % index)
             if main_result['pass1/objects/tracks']:
                 main_result['pass1/objects/tracks'] = '@%s:pass1/objects' % hdf_name
     
             # write out the burrow tracks
-            for index, burrow_track in enumerate(main_result['pass1/burrows/data']):
-                burrow_track.save_to_hdf5(hdf_file, 'pass1/burrows/%d' % index)
+            data = main_result['pass1/burrows/data']
+            key_format = 'pass1/burrows/%0{}d'.format(len(str(len(data))))
+            for index, burrow_track in enumerate(data):
+                burrow_track.save_to_hdf5(hdf_file, key_format % index)
             if main_result['pass1/burrows/data']:
                 main_result['pass1/burrows/data'] = '@%s:pass1/burrows' % hdf_name
         
@@ -203,11 +208,9 @@ class DataHandler(object):
         hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
         with h5py.File(hdf_filepath, 'r') as hdf_file:
             # iterate over the data and create objects from it
-            self.data[key] = []
-            for subset in hdf_file[dataset].itervalues():
-                print subset
-                obj = cls.from_array(subset)
-                self.data[key].append(obj)
+            data = hdf_file[dataset]
+            self.data[key] = [cls.from_array(data[index])
+                              for index in sorted(data.keys())]
                         
                         
     def load_object_list_from_hdf(self, key, cls): 
@@ -224,6 +227,7 @@ class DataHandler(object):
             self.data[key] = []
             index, obj_data = None, None
             # iterate over the data and create objects from it
+            # TODO: make sure that the data is iterated in the right order
             for line in hdf_file[dataset]:
                 if line[0] == index:
                     # append object to the current track
@@ -244,16 +248,16 @@ class DataHandler(object):
         If load_from_hdf is False, the data from the HDF file is not loaded.
         """
         
-        # read the main result file
+        # read the main result file and copy data into internal dictionary
         filename = self.get_filename('results.yaml', 'results')
         with open(filename, 'r') as infile:
-            data = yaml.load(infile)
+            self.data.from_dict(yaml.load(infile))
+        
+        # overwrite parameters given by the user
+        self.data['parameters'].from_dict(self.user_parameters)
             
         # initialize the parameters read from the YAML file
         self.initialize_parameters()
-        
-        # copy the data into the internal data representation
-        self.data.from_dict(data)
         
         # load additional data if requested
         if load_from_hdf:
@@ -360,11 +364,12 @@ class Data(collections.MutableMapping):
 
     def from_dict(self, data):
         """ fill the object with data from a dictionary """
-        for key, value in data.iteritems():
-            if isinstance(value, dict):
-                self[key] = Data(value)
-            else:
-                self[key] = value
+        if data is not None:
+            for key, value in data.iteritems():
+                if isinstance(value, dict):
+                    self[key] = Data(value)
+                else:
+                    self[key] = value
 
             
     def to_dict(self):

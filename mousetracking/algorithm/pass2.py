@@ -43,6 +43,8 @@ class SecondPass(DataHandler):
         
         
     def find_mouse_track(self):
+        """ identifies the mouse trajectory by connecting several object
+        tracks """
         # retrieve data
         tracks = self.data['pass1/objects/tracks']
 
@@ -51,7 +53,6 @@ class SecondPass(DataHandler):
 
         def score_connection(left, right):
             """ scoring function that defines how well the two tracks match """
-            dt = right.times[0] - left.times[-1] #< time difference
             obj_l, obj_r = left.objects[-1], right.objects[0] #< the respective objects
             
             # calculate the distance between new and old objects
@@ -60,6 +61,15 @@ class SecondPass(DataHandler):
             dist_score /= self.params['mouse/max_speed']
             # calculate the difference of areas between new and old objects
             area_score = abs(obj_l.size - obj_r.size)/(obj_l.size + obj_r.size)
+
+            # build a combined score from this
+            alpha = self.params['objects/matching_weigth']
+            score = alpha*dist_score + (1 - alpha)*area_score
+            
+            # score should decrease for larger time differences
+            dt = right.times[0] - left.times[-1] #< time difference
+            time_scale = self.params['tracking/time_scale'] 
+            return score*np.exp(-dt/time_scale)
             
             
         result = [track] #< list of final tracks

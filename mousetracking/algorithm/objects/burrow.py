@@ -78,6 +78,9 @@ class Burrow(object):
     
     def __init__(self, outline, centerline=None, length=None, refined=False):
         """ initialize the structure using points on its outline """
+        if centerline is not None and length is None:
+            length = curves.curve_length(centerline)
+
         self._outline = np.asarray(outline, np.double)
         self.centerline = centerline
         self.length = length
@@ -350,7 +353,6 @@ class BurrowTrack(object):
         burrow_data = None
         time_cur = -1
         for d in data:
-            print d
             if d[0] != time_cur:
                 if burrow_data is not None:
                     burrow_track.append(time_cur, Burrow.from_array(burrow_data))
