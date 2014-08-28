@@ -4,11 +4,14 @@ Created on Aug 4, 2014
 @author: zwicker
 '''
 
+import operator
+
 import numpy as np
 import scipy.ndimage as ndimage
 import shapely.geometry as geometry
 
 import curves
+
 
 def corners_to_rect(p1, p2):
     """ creates a rectangle from two corner points.
@@ -162,7 +165,27 @@ def get_enclosing_outline(polygon):
         outline = largest_polygon.boundary
     return outline
     
+    
+def regularize_polygon(polygon):
+    """ regularizes a shapely polygon using polygon.buffer(0) """
+    if not polygon.is_valid:
+        # regularize polygon
+        polygon = polygon.buffer(0)
+        # retrieve the result with the largest area
+        if isinstance(polygon, geometry.MultiPolygon):
+            polygon = max(polygon, key=operator.attrgetter('area'))
+    return polygon
 
+
+def regularize_contour(contour):
+    """ regularizes a list of points defining a contour """ 
+    polygon = geometry.Polygon(contour)
+    regular_polygon = regularize_polygon(polygon)
+    if polygon is not regular_polygon:
+        contour = regular_polygon.exterior.coords
+    return contour
+
+    
 def get_ray_hitpoint(point_anchor, point_far, line_string, ret_dist=False):
     """ returns the point where a ray anchored at point_anchor hits the polygon
     given by line_string. The ray extends out to point_far, which should be a

@@ -37,7 +37,7 @@ PARAMETERS_DEFAULT = {
                                
     # determines the rate with which the background is adapted [in 1/frames]
     'background/adaptation_rate': 0.01,
-    'explored_area/adaptation_rate': 1e-4,
+    'explored_area/adaptation_rate': 1e-5,
     
     # spacing of the points in the ground profile [in pixel]
     'ground/point_spacing': 20,
@@ -50,7 +50,7 @@ PARAMETERS_DEFAULT = {
     'objects/matching_weigth': 0.5,
     # size of the window used for motion detection [in frames]
     'objects/matching_moving_window': 20,
-    # threshold above which an objects is said to be moving [in pixels/frame]
+    # threshold above which an object is said to be moving [in pixels/frame]
     'objects/matching_moving_threshold': 10,
         
     # `mouse.intensity_threshold` determines how much brighter than the
@@ -72,6 +72,8 @@ PARAMETERS_DEFAULT = {
     'burrows/radius': 10,
     # minimal area a burrow cross section has to have [in pixel^2]
     'burrows/min_area': 1000,
+    # maximal distance of ground profile to outline points that are considered exit points [in pixel]
+    'burrows/ground_point_distance': 10,
     # length of a burrow segment [in pixel]
     'burrows/centerline_segment_length': 25,
     # the maximal angle each segment is allowed to deviated from the previous one [rad] 

@@ -200,14 +200,16 @@ class Burrow(object):
     """ represents a single burrow """
     
     # parameters influencing how the centerline is determined
-    centerline_angle = np.pi/6
+    centerline_angle = np.pi/6 #< TODO: turn this parameter into a radius of curvature
     centerline_segment_length = 25
+    
+    ground_point_distance = 10
     
     
     def __init__(self, outline, centerline=None, length=None):
         """ initialize the structure using points on its outline """
         self._outline = np.asarray(outline, np.double)
-        self.centerline = None
+        self.centerline = centerline
         self.length = length
         self._cache = {}
 
@@ -333,7 +335,7 @@ class Burrow(object):
         dist = np.array([ground_line.distance(geometry.Point(p)) for p in outline])
         
         # get points at the burrow exit (close to the ground profile)
-        indices = (dist < 25)
+        indices = (dist < self.ground_point_distance)
         if np.any(indices):
             p_exit = outline[indices, :].mean(axis=0)
         else:

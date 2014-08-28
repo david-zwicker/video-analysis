@@ -62,6 +62,9 @@ class DataHandler(object):
         centerline_segment_length = self.data.get('parameters/burrows/centerline_segment_length', None)
         if centerline_segment_length:
             Burrow.centerline_segment_length = centerline_segment_length
+        ground_point_distance = self.data.get('parameters/burrows/ground_point_distance', None)
+        if ground_point_distance:
+            Burrow.ground_point_distance = ground_point_distance
             
 
     def get_folder(self, folder):

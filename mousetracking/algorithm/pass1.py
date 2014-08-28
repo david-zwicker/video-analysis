@@ -16,12 +16,9 @@ top to bottom. The origin is thus in the upper left corner.
 
 from __future__ import division
 
-import operator
-
 import numpy as np
 import scipy.ndimage as ndimage
-from scipy.optimize import leastsq, fmin
-import scipy.optimize as optimize
+from scipy.optimize import leastsq
 from scipy.spatial import distance
 import shapely.geometry as geometry
 import cv2
@@ -713,64 +710,7 @@ class FirstPass(DataHandler):
     # FINDING BURROWS
     #===========================================================================
    
-  
-    def _adjust_burrow_end_point(self, p_end, p_next, mask_moving):
-        # default value that will be used if no better ones are found
-        res = p_end
-        if mask_moving[p_end[1], p_end[0]]:
-            # handle the front point of the centerline if the 
-            # mouse is at the end point of the burrow
-            
-            w = 50
-            # identify the contour of the mouse
-            labels, _ = ndimage.measurements.label(mask_moving)
-            contours, _ = cv2.findContours(np.asarray(labels == labels[p_next[1], p_next[0]], np.uint8),
-                                           cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            contour = geometry.LinearRing(np.squeeze(contours).astype(np.double))
-
-            dx = p_next[0] - p_end[0]
-            dy = p_next[1] - p_end[1]
-
-            # send out rays to find the intersection point which is farthest away
-            angles = np.arctan2(dy, dx) + np.linspace(-np.pi/4, np.pi/4, 7)
-            dist = []
-#             import matplotlib.pyplot as plt
-#             plt.imshow(self.background)
-#             plt.gray()
-#             x, y = contour.xy
-#             plt.plot(x, y, 'r')
-            for a in angles:
-                p_e = (p_next[0] - w*np.cos(a), p_next[1] - w*np.sin(a))
-                line = geometry.LineString(np.double((p_next, p_e)))
-
-                try:
-                    inter = list(line.intersection(contour).coords)
-                except NotImplementedError:
-                    inter = []
-                    
-#                 plt.plot((p_next[0], p_e[0]), (p_next[1], p_e[1]), 'b')                
-#                 for p in inter:
-#                     plt.plot(p[0], p[1], 'og', ms=3)
-                    
-                if len(inter) == 1:
-                    # found one intersection
-                    dist.append(curves.point_distance(inter[0], p_next))
-                else:
-                    dist.append(-np.inf)
-                    
-            idx = np.argmax(dist)
-
-#             plt.show()
-#             
-            if np.abs(dist[idx]) <= w:
-                res = (p_next[0] - dist[idx]*np.cos(angles[idx]),
-                       p_next[1] - dist[idx]*np.sin(angles[idx]))
-                self.logger.debug('%d: Found new burrow end point %s', self.frame_id, res)
-                
-        return res       
- 
-         
-    
+        
     def get_potential_burrows_mask(self, frame):
         """ locates potential burrows by searching for underground regions that
         the mouse explored """
@@ -825,16 +765,8 @@ class FirstPass(DataHandler):
         tolerance = self.params['burrows/outline_simplification_threshold']*curves.curve_length(contour)
         contour = curves.simplify_curve(contour, tolerance).tolist()
 
-        # investigate the resulting polygon        
-        poly = geometry.Polygon(contour)
-        if not poly.is_valid: 
-            # regularize polygon
-            poly_simpl = geometry.Polygon(contour).buffer(0)
-            # retrieve the polygon with the largest area
-            if isinstance(poly_simpl, geometry.MultiPolygon):
-                poly_simpl = max(poly_simpl, key=operator.attrgetter('area'))
-            # and find its contour
-            contour = poly_simpl.exterior.coords
+        # remove potential invalid structures from contour
+        contour = regions.regularize_contour(contour)
         
         return Burrow(contour)
     
@@ -842,68 +774,61 @@ class FirstPass(DataHandler):
     def refine_burrow(self, burrow):
         """ refines a elongated burrow by doing linescans perpendicular to
         its centerline """
-        return burrow
 
         # keep the points close to the ground line
         ground_line = geometry.LineString(np.array(self.ground, np.double))
         outline_new = sorted([p.coords[0]
                               for p in geometry.MultiPoint(burrow.outline)
-                              if p.distance(ground_line) < 10])
+                              if p.distance(ground_line) < self.params['burrows/ground_point_distance']])
 
         # replace the remaining points by fitting perpendicular to the center line
+        scan_length = int(4*self.params['burrows/radius'])
         outline = geometry.LinearRing(burrow.outline)
         centerline = burrow.get_centerline(self.ground)
-        cline = [centerline[0]]
+        centerline_new = [centerline[0]]
         for k, p in enumerate(centerline[1:-1]):
             # get points adjacent to p
-            p1 = centerline[k]
-            p2 = centerline[k+2]
+            p1, p2 = centerline[k], centerline[k+2]
             
             # find local slope of the centerline
             dx, dy = p2[0] - p1[0], p2[1] - p1[1]
             dist = np.hypot(dx, dy)
             dx /= dist; dy /= dist
-            
-            w = 40 #< length of line scan
 
+            # find the intersection points with the burrow outline
+            d = 1000 #< make sure the ray is outside the polygon
+            pa = regions.get_ray_hitpoint(p, (p[0] + d*dy, p[1] - d*dx), outline)
+            pb = regions.get_ray_hitpoint(p, (p[0] - d*dy, p[1] + d*dx), outline)
+            if pa is not None and pb is not None:
+                # put the centerline point into the middle 
+                p = ((pa[0] + pb[0])/2, (pa[1] + pb[1])/2)
+            
             # do a line scan perpendicular
-            p_a = (p[0] + w*dy, p[1] - w*dx)
-            p_b = (p[0] - w*dy, p[1] + w*dx)
+            p_a = (p[0] + scan_length*dy, p[1] - scan_length*dx)
+            p_b = (p[0] - scan_length*dy, p[1] + scan_length*dx)
             profile = image.line_scan(self.background.astype(np.uint8), p_a, p_b, 2)
             
             # find the transition points by considering slopes
-            k_l = image.get_steepest_point(profile[:w], direction=-1, smoothing=2)
-            k_r = w + image.get_steepest_point(profile[w:], direction=1, smoothing=2)
+            k_l = image.get_steepest_point(profile[:scan_length], direction=-1, smoothing=2)
+            k_r = scan_length + image.get_steepest_point(profile[scan_length:], direction=1, smoothing=2)
+            d_l, d_r = scan_length - k_l, scan_length - k_r
 
-            d_l = w - k_l
-            d_r = w - k_r
-
-
-#             import matplotlib.pyplot as plt
-#             plt.plot(profile)
-#             plt.axvline(k_l)
-#             plt.axvline(w)
-#             plt.axvline(k_r)
-#             plt.title('%d | %d' % (d_l, d_r))
-#             plt.show()
-
-            # TODO: only set the point if we are confident that it is good
             if np.isfinite(d_l) and np.isfinite(d_r):
-#                  and (profile[d_l] - profile[w]) > 0.5*self.result['colors/sand_std']
-#                   and (profile[d_r] - profile[w]) > 0.5*self.result['colors/sand_std']):
-                
                 # save the points
                 outline_new.append((p[0] + d_l*dy, p[1] - d_l*dx))
                 outline_new.insert(0, (p[0] + d_r*dy, p[1] - d_r*dx))
-                
+                # adjust the centerline
                 d_c = (d_l + d_r)/2
-                cline.append((p[0] + d_c*dy, p[1] - d_c*dx))
+                centerline_new.append((p[0] + d_c*dy, p[1] - d_c*dx))
 
-        # TODO: handle point at burrow front
+        # handle point at the burrow front
+        outline_new.append(centerline[-1])
+        centerline_new.append(centerline[-1])
 
-        debug.show_shape(outline, geometry.LinearRing(outline_new))
+        # make sure that shape is
+        outline_new = regions.regularize_contour(outline_new) 
 
-        return Burrow(outline_new, centerline=cline)
+        return Burrow(outline_new, centerline=centerline_new)
     
     
     def find_burrows(self, frame, mask_moving):
