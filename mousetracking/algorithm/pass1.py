@@ -457,7 +457,7 @@ class FirstPass(DataHandler):
                               [obj.predict_pos() for obj in self.tracks],
                               metric='euclidean')
         # normalize distance to the maximum speed
-        dist = dist/self.params['mouse/max_speed']
+        dist /= self.params['mouse/max_speed']
         
         # calculate the difference of areas between new and old objects
         def area_score(area1, area2):

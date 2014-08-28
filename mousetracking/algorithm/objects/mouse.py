@@ -9,17 +9,10 @@ from __future__ import division
 import itertools
 
 import numpy as np
-import shapely.geometry as geometry
 
 from video.analysis import curves
 
 from ..debug import *
-
-
-# monkey patch shapely.geometry to get compatibility with older shapely versions
-if not hasattr(geometry, 'LinearRing'):
-    geometry.LinearRing = geometry.polygon.LinearRing
-
 
 
 
@@ -104,6 +97,13 @@ class ObjectTrack(object):
         dist = sum(curves.point_distance(pos, obj.pos)
                    for obj in self.objects[-self.moving_window:])
         return dist > self.moving_threshold
+    
+    
+    def is_concurrent(self, other):
+        """ returns True if the other ObjectTrack overlaps with the current one """
+        s0, s1 = self.time[0], self.time[-1]
+        o0, o1 = other[0], other[-1]
+        return (s0 <= o1 and o0 <= s1)
     
     
     def to_array(self):

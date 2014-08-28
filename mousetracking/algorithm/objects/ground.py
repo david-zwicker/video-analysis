@@ -35,7 +35,6 @@ class GroundProfile(object):
         data = np.asarray(data)
         return cls(data[0, 0], data[1:, :])
    
-   
 
     
 class RidgeProfile(object):
@@ -79,6 +78,3 @@ class RidgeProfile(object):
      
         return np.ravel(self.image - 1.5*self.image_std*model)
 
-
-   
-    

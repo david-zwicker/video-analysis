@@ -20,6 +20,11 @@ from video.analysis import curves, regions
 from ..debug import *
 
 
+# monkey patch shapely.geometry to get compatibility with older shapely versions
+if not hasattr(geometry, 'LinearRing'):
+    geometry.LinearRing = geometry.polygon.LinearRing
+
+
 
 class cached_property(object):
     """Decorator to use a function as a cached property.
@@ -206,7 +211,7 @@ class Burrow(object):
         if np.any(indices):
             p_exit = outline[indices, :].mean(axis=0)
         else:
-            p_exit = np.argmin(outline)
+            p_exit = outline[np.argmin(dist)]
         p_exit = curves.get_projection_point(ground_line, p_exit)
             
         # get the two points closest to the exit point

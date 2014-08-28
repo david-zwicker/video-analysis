@@ -9,6 +9,7 @@ from __future__ import division
 import numpy as np
 
 from .data_handler import DataHandler
+from video.analysis import curves
 
 
 class SecondPass(DataHandler):
@@ -42,11 +43,30 @@ class SecondPass(DataHandler):
         
         
     def find_mouse_track(self):
+        # retrieve data
         tracks = self.data['pass1/objects/tracks']
-        
-        # find the longest track 
-        index = np.argmax([len(track) for track in tracks])
-        result = [tracks[index]]
-        tracks.remove(index) 
 
+        # find the longest track as a basis for finding the complete track
+        start = np.argmax([len(track) for track in tracks])
+
+        def score_connection(left, right):
+            """ scoring function that defines how well the two tracks match """
+            dt = right.times[0] - left.times[-1] #< time difference
+            obj_l, obj_r = left.objects[-1], right.objects[0] #< the respective objects
+            
+            # calculate the distance between new and old objects
+            dist_score = curves.point_distance(obj_l.pos, obj_r.pos)
+            # normalize distance to the maximum speed
+            dist_score /= self.params['mouse/max_speed']
+            # calculate the difference of areas between new and old objects
+            area_score = abs(obj_l.size - obj_r.size)/(obj_l.size + obj_r.size)
+            
+            
+        result = [track] #< list of final tracks
+        score = {} #< dictionary of scores for potential matches
+        for k, track in enumerate(tracks[start:], start):
+            score[k] = score_connection(result[-1], track)
+            
+        return result
+                
         
