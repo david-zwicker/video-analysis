@@ -2,6 +2,9 @@
 Created on Aug 22, 2014
 
 @author: zwicker
+
+This module contains convenience functions for scanning multiple
+mouse videos in parallel.
 '''
 
 

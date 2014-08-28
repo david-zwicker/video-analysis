@@ -2,6 +2,8 @@
 Created on Aug 8, 2014
 
 @author: zwicker
+
+module that contains several functions useful when debugging the algorithm
 '''
 
 from __future__ import division

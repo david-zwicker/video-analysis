@@ -3,7 +3,9 @@ Created on Aug 27, 2014
 
 @author: zwicker
 
-Provides a dictionary with default parameters for the mouse tracking
+Provides a dictionary with default parameters for the mouse tracking.
+This can also be seen as some kind of documentation of the available
+parameters.
 '''
 
 

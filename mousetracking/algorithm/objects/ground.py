@@ -2,6 +2,8 @@
 Created on Aug 28, 2014
 
 @author: zwicker
+
+Holds classes useful for describing and fitting the ground profile
 '''
 
 from __future__ import division

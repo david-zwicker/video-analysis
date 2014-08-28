@@ -2,6 +2,8 @@
 Created on Aug 16, 2014
 
 @author: zwicker
+
+contains classes that manage data input and output 
 '''
 
 from __future__ import division
@@ -21,7 +23,7 @@ from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists, prepare_data_for_yaml
 
-import debug
+import debug  # @UnusedImport
 
 
 class DataHandler(object):

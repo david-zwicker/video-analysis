@@ -2,6 +2,8 @@
 Created on Aug 19, 2014
 
 @author: zwicker
+
+This module contains convenience functions for scanning mouse videos.
 '''
 
 from __future__ import division

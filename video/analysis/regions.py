@@ -168,12 +168,11 @@ def get_enclosing_outline(polygon):
     
 def regularize_polygon(polygon):
     """ regularizes a shapely polygon using polygon.buffer(0) """
-    if not polygon.is_valid:
-        # regularize polygon
-        polygon = polygon.buffer(0)
-        # retrieve the result with the largest area
-        if isinstance(polygon, geometry.MultiPolygon):
-            polygon = max(polygon, key=operator.attrgetter('area'))
+    # regularize polygon
+    polygon = polygon.buffer(0)
+    # retrieve the result with the largest area
+    if isinstance(polygon, geometry.MultiPolygon):
+        polygon = max(polygon, key=operator.attrgetter('area'))
     return polygon
 
 

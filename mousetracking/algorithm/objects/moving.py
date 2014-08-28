@@ -2,6 +2,9 @@
 Created on Aug 19, 2014
 
 @author: zwicker
+
+Holds classes that describe moving objects.
+Note that we only identify the mouse in the second pass of the tracking. 
 '''
 
 from __future__ import division
@@ -12,7 +15,7 @@ import numpy as np
 
 from video.analysis import curves
 
-from ..debug import *
+from .. import debug  # @UnusedImport
 
 
 
@@ -142,5 +145,8 @@ class ObjectTrack(object):
         
 
 
+def MouseTrack(object):
+    """ class that describes the mouse track """
+    pass
    
     

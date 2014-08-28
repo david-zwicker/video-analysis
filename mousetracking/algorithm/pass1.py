@@ -3,6 +3,9 @@ Created on Aug 5, 2014
 
 @author: zwicker
 
+Module that contains the class responsible for the second pass of the algorithm
+
+
 Note that the OpenCV convention is to store images in [row, column] format
 Thus, a point in an image is referred to as image[coord_y, coord_x]
 However, a single point is stored as point = (coord_x, coord_y)
@@ -35,7 +38,7 @@ from .objects.moving import MovingObject, ObjectTrack
 from .objects.ground import GroundProfile, RidgeProfile
 from .objects.burrow import Burrow, BurrowTrack
 
-import debug
+import debug  # @UnusedImport
 
 
 
@@ -208,6 +211,9 @@ class FirstPass(DataHandler):
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         self._cache['find_moving_features.kernel_close'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        w = self.params['mouse/model_radius']
+        self._cache['get_potential_burrows_mask.kernel'] = \
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
         
         # setup more cache variables
         video_shape = (self.video.size[1], self.video.size[0]) 
@@ -738,24 +744,25 @@ class FirstPass(DataHandler):
         explored_area = 255*(self.explored_area >= threshold).astype(np.uint8)
 
         # combine nearby patches in the mask
-        w = self.params['mouse/model_radius']
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
-        potential_burrows = cv2.morphologyEx(explored_area, cv2.MORPH_CLOSE, kernel)
+        cv2.morphologyEx(explored_area, cv2.MORPH_CLOSE,
+                         self._cache['get_potential_burrows_mask.kernel'],
+                         dst=explored_area)
         
         # remove accidental burrows at borders
         margin = self.params['burrows/cage_margin']
-        potential_burrows[: margin, :] = 0
-        potential_burrows[-margin:, :] = 0
-        potential_burrows[:, : margin] = 0
-        potential_burrows[:, -margin:] = 0
+        explored_area[: margin, :] = 0
+        explored_area[-margin:, :] = 0
+        explored_area[:, : margin] = 0
+        explored_area[:, -margin:] = 0
 
         # find explored area that is under the ground
-        burrows_mask = cv2.bitwise_and(ground_mask, potential_burrows)
+        burrows_mask = cv2.bitwise_and(ground_mask, explored_area)
 
         # remove small structures
-        w = self.params['mouse/model_radius']
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
-        return cv2.morphologyEx(burrows_mask, cv2.MORPH_OPEN, kernel)
+        cv2.morphologyEx(burrows_mask, cv2.MORPH_OPEN,
+                         self._cache['get_potential_burrows_mask.kernel'],
+                         dst=burrows_mask)
+        return burrows_mask
     
         
     def get_burrow_from_mask(self, mask):
@@ -768,7 +775,8 @@ class FirstPass(DataHandler):
         contour = np.squeeze(np.asarray(contours[0], np.double))
 
         # simplify the contour
-        tolerance = self.params['burrows/outline_simplification_threshold']*curves.curve_length(contour)
+        tolerance = self.params['burrows/outline_simplification_threshold'] \
+                        *curves.curve_length(contour)
         contour = curves.simplify_curve(contour, tolerance).tolist()
 
         # remove potential invalid structures from contour
@@ -820,6 +828,8 @@ class FirstPass(DataHandler):
             d_l, d_r = scan_length - k_l, scan_length - k_r
 
             if np.isfinite(d_l) and np.isfinite(d_r):
+                # TODO: only use the fitted version if we believe it
+                
                 # save the points
                 outline_new.append((p[0] + d_l*dy, p[1] - d_l*dx))
                 outline_new.insert(0, (p[0] + d_r*dy, p[1] - d_r*dx))
@@ -838,9 +848,12 @@ class FirstPass(DataHandler):
         # point might have moved due to the fitting 
         outline_new.append(centerline[-1])
         centerline_new.append(centerline[-1])
+        
+        # FIXME: determine the ground exit point by extrapolating from first
+        # point until we hit the ground profile
 
         # make sure that shape is
-        outline_new = regions.regularize_contour(outline_new) 
+        outline_new = regions.regularize_contour(outline_new)
 
         return Burrow(outline_new, centerline=centerline_new, refined=True)
     
@@ -865,6 +878,9 @@ class FirstPass(DataHandler):
             # refine the burrow if it looks like a proper burrow
             if (burrow.eccentricity > self.params['burrows/fitting_eccentricity_threshold'] and 
                     burrow.get_length(self.ground) > self.params['burrows/fitting_length_threshold']):
+                # add the unrefined burrow to the debug video
+                self.debug['video'].add_polygon(burrow.outline, 'w', is_closed=True, width=2)
+                # refine the burrow
                 burrow = self.refine_burrow(burrow)
             
             # add the burrow to our result list if it is valid

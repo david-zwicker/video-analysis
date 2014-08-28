@@ -2,6 +2,8 @@
 Created on Aug 19, 2014
 
 @author: zwicker
+
+Module that contains the class responsible for the second pass of the algorithm
 '''
 
 from __future__ import division
@@ -13,7 +15,7 @@ from video.analysis import curves
 from video.composer import VideoComposer
 from video.filters import FilterCrop
 
-import debug
+import debug  # @UnusedImport
 
 
 class SecondPass(DataHandler):
