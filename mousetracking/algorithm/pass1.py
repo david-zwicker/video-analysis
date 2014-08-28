@@ -830,6 +830,8 @@ class FirstPass(DataHandler):
                 centerline_new.append(p)
 
         # handle point at the burrow front
+        # FIXME: this point has to be determined again, since the second to last
+        # point might have moved due to the fitting 
         outline_new.append(centerline[-1])
         centerline_new.append(centerline[-1])
 

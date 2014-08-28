@@ -43,13 +43,23 @@ class SecondPass(DataHandler):
         
         
     def find_mouse_track(self):
-        """ identifies the mouse trajectory by connecting several object
-        tracks """
+        """ identifies the mouse trajectory by connecting object tracks.
+        
+        This function takes the tracks in 'pass1/objects/tracks', connects
+        suitable parts, and interpolates gaps.
+        """
         # retrieve data
         tracks = self.data['pass1/objects/tracks']
-
+        
         # find the longest track as a basis for finding the complete track
-        start = np.argmax([len(track) for track in tracks])
+        core = max(tracks, lambda track: len(track))
+
+        # find all tracks after this
+        time_point = core.times[-1]
+        tracks_after = [track for track in tracks if track.times[0] > time_point]
+        # sort them according to their start time
+        tracks_after = sorted(tracks_after, key=lambda track: track.times[0])
+
 
         def score_connection(left, right):
             """ scoring function that defines how well the two tracks match """
@@ -72,9 +82,9 @@ class SecondPass(DataHandler):
             return score*np.exp(-dt/time_scale)
             
             
-        result = [track] #< list of final tracks
+        result = [core] #< list of final tracks
         score = {} #< dictionary of scores for potential matches
-        for k, track in enumerate(tracks[start:], start):
+        for k, track in enumerate(tracks_after):
             score[k] = score_connection(result[-1], track)
             
         return result

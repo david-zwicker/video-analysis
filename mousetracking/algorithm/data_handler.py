@@ -211,6 +211,7 @@ class DataHandler(object):
             data = hdf_file[dataset]
             self.data[key] = [cls.from_array(data[index])
                               for index in sorted(data.keys())]
+            # here we had to use sorted() to iterate in the correct order 
                         
                         
     def load_object_list_from_hdf(self, key, cls): 
@@ -227,7 +228,6 @@ class DataHandler(object):
             self.data[key] = []
             index, obj_data = None, None
             # iterate over the data and create objects from it
-            # TODO: make sure that the data is iterated in the right order
             for line in hdf_file[dataset]:
                 if line[0] == index:
                     # append object to the current track
