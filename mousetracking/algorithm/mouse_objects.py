@@ -206,11 +206,12 @@ class Burrow(object):
     ground_point_distance = 10
     
     
-    def __init__(self, outline, centerline=None, length=None):
+    def __init__(self, outline, centerline=None, length=None, refined=False):
         """ initialize the structure using points on its outline """
         self._outline = np.asarray(outline, np.double)
         self.centerline = centerline
         self.length = length
+        self.refined = refined
         self._cache = {}
 
 

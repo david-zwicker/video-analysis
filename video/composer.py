@@ -96,11 +96,17 @@ class VideoComposer(VideoFileWriter):
         cv2.drawContours(self.frame, contours, -1,  get_color(color), thickness=thickness)
     
     
-    def add_polygon(self, points, color='w', is_closed=True, width=1):
+    def add_polygon(self, points, color='w', is_closed=True, mark_points=False, width=1):
         """ adds a polygon to the frame """
-        points = np.array([points], np.int32)               
-        cv2.polylines(self.frame, points, isClosed=is_closed,
-                      color=get_color(color), thickness=width)
+        # add the polygon
+        cv2.polylines(self.frame, np.array([points], np.int32),
+                      isClosed=is_closed, color=get_color(color),
+                      thickness=width)
+        # mark the anchor points if requested
+        if mark_points:
+            for p in points:
+                self.add_circle(p, 2*width, color, thickness=-1)
+
         
     
     def add_rectangle(self, rect, color='w', width=1):

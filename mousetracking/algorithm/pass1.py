@@ -729,12 +729,13 @@ class FirstPass(DataHandler):
         cv2.fillPoly(ground_mask, np.array([ground_points], np.int32), color=128)
         
         # get potential burrows by looking at explored area
-        explored_area = 255*(self.explored_area >= self.params['explored_area/adaptation_rate'])
+        threshold = self.params['explored_area/adaptation_rate']
+        explored_area = 255*(self.explored_area >= threshold).astype(np.uint8)
 
         # combine nearby patches in the mask
-        w = self.params['mouse/model_radius']//2
+        w = self.params['mouse/model_radius']
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
-        potential_burrows = cv2.morphologyEx(explored_area.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
+        potential_burrows = cv2.morphologyEx(explored_area, cv2.MORPH_CLOSE, kernel)
         
         # remove accidental burrows at borders
         potential_burrows[: 30, :] = 0
@@ -746,7 +747,7 @@ class FirstPass(DataHandler):
         burrows_mask = cv2.bitwise_and(ground_mask, potential_burrows)
 
         # remove small structures
-        w = self.params['mouse/model_radius']//2
+        w = self.params['mouse/model_radius']
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)) 
         return cv2.morphologyEx(burrows_mask, cv2.MORPH_OPEN, kernel)
     
@@ -828,7 +829,7 @@ class FirstPass(DataHandler):
         # make sure that shape is
         outline_new = regions.regularize_contour(outline_new) 
 
-        return Burrow(outline_new, centerline=centerline_new)
+        return Burrow(outline_new, centerline=centerline_new, refined=True)
     
     
     def find_burrows(self, frame, mask_moving):
@@ -915,31 +916,30 @@ class FirstPass(DataHandler):
             debug_video = self.debug['video']
             
             # plot the ground profile
-            debug_video.add_polygon(self.ground, is_closed=False, color='y')
-            debug_video.add_points(self.ground, radius=2, color='y')
+            debug_video.add_polygon(self.ground, is_closed=False, mark_points=True, color='y')
         
             # indicate the currently active burrow shapes
             for burrow_track in self.result['burrows/data']:
                 if burrow_track.last_seen > self.frame_id - self.params['burrows/adaptation_interval']:
                     burrow = burrow_track.last
-                    debug_video.add_polygon(burrow.outline, 'orange', is_closed=True)
+                    burrow_color = 'red' if burrow.refined else 'orange'
+                    debug_video.add_polygon(burrow.outline, burrow_color,
+                                            is_closed=True, mark_points=True)
                     debug_video.add_polygon(burrow.get_centerline(self.ground),
-                                            'red', is_closed=False, width=3)
-                    for p in burrow.outline:
-                        debug_video.add_circle(p, 3, 'orange', thickness=-1)
+                                            burrow_color, is_closed=False,
+                                            width=2, mark_points=True)
         
             # indicate the mouse position
             if len(self.tracks) > 0:
                 for obj in self.tracks:
                     if self.result['mouse/moved_first_in_frame'] is None:
-                        color = 'r'
+                        obj_color = 'r'
                     elif obj.is_moving():
-                        color = 'w'
+                        obj_color = 'w'
                     else:
-                        color = 'b'
-                        
+                        obj_color = 'b'
                     debug_video.add_polygon(obj.get_track(), '0.5', is_closed=False)
-                    debug_video.add_circle(obj.last_pos, self.params['mouse/model_radius'], color, thickness=1)
+                    debug_video.add_circle(obj.last_pos, self.params['mouse/model_radius'], obj_color, thickness=1)
                 
             else: # there are no current tracks
                 for mouse_pos in self._mouse_pos_estimate:
@@ -953,8 +953,7 @@ class FirstPass(DataHandler):
             if self.debug.get('video.mark.rect1'):
                 debug_video.add_rectangle(self.debug['rect1'])
             if self.debug.get('video.mark.points'):
-                for p in self.debug['video.mark.points']:
-                    debug_video.add_circle(p, radius=4)
+                debug_video.add_points(self.debug['video.mark.points'], radius=4, color='y')
             if self.debug.get('video.mark.highlight', False):
                 debug_video.add_rectangle((0, 0, self.video.size[0], self.video.size[1]), 'w', 10)
                 self.debug['video.mark.highlight'] = False
