@@ -2,6 +2,7 @@ Necessary python packages:
 cv2         -- OpenCV python bindings
 h5py        -- HDF5 python binding for writing out data
 matplotlib  -- Plotting library used for output
+networkx    -- Graph based tracking
 numpy		-- Array library used for manipulating data
 scipy       -- Miscellaneous scientific functions
 shapely     -- for manipulating shapes

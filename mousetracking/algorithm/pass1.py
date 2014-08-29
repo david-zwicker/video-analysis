@@ -860,8 +860,11 @@ class FirstPass(DataHandler):
             # k_l, k_r are the indices of the left and right border
             d_l, d_r = scan_length - k_l, scan_length - k_r
             # d_l and d_r are the distance from p, where d_l > 0 and d_r < 0 accounting for direction
+            k_c = int(k_l + k_r)//2 #< position of the new centerline
 
-            if np.isfinite(d_l) and np.isfinite(d_r):
+            color_threshold = self.result['colors/sand'] - self.result['colors/sand_std']
+            # the color threshold determines whether the fit was alright
+            if np.isfinite(d_l) and np.isfinite(d_r) and profile[k_c] < color_threshold:
                 # TODO: only use the fitted version if we believe it
 
                 # ensure a minimal burrow width
@@ -873,7 +876,7 @@ class FirstPass(DataHandler):
                 # save the points
                 outline_new.append((p[0] + d_l*dy, p[1] - d_l*dx))
                 outline_new.insert(0, (p[0] + d_r*dy, p[1] - d_r*dx))
-                # adjust the centerline
+                
                 d_c = (d_l + d_r)/2
                 centerline_new.append((p[0] + d_c*dy, p[1] - d_c*dx))
             
