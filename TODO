@@ -8,6 +8,10 @@
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 * Connect objects tracks to find one global mouse track
 * Determine absolute times by checking when the lights go on
+* Update explored area after burrow fitting
+	- take away explored area outside of burrows
+	- reinforce explored area inside burrows
+	- enforce minimal burrow width 
 
 
 Performance improvements:

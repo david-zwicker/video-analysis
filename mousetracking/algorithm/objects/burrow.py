@@ -49,7 +49,7 @@ class cached_property(object):
         self.func = func
 
 
-    def __get__(self, obj, type=None):
+    def __get__(self, obj, type=None):  # @ReservedAssignment
         if obj is None:
             return self
 
@@ -229,41 +229,36 @@ class Burrow(object):
         
         # send out rays perpendicular to the ground profile
         angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0]) + np.pi/2
-        p_anchor = (p_exit[0] + 5*np.cos(angle), p_exit[1] + 5*np.sin(angle))
-        ray_length = np.inf
+        point_anchor = (p_exit[0] + 5*np.cos(angle), p_exit[1] + 5*np.sin(angle))
         outline_poly = geometry.LinearRing(self.outline)
         
         # calculate the angle each segment is allowed to deviate from the 
         # previous one based on the maximal radius of curvature
         ratio = self.centerline_segment_length/self.curvature_radius_max
         angle_max = np.arccos(1 - 0.5*ratio**2)
+        segment_length = self.centerline_segment_length
         
         centerline = [p_exit]
         while True:
-            dist_max, point_max = 0, None
-            # try some rays distributed around `angle`
-            for a in np.linspace(angle - angle_max, angle + angle_max, 16):
-                p_far = (p_anchor[0] + 1000*np.cos(a), p_anchor[1] + 1000*np.sin(a))
-                p_hit, dist_hit = regions.get_ray_hitpoint(p_anchor, p_far,
-                                                           outline_poly, ret_dist=True)
-                if dist_hit > dist_max:
-                    dist_max = dist_hit
-                    point_max = p_hit
-                    angle = a #< set this angle as a basis for the next iteration
-                        
+            # find the next point along the burrow
+            point_max, dist_max, angle = regions.get_farthest_intersection(
+                point_anchor,
+                np.linspace(angle - angle_max, angle + angle_max, 16),
+                outline_poly)
+            # this also sets the angle for the next iteration
+
             # abort if the search was not successful
             if point_max is None:
                 break
-            
+                
             # get the length of the longest ray
-            ray_length = curves.point_distance(p_anchor, point_max)
-            if ray_length > self.centerline_segment_length:
+            if dist_max > segment_length:
                 # continue shooting out rays
-                p_anchor = (p_anchor[0] + self.centerline_segment_length*np.cos(angle),
-                            p_anchor[1] + self.centerline_segment_length*np.sin(angle))
-                centerline.append(p_anchor)
+                point_anchor = (point_anchor[0] + segment_length*np.cos(angle),
+                                point_anchor[1] + segment_length*np.sin(angle))
+                centerline.append(point_anchor)
             else:
-                # hit the end of the burrow
+                # we've hit the end of the burrow
                 centerline.append(point_max)
                 break
                     
@@ -383,5 +378,4 @@ class BurrowTrack(object):
     def create_from_hdf5(cls, hdf_file, key):
         """ creates a burrow track from data in a HDF5 file """
         return cls.from_array(hdf_file[key])
-   
    

@@ -799,6 +799,10 @@ class FirstPass(DataHandler):
         scan_length = int(4*self.params['burrows/radius'])
         outline = geometry.LinearRing(burrow.outline)
         centerline = burrow.get_centerline(self.ground)
+        if len(centerline) < 3:
+            self.logger.warn('Refining of very short burrows is not supported.')
+            return burrow
+        
         centerline_new = [centerline[0]]
         for k, p in enumerate(centerline[1:-1]):
             # get points adjacent to p
@@ -843,16 +847,27 @@ class FirstPass(DataHandler):
                 outline_new.insert(0, pb)
                 centerline_new.append(p)
 
-        # handle point at the burrow front
-        # FIXME: this point has to be determined again, since the second to last
-        # point might have moved due to the fitting 
-        outline_new.append(centerline[-1])
-        centerline_new.append(centerline[-1])
+        # find the point at the burrow front
+        p1, p2 = centerline[-1], centerline[-2]
+        angle = np.arctan2(p1[1] - p2[1], p1[0] - p2[0])
+        point_max, _, _ = regions.get_farthest_intersection(
+            centerline_new[-1],
+            np.linspace(angle - np.pi/4, angle + np.pi/4, 16),
+            outline)
+        if point_max is not None: 
+            outline_new.append(point_max)
+            centerline_new.append(point_max)
         
-        # FIXME: determine the ground exit point by extrapolating from first
+        # determine the ground exit point by extrapolating from first
         # point until we hit the ground profile
+        p1, p2 = centerline[1], centerline[2]
+        angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
+        point_max, _, _ = regions.get_farthest_intersection(
+            centerline_new[1], [angle], ground_line)
+        if point_max is not None: 
+            centerline_new[0] = point_max
 
-        # make sure that shape is
+        # make sure that shape is a valid polygon
         outline_new = regions.regularize_contour(outline_new)
 
         return Burrow(outline_new, centerline=centerline_new, refined=True)
