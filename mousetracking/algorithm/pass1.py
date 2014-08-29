@@ -212,7 +212,7 @@ class FirstPass(DataHandler):
         self._cache['find_moving_features.kernel_close'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
             
-        w = self.params['mouse/model_radius']//2
+        w = self.params['mouse/model_radius']
         self._cache['get_potential_burrows_mask.kernel_large'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w+1, 2*w+1))
         self._cache['get_potential_burrows_mask.kernel_small'] = \
