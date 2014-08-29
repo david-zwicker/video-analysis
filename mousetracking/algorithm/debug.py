@@ -45,10 +45,11 @@ def show_image(*images, **kwargs):
         plt.imshow(image, interpolation='nearest', vmin=vmin, vmax=vmax)
         plt.gray()
         
-        # recipe from http://stackoverflow.com/a/18195921/932593
-        divider = make_axes_locatable(plt.gca())
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(cax=cax)
+        if image.min() != image.max():
+            # recipe from http://stackoverflow.com/a/18195921/932593
+            divider = make_axes_locatable(plt.gca())
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            plt.colorbar(cax=cax)
         
     # show the images and wait for user input
     plt.show()

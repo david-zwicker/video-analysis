@@ -137,7 +137,7 @@ class FirstPass(DataHandler):
                         self.result['ground/profile'].append(ground)
             
                     if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
-                        self.find_burrows(frame, mask_moving)
+                        self.find_burrows(mask_moving)
             
                 # update the background model
                 self.update_background_model(frame)
@@ -211,7 +211,7 @@ class FirstPass(DataHandler):
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         self._cache['find_moving_features.kernel_close'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        w = self.params['mouse/model_radius']
+        w = self.params['burrows/width_min']
         self._cache['get_potential_burrows_mask.kernel'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
         
@@ -432,7 +432,7 @@ class FirstPass(DataHandler):
             pos = (moments['m10']/area, moments['m01']/area)
             
             # check whether this object could be a mouse
-            if area > self.params['mouse/min_area']:
+            if area > self.params['mouse/area_min']:
                 objects.append(MovingObject(pos, size=area, label=label))
                 
             elif area > largest_obj.size:
@@ -467,7 +467,7 @@ class FirstPass(DataHandler):
                               [obj.predict_pos() for obj in self.tracks],
                               metric='euclidean')
         # normalize distance to the maximum speed
-        dist /= self.params['mouse/max_speed']
+        dist /= self.params['mouse/speed_max']
         
         # calculate the difference of areas between new and old objects
         def area_score(area1, area2):
@@ -527,7 +527,7 @@ class FirstPass(DataHandler):
         assert len(self.tracks) == len(objects_found)
         
     
-    def update_explored_area(self, tracks, labels, num_features):
+    def update_explored_area_objects(self, tracks, labels, num_features):
         """ update the explored area using the found objects """
         
         # degrade old information
@@ -572,7 +572,7 @@ class FirstPass(DataHandler):
             self._mouse_pos_estimate = [obj.last_pos for obj in self.tracks]
         
             # keep track of the regions that the mouse explored
-            self.update_explored_area(self.tracks, labels, num_features)
+            self.update_explored_area_objects(self.tracks, labels, num_features)
                 
                 
     #===========================================================================
@@ -721,14 +721,13 @@ class FirstPass(DataHandler):
     # FINDING BURROWS
     #===========================================================================
    
+    
+    def get_ground_mask(self, color=128):
+        """ returns a binary mask distinguishing the ground from the sky """
         
-    def get_potential_burrows_mask(self, frame):
-        """ locates potential burrows by searching for underground regions that
-        the mouse explored """
-
         # build a mask with potential burrows
-        height, width = frame.shape
-        ground_mask = np.zeros_like(frame, np.uint8)
+        width, height = self.video.size
+        ground_mask = np.zeros((height, width), np.uint8)
         
         # create a mask for the region below the current ground_mask profile
         ground_points = np.empty((len(self.ground) + 4, 2), np.int32)
@@ -737,8 +736,15 @@ class FirstPass(DataHandler):
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
         ground_points[-1, :] = (0, ground_points[0, 1])
-        cv2.fillPoly(ground_mask, np.array([ground_points], np.int32), color=128)
+        cv2.fillPoly(ground_mask, np.array([ground_points], np.int32), color=color)
+
+        return ground_mask
+
         
+    def get_potential_burrows_mask(self):
+        """ locates potential burrows by searching for underground regions that
+        the mouse explored """
+
         # get potential burrows by looking at explored area
         threshold = self.params['explored_area/adaptation_rate']
         explored_area = 255*(self.explored_area >= threshold).astype(np.uint8)
@@ -756,7 +762,7 @@ class FirstPass(DataHandler):
         explored_area[:, -margin:] = 0
 
         # find explored area that is under the ground
-        burrows_mask = cv2.bitwise_and(ground_mask, explored_area)
+        burrows_mask = cv2.bitwise_and(self.get_ground_mask(), explored_area)
 
         # remove small structures
         cv2.morphologyEx(burrows_mask, cv2.MORPH_OPEN,
@@ -788,7 +794,6 @@ class FirstPass(DataHandler):
     def refine_burrow(self, burrow):
         """ refines a elongated burrow by doing linescans perpendicular to
         its centerline """
-
         # keep the points close to the ground line
         ground_line = geometry.LineString(np.array(self.ground, np.double))
         outline_new = sorted([p.coords[0]
@@ -796,13 +801,17 @@ class FirstPass(DataHandler):
                               if p.distance(ground_line) < self.params['burrows/ground_point_distance']])
 
         # replace the remaining points by fitting perpendicular to the center line
-        scan_length = int(4*self.params['burrows/radius'])
         outline = geometry.LinearRing(burrow.outline)
         centerline = burrow.get_centerline(self.ground)
         if len(centerline) < 3:
             self.logger.warn('Refining of very short burrows is not supported.')
             return burrow
         
+        segment_length = self.params['burrows/centerline_segment_length']
+        centerline = curves.make_curve_equidistant(centerline, segment_length)
+        
+        width_min = self.params['burrows/width_min']
+        scan_length = int(4*self.params['burrows/width'])
         centerline_new = [centerline[0]]
         for k, p in enumerate(centerline[1:-1]):
             # get points adjacent to p
@@ -829,10 +838,18 @@ class FirstPass(DataHandler):
             # find the transition points by considering slopes
             k_l = image.get_steepest_point(profile[:scan_length], direction=-1, smoothing=2)
             k_r = scan_length + image.get_steepest_point(profile[scan_length:], direction=1, smoothing=2)
+            # k_l, k_r are the indices of the left and right border
             d_l, d_r = scan_length - k_l, scan_length - k_r
+            # d_l and d_r are the distance from p, where d_l > 0 and d_r < 0 accounting for direction
 
             if np.isfinite(d_l) and np.isfinite(d_r):
                 # TODO: only use the fitted version if we believe it
+
+                # ensure a minimal burrow width
+                width = d_l - d_r
+                if width < width_min:
+                    d_r -= (width_min - width)/2
+                    d_l += (width_min - width)/2
                 
                 # save the points
                 outline_new.append((p[0] + d_l*dy, p[1] - d_l*dx))
@@ -873,18 +890,41 @@ class FirstPass(DataHandler):
         return Burrow(outline_new, centerline=centerline_new, refined=True)
     
     
-    def find_burrows(self, frame, mask_moving):
+    def update_explored_area_burrows(self):
+        """ update the explored area using the found objects """
+        # build the ground mask
+        mask_ground = self.get_ground_mask(255)
+        mask_burrows = np.zeros_like(mask_ground)
+        
+        for burrow_track in self.result['burrows/data']:
+            if burrow_track.last_seen > self.frame_id - self.params['burrows/adaptation_interval']:
+                cv2.fillPoly(mask_burrows,
+                             np.array([burrow_track.last.outline], np.int32),
+                             color=255)
+
+        # reinforce the information inside burrows
+        self.explored_area[255 == mask_burrows] = 1
+
+        # weaken the information outside of burrows
+        kernel = self._cache['get_potential_burrows_mask.kernel']
+        mask_outline = cv2.dilate(mask_burrows, kernel)
+        cv2.subtract(mask_outline, mask_burrows, dst=mask_outline)
+        cv2.subtract(mask_outline, 255 - mask_ground, dst=mask_outline)
+        self.explored_area[255 == mask_outline] = 0
+        
+    
+    def find_burrows(self, mask_moving):
         """ locates burrows by combining the information of the ground_mask profile
         and the explored area """
         
-        burrows_mask = self.get_potential_burrows_mask(frame)
+        burrows_mask = self.get_potential_burrows_mask()
         labels, num_features = ndimage.measurements.label(burrows_mask)
             
         # iterate through all features that have been found
         for label in xrange(1, num_features + 1):
             # check other features of the region
             props = image.regionprops(labels == label)
-            if props.area < self.params['burrows/min_area']:
+            if props.area < self.params['burrows/area_min']:
                 continue # disregard small features
              
             # get the burrow object from the contour of region
@@ -894,7 +934,8 @@ class FirstPass(DataHandler):
             if (burrow.eccentricity > self.params['burrows/fitting_eccentricity_threshold'] and 
                     burrow.get_length(self.ground) > self.params['burrows/fitting_length_threshold']):
                 # add the unrefined burrow to the debug video
-                self.debug['video'].add_polygon(burrow.outline, 'w', is_closed=True, width=2)
+                if 'video' in self.debug:
+                    self.debug['video'].add_polygon(burrow.outline, 'w', is_closed=True, width=2)
                 # refine the burrow
                 burrow = self.refine_burrow(burrow)
             
@@ -912,6 +953,8 @@ class FirstPass(DataHandler):
                     self.result['burrows/data'].append(burrow_track)
                     self.logger.debug('%d: Found new burrow at %s',
                                       self.frame_id, burrow.polygon.centroid)
+                    
+        self.update_explored_area_burrows()
             
 
     #===========================================================================

@@ -30,6 +30,7 @@ def curve_length(points):
 def make_curve_equidistant(points, spacing):
     """ returns a new parameterization of the same curve where points have been
     chosen equidistantly. The original curve may be slightly modified """
+    points = np.asarray(points, np.double)
     
     # walk along and pick points equidistantly
     profile_length = curve_length(points)

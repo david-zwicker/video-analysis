@@ -17,7 +17,7 @@ import shapely.geometry as geometry
 
 from video.analysis import curves, regions
 
-from ..debug import *
+from ..debug import *  # @UnusedWildImport
 
 
 # monkey patch shapely.geometry to get compatibility with older shapely versions
@@ -217,12 +217,12 @@ class Burrow(object):
             p_exit = outline[np.argmin(dist)]
         p_exit = curves.get_projection_point(ground_line, p_exit)
             
-        # get the two points closest to the exit point
-        dist = np.linalg.norm(outline - p_exit, axis=1)
+        # get the two ground points closest to the exit point
+        dist = np.linalg.norm(ground - p_exit, axis=1)
         k1 = np.argmin(dist)
         dist[k1] = np.inf
         k2 = np.argmin(dist)
-        p1, p2 = outline[k1], outline[k2]
+        p1, p2 = ground[k1], ground[k2]
         # get the points such that p1 is left of p2
         if p1[0] > p2[0]:
             p1, p2 = p2, p1

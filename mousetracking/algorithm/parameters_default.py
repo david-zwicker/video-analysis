@@ -75,10 +75,10 @@ PARAMETERS_DEFAULT = {
     # radius of the mouse model [in pixel]
     'mouse/model_radius': 25,
     # minimal area of a feature to be considered in tracking [in pixel^2]
-    'mouse/min_area': 100,
+    'mouse/area_min': 100,
     # maximal speed of the mouse [in pixel per frame]
     # this is only used for the first-pass
-    'mouse/max_speed': 30, 
+    'mouse/speed_max': 30, 
     # maximal area change allowed between consecutive frames [dimensionless]
     'mouse/max_rel_area_change': 0.5,
 
@@ -86,10 +86,12 @@ PARAMETERS_DEFAULT = {
     'burrows/adaptation_interval': 100,
     # margin of a potential burrow to the cage boundary [in pixel]
     'burrows/cage_margin': 30,
-    # what is a typical radius of a burrow [in pixel]
-    'burrows/radius': 10,
+    # what is a typical width of a burrow [in pixel]
+    'burrows/width': 20,
+    # what is a minimal width of a burrow [in pixel]
+    'burrows/width_min': 10,
     # minimal area a burrow cross section has to have [in pixel^2]
-    'burrows/min_area': 1000,
+    'burrows/area_min': 1000,
     # maximal distance of ground profile to outline points that are considered exit points [in pixel]
     'burrows/ground_point_distance': 10,
     # length of a segment of the center line of a burrow [in pixel]

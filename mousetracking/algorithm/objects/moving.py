@@ -145,7 +145,7 @@ class ObjectTrack(object):
         
 
 
-def MouseTrack(object):
+class MouseTrack(object):
     """ class that describes the mouse track """
     pass
    

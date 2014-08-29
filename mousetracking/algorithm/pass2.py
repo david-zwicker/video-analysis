@@ -101,7 +101,7 @@ class SecondPass(DataHandler):
             # calculate the distance between new and old objects
             dist_score = curves.point_distance(obj_l.pos, obj_r.pos)
             # normalize distance to the maximum speed
-            dist_score /= self.params['mouse/max_speed']
+            dist_score /= self.params['mouse/speed_max']
             # calculate the difference of areas between new and old objects
             area_score = abs(obj_l.size - obj_r.size)/(obj_l.size + obj_r.size)
 
