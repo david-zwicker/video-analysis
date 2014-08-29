@@ -211,8 +211,12 @@ class FirstPass(DataHandler):
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         self._cache['find_moving_features.kernel_close'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+            
         w = self.params['burrows/width_min']
         self._cache['get_potential_burrows_mask.kernel'] = \
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
+        w = self.params['burrows/width']
+        self._cache['update_explored_area_burrows.kernel'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
         
         # setup more cache variables
@@ -892,24 +896,44 @@ class FirstPass(DataHandler):
     
     def update_explored_area_burrows(self):
         """ update the explored area using the found objects """
+        
+        # find proper, currently active burrows
+        time_last = self.frame_id - self.params['burrows/adaptation_interval']
+        burrows = [burrow_track.last
+                   for burrow_track in self.result['burrows/data']
+                   if (burrow_track.last_seen > time_last and
+                       burrow_track.last.refined)] 
+
+        if not burrows:
+            return
+        
         # build the ground mask
         mask_ground = self.get_ground_mask(255)
         mask_burrows = np.zeros_like(mask_ground)
         
-        for burrow_track in self.result['burrows/data']:
-            if burrow_track.last_seen > self.frame_id - self.params['burrows/adaptation_interval']:
-                cv2.fillPoly(mask_burrows,
-                             np.array([burrow_track.last.outline], np.int32),
-                             color=255)
+        # add the burrow polygons to burrow mask
+        for burrow in burrows:
+            cv2.fillPoly(mask_burrows, np.array([burrow.outline], np.int32), color=255)
 
         # reinforce the information inside burrows
         self.explored_area[255 == mask_burrows] = 1
 
-        # weaken the information outside of burrows
-        kernel = self._cache['get_potential_burrows_mask.kernel']
+        # get region around burrows
+        kernel = self._cache['update_explored_area_burrows.kernel']
         mask_outline = cv2.dilate(mask_burrows, kernel)
         cv2.subtract(mask_outline, mask_burrows, dst=mask_outline)
         cv2.subtract(mask_outline, 255 - mask_ground, dst=mask_outline)
+        
+        # remove the burrow front from the outside mask
+        for burrow in burrows:
+            if burrow.centerline is not None:
+                burrow_front = burrow.centerline[-1] 
+                cv2.circle(mask_outline,
+                           (int(burrow_front[0]), int(burrow_front[1])),
+                           radius=self.params['burrows/centerline_segment_length'],
+                           color=0, thickness=-1)
+       
+        # weaken the information outside of burrows
         self.explored_area[255 == mask_outline] = 0
         
     
