@@ -8,6 +8,7 @@
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 * Connect objects tracks to find one global mouse track
 * Determine absolute times by checking when the lights go on
+* Track mouse by building list of possible connections between tracks and choose the best one
 
 
 Performance improvements:

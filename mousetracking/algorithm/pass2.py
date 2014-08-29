@@ -110,7 +110,7 @@ class SecondPass(DataHandler):
             score = alpha*dist_score + (1 - alpha)*area_score
             
             # score length of the new segment
-            score *= np.log(1 + segment_length)  
+            score *= np.log(1 + segment_length)
             
             # decrease score with gap length
             score /= np.log(1 + right.times[0] - left.times[-1])

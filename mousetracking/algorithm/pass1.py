@@ -582,8 +582,8 @@ class FirstPass(DataHandler):
     #===========================================================================
     # FINDING THE GROUND PROFILE
     #===========================================================================
-    
-    
+
+
     def find_rough_ground(self, image):
         """ determines an estimate of the ground profile from a single image """
         
@@ -720,14 +720,10 @@ class FirstPass(DataHandler):
         self.logger.info('We found a ground profile of length %g after %d iterations',
                          curves.curve_length(self.ground), iterations)
         
-        
-    #===========================================================================
-    # FINDING BURROWS
-    #===========================================================================
-   
     
-    def get_ground_mask(self, color=128):
+    def get_ground_mask(self, color=255):
         """ returns a binary mask distinguishing the ground from the sky """
+        # TODO: Think about caching this result
         
         # build a mask with potential burrows
         width, height = self.video.size
@@ -743,20 +739,27 @@ class FirstPass(DataHandler):
         cv2.fillPoly(ground_mask, np.array([ground_points], np.int32), color=color)
 
         return ground_mask
-
+    
+            
+    #===========================================================================
+    # FINDING BURROWS
+    #===========================================================================
+   
         
     def get_potential_burrows_mask(self):
         """ locates potential burrows by searching for underground regions that
         the mouse explored """
+
+        mask_ground = self.get_ground_mask()
 
         # get potential burrows by looking at explored area
         threshold = self.params['explored_area/adaptation_rate']
         explored_area = 255*(self.explored_area >= threshold).astype(np.uint8)
 
         # combine nearby patches in the mask
-        cv2.morphologyEx(explored_area, cv2.MORPH_CLOSE,
-                         self._cache['get_potential_burrows_mask.kernel'],
-                         dst=explored_area)
+#         cv2.morphologyEx(explored_area, cv2.MORPH_CLOSE,
+#                          self._cache['get_potential_burrows_mask.kernel'],
+#                          dst=explored_area)
         
         # remove accidental burrows at borders
         margin = self.params['burrows/cage_margin']
@@ -765,13 +768,36 @@ class FirstPass(DataHandler):
         explored_area[:, : margin] = 0
         explored_area[:, -margin:] = 0
 
-        # find explored area that is under the ground
-        burrows_mask = cv2.bitwise_and(self.get_ground_mask(), explored_area)
+#         # find explored area that is under the ground
+#         burrows_mask = cv2.bitwise_and(mask_ground, explored_area)
+# 
+#         # remove small structures
+#         cv2.morphologyEx(burrows_mask, cv2.MORPH_OPEN,
+#                          self._cache['get_potential_burrows_mask.kernel'],
+#                          dst=burrows_mask)
+        
+        # remove all regions that are less than a threshold distance away from the ground line
+        # and which are not connected to any other region
+        w = 20
+        kernel1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
+        w = 30
+        kernel2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
 
-        # remove small structures
-        cv2.morphologyEx(burrows_mask, cv2.MORPH_OPEN,
-                         self._cache['get_potential_burrows_mask.kernel'],
-                         dst=burrows_mask)
+        # lower the ground to remove artifacts close to the ground line
+        ground_low = cv2.erode(mask_ground, kernel1)
+        # find areas which are very likely burrows
+        burrows_mask = cv2.bitwise_and(ground_low, explored_area)
+        # dilate these burrows such that they reach up the ground again
+        cv2.dilate(burrows_mask, kernel2, dst=burrows_mask)
+        # combine with the proper ground
+        burrows_mask = cv2.bitwise_or(255 - mask_ground, burrows_mask)
+        # and erode again to remove added layer around burrows
+        cv2.erode(burrows_mask, kernel2, dst=burrows_mask)
+        # and remove the proper ground
+        cv2.bitwise_and(burrows_mask, mask_ground, dst=burrows_mask)
+        
+        #debug.show_image(explored_area, mask_ground, burrows_mask)
+        
         return burrows_mask
     
         
@@ -908,7 +934,7 @@ class FirstPass(DataHandler):
             return
         
         # build the ground mask
-        mask_ground = self.get_ground_mask(255)
+        mask_ground = self.get_ground_mask()
         mask_burrows = np.zeros_like(mask_ground)
         
         # add the burrow polygons to burrow mask
@@ -924,14 +950,14 @@ class FirstPass(DataHandler):
         cv2.subtract(mask_outline, mask_burrows, dst=mask_outline)
         cv2.subtract(mask_outline, 255 - mask_ground, dst=mask_outline)
         
-        # remove the burrow front from the outside mask
+        # remove the two burrow ends from the outside mask
         for burrow in burrows:
             if burrow.centerline is not None:
-                burrow_front = burrow.centerline[-1] 
-                cv2.circle(mask_outline,
-                           (int(burrow_front[0]), int(burrow_front[1])),
-                           radius=self.params['burrows/centerline_segment_length'],
-                           color=0, thickness=-1)
+                for point in (burrow.centerline[0], burrow.centerline[-1]): 
+                    cv2.circle(mask_outline,
+                               (int(point[0]), int(point[1])),
+                               radius=self.params['burrows/centerline_segment_length'],
+                               color=0, thickness=-1)
        
         # weaken the information outside of burrows
         self.explored_area[255 == mask_outline] = 0
