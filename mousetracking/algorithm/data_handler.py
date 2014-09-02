@@ -32,7 +32,8 @@ class DataHandler(object):
     def __init__(self, name='', parameters=None):
         self.name = name
 
-        # initialize tracking parameters        
+        # initialize the data handled by this class
+        self.video = None        
         self.data = Data()
         self.data.create_child('parameters')
         self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
@@ -73,7 +74,7 @@ class DataHandler(object):
         if folder == 'results':
             folder = os.path.abspath(self.data['parameters/output/result_folder'])
         elif folder == 'debug':
-            folder = os.path.abspath(self.data['parameters/output/video/folder'])
+            folder = os.path.abspath(self.data['parameters/output/video/folder_debug'])
             
         ensure_directory_exists(folder)
         return folder
@@ -165,28 +166,38 @@ class DataHandler(object):
         hdf_name = self.get_filename('results.hdf5')
         hdf_uri = self.get_filename('results.hdf5', 'results')
         with h5py.File(hdf_uri, 'w') as hdf_file:
-            # write the ground profile                
-            ground_profile = main_result['pass1/ground/profile']
-            data = [obj.to_array() for obj in ground_profile]
-            hdf_file.create_dataset('pass1/ground_profile', data=np.concatenate(data))
-            hdf_file['pass1/ground_profile'].attrs['column_names'] = ground_profile[0].array_columns
-            main_result['pass1/ground/profile'] = '@%s:pass1/ground_profile' % hdf_name
+            # write the ground profile      
+            if 'pass1/ground/profile' in main_result:
+                ground_profile = main_result['pass1/ground/profile']
+                data = [obj.to_array() for obj in ground_profile]
+                hdf_file.create_dataset('pass1/ground_profile', data=np.concatenate(data))
+                hdf_file['pass1/ground_profile'].attrs['column_names'] = ground_profile[0].array_columns
+                main_result['pass1/ground/profile'] = '@%s:pass1/ground_profile' % hdf_name
     
             # write out the object tracks
-            data = main_result['pass1/objects/tracks']
-            key_format = 'pass1/objects/%0{}d'.format(len(str(len(data))))
-            for index, object_track in enumerate(data):
-                object_track.save_to_hdf5(hdf_file, key_format % index)
-            if main_result['pass1/objects/tracks']:
-                main_result['pass1/objects/tracks'] = '@%s:pass1/objects' % hdf_name
+            if 'pass1/objects/tracks' in main_result:
+                data = main_result['pass1/objects/tracks']
+                key_format = 'pass1/objects/%0{}d'.format(len(str(len(data))))
+                for index, object_track in enumerate(data):
+                    object_track.save_to_hdf5(hdf_file, key_format % index)
+                if main_result['pass1/objects/tracks']:
+                    main_result['pass1/objects/tracks'] = '@%s:pass1/objects' % hdf_name
     
             # write out the burrow tracks
-            data = main_result['pass1/burrows/data']
-            key_format = 'pass1/burrows/%0{}d'.format(len(str(len(data))))
-            for index, burrow_track in enumerate(data):
-                burrow_track.save_to_hdf5(hdf_file, key_format % index)
-            if main_result['pass1/burrows/data']:
-                main_result['pass1/burrows/data'] = '@%s:pass1/burrows' % hdf_name
+            if 'pass1/burrows/data' in main_result:
+                data = main_result['pass1/burrows/data']
+                key_format = 'pass1/burrows/%0{}d'.format(len(str(len(data))))
+                for index, burrow_track in enumerate(data):
+                    burrow_track.save_to_hdf5(hdf_file, key_format % index)
+                if main_result['pass1/burrows/data']:
+                    main_result['pass1/burrows/data'] = '@%s:pass1/burrows' % hdf_name
+                
+            # write out mouse trajectory 
+            if 'pass2/mouse_trajectory' in main_result:
+                data = main_result['pass2/mouse_trajectory']
+                hdf_file.create_dataset('pass2/mouse_trajectory', data=data)
+                hdf_file['pass2/mouse_trajectory'].attrs['column_names'] = ('X Position', 'Y Position')
+                main_result['pass2/mouse_trajectory'] = '@%s:pass2/mouse_trajectory' % hdf_name
         
         # write the main result file to YAML
         filename = self.get_filename('results.yaml', 'results')
@@ -253,6 +264,8 @@ class DataHandler(object):
         
         # read the main result file and copy data into internal dictionary
         filename = self.get_filename('results.yaml', 'results')
+        self.logger.debug('Read data from %s', filename)
+        
         with open(filename, 'r') as infile:
             self.data.from_dict(yaml.load(infile))
         
@@ -359,7 +372,7 @@ class Data(collections.MutableMapping):
         """ makes a shallow copy of the data """
         res = Data()
         for key, value in self.iteritems():
-            if isinstance(value, dict):
+            if isinstance(value, (dict, Data)):
                 value = value.copy()
             res[key] = value
         return res

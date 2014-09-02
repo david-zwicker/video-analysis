@@ -53,7 +53,7 @@ def show_image(*images, **kwargs):
         
     # show the images and wait for user input
     plt.show()
-    if kwargs.pop('wait_for_key', True):
+    if kwargs.get('wait_for_key', True):
         raw_input('Press enter to continue...')
     
     
@@ -94,9 +94,49 @@ def show_shape(*shapes, **kwargs):
     ax.autoscale_view(tight=False, scalex=True, scaley=True)
             
     plt.show()
-    if kwargs.pop('wait_for_key', True):
+    if kwargs.get('wait_for_key', True):
         raw_input('Press enter to continue...')
            
+
+    
+def show_tracking_graph(graph, path, **kwargs):
+    """ displays a representation of the tracking graph """
+    import matplotlib.pyplot as plt
+    
+    # plot the known chunks
+    for node in graph.nodes():
+        plt.plot([node.start, node.end],
+                 [node.first.pos[0], node.last.pos[0]],
+                 'r', lw=(1 + 5*node.mouse_score))
+        
+    max_weight = max(data['weight'] for _, _, data in graph.edges_iter(data=True)) 
+    
+    if kwargs.get('plot_edges', False):
+        for (a, b, d) in graph.edges_iter(data=True):
+            plt.plot([a.end, b.start],
+                     [a.mouse_score, b.mouse_score],
+                     color=str(d['weight']/max_weight), lw=1)
+        
+    # plot the actual graph
+    last = None
+    for node in path:
+        plt.plot([node.start, node.end],
+                 [node.first.pos[0], node.last.pos[0]],
+                 'b', lw=2)
+        if last is not None:
+            plt.plot([last.end, node.start],
+                     [last.last.pos[0], node.first.pos[0]],
+                     'b', lw=2)
+        last = node
+
+    # show plot
+    plt.xlabel('Time in Frames')
+    plt.ylabel('Mouse Score')
+    plt.margins(0, 0.1)
+    plt.show()
+    if kwargs.get('wait_for_key', True):
+        raw_input('Press enter to continue...')
+
 
     
 def print_filter_chain(video):

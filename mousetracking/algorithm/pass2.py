@@ -9,11 +9,13 @@ Module that contains the class responsible for the second pass of the algorithm
 from __future__ import division
 
 import numpy as np
+import networkx as nx
 
 from .data_handler import DataHandler
 from video.analysis import curves
-from video.composer import VideoComposer
+from video.composer import VideoComposerListener
 from video.filters import FilterCrop
+from video.utils import display_progress
 
 import debug  # @UnusedImport
 
@@ -27,6 +29,7 @@ class SecondPass(DataHandler):
         self.params = self.data['parameters']
         self.log_event('Pass 2 - Started initializing the analysis.')
 
+        self.debug = {}                # dictionary holding debug information
         self.debug_output = [] if debug_output is None else debug_output
         
 
@@ -45,16 +48,16 @@ class SecondPass(DataHandler):
 
     def process_data(self):
         """ do the second pass of the analysis """
-        self.debug_setup()
         
         self.find_mouse_track()
         #self.smooth_ground_profile()
         #self.classify_mouse_track()
-        #self.produce_video()
         
-        self.debug_finalize()
+        self.data['analysis-status'] = 'Finished second pass'
         self.log_event('Pass 2 - Finished second pass.')
-    
+        
+        self.write_data()
+
     
     def load_video(self, video=None, crop_video=True):
         """ load the video, potentially using a previously analyzed video """
@@ -71,6 +74,84 @@ class SecondPass(DataHandler):
     # CONNECT TEMPORAL DATA -- TRACKING
     #===========================================================================
 
+    def get_track_graph(self, tracks, threshold):
+        """ builds a weighted, directed graph representing the possible trajectories """
+        graph = nx.DiGraph()
+        
+        # find all possible connections
+        time_scale = self.params['tracking/time_scale']
+        for a_idx, a in enumerate(tracks):
+            for b in tracks[a_idx + 1:]:
+                gap_length = b.start - a.end #< time gap between the two chunks
+                if gap_length > 0:
+                    # calculate the weight of this graph
+                    # lower is better; all terms should be normalized to one
+                    #track_length = len(a) + len(b)
+                    distance = curves.point_distance(a.last.pos, b.first.pos)
+                    
+                    weight = (
+                        2 - a.mouse_score - b.mouse_score     # is it a mouse?
+                        + distance/self.params['mouse/speed_max'] # how close are the mice
+                        #+ np.exp(-track_length/time_scale)   # is it a long track?
+                        + gap_length/time_scale               # is it a long gap?
+                    )
+                    if weight < threshold:
+                        graph.add_weighted_edges_from([(a, b, weight)])
+        return graph
+            
+                
+    def get_best_track(self, tracks):
+        """ finds the best connection of tracks """
+        threshold = self.params['tracking/initial_score_threshold']
+        
+        # try different thresholds until we found a result        
+        track_found = False
+        while not track_found:
+            self.logger.debug('Building tracking graph of %d nodes and with threshold %g',
+                              len(tracks), threshold) 
+            graph = self.get_track_graph(tracks, threshold)
+            self.logger.debug('Built tracking graph with %d nodes and %d edges',
+                              graph.number_of_nodes(), graph.number_of_edges()) 
+
+            if graph.number_of_nodes() > 0:
+    
+                # find start and end nodes
+                start_nodes = [node for node in graph
+                               if graph.in_degree(node) == 0]
+                end_nodes = [node for node in graph
+                             if graph.out_degree(node) == 0]
+                
+                # eliminate start nodes that are far from the beginning
+                start_time = min(node.start for node in start_nodes)
+                start_nodes = [node for node in start_nodes
+                               if node.start <= start_time + self.params['tracking/end_node_interval']]
+                # eliminate end nodes that are far from the end
+                end_time = max(node.end for node in end_nodes)
+                end_nodes = [node for node in end_nodes
+                             if node.end >= end_time - self.params['tracking/end_node_interval']]
+        
+                self.logger.debug('Found %d start node(s) and %d end node(s) in tracking graph.',
+                                  len(start_nodes), len(end_nodes)) 
+                
+                # find end points (without out-degree)
+                paths = []
+                for start_node in start_nodes:
+                    for end_node in end_nodes:
+                        try:
+                            # find best path to reach this out degree
+                            path = nx.shortest_path(graph, start_node, end_node, weight='weight')
+                            paths.append(path)
+                        except nx.exception.NetworkXNoPath:
+                            continue # check the next nodes
+                        else:
+                            track_found = True
+
+            threshold *= 2
+                
+#         debug.show_tracking_graph(graph, paths[0])
+                
+        return paths[0]
+            
         
     def find_mouse_track(self):
         """ identifies the mouse trajectory by connecting object tracks.
@@ -79,138 +160,90 @@ class SecondPass(DataHandler):
         suitable parts, and interpolates gaps.
         """
         self.log_event('Pass 2 - Started identifying mouse trajectory.')
-        # retrieve data
-        tracks = self.data['pass1/objects/tracks']
         
-        # find the longest track as a basis for finding the complete track
-        core = max(tracks, key=lambda track: len(track))
+        tracks = self.data['pass1/objects/tracks']
 
-        # find all tracks after this
-        time_point = core.times[-1]
-        tracks_after = [track
-                        for track in tracks
-                        if track.times[0] > time_point]
-        # sort them according to their start time
-        tracks_after = sorted(tracks_after, key=lambda track: track.times[0])
+#         # sort them according to their start time
+#         tracks_after = sorted(tracks_after, key=lambda track: track.times[0])
 
+        
+        tracks = [track for track in tracks if track.start < 10000]
+        
+        # get the best collection of tracks that best fit mouse
+        path = self.get_best_track(tracks)
+        
+        # build a single trajectory out of this
+        trajectory = np.empty((self.data['video/input/frame_count'], 2))
+        trajectory.fill(np.nan)
+        
+        time, obj = None, None        
+        for track in path:
+            # interpolate between the last track and the current one
+            if obj is not None:
+                time_now, obj_now = track.start, track.first
+                frames = np.arange(time + 1, time_now)
+                times = np.linspace(0, 1, len(frames) + 2)[1:-1]
+                x1, x2 = obj.pos[0], obj_now.pos[0]
+                trajectory[frames, 0] = x1 + (x2 - x1)*times
+                y1, y2 = obj.pos[1], obj_now.pos[1]
+                trajectory[frames, 1] = y1 + (y2 - y1)*times
+            
+            # add the data of this track directly
+            for time, obj in track:
+                trajectory[time, :] = obj.pos
+        
+        self.data['pass2/mouse_trajectory'] = trajectory
 
-        def score_connection(left, right, segment_length):
-            """ scoring function that defines how well the two tracks match """
-            obj_l, obj_r = left.objects[-1], right.objects[0] #< the respective objects
-            
-            # calculate the distance between new and old objects
-            dist_score = curves.point_distance(obj_l.pos, obj_r.pos)
-            # normalize distance to the maximum speed
-            dist_score /= self.params['mouse/speed_max']
-            # calculate the difference of areas between new and old objects
-            area_score = abs(obj_l.size - obj_r.size)/(obj_l.size + obj_r.size)
-
-            # build a combined score from this
-            alpha = self.params['objects/matching_weigth']
-            score = alpha*dist_score + (1 - alpha)*area_score
-            
-            # score length of the new segment
-            score *= np.log(1 + segment_length)
-            
-            # decrease score with gap length
-            score /= np.log(1 + right.times[0] - left.times[-1])
-            
-            return score
-            
-            
-        result = [core] #< list of final tracks
-        score = {} #< dictionary of scores for potential matches
-        k = 0
-        while k < len(tracks_after):
-            track = tracks_after[k]
-            score[k] = score_connection(result[-1], track, len(track))
-            if score[k] > 1:
-                print result[-1][-1], track[0]
-            #print k, score[k],track
-            k += 1
-            
-        return result
-                
+        return trajectory
+                        
 
     #===========================================================================
-    # DEBUGGING
+    # PRODUCE VIDEO
     #===========================================================================
 
 
-    def debug_setup(self):
+    def produce_video(self):
         """ prepares everything for the debug output """
-        self.debug['video.mark.text1'] = ''
-        self.debug['video.mark.text2'] = ''
-
         # load parameters for video output        
         video_extension = self.params['output/video/extension']
         video_codec = self.params['output/video/codec']
         video_bitrate = self.params['output/video/bitrate']
         
-        # set up the general video output, if requested
-        if 'video' in self.debug_output or 'video.show' in self.debug_output:
-            # initialize the writer for the debug video
-            debug_file = self.get_filename('video' + video_extension, 'debug')
-            self.debug['video'] = VideoComposer(debug_file, background_video=self.video,
-                                                        is_color=True, codec=video_codec,
-                                                        bitrate=video_bitrate)
+        if self.video is None:
+            self.load_video()
         
-
-    def debug_add_frame(self, frame):
-        """ adds information of the current frame to the debug output """
-        if 'video' in self.debug:
-            # TODO: create meaningful debug output for the second pass 
-            debug_video = self.debug['video']
-            
-            # plot the ground profile
-            debug_video.add_polygon(self.ground, is_closed=False, mark_points=True, color='y')
+        filename = self.get_filename('video' + video_extension, 'results')
+        video = VideoComposerListener(filename, background_video=self.video,
+                                      is_color=True, codec=video_codec, bitrate=video_bitrate)
         
-            # indicate the currently active burrow shapes
-            for burrow_track in self.result['burrows/data']:
-                if burrow_track.last_seen > self.frame_id - self.params['burrows/adaptation_interval']:
-                    burrow = burrow_track.last
-                    burrow_color = 'red' if burrow.refined else 'orange'
-                    debug_video.add_polygon(burrow.outline, burrow_color,
-                                            is_closed=True, mark_points=True)
-                    debug_video.add_polygon(burrow.get_centerline(self.ground),
-                                            burrow_color, is_closed=False,
-                                            width=2, mark_points=True)
+        mouse_track = self.data['pass2/mouse_trajectory']
+        
+        self.logger.info('Start producing final video with %d frames', len(self.video))
+        
+        for frame_id, frame in enumerate(display_progress(self.video)):
+            #video.set_frame(frame) #< set real video as background
+        
+#             # plot the ground profile
+#             debug_video.add_polygon(self.ground, is_closed=False, mark_points=True, color='y')
+#         
+#             # indicate the currently active burrow shapes
+#             for burrow_track in self.result['burrows/data']:
+#                 if burrow_track.last_seen > self.frame_id - self.params['burrows/adaptation_interval']:
+#                     burrow = burrow_track.last
+#                     burrow_color = 'red' if burrow.refined else 'orange'
+#                     debug_video.add_polygon(burrow.outline, burrow_color,
+#                                             is_closed=True, mark_points=True)
+#                     debug_video.add_polygon(burrow.get_centerline(self.ground),
+#                                             burrow_color, is_closed=False,
+#                                             width=2, mark_points=True)
         
             # indicate the mouse position
-            if len(self.tracks) > 0:
-                for obj in self.tracks:
-                    if self.result['mouse/moved_first_in_frame'] is None:
-                        obj_color = 'r'
-                    elif obj.is_moving():
-                        obj_color = 'w'
-                    else:
-                        obj_color = 'b'
-                    debug_video.add_polygon(obj.get_track(), '0.5', is_closed=False)
-                    debug_video.add_circle(obj.last_pos, self.params['mouse/model_radius'], obj_color, thickness=1)
-                
-            else: # there are no current tracks
-                for mouse_pos in self._mouse_pos_estimate:
-                    debug_video.add_circle(mouse_pos, self.params['mouse/model_radius'], 'k', thickness=1)
+            if np.all(np.isfinite(mouse_track[frame_id])):
+                video.add_circle(mouse_track[frame_id], self.params['mouse/model_radius'], 'w', thickness=1)
             
-            # add additional debug information
-            debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
-            debug_video.add_text(self.debug['video.mark.text1'], (300, 20), anchor='top')
-            debug_video.add_text(self.debug['video.mark.text2'], (300, 50), anchor='top')
-            if self.debug.get('video.mark.rect1'):
-                debug_video.add_rectangle(self.debug['rect1'])
-            if self.debug.get('video.mark.points'):
-                debug_video.add_points(self.debug['video.mark.points'], radius=4, color='y')
-            if self.debug.get('video.mark.highlight', False):
-                debug_video.add_rectangle((0, 0, self.video.size[0], self.video.size[1]), 'w', 10)
-                self.debug['video.mark.highlight'] = False
-
-
-    def debug_finalize(self):
-        """ close the video streams when done iterating """
-        if 'video' in self.debug:
-            try:
-                self.debug['video'].close()
-            except IOError:
-                self.logger.exception('Error while writing out the debug video') 
+#                 # add additional debug information
+#                 video.add_text(str(self.frame_id/self.fps), (20, 20), anchor='top')   
+                
+        video.close()
             
     

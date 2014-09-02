@@ -64,8 +64,10 @@ def prepare_data_for_yaml(data):
         return {k: prepare_data_for_yaml(v) for k, v in data.iteritems()}
     elif isinstance(data, (list, tuple)):
         return [prepare_data_for_yaml(v) for v in data]
-    else:
-        return data
+    elif data is not None and not isinstance(data, (bool, int, float, list, basestring)):
+        logging.warn('Encountered unknown instance of `%s` in YAML prepartion',
+                     data.__class__)
+    return data
    
     
 def homogenize_arraylist(data):

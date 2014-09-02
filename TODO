@@ -6,9 +6,16 @@
 	- debug doesn't use multiprocessing to keep error messages clean
 	- different logging behavior (log to file for release run!)
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
+	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
 * Connect objects tracks to find one global mouse track
 * Determine absolute times by checking when the lights go on
 * Track mouse by building list of possible connections between tracks and choose the best one
+	- build graph of possible connections (using networkx)
+	- if we encounter a loop, retain the edge with highest weight
+	- this algorithm should converge to one track
+* Burrow end detection:
+	- might want to use a line scan, if mouse it not close
+* Use different explored_area degradation constants inside and outside of burrows
 
 
 Performance improvements:
@@ -20,6 +27,7 @@ Performance improvements:
 * There are problems when ffmpeg can't encode the output videos fast enough:
 	 - Presumably, the ffmpeg pipe gets full and the whole process just stops
 * Calculate the Jacobian for the fitting explicitly (feasible for the sand profile)
+* Loading the data from HDF is very slow - think about better format for collecting the data
 
 
 Low priority enhancements:

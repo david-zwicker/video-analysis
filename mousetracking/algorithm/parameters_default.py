@@ -29,7 +29,7 @@ PARAMETERS_DEFAULT = {
     # folder to which the YAML and HDF5 result files are written
     'output/result_folder': './results/',
     # folder to which debug videos are written
-    'output/video/folder': './debug/',
+    'output/video/folder_debug': './debug/',
     # file extension used for debug videos
     'output/video/extension': '.mov',
     # ffmpeg video codec used for debug videos
@@ -61,13 +61,6 @@ PARAMETERS_DEFAULT = {
     # width of the ground profile ridge [in pixel]
     'ground/width': 5,
     
-    # relative weight of distance vs. size of objects for matching them [dimensionless]
-    'objects/matching_weigth': 0.5,
-    # number of consecutive frames used for motion detection [in frames]
-    'objects/matching_moving_window': 20,
-    # threshold speed above which an object is said to be moving [in pixels/frame]
-    'objects/matching_moving_threshold': 10,
-        
     # `mouse.intensity_threshold` determines how much brighter than the
     # background (usually the sky) has the mouse to be. This value is
     # measured in terms of standard deviations of the sky color
@@ -76,12 +69,27 @@ PARAMETERS_DEFAULT = {
     'mouse/model_radius': 25,
     # minimal area of a feature to be considered in tracking [in pixel^2]
     'mouse/area_min': 100,
+    # mean area of a mouse, which is used to score the mouse 
+    'mouse/area_mean': 700,
     # maximal speed of the mouse [in pixel per frame]
     # this is only used for the first-pass
     'mouse/speed_max': 30, 
     # maximal area change allowed between consecutive frames [dimensionless]
     'mouse/max_rel_area_change': 0.5,
 
+    # relative weight of distance vs. size of objects for matching them [dimensionless]
+    'tracking/weight': 0.5,
+    # number of consecutive frames used for motion detection [in frames]
+    'tracking/moving_window': 20,
+    # threshold speed above which an object is said to be moving [in pixels/frame]
+    'tracking/moving_threshold': 10,
+    # time duration of not seeing the mouse after which we don't know where it is anymore [in frames]
+    'tracking/time_scale': 100,
+    # initial threshold for building the tracking graph
+    'tracking/initial_score_threshold': 1,
+    # what time duration do we consider for start and end nodes [in frames]
+    'tracking/end_node_interval': 1000,
+        
     # how often are the burrow shapes adapted [in frames]
     'burrows/adaptation_interval': 100,
     # margin of a potential burrow to the cage boundary [in pixel]

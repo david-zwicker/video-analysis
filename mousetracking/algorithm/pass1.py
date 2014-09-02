@@ -461,8 +461,8 @@ class FirstPass(DataHandler):
 
         # check if there are previous tracks        
         if len(self.tracks) == 0:
-            moving_window = self.params['objects/matching_moving_window']
-            moving_threshold = self.params['objects/matching_moving_threshold']
+            moving_window = self.params['tracking/moving_window']
+            moving_threshold = self.params['tracking/moving_threshold']
             self.tracks = [ObjectTrack(self.frame_id, obj, moving_window, moving_threshold)
                            for obj in objects_found]
             
@@ -480,14 +480,14 @@ class FirstPass(DataHandler):
             """ helper function scoring area differences """
             return abs(area1 - area2)/(area1 + area2)
         
-        areas = np.array([[area_score(obj_f.size, obj_e.last_size)
+        areas = np.array([[area_score(obj_f.size, obj_e.last.size)
                            for obj_e in self.tracks]
                           for obj_f in objects_found])
         # normalize area change such that 1 corresponds to the maximal allowed one
         areas = areas/self.params['mouse/max_rel_area_change']
 
         # build a combined score from this
-        alpha = self.params['objects/matching_weigth']
+        alpha = self.params['tracking/weight']
         score = alpha*dist + (1 - alpha)*areas
 
         # match previous estimates to this one
@@ -526,7 +526,7 @@ class FirstPass(DataHandler):
         for i_f in idx_f:
             self.logger.debug('%d:New mouse track at %s', self.frame_id, objects_found[i_f].pos)
             # start new track
-            moving_window = self.params['objects/matching_moving_window']
+            moving_window = self.params['tracking/moving_window']
             track = ObjectTrack(self.frame_id, objects_found[i_f], moving_window=moving_window)
             self.tracks.append(track)
         
@@ -575,7 +575,7 @@ class FirstPass(DataHandler):
                                for k, obj in enumerate(self.tracks)
                                if obj_moving[k]]
 
-            self._mouse_pos_estimate = [obj.last_pos for obj in self.tracks]
+            self._mouse_pos_estimate = [obj.last.pos for obj in self.tracks]
         
             # keep track of the regions that the mouse explored
             self.update_explored_area_objects(self.tracks, labels, num_features)
@@ -1080,7 +1080,7 @@ class FirstPass(DataHandler):
                     else:
                         obj_color = 'b'
                     debug_video.add_polygon(obj.get_track(), '0.5', is_closed=False)
-                    debug_video.add_circle(obj.last_pos, self.params['mouse/model_radius'], obj_color, thickness=1)
+                    debug_video.add_circle(obj.last.pos, self.params['mouse/model_radius'], obj_color, thickness=1)
                 
             else: # there are no current tracks
                 for mouse_pos in self._mouse_pos_estimate:

@@ -13,6 +13,7 @@ import itertools
 
 import numpy as np
 
+from .burrow import cached_property 
 from video.analysis import curves
 
 from .. import debug  # @UnusedImport
@@ -28,6 +29,7 @@ class MovingObject(object):
         self.size = size
         self.label = label
         
+    
     def __repr__(self):
         if self.label:
             return 'MovingObject((%d, %d), %d, %s)' % (self.pos + (self.size, self.label))
@@ -39,7 +41,8 @@ class MovingObject(object):
 class ObjectTrack(object):
     """ represents a time course of objects """
     # TODO: hold everything inside lists, not list of objects
-    # TODO: speed up by keeping track of velocity vectors
+    
+    mouse_area_mean = 700
     
     array_columns = ['Time', 'Position X', 'Position Y', 'Object Area']
     
@@ -64,15 +67,26 @@ class ObjectTrack(object):
     
     
     @property
-    def last_pos(self):
-        """ return the last position of the object """
-        return self.objects[-1].pos
-    
-    
+    def start(self): return self.times[0]
     @property
-    def last_size(self):
-        """ return the last size of the object """
-        return self.objects[-1].size
+    def end(self): return self.times[-1]
+    @property
+    def first(self): return self.objects[0]
+    @property
+    def last(self): return self.objects[-1]
+    
+    def __iter__(self):
+        return itertools.izip(self.times, self.objects)
+
+    
+    @cached_property
+    def mouse_score(self):
+        """ return a score of how likely this trace represents a mouse
+        The returned value ranges from 0 to 1
+        """
+        mean_area = np.mean([obj.size for obj in self.objects])
+        area_score = np.exp(-2*(1 - mean_area/self.mouse_area_mean)**2)
+        return area_score
     
     
     def predict_pos(self):
