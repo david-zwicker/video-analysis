@@ -13,7 +13,7 @@ PARAMETERS_DEFAULT = {
     # filename pattern used to look for videos
     'video/filename_pattern': 'raw_video/*',
     # number of initial frames to skip during analysis
-    'video/ignore_initial_frames': 0,
+    'video/ignore_initial_frames': 100,
     # radius of the blur filter to remove noise [in pixel]
     'video/blur_radius': 3,
     # frames of the video which are analyzed [start and end index should be given]

@@ -58,6 +58,7 @@ class FirstPass(DataHandler):
         # setup internal structures that will be filled by analyzing the video
         self._cache = {}               # cache that some functions might want to use
         self.debug = {}                # dictionary holding debug information
+        self.background = None         # current background model
         self.ground = None             # current model of the ground profile
         self.tracks = []               # list of plausible mouse models in current frame
         self._mouse_pos_estimate = []  # list of estimated mouse positions
@@ -91,16 +92,9 @@ class FirstPass(DataHandler):
 
         # blur the video to reduce noise effects    
         self.video_blurred = FilterBlur(self.video, self.params['video/blur_radius'])
-        first_frame = self.video_blurred[0]
+        #first_frame = self.video_blurred[0]
         # initialize the background model
-        self.background = np.array(first_frame, dtype=float)
-
-        # estimate colors of sand and sky
-        self.find_color_estimates(first_frame)
-        
-        # estimate initial ground profile
-        self.logger.debug('Find the initial ground profile.')
-        self.find_initial_ground(first_frame)
+#         self.background = np.array(first_frame, dtype=float)
 
         self.data['analysis-status'] = 'Initialized first pass'            
         self.log_event('Pass 1 - Finished initializing the video analysis.')
@@ -120,10 +114,21 @@ class FirstPass(DataHandler):
             # iterate over the video and analyze it
             for self.frame_id, frame in enumerate(display_progress(self.video_blurred)):
                 
-                if self.frame_id % self.params['colors/adaptation_interval'] == 0:
+                if self.frame_id == self.params['video/ignore_initial_frames']:
+                    # prepare the main analysis
+                    # estimate colors of sand and sky
                     self.find_color_estimates(frame)
+                    
+                    # estimate initial ground profile
+                    self.logger.debug('Find the initial ground profile.')
+                    self.find_initial_ground(frame)
+            
+                elif self.frame_id > self.params['video/ignore_initial_frames']:
+                    # do the main analysis
+                    
+                    if self.frame_id % self.params['colors/adaptation_interval'] == 0:
+                        self.find_color_estimates(frame)
                 
-                if self.frame_id >= self.params['video/ignore_initial_frames']:
                     # find a binary image that indicates movement in the frame
                     mask_moving = self.find_moving_features(frame)
         
@@ -138,7 +143,7 @@ class FirstPass(DataHandler):
             
                     if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
                         self.find_burrows(mask_moving)
-            
+                        
                 # update the background model
                 self.update_background_model(frame)
                     
@@ -171,7 +176,7 @@ class FirstPass(DataHandler):
         # cleanup and write out of data
         self.debug_finalize()
         self.write_data()
-
+        
 
     def setup_processing(self):
         """ sets up the processing of the video by initializing caches etc """
@@ -226,7 +231,7 @@ class FirstPass(DataHandler):
         self.explored_area = np.zeros(video_shape, np.double)
         self._cache['background.mask'] = np.ones(video_shape, np.double)
         
-            
+                    
     #===========================================================================
     # FINDING THE CAGE
     #===========================================================================
@@ -360,6 +365,9 @@ class FirstPass(DataHandler):
                 
     def update_background_model(self, frame):
         """ updates the background model using the current frame """
+        
+        if self.background is None:
+            self.background = frame.astype(np.double)
         
         if self._mouse_pos_estimate:
             # load some values from the cache
@@ -607,7 +615,7 @@ class FirstPass(DataHandler):
         mask = cv2.copyMakeBorder(image_center, s, s, s, s, cv2.BORDER_REPLICATE)
         # make sure their is sky on the top
         mask[:s + h, :] = 0
-        # make sure their is and at the bottom
+        # make sure their is sand at the bottom
         mask[-s - h:, :] = 255
 
         # morphological opening to remove noise and clutter
@@ -1057,7 +1065,8 @@ class FirstPass(DataHandler):
             debug_video = self.debug['video']
             
             # plot the ground profile
-            debug_video.add_polygon(self.ground, is_closed=False, mark_points=True, color='y')
+            if self.ground is not None:
+                debug_video.add_polygon(self.ground, is_closed=False, mark_points=True, color='y')
         
             # indicate the currently active burrow shapes
             for burrow_track in self.result['burrows/data']:
@@ -1118,8 +1127,9 @@ class FirstPass(DataHandler):
             debug_video.set_frame(128*self.explored_area)
             
             # plot the ground profile
-            debug_video.add_polygon(self.ground, is_closed=False, color='y')
-            debug_video.add_points(self.ground, radius=2, color='y')
+            if self.ground is not None:
+                debug_video.add_polygon(self.ground, is_closed=False, color='y')
+                debug_video.add_points(self.ground, radius=2, color='y')
 
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
 
