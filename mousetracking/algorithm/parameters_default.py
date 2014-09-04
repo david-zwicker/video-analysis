@@ -11,9 +11,9 @@ parameters.
 
 PARAMETERS_DEFAULT = {
     # filename pattern used to look for videos
-    'video/filename_pattern': 'raw_video/*',
+    'video/filename_pattern': 'raw_video/*.MTS',
     # number of initial frames to skip during analysis
-    'video/ignore_initial_frames': 100,
+    'video/initial_adaptation_frames': 100,
     # radius of the blur filter to remove noise [in pixel]
     'video/blur_radius': 3,
     # frames of the video which are analyzed [start and end index should be given]
@@ -52,7 +52,8 @@ PARAMETERS_DEFAULT = {
     # the rate at which the background is adapted [in 1/frames]
     'background/adaptation_rate': 0.01,
     # the rate at which the explored area is adapted [in 1/frames]
-    'explored_area/adaptation_rate': 1e-5,
+    'explored_area/adaptation_rate_outside': 1e-3,
+    'explored_area/adaptation_rate_burrows': 1e-5,
     
     # spacing of the support points describing the ground profile [in pixel]
     'ground/point_spacing': 20,

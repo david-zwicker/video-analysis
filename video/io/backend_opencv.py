@@ -46,6 +46,7 @@ class VideoOpenCV(VideoBase):
     def __init__(self, filename):
         # load the _movie
         self.filename = filename
+        print 'file', filename
         
         self._movie = cv2.VideoCapture(filename)
         # this call doesn't fail if the file could not be found, but returns
@@ -76,7 +77,8 @@ class VideoOpenCV(VideoBase):
     def set_frame_pos(self, index):
         """ sets the 0-based index of the next frame """
         if index != self.get_frame_pos():
-            if not self._movie.set(cv.CV_CAP_PROP_POS_FRAMES, index):
+            if (not self._movie.set(cv.CV_CAP_PROP_POS_FRAMES, index) or 
+                    self.get_frame_pos() != index):
                 raise IndexError('Seeking to frame %d was not possible.' % index)
 
 

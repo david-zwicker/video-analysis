@@ -8,12 +8,14 @@ Module that contains the class responsible for the second pass of the algorithm
 
 from __future__ import division
 
+import itertools
+
 import numpy as np
 import networkx as nx
 
 from .data_handler import DataHandler
 from video.analysis import curves
-from video.composer import VideoComposerListener
+from video.composer import VideoComposer, VideoComposerListener
 from video.filters import FilterCrop
 from video.utils import display_progress
 
@@ -90,11 +92,10 @@ class SecondPass(DataHandler):
                     distance = curves.point_distance(a.last.pos, b.first.pos)
                     
                     weight = (
-                        2 - a.mouse_score - b.mouse_score     # is it a mouse?
+                        #2 - a.mouse_score - b.mouse_score     # is it a mouse?
                         + distance/self.params['mouse/speed_max'] # how close are the mice
                         #+ np.exp(-track_length/time_scale)   # is it a long track?
-                        + gap_length/time_scale               # is it a long gap?
-                    )
+                    )*gap_length/time_scale               # is it a long gap?
                     if weight < threshold:
                         graph.add_weighted_edges_from([(a, b, weight)])
         return graph
@@ -102,6 +103,20 @@ class SecondPass(DataHandler):
                 
     def get_best_track(self, tracks):
         """ finds the best connection of tracks """
+        if not tracks:
+            return []
+
+        # sort them according to their start time
+        tracks = sorted(tracks, key=lambda track: track.start)
+        
+        # get some statistics about the tracks
+        start_time = min(track.start for track in tracks)
+        end_time = max(track.end for track in tracks)
+        end_node_interval = self.params['tracking/end_node_interval']
+        endtoend_nodes = [track for track in tracks
+                          if track.start <= start_time + end_node_interval and
+                             track.end >= end_time - end_node_interval]
+        
         threshold = self.params['tracking/initial_score_threshold']
         
         # try different thresholds until we found a result        
@@ -110,6 +125,7 @@ class SecondPass(DataHandler):
             self.logger.debug('Building tracking graph of %d nodes and with threshold %g',
                               len(tracks), threshold) 
             graph = self.get_track_graph(tracks, threshold)
+            graph.add_nodes_from(endtoend_nodes) 
             self.logger.debug('Built tracking graph with %d nodes and %d edges',
                               graph.number_of_nodes(), graph.number_of_edges()) 
 
@@ -120,15 +136,12 @@ class SecondPass(DataHandler):
                                if graph.in_degree(node) == 0]
                 end_nodes = [node for node in graph
                              if graph.out_degree(node) == 0]
-                
-                # eliminate start nodes that are far from the beginning
-                start_time = min(node.start for node in start_nodes)
+
+                # eliminate start nodes that are far from the beginning and end nodes that are far from the end
                 start_nodes = [node for node in start_nodes
-                               if node.start <= start_time + self.params['tracking/end_node_interval']]
-                # eliminate end nodes that are far from the end
-                end_time = max(node.end for node in end_nodes)
+                               if node.start <= start_time + end_node_interval] 
                 end_nodes = [node for node in end_nodes
-                             if node.end >= end_time - self.params['tracking/end_node_interval']]
+                             if node.end >= end_time - end_node_interval]
         
                 self.logger.debug('Found %d start node(s) and %d end node(s) in tracking graph.',
                                   len(start_nodes), len(end_nodes)) 
@@ -147,10 +160,22 @@ class SecondPass(DataHandler):
                             track_found = True
 
             threshold *= 2
+        
+        self.logger.debug('Found %d good tracking paths', len(paths))
+        
+        # identify the best path
+        path_best, score_best = None, np.inf 
+        for path in paths:
+            weight = sum(graph.get_edge_data(a, b)['weight']
+                         for a, b in itertools.izip(path, path[1:]))
+            length = 1 + path[-1].end - path[0].start
+            score = (1 + weight)/length # lower is better
+            if score < score_best:
+                path_best, score_best = path, score
                 
-#         debug.show_tracking_graph(graph, paths[0])
+#         debug.show_tracking_graph(graph, path_best)
                 
-        return paths[0]
+        return path_best
             
         
     def find_mouse_track(self):
@@ -163,11 +188,7 @@ class SecondPass(DataHandler):
         
         tracks = self.data['pass1/objects/tracks']
 
-#         # sort them according to their start time
-#         tracks_after = sorted(tracks_after, key=lambda track: track.times[0])
-
-        
-        tracks = [track for track in tracks if track.start < 10000]
+        #tracks = [track for track in tracks if track.start < 10000]
         
         # get the best collection of tracks that best fit mouse
         path = self.get_best_track(tracks)
@@ -213,15 +234,17 @@ class SecondPass(DataHandler):
             self.load_video()
         
         filename = self.get_filename('video' + video_extension, 'results')
-        video = VideoComposerListener(filename, background_video=self.video,
-                                      is_color=True, codec=video_codec, bitrate=video_bitrate)
+        video = VideoComposer(filename, size=self.video.size, fps=self.video.fps,
+                              is_color=True, codec=video_codec, bitrate=video_bitrate)
+#         video = VideoComposerListener(filename, background_video=self.video,
+#                                       is_color=True, codec=video_codec, bitrate=video_bitrate)
         
         mouse_track = self.data['pass2/mouse_trajectory']
         
         self.logger.info('Start producing final video with %d frames', len(self.video))
         
         for frame_id, frame in enumerate(display_progress(self.video)):
-            #video.set_frame(frame) #< set real video as background
+            video.set_frame(frame) #< set real video as background
         
 #             # plot the ground profile
 #             debug_video.add_polygon(self.ground, is_closed=False, mark_points=True, color='y')
@@ -239,9 +262,11 @@ class SecondPass(DataHandler):
         
             # indicate the mouse position
             if np.all(np.isfinite(mouse_track[frame_id])):
-                video.add_circle(mouse_track[frame_id], self.params['mouse/model_radius'], 'w', thickness=1)
+                video.add_circle(mouse_track[frame_id],
+                                 self.params['mouse/model_radius'], 'w', thickness=1)
             
 #                 # add additional debug information
+            video.add_text(str(frame_id), (20, 20), anchor='top')   
 #                 video.add_text(str(self.frame_id/self.fps), (20, 20), anchor='top')   
                 
         video.close()

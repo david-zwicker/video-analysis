@@ -60,6 +60,7 @@ class FirstPass(DataHandler):
         self.debug = {}                # dictionary holding debug information
         self.background = None         # current background model
         self.ground = None             # current model of the ground profile
+        self.burrows_mask = None       # current mask for found burrows
         self.tracks = []               # list of plausible mouse models in current frame
         self._mouse_pos_estimate = []  # list of estimated mouse positions
         self.explored_area = None      # region the mouse has explored yet
@@ -90,69 +91,28 @@ class FirstPass(DataHandler):
                                                   'size': '%d x %d' % self.video.size,
                                                   'fps': self.video.fps})
 
-        # blur the video to reduce noise effects    
-        self.video_blurred = FilterBlur(self.video, self.params['video/blur_radius'])
-        #first_frame = self.video_blurred[0]
-        # initialize the background model
-#         self.background = np.array(first_frame, dtype=float)
-
         self.data['analysis-status'] = 'Initialized first pass'            
         self.log_event('Pass 1 - Finished initializing the video analysis.')
 
     
     def process_video(self):
         """ processes the entire video """
-
         self.log_event('Pass 1 - Setting up the cache and debug objects.')
         
         self.debug_setup()
         self.setup_processing()
 
+        # blur the video to reduce noise effects    
+        video_blurred = FilterBlur(self.video, self.params['video/blur_radius'])
+        
         self.log_event('Pass 1 - Started iterating through the video.')
         
         try:
-            # iterate over the video and analyze it
-            for self.frame_id, frame in enumerate(display_progress(self.video_blurred)):
-                
-                if self.frame_id == self.params['video/ignore_initial_frames']:
-                    # prepare the main analysis
-                    # estimate colors of sand and sky
-                    self.find_color_estimates(frame)
-                    
-                    # estimate initial ground profile
-                    self.logger.debug('Find the initial ground profile.')
-                    self.find_initial_ground(frame)
-            
-                elif self.frame_id > self.params['video/ignore_initial_frames']:
-                    # do the main analysis
-                    
-                    if self.frame_id % self.params['colors/adaptation_interval'] == 0:
-                        self.find_color_estimates(frame)
-                
-                    # find a binary image that indicates movement in the frame
-                    mask_moving = self.find_moving_features(frame)
-        
-                    # identify objects from this
-                    self.find_objects(frame, mask_moving)
-                    
-                    # use the background to find the current ground profile and burrows
-                    if self.frame_id % self.params['ground/adaptation_interval'] == 0:
-                        self.refine_ground(self.background)
-                        ground = GroundProfile(self.frame_id, self.ground)
-                        self.result['ground/profile'].append(ground)
-            
-                    if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
-                        self.find_burrows(mask_moving)
-                        
-                # update the background model
-                self.update_background_model(frame)
-                    
-                # store some information in the debug dictionary
-                self.debug_add_frame(frame)
+            self._iterate_over_video(video_blurred)
                 
         except (KeyboardInterrupt, SystemExit):
             # abort the video analysis
-            self.video_blurred.abort_iteration()
+            video_blurred.abort_iteration()
             self.logger.info('Tracking has been interrupted by user.')
             self.log_event('Pass 1 - Analysis run has been interrupted.')
             
@@ -164,7 +124,7 @@ class FirstPass(DataHandler):
             # add the currently active tracks to the result
             self.result['objects/tracks'].extend(self.tracks)
             # clean up
-            self.video_blurred.close()
+            video_blurred.close()
         
         frames_analyzed = self.frame_id + 1
         if frames_analyzed == self.video.frame_count:
@@ -223,14 +183,55 @@ class FirstPass(DataHandler):
         self._cache['get_potential_burrows_mask.kernel_small'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         w = self.params['burrows/width']//2
-        self._cache['update_explored_area_burrows.kernel'] = \
+        self._cache['update_burrows_mask.kernel'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w+1, 2*w+1))
         
         # setup more cache variables
         video_shape = (self.video.size[1], self.video.size[0]) 
         self.explored_area = np.zeros(video_shape, np.double)
         self._cache['background.mask'] = np.ones(video_shape, np.double)
+        self.burrows_mask = np.zeros(video_shape, np.uint8)
+  
+
+    def _iterate_over_video(self, video):
+        """ internal function doing the heavy lifting by iterating over the video """
+        # iterate over the video and analyze it
+        for self.frame_id, frame in enumerate(display_progress(video)):
+            if self.frame_id == self.params['video/initial_adaptation_frames']:
+                # prepare the main analysis
+                # estimate colors of sand and sky
+                self.find_color_estimates(frame)
+                
+                # estimate initial ground profile
+                self.logger.debug('Find the initial ground profile.')
+                self.find_initial_ground(frame)
         
+            elif self.frame_id > self.params['video/initial_adaptation_frames']:
+                # do the main analysis
+                if self.frame_id % self.params['colors/adaptation_interval'] == 0:
+                    self.find_color_estimates(frame)
+
+                # find a binary image that indicates movement in the frame
+                mask_moving = self.find_moving_features(frame)
+    
+                # identify objects from this
+                self.find_objects(frame, mask_moving)
+                
+                # use the background to find the current ground profile and burrows
+                if self.frame_id % self.params['ground/adaptation_interval'] == 0:
+                    self.refine_ground(self.background)
+                    ground = GroundProfile(self.frame_id, self.ground)
+                    self.result['ground/profile'].append(ground)
+        
+                if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
+                    self.find_burrows(mask_moving)
+                    
+            # update the background model
+            self.update_background_model(frame)
+                
+            # store some information in the debug dictionary
+            self.debug_add_frame(frame)
+                         
                     
     #===========================================================================
     # FINDING THE CAGE
@@ -543,14 +544,16 @@ class FirstPass(DataHandler):
     
     def update_explored_area_objects(self, tracks, labels, num_features):
         """ update the explored area using the found objects """
-        
-        # degrade old information
-        self.explored_area -= self.params['explored_area/adaptation_rate']
-        self.explored_area[self.explored_area < 0] = 0
-        
         # add new information
         for track in self.tracks:
             self.explored_area[labels == track.objects[-1].label] = 1
+
+        # degrade information about the mouse position depending on the burrow mask
+        self.explored_area[255 == self.burrows_mask] -= \
+            self.params['explored_area/adaptation_rate_burrows']
+        self.explored_area[  0 == self.burrows_mask] -= \
+            self.params['explored_area/adaptation_rate_outside']
+        self.explored_area[self.explored_area < 0] = 0
 
     
     def find_objects(self, frame, mask_moving):
@@ -571,7 +574,7 @@ class FirstPass(DataHandler):
         else:
             # some moving features have been found in the video 
             self._handle_object_tracks(frame, labels, num_features)
-            
+
             # check whether objects moved and call them a mouse
             obj_moving = [obj.is_moving() for obj in self.tracks]
             if any(obj_moving):
@@ -763,8 +766,7 @@ class FirstPass(DataHandler):
         mask_ground = self.get_ground_mask()
 
         # get potential burrows by looking at explored area
-        threshold = self.params['explored_area/adaptation_rate']
-        explored_area = 255*(self.explored_area >= threshold).astype(np.uint8)
+        explored_area = 255*(self.explored_area > 0).astype(np.uint8)
         
         # remove accidental burrows at borders
         margin = self.params['burrows/cage_margin']
@@ -792,8 +794,6 @@ class FirstPass(DataHandler):
         # open the mask slightly to remove sharp edges
         cv2.morphologyEx(mask_burrows, cv2.MORPH_OPEN,
                          kernel_small, dst=mask_burrows)
-        
-#         debug.show_image(explored_area, mask_ground, mask_burrows)
         
         return mask_burrows
     
@@ -895,6 +895,9 @@ class FirstPass(DataHandler):
                 centerline_new.append(p)
 
         # find the point at the burrow front
+        # FIXME: do fitting if the mouse has been here recently
+        # use background_adaptation rate and explored_area rate to define recently
+        # otherwise use the explored area function
         p1, p2 = centerline[-1], centerline[-2]
         angle = np.arctan2(p1[1] - p2[1], p1[0] - p2[0])
         point_max, _, _ = regions.get_farthest_intersection(
@@ -920,74 +923,23 @@ class FirstPass(DataHandler):
         return Burrow(outline_new, centerline=centerline_new, refined=True)
     
     
-    def update_explored_area_burrows(self):
-        """ update the explored area using the found objects """
-        
-        # find proper, currently active burrows
-        time_last = self.frame_id - self.params['burrows/adaptation_interval']
-        burrows = [burrow_track.last
-                   for burrow_track in self.result['burrows/data']
-                   if (burrow_track.last_seen > time_last and
-                       burrow_track.last.refined)] 
-
-        if not burrows:
-            return
-        
-        # build the ground mask
-        mask_ground = self.get_ground_mask()
-        mask_burrows = np.zeros_like(mask_ground)
-        
-        # add the burrow polygons to burrow mask
-        for burrow in burrows:
-            cv2.fillPoly(mask_burrows, np.array([burrow.outline], np.int32), color=255)
-            
-            
-        # remove the two burrow ends from the outside mask
-        # the centerline should exists, since we only consider refined burrows
-        mask_reinforce = mask_burrows.copy()
-        for burrow in burrows:
-            for point in (burrow.centerline[0], burrow.centerline[-1]): 
-                cv2.circle(mask_reinforce,
-                           (int(point[0]), int(point[1])),
-                           radius=self.params['burrows/centerline_segment_length'],
-                           color=0, thickness=-1)
-
-        # reinforce the information inside burrows
-        self.explored_area[255 == mask_reinforce] = 1
-
-        # get region around burrows
-        kernel = self._cache['update_explored_area_burrows.kernel']
-        mask_outline = cv2.dilate(mask_burrows, kernel)
-        cv2.subtract(mask_outline, mask_burrows, dst=mask_outline)
-        cv2.subtract(mask_outline, 255 - mask_ground, dst=mask_outline)
-        
-        # remove the two burrow ends from the outside mask
-        for burrow in burrows:
-            for point in (burrow.centerline[0], burrow.centerline[-1]): 
-                cv2.circle(mask_outline,
-                           (int(point[0]), int(point[1])),
-                           radius=self.params['burrows/centerline_segment_length'],
-                           color=0, thickness=-1)
-       
-        # weaken the information outside of burrows
-        self.explored_area[255 == mask_outline] = 0
-        
-#         debug.show_image(mask_burrows, mask_ground, mask_reinforce, mask_outline)
-        
-    
     def find_burrows(self, mask_moving):
         """ locates burrows by combining the information of the ground_mask profile
         and the explored area """
-        
-        burrows_mask = self.get_potential_burrows_mask()
-        labels, num_features = ndimage.measurements.label(burrows_mask)
+
+        # reset the current burrow model
+        self.burrows_mask.fill(0)
+
+        # estimate the new burrow mask        
+        potential_burrows = self.get_potential_burrows_mask()
+        labels, num_features = ndimage.measurements.label(potential_burrows)
             
         # iterate through all features that have been found
         for label in xrange(1, num_features + 1):
-            # check other features of the region
-            props = image.regionprops(labels == label)
-            if props.area < self.params['burrows/area_min']:
-                continue # disregard small features
+            # disregard features with a small area
+            area = np.sum(labels == label)
+            if area < self.params['burrows/area_min']:
+                continue
              
             # get the burrow object from the contour of region
             burrow = self.get_burrow_from_mask(labels == label)
@@ -1003,6 +955,9 @@ class FirstPass(DataHandler):
             
             # add the burrow to our result list if it is valid
             if burrow.is_valid:
+                # add the burrow to the current mask
+                cv2.fillPoly(self.burrows_mask, np.array([burrow.outline], np.int32), color=255)
+                
                 # see whether this burrow is already known
                 for burrow_track in self.result['burrows/data']:
                     if burrow_track.last.intersects(burrow.polygon):
@@ -1015,8 +970,6 @@ class FirstPass(DataHandler):
                     self.result['burrows/data'].append(burrow_track)
                     self.logger.debug('%d: Found new burrow at %s',
                                       self.frame_id, burrow.polygon.centroid)
-                    
-        self.update_explored_area_burrows()
             
 
     #===========================================================================

@@ -16,6 +16,7 @@ from .algorithm.pass1 import FirstPass
 from .algorithm.pass2 import SecondPass
 
 
+
 def scan_video(name, video=None, parameters=None, **kwargs):
     """ scans a single video """
     # initialize parameters dictionary
@@ -52,7 +53,7 @@ def scan_video_in_folder(folder, name, parameters=None, **kwargs):
     pattern = parameters.get('video/filename_pattern', PARAMETERS_DEFAULT['video/filename_pattern'])
     parameters['video/filename_pattern'] = os.path.join(folder, pattern)
     parameters['output/result_folder'] = os.path.join(folder, 'results') 
-    parameters['output/video/folder'] = os.path.join(folder, 'debug') 
+    parameters['output/video/folder_debug'] = os.path.join(folder, 'debug') 
     
     return scan_video(name, parameters=parameters, **kwargs)
 

@@ -107,31 +107,34 @@ def show_tracking_graph(graph, path, **kwargs):
     for node in graph.nodes():
         plt.plot([node.start, node.end],
                  [node.first.pos[0], node.last.pos[0]],
-                 'r', lw=(1 + 5*node.mouse_score))
+                 'r', lw=(1 + 10*node.mouse_score))
         
-    max_weight = max(data['weight'] for _, _, data in graph.edges_iter(data=True)) 
+    try:
+        max_weight = max(data['weight'] for _, _, data in graph.edges_iter(data=True))
+    except ValueError:
+        max_weight = 1
     
     if kwargs.get('plot_edges', False):
         for (a, b, d) in graph.edges_iter(data=True):
             plt.plot([a.end, b.start],
-                     [a.mouse_score, b.mouse_score],
+                     [a.last.pos[0], b.first.pos[0]],
                      color=str(d['weight']/max_weight), lw=1)
         
     # plot the actual graph
-    last = None
+    node_prev = None
     for node in path:
         plt.plot([node.start, node.end],
                  [node.first.pos[0], node.last.pos[0]],
                  'b', lw=2)
-        if last is not None:
-            plt.plot([last.end, node.start],
-                     [last.last.pos[0], node.first.pos[0]],
+        if node_prev is not None:
+            plt.plot([node_prev.end, node.start],
+                     [node_prev.last.pos[0], node.first.pos[0]],
                      'b', lw=2)
-        last = node
+        node_prev = node
 
     # show plot
     plt.xlabel('Time in Frames')
-    plt.ylabel('Mouse Score')
+    plt.ylabel('X Position')
     plt.margins(0, 0.1)
     plt.show()
     if kwargs.get('wait_for_key', True):
@@ -152,4 +155,18 @@ def print_filter_chain(video):
         print_filter_chain(video._source)
     except AttributeError:
         pass
+    
+    
+    
+def save_frame_from_video(video, outfile):
+    """ save the next video frame to outfile """
+    # get frame
+    pos = video.get_frame_pos()
+    frame = video.next()
+    video.set_frame_pos(pos)
+    
+    # turn it into image
+    from PIL import Image  # @UnresolvedImport
+    im = Image.fromarray(frame)
+    im.save(outfile)
     

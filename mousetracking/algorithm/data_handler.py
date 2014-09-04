@@ -170,9 +170,10 @@ class DataHandler(object):
             if 'pass1/ground/profile' in main_result:
                 ground_profile = main_result['pass1/ground/profile']
                 data = [obj.to_array() for obj in ground_profile]
-                hdf_file.create_dataset('pass1/ground_profile', data=np.concatenate(data))
-                hdf_file['pass1/ground_profile'].attrs['column_names'] = ground_profile[0].array_columns
-                main_result['pass1/ground/profile'] = '@%s:pass1/ground_profile' % hdf_name
+                if data:
+                    hdf_file.create_dataset('pass1/ground_profile', data=np.concatenate(data))
+                    hdf_file['pass1/ground_profile'].attrs['column_names'] = ground_profile[0].array_columns
+                    main_result['pass1/ground/profile'] = '@%s:pass1/ground_profile' % hdf_name
     
             # write out the object tracks
             if 'pass1/objects/tracks' in main_result:
@@ -213,7 +214,9 @@ class DataHandler(object):
         # check if the entry is not empty:
         if self.data[key]:
             # read the link
-            assert self.data[key][0] == '@'
+            if self.data[key][0] != '@':
+                self.logger.warn('Item `%s` does not start with `@`' % key)
+                return 
             data_str = self.data[key][1:] # strip the first character, which should be an @
             hdf_filename, dataset = data_str.split(':')
             
@@ -232,7 +235,9 @@ class DataHandler(object):
         # check if the entry is not empty:
         if self.data[key]:
             # read the link
-            assert self.data[key][0] == '@'
+            if self.data[key][0] != '@':
+                self.logger.warn('Item `%s` does not start with `@`' % key)
+                return 
             data_str = self.data[key][1:] # strip the first character, which should be an @
             hdf_filename, dataset = data_str.split(':')
             

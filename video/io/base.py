@@ -131,7 +131,7 @@ class VideoBase(object):
         """ returns the frame with a filter applied """
         # notify potential observers
         # This has to be done here and cannot be implemented as a filter, since
-        # a filter would have to be called directly. 
+        # a filter would have to be iterated over directly. 
         for observer in self._listeners:
             observer(frame)
         return frame
@@ -294,9 +294,9 @@ class VideoFilterBase(VideoBase):
 
     
     def _start_iterating(self):
-        """ internal function called when we starting iterating """
+        """ internal function called when we start iterating """
         self._source_iter = iter(self._source)
-        super(VideoFilterBase, self)._start_iterating()
+        self._is_iterating = True
 
 
     def _end_iterating(self):
@@ -382,6 +382,7 @@ class VideoSlice(VideoFilterBase):
     def set_frame_pos(self, index):
         if not 0 <= index < self.frame_count:
             raise IndexError('Cannot access frame %d.' % index)
+        print 'seek in slice', index, self._start + index*self._step
         self._source.set_frame_pos(self._start + index*self._step)
         self._frame_pos = index
         
@@ -410,7 +411,14 @@ class VideoSlice(VideoFilterBase):
         # advance to the next frame
         self._frame_pos += 1
         return frame
+
     
+    def _start_iterating(self):
+        """ internal function called when we start iterating """
+        super(VideoSlice, self)._start_iterating()
+        # rewind movie by setting it to the start index
+        self._source_iter.set_frame_pos(self._start)
+
     
     
 class _VideoForkClient(VideoBase):
