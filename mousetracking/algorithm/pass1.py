@@ -242,7 +242,6 @@ class FirstPass(DataHandler):
         """ analyzes a single image and locates the mouse cage in it.
         Try to find a bounding box for the cage.
         The rectangle [top, left, height, width] enclosing the cage is returned. """
-        
         # do automatic thresholding to find large, bright areas
         _, binarized = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
@@ -951,7 +950,11 @@ class FirstPass(DataHandler):
                 if 'video' in self.debug:
                     self.debug['video'].add_polygon(burrow.outline, 'w', is_closed=True, width=2)
                 # refine the burrow
-                burrow = self.refine_burrow(burrow)
+                try:
+                    burrow = self.refine_burrow(burrow)
+                except IndexError:
+                    # use the non-refined burrow in case of errors
+                    pass
             
             # add the burrow to our result list if it is valid
             if burrow.is_valid:
