@@ -143,7 +143,7 @@ class VideoWriterFFMPEG(object):
     def write_frame(self, img_array):
         """ Writes a single frame in the file """
         
-        img_array = img_array.astype("uint8")   
+        img_array = img_array.astype(np.uint8, copy=False)   
         
         if self.is_color and img_array.ndim == 2:            
             img_array = img_array[:, :, None]*np.ones((1, 1, 3), np.uint8)

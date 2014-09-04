@@ -633,7 +633,11 @@ class FirstPass(DataHandler):
         
         # get the contour from the mask and store points as (x, y)
         points = [(x + w, np.nonzero(col)[0][0] + h)
-                  for x, col in enumerate(mask.T)]            
+                  for x, col in enumerate(mask.T)]          
+        
+        # TODO: extend the ground line to the edge of the cage
+        # Get an estimate of the cage edge by doing a horizontal line scan and
+        # determine the maximum slope  
 
         # simplify the curve        
         points = curves.simplify_curve(points, epsilon=2)

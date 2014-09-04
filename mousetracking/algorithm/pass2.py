@@ -245,7 +245,8 @@ class SecondPass(DataHandler):
         source_video = self.video[1:]
         
         for frame_id, frame in enumerate(display_progress(source_video)):
-            video.set_frame(frame) #< set real video as background
+            # set real video as background
+            video.set_frame(frame) 
         
 #             # plot the ground profile
 #             debug_video.add_polygon(self.ground, is_closed=False, mark_points=True, color='y')
@@ -260,6 +261,8 @@ class SecondPass(DataHandler):
 #                     debug_video.add_polygon(burrow.get_centerline(self.ground),
 #                                             burrow_color, is_closed=False,
 #                                             width=2, mark_points=True)
+        
+            # TODO: Indicate burrow centerline
         
             # indicate the mouse position
             if np.all(np.isfinite(mouse_track[frame_id])):
