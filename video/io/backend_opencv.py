@@ -16,7 +16,7 @@ import logging
 import cv2
 import cv2.cv as cv # still necessary for some constants
 
-from .base import VideoBase, VideoImageStackBase
+from .base import VideoBase, VideoImageStackBase, NotSeekableError
 
 
 # dictionary that maps standard file endings to fourcc codes
@@ -76,7 +76,11 @@ class VideoOpenCV(VideoBase):
 
     def set_frame_pos(self, index):
         """ sets the 0-based index of the next frame """
-        if index != self.get_frame_pos():
+        frame_pos = self.get_frame_pos()
+        if index < frame_pos and not self.seekable:
+            raise NotSeekableError('Cannot seek to frame %d, because the video '
+                                   'is already at frame %d' % (index, frame_pos))
+        elif index > frame_pos:
             if (not self._movie.set(cv.CV_CAP_PROP_POS_FRAMES, index) or 
                     self.get_frame_pos() != index):
                 raise IndexError('Seeking to frame %d was not possible.' % index)
@@ -100,7 +104,7 @@ class VideoOpenCV(VideoBase):
         returns a specific frame identified by its index.
         Note that this sets the internal frame index of the video and this function
         should thus not be used while iterating over the video.
-        """ 
+        """
         self.set_frame_pos(index)
         
         # get the next frame, which also increments the internal frame index

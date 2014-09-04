@@ -6,7 +6,7 @@ Created on Aug 22, 2014
 Establishes a video pipe, which can be used to transfer video frames between 
 different processes.
 The module provides the class VideoPipe, which controls the pipe and supplies
-a VideoReceiver instance as video_pipe.receiver, which acts as a video for the
+a VideoPipeReceiver instance as video_pipe.receiver, which acts as a video for the
 child process.
 The synchronization and communication between these classes is handled using
 normal pipes, while frames are transported using the sharedmem package.
@@ -30,14 +30,14 @@ class VideoPipeError(RuntimeError):
 
 
 
-class VideoReceiver(VideoBase):
+class VideoPipeReceiver(VideoBase):
     """ class that receives frames from a VideoPipe.
     This class usually needs not be instantiated directly, but is returned by
     video_pipe.receiver
     """
     
     def __init__(self, pipe, frame_buffer, video_format, name=''):
-        super(VideoReceiver, self).__init__(**video_format)
+        super(VideoPipeReceiver, self).__init__(**video_format)
         self.pipe = pipe
         self.frame_buffer = frame_buffer
         self.name = name
@@ -53,25 +53,14 @@ class VideoReceiver(VideoBase):
             if wait_for_reply and self.pipe.recv() != command + '_OK':
                 raise VideoPipeError('Command `%s` failed' % command)
         
-        
-    def _start_iterating(self):
-        logging.debug('Receiver%s starts iteration.', self.name_repr)
-        self.send_command('start_iterating')
-        super(VideoReceiver, self)._start_iterating()
-        
-                
-    def _end_iterating(self):
-        logging.debug('Receiver%s ends iteration.', self.name_repr)
-        super(VideoReceiver, self)._end_iterating()
-                    
                     
     def abort_iteration(self):
         logging.debug('Receiver%s aborts iteration.', self.name_repr)
         self.send_command('abort_iteration', wait_for_reply=False)
-        super(VideoReceiver, self).abort_iteration()
+        super(VideoPipeReceiver, self).abort_iteration()
                     
         
-    def next(self):
+    def get_next_frame(self):
         """ request the next frame from the sender """
         # send the request and wait for a reply
         if self.pipe.closed:
@@ -161,7 +150,7 @@ class VideoPipe(VideoFilterBase):
         self.running = True
         self._waiting_for_frame = False
         
-        self.receiver = VideoReceiver(pipe_receiver, self.frame_buffer,
+        self.receiver = VideoPipeReceiver(pipe_receiver, self.frame_buffer,
                                       self.video_format, self.name)
 
 
@@ -170,8 +159,8 @@ class VideoPipe(VideoFilterBase):
         buffer """
         try:
             # get the next frame
-            if index is None:
-                self.frame_buffer[:] = next(self)
+            if index is None or index == self.get_frame_pos():
+                self.frame_buffer[:] = self.get_next_frame()
             else:
                 self.frame_buffer[:] = self.get_frame(index)
             
@@ -198,15 +187,10 @@ class VideoPipe(VideoFilterBase):
 
 
     def handle_command(self, command):
-        """ handles commands received from the VideoReceiver """ 
+        """ handles commands received from the VideoPipeReceiver """ 
         if command == 'next_frame':
             # receiver requests the next frame
             self.try_getting_frame()
-            
-        elif command == 'start_iterating':
-            # receiver initializes the iterating
-            self._start_iterating()
-            self.pipe.send('start_iterating_OK')
             
         elif command == 'abort_iteration':
             # receiver reached the end of the iteration
@@ -220,7 +204,6 @@ class VideoPipe(VideoFilterBase):
             
         elif command == 'finished':
             # the receiver wants to terminate the video pipe
-            self._end_iterating()
             if not self.pipe.closed:
                 self.pipe.send('finished_OK')
             self.pipe.close()

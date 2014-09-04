@@ -243,7 +243,10 @@ class SecondPass(DataHandler):
         
         self.logger.info('Start producing final video with %d frames', len(self.video))
         
-        for frame_id, frame in enumerate(display_progress(self.video)):
+        # we used the first frame to determine the cage dimensions in the first pass
+        source_video = self.video[1:]
+        
+        for frame_id, frame in enumerate(display_progress(source_video)):
             video.set_frame(frame) #< set real video as background
         
 #             # plot the ground profile

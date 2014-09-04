@@ -158,27 +158,8 @@ class VideoFileStack(VideoBase):
         for m in self._movies[self._movie_pos + 1:]:
             m.set_frame_pos(0)
 
-
-    def _start_iterating(self):
-        """ initializes the iterator """
-        # reset internal movie index
-        self._movie_pos = 0
-        
-        # rewind all movies
-        for movie in self._movies:
-            movie._start_iterating()
-        
-        super(VideoFileStack, self)._start_iterating()
-
-
-    def _end_iterating(self):
-        super(VideoFileStack, self)._end_iterating()
-
-        for movie in self._movies:
-            movie._end_iterating()
-           
             
-    def next(self):
+    def get_next_frame(self):
         """ returns the next frame in the video stack """
         
         # iterate until all _movies are exhausted
@@ -194,7 +175,6 @@ class VideoFileStack(VideoBase):
                 
             except IndexError:
                 # if the next movie does not exist, stop the iteration
-                self._end_iterating()
                 raise StopIteration
         
         # step to the next frame

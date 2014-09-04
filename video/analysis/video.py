@@ -6,7 +6,7 @@ Created on Aug 4, 2014
 
 import numpy as np
 
-from video.utils import display_progress
+from ..utils import display_progress
 
 
 def reduce_video(video, function, initial_value=None):

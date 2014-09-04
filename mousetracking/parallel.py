@@ -47,7 +47,8 @@ def scan_video_quadrants(video, parameters=None, **kwargs):
         # save the cropping rectangle for further analysis later
         parameters['video/cropping_rect'] = crop
         # crop the video to the right region
-        video_crop = FilterCrop(video_fork, region=crop, color_channel=1)
+        video_crop = FilterCrop(video_fork.get_client(), region=crop,
+                                color_channel=1)
         # construct the video sender 
         video_pipe = VideoPipe(video_crop, name=name)
         # launch a new process, where the receiver is going to live 

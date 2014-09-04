@@ -30,7 +30,7 @@ from video.io import ImageShow
 from video.filters import FilterBlur, FilterCrop
 from video.analysis import regions, curves, image
 from video.utils import display_progress
-from video.composer import VideoComposerListener, VideoComposer
+from video.composer import VideoComposer
 
 
 from .data_handler import DataHandler
@@ -75,7 +75,6 @@ class FirstPass(DataHandler):
         parameters dictionary) should be performed. The cropping to the mouse
         cage is performed no matter what. 
         """
-        self.log_event('Pass 1 - Started initializing the video analysis.')
         
         # load the video if it is not already loaded 
         super(FirstPass, self).load_video(video, crop_video=crop_video)
@@ -84,35 +83,33 @@ class FirstPass(DataHandler):
                                                'size': '%d x %d' % self.video.size,
                                                'fps': self.video.fps})
         
-        # restrict the video to the region of interest (the cage)
-        self.video, cropping_rect = self.crop_video_to_cage()
-        self.data.create_child('video/analyzed', {'frame_count': self.video.frame_count,
-                                                  'region_cage': cropping_rect,
-                                                  'size': '%d x %d' % self.video.size,
-                                                  'fps': self.video.fps})
-
-        self.data['analysis-status'] = 'Initialized first pass'            
-        self.log_event('Pass 1 - Finished initializing the video analysis.')
+        self.data['analysis-status'] = 'Loaded video'            
 
     
     def process_video(self):
         """ processes the entire video """
-        self.log_event('Pass 1 - Setting up the cache and debug objects.')
+        self.log_event('Pass 1 - Started initializing the video analysis.')
+        
+        # restrict the video to the region of interest (the cage)
+        self.video, cropping_rect = self.crop_video_to_cage(self.video)
+        self.data.create_child('video/analyzed', {'frame_count': self.video.frame_count,
+                                                  'region_cage': cropping_rect,
+                                                  'size': '%d x %d' % self.video.size,
+                                                  'fps': self.video.fps})
         
         self.debug_setup()
         self.setup_processing()
 
-        # blur the video to reduce noise effects    
-        video_blurred = FilterBlur(self.video, self.params['video/blur_radius'])
-        
         self.log_event('Pass 1 - Started iterating through the video.')
+        self.data['analysis-status'] = 'Initialized video analysis'            
         
         try:
-            self._iterate_over_video(video_blurred)
+            # skip the first frame, since it has already been analyzed
+            self._iterate_over_video(self.video[1:])
                 
         except (KeyboardInterrupt, SystemExit):
             # abort the video analysis
-            video_blurred.abort_iteration()
+            self.video.abort_iteration()
             self.logger.info('Tracking has been interrupted by user.')
             self.log_event('Pass 1 - Analysis run has been interrupted.')
             
@@ -124,7 +121,7 @@ class FirstPass(DataHandler):
             # add the currently active tracks to the result
             self.result['objects/tracks'].extend(self.tracks)
             # clean up
-            video_blurred.close()
+            self.video.close()
         
         frames_analyzed = self.frame_id + 1
         if frames_analyzed == self.video.frame_count:
@@ -195,8 +192,19 @@ class FirstPass(DataHandler):
 
     def _iterate_over_video(self, video):
         """ internal function doing the heavy lifting by iterating over the video """
+        print 'test'
+        print self.video, self.video.get_frame_pos()
+        print video, video.get_frame_pos()
         # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video)):
+            
+            if 'video' in self.debug:
+                self.debug['video'].set_frame(frame)
+            
+            # blur frame in place 
+            frame = cv2.GaussianBlur(frame, ksize=(0, 0),
+                             sigmaX=self.params['video/blur_radius'])
+            
             if self.frame_id == self.params['video/initial_adaptation_frames']:
                 # prepare the main analysis
                 # estimate colors of sand and sky
@@ -242,7 +250,6 @@ class FirstPass(DataHandler):
         """ analyzes a single image and locates the mouse cage in it.
         Try to find a bounding box for the cage.
         The rectangle [top, left, height, width] enclosing the cage is returned. """
-        
         # do automatic thresholding to find large, bright areas
         _, binarized = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
@@ -287,12 +294,12 @@ class FirstPass(DataHandler):
         return regions.corners_to_rect(p1, p2)
 
   
-    def crop_video_to_cage(self):
+    def crop_video_to_cage(self, video):
         """ crops the video to a suitable cropping rectangle given by the cage """
-        
-        # find the cage in the first frame of the movie
-        blurred_image = FilterBlur(self.video, self.params['video/blur_radius'])[0]
-        rect_cage = self.find_cage(blurred_image)
+        # find the cage in the blurred image
+        blurred_frame = cv2.GaussianBlur(video[0], ksize=(0, 0),
+                                         sigmaX=self.params['video/blur_radius'])
+        rect_cage = self.find_cage(blurred_frame)
         
         # determine the rectangle of the cage in global coordinates
         width = rect_cage[2] - rect_cage[2] % 2   # make sure its divisible by 2
@@ -308,7 +315,7 @@ class FirstPass(DataHandler):
         self.logger.debug('The cage was determined to lie in the rectangle %s', rect_cage)
 
         # crop the video to the cage region
-        return FilterCrop(self.video, rect_cage), rect_cage
+        return FilterCrop(video, rect_cage), rect_cage
             
             
     #===========================================================================
@@ -951,7 +958,11 @@ class FirstPass(DataHandler):
                 if 'video' in self.debug:
                     self.debug['video'].add_polygon(burrow.outline, 'w', is_closed=True, width=2)
                 # refine the burrow
-                burrow = self.refine_burrow(burrow)
+                try:
+                    burrow = self.refine_burrow(burrow)
+                except IndexError:
+                    # use the non-refined burrow in case of errors
+                    pass
             
             # add the burrow to our result list if it is valid
             if burrow.is_valid:
@@ -992,9 +1003,10 @@ class FirstPass(DataHandler):
         if 'video' in self.debug_output or 'video.show' in self.debug_output:
             # initialize the writer for the debug video
             debug_file = self.get_filename('video' + video_extension, 'debug')
-            self.debug['video'] = VideoComposerListener(debug_file, background_video=self.video,
-                                                        is_color=True, codec=video_codec,
-                                                        bitrate=video_bitrate)
+            self.debug['video'] = VideoComposer(debug_file, size=self.video.size,
+                                                fps=self.video.fps, is_color=True,
+                                                codec=video_codec, bitrate=video_bitrate)
+            
             if 'video.show' in self.debug_output:
                 self.debug['video.show'] = ImageShow(self.debug['video'].shape,
                                                      'Debug video' + ' [%s]'%self.name if self.name else '')

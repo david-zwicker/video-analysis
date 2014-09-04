@@ -27,7 +27,11 @@
 		difference that the first one can only be iterated over, while the second allows for random access
 * OpenCVVideo does not seem to provide robust seeking in video files
 	- try implementing direct ffmpeg access
-	- alternatively, convert OpencvVideo to a VideoStreamBase and adjust pass1 to reopen video  
+	- alternatively, convert OpencvVideo to a VideoStreamBase and adjust pass1 to reopen video
+* Distinguish between VideoStreams and Videos:
+	- Filters must be created by a filter factory, such that they inherit the proper interfaces from either
+		VideoStreamBase or VideoBase
+	- Focus on VideoStream first, since this is more useful for our tracking  
 
 
 Performance improvements:

@@ -6,6 +6,7 @@ Created on Jul 31, 2014
 Package provides an abstract base classes to define an interface and common
 functions for video handling.
 
+FIXME:
 All video classes support the iterator interface. For convenience, the methods
 _start_iterating and _end_iterating are called to initialize and finalize the
 iteration. Iteration is initialized implicitly when iter(video) is called.
@@ -23,6 +24,12 @@ import numpy as np
 from video.utils import display_progress
 
 
+# custom error classes
+class NotSeekableError(RuntimeError): pass
+class SynchronizationError(RuntimeError): pass
+
+
+
 class VideoBase(object):
     """
     Base class for videos.
@@ -34,7 +41,8 @@ class VideoBase(object):
     and can be used to observe the current progress or show the current frame. 
     """
 
-    write_access = False  
+    write_access = False
+    seekable = False
     
     def __init__(self, size=(0, 0), frame_count=-1, fps=None, is_color=True):
         """
@@ -54,8 +62,6 @@ class VideoBase(object):
         self.fps = fps if fps is not None else 25
         self.is_color = is_color
         
-        # flag that tells whether the video is currently been iterated over
-        self._is_iterating = False
         # a list of listeners, which will be notified, when this video advances 
         self._listeners = []
         
@@ -121,10 +127,18 @@ class VideoBase(object):
 
     def set_frame_pos(self, index):
         """ sets the 0-based index of the next frame """
-        if 0 <= index < self.frame_count:
-            self._frame_pos = index
+        if self.seekable:
+            if 0 <= index < self.frame_count:
+                self._frame_pos = index
+            else:
+                raise IndexError('Seeking to frame %d was not possible.' % index)
+        elif index >= self.get_frame_pos():
+            # skip some frames
+            for _ in xrange(index, self.get_frame_pos()):
+                self.next()
         else:
-            raise IndexError('Seeking to frame %d was not possible.' % index)
+            raise NotSeekableError('Cannot seek to frame %d, because the video '
+                                   'is already at frame %d' % (index, self.get_frame_pos()))
 
 
     def _process_frame(self, frame):
@@ -141,37 +155,18 @@ class VideoBase(object):
         """ returns a specific frame identified by its index """ 
         raise NotImplementedError
 
-    
-    def _start_iterating(self):
-        """ internal function called when we start iterating """
-        if self._is_iterating:
-            raise RuntimeError("Videos cannot be iterated over multiple times "
-                               "simultaneously. If you need to do this, use a "
-                               "VideoFork or make a copy of the video before "
-                               "iterating.")
-        
-        # rewind the movie
-        self.set_frame_pos(0)
-        self._is_iterating = True
-    
-
-    def _end_iterating(self):
-        """ internal function called when we finished iterating """
-        self._is_iterating = False
-
 
     def abort_iteration(self):
         """ stop the current iteration """
-        self._end_iterating()
+        pass
 
 
     def __iter__(self):
         """ initializes the iterator """
-        self._start_iterating()
-        return self
+        return VideoIterator(self)
 
           
-    def next(self):
+    def get_next_frame(self):
         """
         returns the next frame while iterating over a movie.
         This is a generic function, which just retrieves the next image based
@@ -183,7 +178,6 @@ class VideoBase(object):
             frame = self.get_frame(self._frame_pos)
         except IndexError:
             # stop iterating
-            self._end_iterating()            
             raise StopIteration
 
         # set the internal pointer to the next frame
@@ -231,6 +225,17 @@ class VideoBase(object):
         return VideoMemory(data, fps=self.fps, copy_data=False)
     
     
+    
+class VideoIterator(object):
+    """ simple class implementing the iterator interface for iterating over
+    videos """
+    def __init__(self, video):
+        self._video = video
+        
+    def next(self):
+        return self._video.get_next_frame()
+    
+
 
 class VideoImageStackBase(VideoBase):
     """ abstract base class that represents a movie stored as individual frame images """
@@ -263,13 +268,8 @@ class VideoFilterBase(VideoBase):
      
     def __init__(self, source, size=None, frame_count=None, fps=None, is_color=None):
         
-        # check the status of the source video
-        if source._is_iterating:
-            raise RuntimeError('Cannot put a filter on a video that is already iterating.')
-        
         # store an iterator of the source video
         self._source = source
-        self._source_iter = None
         
         # determine properties of the video
         size = source.size if size is None else size
@@ -293,24 +293,6 @@ class VideoFilterBase(VideoBase):
         return result
 
     
-    def _start_iterating(self):
-        """ internal function called when we start iterating """
-        self._source_iter = iter(self._source)
-        self._is_iterating = True
-
-
-    def _end_iterating(self):
-        """ internal function called when we finished iterating
-        If propagate is True, this signal is propagated to the source file.
-        This can be important if a filter in the filter chain decides to end
-        the iteration (i.e. the VideoSlice class).  Under normal
-        circumstances, the video source should end the iteration
-        """
-        # end the iteration of the current class
-        self._source_iter = None
-        super(VideoFilterBase, self)._end_iterating()
-
-    
     def abort_iteration(self):
         """ stop the current iteration """
         self._source.abort_iteration()
@@ -319,31 +301,15 @@ class VideoFilterBase(VideoBase):
         
     def set_frame_pos(self, index):
         self._source.set_frame_pos(index)
-        # this recursive function call is actually not necessary when rewinding
-        # the video before iterating, because we call
-        # self._source._start_iterating() elsewhere. However, set_frame_pos
-        # is suppose to only change the position of the video, when it is
-        # actually different from the current position and the extra call
-        # to set_frame_pos should thus not cause any performance issues. 
-        
         super(VideoFilterBase, self).set_frame_pos(index)
     
     
     def get_frame(self, index):
         return self._process_frame(self._source.get_frame(index))
           
-          
-    def __iter__(self):
-        self._start_iterating()
-        return self
-    
                 
-    def next(self):
-        try:
-            return self._process_frame(self._source_iter.next())
-        except StopIteration:
-            self._end_iterating()
-            raise
+    def get_next_frame(self):
+        return self._process_frame(self._source.get_next_frame()) 
     
     
     def close(self, propagate=True):
@@ -369,6 +335,9 @@ class VideoSlice(VideoFilterBase):
             
         # calculate the number of frames to be expected
         frame_count = int(np.ceil((self._stop - self._start)/self._step))
+
+        # seek the source video to the start position
+        source.set_frame_pos(start)
         
         # correct the size, since we are going to crop the movie
         super(VideoSlice, self).__init__(source, frame_count=frame_count)
@@ -382,7 +351,7 @@ class VideoSlice(VideoFilterBase):
     def set_frame_pos(self, index):
         if not 0 <= index < self.frame_count:
             raise IndexError('Cannot access frame %d.' % index)
-        print 'seek in slice', index, self._start + index*self._step
+
         self._source.set_frame_pos(self._start + index*self._step)
         self._frame_pos = index
         
@@ -394,7 +363,7 @@ class VideoSlice(VideoFilterBase):
         return self._source.get_frame(self._start + index*self._step)
         
         
-    def next(self):
+    def get_next_frame(self):
         # check whether we reached the end
         if self.get_frame_pos() >= self.frame_count:
             # propagate ending the iteration through the filter chain
@@ -403,7 +372,7 @@ class VideoSlice(VideoFilterBase):
         
         if self._step == 1:
             # return the next frame in question
-            frame = self._source.next()
+            frame = self._source.get_next_frame()
         else:
             # return the specific frame in question
             frame = self.get_frame(self._frame_pos)
@@ -411,13 +380,6 @@ class VideoSlice(VideoFilterBase):
         # advance to the next frame
         self._frame_pos += 1
         return frame
-
-    
-    def _start_iterating(self):
-        """ internal function called when we start iterating """
-        super(VideoSlice, self)._start_iterating()
-        # rewind movie by setting it to the start index
-        self._source_iter.set_frame_pos(self._start)
 
     
     
@@ -430,18 +392,19 @@ class _VideoForkClient(VideoBase):
         super(_VideoForkClient, self).__init__(**video_fork.video_format)
         
         
-    def get_frame(self, index):
+        
+    def get_next_frame(self):
         """
         this function is called by the next method of the iterator.
         Instead of iterating the source video itself, it asks the parent for
         the current frame. Depending on the state of the other fork clients,
         the parent may return a cached frame or retrieve a new one
         """
-        frame = self._parent.get_next_frame(index)
+        frame = self._parent.get_frame(self._frame_pos)
+        self._frame_pos += 1
 
         # check whether we exhausted the iterator        
         if frame is StopIteration:
-            self._end_iterating()
             raise StopIteration
         
         return frame
@@ -458,11 +421,6 @@ class _VideoForkClient(VideoBase):
     
 
 
-class SynchronizationError(RuntimeError):
-    pass
-
-
-    
 class VideoFork(VideoFilterBase):
     """
     Class that distributes frames to multiple filters.
@@ -517,15 +475,8 @@ class VideoFork(VideoFilterBase):
         self._frame = None
         self._frame_index = index - 1
     
-    
-    def get_frame(self, index):
-        """ 
-        returns the frame with a specific index.
-        """
-        return self._source.get_frame(index)
-        
      
-    def get_next_frame(self, index):
+    def get_frame(self, index):
         """ 
         returns the next frame for a VideoForkClient.
         If the frame is in the cache it is directly returned.
@@ -541,9 +492,6 @@ class VideoFork(VideoFilterBase):
             # increase the counter and return the cached frame
             self._retrieve_count += 1
 
-        elif not self._is_iterating:
-            raise RuntimeError('VideoFork is not iterating')
-        
         elif index == self._frame_index + 1:
             # retrieve the next frame from the source video iterator
             
@@ -557,9 +505,8 @@ class VideoFork(VideoFilterBase):
             
             # get the frame and store it in the cache
             try:
-                self._frame = self._source_iter.next()
+                self._frame = self.get_next_frame()
             except StopIteration:
-                self._end_iterating()
                 self._frame = StopIteration
                 
             self._retrieve_count = 1
@@ -572,12 +519,8 @@ class VideoFork(VideoFilterBase):
         
         return self._frame    
      
-        
-    def next(self):
-        raise RuntimeError('VideoFork cannot be directly iterated over')
-    
-                
-    def _end_iterating(self, propagate=False):
+     
+    def clear(self):
         """
         ends the iteration and removes all the fork clients.
         Note that the clients may still retrieve the last frame.
@@ -596,14 +539,10 @@ class VideoFork(VideoFilterBase):
         super(VideoFork, self).abort_iteration()
 
 
-    def __iter__(self):
+    def get_client(self):
         """
         returns a new fork client, which can then be used for iteration.
         """
-        # the iteration of this class is initialized when the first client is iterated over
-        if len(self._clients) == 0:
-            self._start_iterating()
-        
         if self._client_count is not None and len(self._clients) >= self._client_count:
             raise ValueError('We already registered %d clients.' % self._client_count)
 
@@ -615,5 +554,5 @@ class VideoFork(VideoFilterBase):
         
         self._retrieve_count = np.inf
         
-        return iter(client)
+        return client
     
