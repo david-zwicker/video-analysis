@@ -8,6 +8,7 @@
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
 * Determine absolute times by checking when the lights go on
+* Get burrow front from three different rays, to estimate the shape better
 
 
 Performance improvements:

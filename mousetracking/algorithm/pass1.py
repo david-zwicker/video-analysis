@@ -169,9 +169,7 @@ class FirstPass(DataHandler):
         self._cache['mouse.template'] = mouse_template
         
         # prepare kernels for morphological operations
-        self._cache['find_moving_features.kernel_open'] = \
-            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        self._cache['find_moving_features.kernel_close'] = \
+        self._cache['find_moving_features.kernel'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
             
         w = self.params['mouse/model_radius']
@@ -193,14 +191,18 @@ class FirstPass(DataHandler):
     def _iterate_over_video(self, video):
         """ internal function doing the heavy lifting by iterating over the video """
 
+        sigma = self.params['video/blur_radius']
+        blur_kernel = cv2.getGaussianKernel(3*sigma, sigma=sigma)
+
         # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video)):
             # copy frame to debug video
             if 'video' in self.debug:
                 self.debug['video'].set_frame(frame, copy=False)
-            # blur frame 
-            frame_blurred = cv2.GaussianBlur(frame, ksize=(0, 0),
-                                             sigmaX=self.params['video/blur_radius'])
+                
+            # blur frame - if the frame is contiguous in memory, we don't need to make a copy
+            frame_blurred = np.ascontiguousarray(frame)
+            cv2.sepFilter2D(frame_blurred, cv2.CV_8U, blur_kernel, blur_kernel, dst=frame_blurred)
             
             if self.frame_id == self.params['video/initial_adaptation_frames']:
                 # prepare the main analysis
@@ -332,7 +334,7 @@ class FirstPass(DataHandler):
                                      cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         # find sky by locating the largest black areas
-        sky_mask = regions.get_largest_region(1 - binarized).astype(np.uint8)*255
+        sky_mask = regions.get_largest_region(1 - binarized).astype(np.uint8, copy=False)*255
 
         # Finding sure foreground area using a distance transform
         dist_transform = cv2.distanceTransform(sky_mask, cv2.cv.CV_DIST_L2, 5)
@@ -343,14 +345,14 @@ class FirstPass(DataHandler):
         _, sky_sure = cv2.threshold(dist_transform, 0.25*dist_transform.max(), 255, 0)
 
         # determine the sky color
-        sky_img = image[sky_sure.astype(np.bool)]
+        sky_img = image[sky_sure.astype(np.bool, copy=False)]
         self.result['colors/sky'] = sky_img.mean()
         self.result['colors/sky_std'] = sky_img.std()
         self.logger.debug('The sky color was determined to be %d +- %d',
                           self.result['colors/sky'], self.result['colors/sky_std'])
 
         # find the sand by looking at the largest bright region
-        sand_mask = regions.get_largest_region(binarized).astype(np.uint8)*255
+        sand_mask = regions.get_largest_region(binarized).astype(np.uint8, copy=False)*255
         
         # Finding sure foreground area using a distance transform
         dist_transform = cv2.distanceTransform(sand_mask, cv2.cv.CV_DIST_L2, 5)
@@ -361,7 +363,7 @@ class FirstPass(DataHandler):
         _, sand_sure = cv2.threshold(dist_transform, 0.5*dist_transform.max(), 255, 0)
         
         # determine the sky color
-        sand_img = image[sand_sure.astype(np.bool)]
+        sand_img = image[sand_sure.astype(np.bool, copy=False)]
         self.result['colors/sand'] = sand_img.mean()
         self.result['colors/sand_std'] = sand_img.std()
         self.logger.debug('The sand color was determined to be %d +- %d',
@@ -372,7 +374,7 @@ class FirstPass(DataHandler):
         """ updates the background model using the current frame """
         
         if self.background is None:
-            self.background = frame.astype(np.double)
+            self.background = frame.astype(np.double, copy=True)
         
         if self._mouse_pos_estimate:
             # load some values from the cache
@@ -416,17 +418,13 @@ class FirstPass(DataHandler):
         
         # find movement by comparing the difference to a threshold 
         mask_moving = (diff > self.params['mouse/intensity_threshold']*self.result['colors/sky_std'])
-        mask_moving = 255*mask_moving.astype(np.uint8)
+        mask_moving = 255*mask_moving.astype(np.uint8, copy=False)
 
+        kernel = self._cache['find_moving_features.kernel']
         # perform morphological opening to remove noise
-        cv2.morphologyEx(mask_moving, cv2.MORPH_OPEN, 
-                         self._cache['find_moving_features.kernel_open'],
-                         dst=mask_moving)    
-         
+        cv2.morphologyEx(mask_moving, cv2.MORPH_OPEN, kernel, dst=mask_moving)    
         # perform morphological closing to join distinct features
-        cv2.morphologyEx(mask_moving, cv2.MORPH_CLOSE, 
-                         self._cache['find_moving_features.kernel_close'],
-                         dst=mask_moving)
+        cv2.morphologyEx(mask_moving, cv2.MORPH_CLOSE, kernel, dst=mask_moving)
 
         # plot the contour of the movement if debug video is enabled
         if 'video' in self.debug:
@@ -445,7 +443,7 @@ class FirstPass(DataHandler):
         largest_obj = MovingObject((0, 0), 0)
         for label in xrange(1, num_features + 1):
             # calculate the image moments
-            moments = cv2.moments((labels == label).astype(np.uint8))
+            moments = cv2.moments((labels == label).astype(np.uint8, copy=False))
             area = moments['m00']
             # get the coordinates of the center of mass
             pos = (moments['m10']/area, moments['m01']/area)
@@ -615,7 +613,7 @@ class FirstPass(DataHandler):
         # do morphological opening and closing to smooth the profile
         s = 5*self.params['burrows/width']
         ys, xs = np.ogrid[-s:s+1, -s:s+1]
-        kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8)
+        kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8, copy=False)
 
         # widen the mask
         mask = cv2.copyMakeBorder(image_center, s, s, s, s, cv2.BORDER_REPLICATE)
@@ -769,7 +767,7 @@ class FirstPass(DataHandler):
         mask_ground = self.get_ground_mask()
 
         # get potential burrows by looking at explored area
-        explored_area = 255*(self.explored_area > 0).astype(np.uint8)
+        explored_area = 255*(self.explored_area > 0).astype(np.uint8, copy=False)
         
         # remove accidental burrows at borders
         margin = self.params['burrows/cage_margin']
@@ -805,7 +803,7 @@ class FirstPass(DataHandler):
         """ creates a burrow object given a contour outline """
     
         # find the contour of the mask    
-        contours, _ = cv2.findContours(mask.astype(np.uint8),
+        contours, _ = cv2.findContours(mask.astype(np.uint8, copy=False),
                                        cv2.RETR_EXTERNAL,
                                        cv2.CHAIN_APPROX_SIMPLE)
         contour = np.squeeze(np.asarray(contours[0], np.double))
@@ -864,7 +862,7 @@ class FirstPass(DataHandler):
             # do a line scan perpendicular
             p_a = (p[0] + scan_length*dy, p[1] - scan_length*dx)
             p_b = (p[0] - scan_length*dy, p[1] + scan_length*dx)
-            profile = image.line_scan(self.background.astype(np.uint8), p_a, p_b, 3)
+            profile = image.line_scan(self.background.astype(np.uint8, copy=False), p_a, p_b, 3)
             
             # find the transition points by considering slopes
             k_l = image.get_steepest_point(profile[:scan_length], direction=-1, smoothing=2)
@@ -926,7 +924,7 @@ class FirstPass(DataHandler):
                 
                 # get profile along the centerline
                 p1e = (p2[0] + scan_length*dx, p2[1] + scan_length*dy)
-                profile = image.line_scan(self.background.astype(np.uint8), p2, p1e, 3)
+                profile = image.line_scan(self.background.astype(np.uint8, copy=False), p2, p1e, 3)
 
                 # determine steepest point
                 l = image.get_steepest_point(profile, direction=1, smoothing=2)
@@ -1100,8 +1098,8 @@ class FirstPass(DataHandler):
                 self.debug['video.show'].show(debug_video.frame)
                 
         if 'difference.video' in self.debug:
-            diff = np.clip(frame.astype(int) - self.background + 128, 0, 255)
-            self.debug['difference.video'].write_frame(diff.astype(np.uint8))
+            diff = np.clip(frame.astype(int, copy=False) - self.background + 128, 0, 255)
+            self.debug['difference.video'].write_frame(diff.astype(np.uint8, copy=False))
             self.debug['difference.video'].add_text(str(self.frame_id), (20, 20), anchor='top')   
                 
         if 'background.video' in self.debug:
