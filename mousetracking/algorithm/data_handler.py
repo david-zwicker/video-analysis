@@ -113,7 +113,7 @@ class DataHandler(object):
             self.video = VideoFileStack(video_filename_pattern)
         else:
             self.video = video
-            
+
         # save some data about the video
         self.data.create_child('video/raw', {'frame_count': self.video.frame_count,
                                              'size': '%d x %d' % self.video.size,
@@ -122,14 +122,14 @@ class DataHandler(object):
             self.data['video/raw/filecount'] = self.video.filecount
         except AttributeError:
             self.data['video/raw/filecount'] = 1
-        
+
         # restrict the analysis to an interval of frames
         frames = self.data.get('parameters/video/frames', None)
         if frames is not None:
             self.video = self.video[frames[0]:frames[1]]
         else:
             frames = (0, self.video.frame_count)
-            
+
         cropping_rect = self.data.get('parameters/video/cropping_rect', None)
 
         if crop_video and cropping_rect is not None:

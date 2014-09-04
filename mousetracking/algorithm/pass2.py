@@ -15,7 +15,7 @@ import networkx as nx
 
 from .data_handler import DataHandler
 from video.analysis import curves
-from video.composer import VideoComposer, VideoComposerListener
+from video.composer import VideoComposer
 from video.filters import FilterCrop
 from video.utils import display_progress
 
@@ -31,7 +31,7 @@ class SecondPass(DataHandler):
         self.params = self.data['parameters']
         self.log_event('Pass 2 - Started initializing the analysis.')
 
-        self.debug = {}                # dictionary holding debug information
+        self.debug = {} #< dictionary holding debug information
         self.debug_output = [] if debug_output is None else debug_output
         
 
@@ -236,8 +236,6 @@ class SecondPass(DataHandler):
         filename = self.get_filename('video' + video_extension, 'results')
         video = VideoComposer(filename, size=self.video.size, fps=self.video.fps,
                               is_color=True, codec=video_codec, bitrate=video_bitrate)
-#         video = VideoComposerListener(filename, background_video=self.video,
-#                                       is_color=True, codec=video_codec, bitrate=video_bitrate)
         
         mouse_track = self.data['pass2/mouse_trajectory']
         

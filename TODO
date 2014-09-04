@@ -8,8 +8,6 @@
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
 * Determine absolute times by checking when the lights go on
-* Burrow end detection:
-	- might want to use a line scan, if mouse it not close
 
 
 Performance improvements:

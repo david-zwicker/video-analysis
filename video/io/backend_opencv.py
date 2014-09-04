@@ -80,8 +80,16 @@ class VideoOpenCV(VideoBase):
             raise NotSeekableError('Cannot seek to frame %d, because the video '
                                    'is already at frame %d' % (index, frame_pos))
         elif index > frame_pos:
+            # OpenCV seeking is not exact to the frame
+            # => we seek about 1 sec before the frame ...
+            if index > frame_pos + self.fps:
+                self._movie.set(cv.CV_CAP_PROP_POS_FRAMES, index - self.fps)
+            
+            # ... and iterate through the remaining frames
             for _ in xrange(self.get_frame_pos(), index):
-                self.get_next_frame()
+                self._movie.grab()
+                
+            # just double check that we are at the right frame
             if self.get_frame_pos() != index:
                 raise IndexError('Seeking to frame %d was not possible. The '
                                  'video is at frame %d.' % (index, self.get_frame_pos()))

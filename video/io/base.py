@@ -219,8 +219,7 @@ class VideoBase(object):
     
     
 class VideoIterator(object):
-    """ simple class implementing the iterator interface for iterating over
-    videos """
+    """ simple class implementing the iterator interface for videos """
     def __init__(self, video):
         self._video = video
         
