@@ -132,15 +132,7 @@ class DataHandler(object):
             
         cropping_rect = self.data.get('parameters/video/cropping_rect', None)
 
-        if crop_video and cropping_rect is None:
-            # use the full video
-            if self.video.is_color:
-                # restrict video to green channel if it is a color video
-                self.video = FilterMonochrome(self.video, 'green')
-            else:
-                self.video = self.video
-                
-        else: # user_crop is not None                
+        if crop_video and cropping_rect is not None:
             # restrict video to green channel if it is a color video
             color_channel = 'green' if self.video.is_color else None
             
@@ -152,6 +144,14 @@ class DataHandler(object):
                 # crop to the given rect
                 self.video = FilterCrop(self.video, rect=cropping_rect,
                                         color_channel=color_channel)
+                
+        else: # user_crop is not None                
+            # use the full video
+            if self.video.is_color:
+                # restrict video to green channel if it is a color video
+                self.video = FilterMonochrome(self.video, 'green')
+            else:
+                self.video = self.video
 
             
     def write_data(self):

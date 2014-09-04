@@ -192,38 +192,35 @@ class FirstPass(DataHandler):
 
     def _iterate_over_video(self, video):
         """ internal function doing the heavy lifting by iterating over the video """
-        print 'test'
-        print self.video, self.video.get_frame_pos()
-        print video, video.get_frame_pos()
+
         # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video)):
-            
+            # copy frame to debug video
             if 'video' in self.debug:
-                self.debug['video'].set_frame(frame)
-            
-            # blur frame in place 
-            frame = cv2.GaussianBlur(frame, ksize=(0, 0),
-                             sigmaX=self.params['video/blur_radius'])
+                self.debug['video'].set_frame(frame, copy=False)
+            # blur frame 
+            frame_blurred = cv2.GaussianBlur(frame, ksize=(0, 0),
+                                             sigmaX=self.params['video/blur_radius'])
             
             if self.frame_id == self.params['video/initial_adaptation_frames']:
                 # prepare the main analysis
                 # estimate colors of sand and sky
-                self.find_color_estimates(frame)
+                self.find_color_estimates(frame_blurred)
                 
                 # estimate initial ground profile
                 self.logger.debug('Find the initial ground profile.')
-                self.find_initial_ground(frame)
+                self.find_initial_ground(frame_blurred)
         
             elif self.frame_id > self.params['video/initial_adaptation_frames']:
                 # do the main analysis
                 if self.frame_id % self.params['colors/adaptation_interval'] == 0:
-                    self.find_color_estimates(frame)
+                    self.find_color_estimates(frame_blurred)
 
                 # find a binary image that indicates movement in the frame
-                mask_moving = self.find_moving_features(frame)
+                mask_moving = self.find_moving_features(frame_blurred)
     
                 # identify objects from this
-                self.find_objects(frame, mask_moving)
+                self.find_objects(frame_blurred, mask_moving)
                 
                 # use the background to find the current ground profile and burrows
                 if self.frame_id % self.params['ground/adaptation_interval'] == 0:
@@ -235,10 +232,10 @@ class FirstPass(DataHandler):
                     self.find_burrows(mask_moving)
                     
             # update the background model
-            self.update_background_model(frame)
+            self.update_background_model(frame_blurred)
                 
             # store some information in the debug dictionary
-            self.debug_add_frame(frame)
+            self.debug_process_frame(frame_blurred)
                          
                     
     #===========================================================================
@@ -1023,7 +1020,7 @@ class FirstPass(DataHandler):
                 self.debug[identifier + '.video'] = video_writer
         
 
-    def debug_add_frame(self, frame):
+    def debug_process_frame(self, frame):
         """ adds information of the current frame to the debug output """
         
         if 'video' in self.debug:
