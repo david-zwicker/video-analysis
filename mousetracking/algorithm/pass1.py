@@ -612,9 +612,8 @@ class FirstPass(DataHandler):
         # binarize image
         cv2.threshold(image_center, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
         
-        # TODO: we might want to replace that with the typical burrow radius
         # do morphological opening and closing to smooth the profile
-        s = 4*self.params['ground/point_spacing']
+        s = 5*self.params['burrows/width']
         ys, xs = np.ogrid[-s:s+1, -s:s+1]
         kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8)
 
@@ -841,6 +840,7 @@ class FirstPass(DataHandler):
         segment_length = self.params['burrows/centerline_segment_length']
         centerline = curves.make_curve_equidistant(centerline, segment_length)
         
+        # HANDLE INNER POINTS OF BURROW
         width_min = self.params['burrows/width_min']
         scan_length = int(4*self.params['burrows/width'])
         centerline_new = [centerline[0]]
@@ -877,7 +877,7 @@ class FirstPass(DataHandler):
             color_threshold = self.result['colors/sand'] - self.result['colors/sand_std']
             # the color threshold determines whether the fit was alright
             if np.isfinite(d_l) and np.isfinite(d_r) and profile[k_c] < color_threshold:
-                # TODO: only use the fitted version if we believe it
+                # FIXME: only use the fitted version if we believe it
 
                 # ensure a minimal burrow width
                 width = d_l - d_r
@@ -898,20 +898,45 @@ class FirstPass(DataHandler):
                 outline_new.insert(0, pb)
                 centerline_new.append(p)
 
-        # find the point at the burrow front
-        # FIXME: do fitting if the mouse has been here recently
-        # use background_adaptation rate and explored_area rate to define recently
-        # otherwise use the explored area function
+        # HANDLE BURROW END POINT
+        # points at the burrow end
         p1, p2 = centerline[-1], centerline[-2]
         angle = np.arctan2(p1[1] - p2[1], p1[0] - p2[0])
+        # get the farthest point on the outline as an estimate
         point_max, _, _ = regions.get_farthest_intersection(
             centerline_new[-1],
             np.linspace(angle - np.pi/4, angle + np.pi/4, 16),
             outline)
+        
         if point_max is not None: 
+            # determine the number of frames the mouse has been absent from the end
+            frames_absent = (
+                (1 - self.explored_area[int(p2[1]), int(p2[0])])
+                /self.params['explored_area/adaptation_rate_burrows']
+            )
+            if frames_absent > 10/self.params['background/adaptation_rate']:
+                # mouse has been away for a long time
+                # => refine point using a line scan along the centerline
+                p1, p2 = centerline[-1], centerline[-2]
+                
+                # find local slope of the centerline
+                dx, dy = p1[0] - p2[0], p1[1] - p2[1]
+                dist = np.hypot(dx, dy)
+                dx /= dist; dy /= dist
+                
+                # get profile along the centerline
+                p1e = (p2[0] + scan_length*dx, p2[1] + scan_length*dy)
+                profile = image.line_scan(self.background.astype(np.uint8), p2, p1e, 3)
+
+                # determine steepest point
+                l = image.get_steepest_point(profile, direction=1, smoothing=2)
+                
+                point_max = (p2[0] + l*dx, p2[1] + l*dy)
+                
             outline_new.append(point_max)
             centerline_new.append(point_max)
         
+        # HANDLE BURROW EXIT POINT
         # determine the ground exit point by extrapolating from first
         # point until we hit the ground profile
         p1, p2 = centerline[1], centerline[2]
@@ -960,6 +985,7 @@ class FirstPass(DataHandler):
                 except IndexError:
                     # use the non-refined burrow in case of errors
                     pass
+                    raise 
             
             # add the burrow to our result list if it is valid
             if burrow.is_valid:

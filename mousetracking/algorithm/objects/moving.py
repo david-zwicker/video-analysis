@@ -40,8 +40,6 @@ class MovingObject(object):
 
 class ObjectTrack(object):
     """ represents a time course of objects """
-    # TODO: hold everything inside lists, not list of objects
-    
     mouse_area_mean = 700
     
     array_columns = ['Time', 'Position X', 'Position Y', 'Object Area']

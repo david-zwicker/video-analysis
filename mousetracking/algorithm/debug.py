@@ -145,10 +145,7 @@ def show_tracking_graph(graph, path, **kwargs):
 def print_filter_chain(video):
     """ prints information about a filter chain """
     # print statistics of current video
-    line = str(video)
-    if video._is_iterating:
-        line += ', is iterating'
-    print(line)
+    print(str(video))
     
     # go up one level
     try:

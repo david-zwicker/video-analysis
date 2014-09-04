@@ -5,14 +5,6 @@ Created on Jul 31, 2014
 
 Package provides an abstract base classes to define an interface and common
 functions for video handling.
-
-FIXME:
-All video classes support the iterator interface. For convenience, the methods
-_start_iterating and _end_iterating are called to initialize and finalize the
-iteration. Iteration is initialized implicitly when iter(video) is called.
-Conversely, the iterator is finalized when its exhausted (at which point the
-StopIteration exception is also raised). Additionally, an iteration may be
-aborted by the user by calling the abort method.
 '''
 
 from __future__ import division

@@ -50,7 +50,7 @@ PARAMETERS_DEFAULT = {
     'colors/adaptation_interval': 1000,
                                
     # the rate at which the background is adapted [in 1/frames]
-    'background/adaptation_rate': 0.01,
+    'background/adaptation_rate': 1e-2,
     # the rate at which the explored area is adapted [in 1/frames]
     'explored_area/adaptation_rate_outside': 1e-3,
     'explored_area/adaptation_rate_burrows': 1e-5,

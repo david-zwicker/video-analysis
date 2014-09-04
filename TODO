@@ -7,31 +7,9 @@
 	- different logging behavior (log to file for release run!)
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
-* Connect objects tracks to find one global mouse track
 * Determine absolute times by checking when the lights go on
-* Track mouse by building list of possible connections between tracks and choose the best one
-	- build graph of possible connections (using networkx)
-	- if we encounter a loop, retain the edge with highest weight
-	- this algorithm should converge to one track
 * Burrow end detection:
 	- might want to use a line scan, if mouse it not close
-* Use different explored_area degradation constants inside and outside of burrows
-* Look into the possibility of writing a VideoFFMPEG class, which directly uses ffmpeg to read a video
-	- This will give us more flexibility in reading videos (also with more control over parameters)
-	- see https://github.com/Zulko/moviepy/blob/master/moviepy/video/io/ffmpeg_reader.py
-	- This should also allow us to read the video in a separate process/thread, thus speeding up the
-		processing
-	- This is also important to synchronize the video for the first and second pass, which currently
-		does not work
-	- Here, we might wanna introduce the distinction between VideoStreamBase and VideoBase, with the
-		difference that the first one can only be iterated over, while the second allows for random access
-* OpenCVVideo does not seem to provide robust seeking in video files
-	- try implementing direct ffmpeg access
-	- alternatively, convert OpencvVideo to a VideoStreamBase and adjust pass1 to reopen video
-* Distinguish between VideoStreams and Videos:
-	- Filters must be created by a filter factory, such that they inherit the proper interfaces from either
-		VideoStreamBase or VideoBase
-	- Focus on VideoStream first, since this is more useful for our tracking  
 
 
 Performance improvements:
@@ -55,4 +33,13 @@ Low priority enhancements:
 	- This should not pose any problems, since we usually only do one scan and then end the whole process
 * Ground fitting could use some "active snake" ideas (http://en.wikipedia.org/wiki/Active_contour_model)
 * Extend the ground profile till the edge of the cage
-	- this should automatically allow us to track the burrows close to the edge 
+	- this should automatically allow us to track the burrows close to the edge
+	* Look into the possibility of writing a VideoFFMPEG class, which directly uses ffmpeg to read a video
+	- This will give us more flexibility in reading videos (also with more control over parameters)
+	- see https://github.com/Zulko/moviepy/blob/master/moviepy/video/io/ffmpeg_reader.py
+	- This should also allow us to read the video in a separate process/thread, thus speeding up the
+		processing
+	- This is also important to synchronize the video for the first and second pass, which currently
+		does not work
+	- Here, we might wanna introduce the distinction between VideoStreamBase and VideoBase, with the
+		difference that the first one can only be iterated over, while the second allows for random access

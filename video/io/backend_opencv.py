@@ -46,7 +46,6 @@ class VideoOpenCV(VideoBase):
     def __init__(self, filename):
         # load the _movie
         self.filename = filename
-        print 'file', filename
         
         self._movie = cv2.VideoCapture(filename)
         # this call doesn't fail if the file could not be found, but returns
@@ -97,7 +96,6 @@ class VideoOpenCV(VideoBase):
             return frame
         else:
             # reading the data failed for whatever reason
-            self._end_iterating()
             raise StopIteration
 
     
