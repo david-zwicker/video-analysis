@@ -27,7 +27,7 @@ import shapely.geometry as geometry
 import cv2
 
 from video.io import ImageShow
-from video.filters import FilterBlur, FilterCrop
+from video.filters import FilterCrop
 from video.analysis import regions, curves, image
 from video.utils import display_progress
 from video.composer import VideoComposer
