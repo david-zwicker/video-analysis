@@ -166,7 +166,7 @@ class VideoFileStack(VideoBase):
         while True:
             try:
                 # return next frame
-                frame = self._movies[self._movie_pos].next()
+                frame = self._movies[self._movie_pos].get_next_frame()
                 break
             
             except StopIteration:

@@ -81,12 +81,14 @@ class VideoOpenCV(VideoBase):
             raise NotSeekableError('Cannot seek to frame %d, because the video '
                                    'is already at frame %d' % (index, frame_pos))
         elif index > frame_pos:
-            if (not self._movie.set(cv.CV_CAP_PROP_POS_FRAMES, index) or 
-                    self.get_frame_pos() != index):
-                raise IndexError('Seeking to frame %d was not possible.' % index)
+            for _ in xrange(self.get_frame_pos(), index):
+                self.get_next_frame()
+            if self.get_frame_pos() != index:
+                raise IndexError('Seeking to frame %d was not possible. The '
+                                 'video is at frame %d.' % (index, self.get_frame_pos()))
 
 
-    def next(self):
+    def get_next_frame(self):
         """ returns the next frame """
         # get the next frame, which automatically increments the internal frame index
         ret, frame = self._movie.read()

@@ -46,6 +46,8 @@ def scan_video_quadrants(video, parameters=None, **kwargs):
     for name, crop in QUADRANTS.iteritems():
         # save the cropping rectangle for further analysis later
         parameters['video/cropping_rect'] = crop
+        kwargs['parameters'] = parameters
+                
         # crop the video to the right region
         video_crop = FilterCrop(video_fork.get_client(), region=crop,
                                 color_channel=1)
