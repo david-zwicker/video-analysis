@@ -14,6 +14,7 @@ import numpy as np
 import networkx as nx
 
 from .data_handler import DataHandler
+from .objects import GroundProfileTrack
 from video.analysis import curves
 from video.composer import VideoComposer
 from video.filters import FilterCrop
@@ -52,7 +53,8 @@ class SecondPass(DataHandler):
         """ do the second pass of the analysis """
         
         self.find_mouse_track()
-        #self.smooth_ground_profile()
+        self.smooth_ground_profile()
+        #self.smooth_burrows()
         #self.classify_mouse_track()
         
         self.data['analysis-status'] = 'Finished second pass'
@@ -216,7 +218,26 @@ class SecondPass(DataHandler):
         self.data['pass2/mouse_trajectory'] = trajectory
 
         return trajectory
+    
                         
+    #===========================================================================
+    # SMOOTH GROUND AND BURROWS
+    #===========================================================================
+
+
+    def smooth_ground_profile(self):
+        """ smooth the ground profile """
+        
+        # convert data to different format
+        profile = GroundProfileTrack(self.data['pass1/ground/profile'])
+        
+        # standard deviation for smoothing [in number of profiles]
+        sigma = self.params['ground/smoothing_sigma']/self.params['ground/adaptation_interval']
+        profile.smooth(sigma)
+         
+        # store the result
+        self.data['pass2/ground_profile'] = profile
+        
 
     #===========================================================================
     # PRODUCE VIDEO
@@ -238,6 +259,7 @@ class SecondPass(DataHandler):
                               is_color=True, codec=video_codec, bitrate=video_bitrate)
         
         mouse_track = self.data['pass2/mouse_trajectory']
+        ground_profile = self.data['pass2/ground_profile']
         
         self.logger.info('Start producing final video with %d frames', len(self.video))
         
@@ -246,10 +268,11 @@ class SecondPass(DataHandler):
         
         for frame_id, frame in enumerate(display_progress(source_video)):
             # set real video as background
-            video.set_frame(frame) 
+            video.set_frame(frame)
         
-#             # plot the ground profile
-#             debug_video.add_polygon(self.ground, is_closed=False, mark_points=True, color='y')
+            # plot the ground profile
+            video.add_polygon(ground_profile.get_profile(frame_id),
+                              is_closed=False, mark_points=False, color='y')
 #         
 #             # indicate the currently active burrow shapes
 #             for burrow_track in self.result['burrows/data']:

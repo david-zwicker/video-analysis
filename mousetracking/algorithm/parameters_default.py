@@ -65,6 +65,8 @@ PARAMETERS_DEFAULT = {
     'ground/adaptation_interval': 100,
     # width of the ground profile ridge [in pixel]
     'ground/width': 5,
+    # standard deviation for Gaussian smoothing [in frames]
+    'ground/smoothing_sigma': 300,
     
     # `mouse.intensity_threshold` determines how much brighter than the
     # background (usually the sky) has the mouse to be. This value is

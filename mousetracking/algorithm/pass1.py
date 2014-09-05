@@ -642,6 +642,8 @@ class FirstPass(DataHandler):
 
         # simplify the curve        
         points = curves.simplify_curve(points, epsilon=2)
+        # make the curve equidistant
+        points = curves.make_curve_equidistant(points, self.params['ground/point_spacing'])
 
         return np.array(points, np.int32)
    

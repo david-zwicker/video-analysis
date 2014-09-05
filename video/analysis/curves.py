@@ -27,32 +27,47 @@ def curve_length(points):
                   for p1, p2 in itertools.izip(points, points[1:]))
 
 
-def make_curve_equidistant(points, spacing):
+def make_curve_equidistant(points, spacing=None, count=None):
     """ returns a new parameterization of the same curve where points have been
     chosen equidistantly. The original curve may be slightly modified """
     points = np.asarray(points, np.double)
     
-    # walk along and pick points equidistantly
-    profile_length = curve_length(points)
-    dx = profile_length/np.round(profile_length/spacing)
-    dist = 0
-    result = [points[0]]
-    for p1, p2 in itertools.izip(points[:-1], points[1:]):
-        # determine the distance between the last two points 
-        dp = np.linalg.norm(p2 - p1)
-        # add points to the result list
-        while dist + dp > dx:
-            p1 = p1 + (dx - dist)/dp*(p2 - p1)
-            result.append(p1.copy())
+    if spacing is not None:
+        # walk along and pick points with given spacing
+        profile_length = curve_length(points)
+        dx = profile_length/np.round(profile_length/spacing)
+        dist = 0
+        result = [points[0]]
+        for p1, p2 in itertools.izip(points[:-1], points[1:]):
+            # determine the distance between the last two points 
             dp = np.linalg.norm(p2 - p1)
-            dist = 0
-        
-        # add the remaining distance 
-        dist += dp
-        
-    # add the last point if necessary
-    if dist > 1e-8:
-        result.append(points[-1])
+            # add points to the result list
+            while dist + dp > dx:
+                p1 = p1 + (dx - dist)/dp*(p2 - p1)
+                result.append(p1.copy())
+                dp = np.linalg.norm(p2 - p1)
+                dist = 0
+            
+            # add the remaining distance 
+            dist += dp
+            
+        # add the last point if necessary
+        if dist > 1e-8:
+            result.append(points[-1])
+            
+    elif count is not None:
+        # get arc length of support points
+        s = np.cumsum([point_distance(p1, p2)
+                       for p1, p2 in itertools.izip(points, points[1:])])
+        s = np.insert(s, 0, 0) # prepend element for first point
+        # divide arc length equidistantly
+        sp = np.linspace(s[0], s[-1], count)
+        # interpolate points
+        result = np.transpose((np.interp(sp, s, points[:, 0]),
+                               np.interp(sp, s, points[:, 1])))
+    
+    else:
+        raise ValueError('Either spacing or counts of points must be provided.')
         
     return result
 

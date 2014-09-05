@@ -213,6 +213,15 @@ class DataHandler(object):
                 hdf_file['pass2/mouse_trajectory'].attrs['column_names'] = ('X Position', 'Y Position')
                 main_result['pass2/mouse_trajectory'] = '@%s:pass2/mouse_trajectory' % hdf_name
         
+            # write out ground profile
+            if 'pass2/ground_profile' in main_result:
+                data = main_result['pass2/ground_profile']
+                hdf_file.create_dataset('pass2/ground_profile', data=data.to_array())
+                hdf_file['pass2/ground_profile'].attrs['row_names'] = ('Time 1', 'Time 2', '...')
+                hdf_file['pass2/ground_profile'].attrs['column_names'] = ('Time', 'Point 1', 'Point 2', '...')
+                hdf_file['pass2/ground_profile'].attrs['depth_names'] = ('X Coordinate', 'Y Coordinate')
+                main_result['pass2/ground_profile'] = '@%s:pass2/ground_profile' % hdf_name
+        
         # write the main result file to YAML
         filename = self.get_filename('results.yaml', 'results')
         with open(filename, 'w') as outfile:
@@ -240,7 +249,7 @@ class DataHandler(object):
                 data = hdf_file[dataset]
                 self.data[key] = [cls.from_array(data[index])
                                   for index in sorted(data.keys())]
-                # here we had to use sorted() to iterate in the correct order 
+                # here, we have to use sorted() to iterate in the correct order 
                         
                         
     def load_object_list_from_hdf(self, key, cls): 
@@ -296,6 +305,8 @@ class DataHandler(object):
             self.load_object_list_from_hdf('pass1/ground/profile', GroundProfile)            
             self.load_object_collection_from_hdf('pass1/objects/tracks', ObjectTrack)
             self.load_object_collection_from_hdf('pass1/burrows/data', BurrowTrack)
+            
+            # TODO load mouse trajectory and ground profile
             
         self.log_event('Read previously calculated data from files.')
 
