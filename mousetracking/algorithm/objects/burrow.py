@@ -15,6 +15,7 @@ import cv2
 import shapely
 import shapely.geometry as geometry
 
+from .utils import cached_property 
 from video.analysis import curves, regions
 
 from ..debug import *  # @UnusedWildImport
@@ -23,47 +24,6 @@ from ..debug import *  # @UnusedWildImport
 # monkey patch shapely.geometry to get compatibility with older shapely versions
 if not hasattr(geometry, 'LinearRing'):
     geometry.LinearRing = geometry.polygon.LinearRing
-
-
-
-class cached_property(object):
-    """Decorator to use a function as a cached property.
-
-    The function is only called the first time and each successive call returns
-    the cached result of the first call.
-
-        class Foo(object):
-
-            @cached_property
-            def foo(self):
-                return "Cached"
-
-    Adapted from <http://wiki.python.org/moin/PythonDecoratorLibrary>.
-
-    """
-
-    def __init__(self, func, name=None, doc=None):
-        self.__name__ = name or func.__name__
-        self.__module__ = func.__module__
-        self.__doc__ = doc or func.__doc__
-        self.func = func
-
-
-    def __get__(self, obj, type=None):  # @ReservedAssignment
-        if obj is None:
-            return self
-
-        # try to retrieve from cache or call and store result in cache
-        try:
-            value = obj._cache[self.__name__]
-        except KeyError:
-            value = self.func(obj)
-            obj._cache[self.__name__] = value
-        except AttributeError:
-            value = self.func(obj)
-            obj._cache = {self.__name__: value}
-        return value
-
 
 
 class Burrow(object):
@@ -92,15 +52,11 @@ class Burrow(object):
         return Burrow(self.outline.copy())
 
         
-    def __len__(self):
-        return len(self.outline)
-        
-        
     def __repr__(self):
         polygon = self.polygon
         center = polygon.centroid
         return ('Burrow(center=(%d, %d), area=%s, points=%d)' %
-                (center.x, center.y, polygon.area, len(self)))
+                (center.x, center.y, polygon.area, len(self._outline)))
 
 
     @property
@@ -113,6 +69,7 @@ class Burrow(object):
         self._outline = value
         # reset cache
         self.centerline = None
+        self.length = None
         self.refined = False
         self._cache = {}
         
@@ -131,7 +88,7 @@ class Burrow(object):
     
     @property
     def is_valid(self):
-        return len(self.outline) > 3
+        return len(self._outline) > 3
     
     
     @cached_property
@@ -241,7 +198,7 @@ class Burrow(object):
         centerline = [p_exit]
         while True:
             # find the next point along the burrow
-            point_max, dist_max, angle = regions.get_farthest_intersection(
+            point_max, dist_max, angle = regions.get_farthest_ray_intersection(
                 point_anchor,
                 np.linspace(angle - angle_max, angle + angle_max, 16),
                 outline_poly)

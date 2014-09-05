@@ -9,6 +9,9 @@
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
 * Determine absolute times by checking when the lights go on
 * Get burrow front from three different rays, to estimate the shape better
+	- this should improve the burrow front shape
+	- adjust the explored_area algorithm to take into account color in order to match retracting burrows
+	- fix the burrow breakup occurring in video DR
 
 
 Performance improvements:
@@ -39,7 +42,7 @@ Low priority enhancements:
 * Ground fitting could use some "active snake" ideas (http://en.wikipedia.org/wiki/Active_contour_model)
 * Extend the ground profile till the edge of the cage
 	- this should automatically allow us to track the burrows close to the edge
-	* Look into the possibility of writing a VideoFFMPEG class, which directly uses ffmpeg to read a video
+* Look into the possibility of writing a VideoFFMPEG class, which directly uses ffmpeg to read a video
 	- This will give us more flexibility in reading videos (also with more control over parameters)
 	- see https://github.com/Zulko/moviepy/blob/master/moviepy/video/io/ffmpeg_reader.py
 	- This should also allow us to read the video in a separate process/thread, thus speeding up the

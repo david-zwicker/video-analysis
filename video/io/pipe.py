@@ -24,9 +24,10 @@ import sharedmem
 from .base import VideoBase, VideoFilterBase, SynchronizationError
 
 
+logger = logging.getLogger('video.io')
 
-class VideoPipeError(RuntimeError):
-    pass
+
+class VideoPipeError(RuntimeError): pass
 
 
 
@@ -47,7 +48,7 @@ class VideoPipeReceiver(VideoBase):
     def send_command(self, command, wait_for_reply=True):
         """ send a command to the associated VideoPipe """
         if not self.pipe.closed:
-            logging.debug('Send command `%s`.', command)
+            logger.debug('Send command `%s`.', command)
             self.pipe.send(command)
             # wait for the sender to acknowledge the command
             if wait_for_reply and self.pipe.recv() != command + '_OK':
@@ -55,7 +56,7 @@ class VideoPipeReceiver(VideoBase):
         
                     
     def abort_iteration(self):
-        logging.debug('Receiver%s aborts iteration.', self.name_repr)
+        logger.debug('Receiver%s aborts iteration.', self.name_repr)
         self.send_command('abort_iteration', wait_for_reply=False)
         super(VideoPipeReceiver, self).abort_iteration()
                     
@@ -117,7 +118,7 @@ class VideoPipeReceiver(VideoBase):
     def close(self):
         self.send_command('finished', wait_for_reply=False)
         self.pipe.close()
-        logging.debug('Receiver%s closed itself.', self.name_repr)
+        logger.debug('Receiver%s closed itself.', self.name_repr)
         
         
 
@@ -199,7 +200,7 @@ class VideoPipe(VideoFilterBase):
         elif command == 'specific_frame':
             # receiver requests a specific frame
             frame_id = self.pipe.recv()
-            logging.debug('Specific frame %d was requested from sender.', frame_id)
+            logger.debug('Specific frame %d was requested from sender.', frame_id)
             self.try_getting_frame(frame_id)
             
         elif command == 'finished':
@@ -207,8 +208,8 @@ class VideoPipe(VideoFilterBase):
             if not self.pipe.closed:
                 self.pipe.send('finished_OK')
             self.pipe.close()
-            logging.debug('Sender%s closed itself.',
-                          '' if self.name is None else ' `%s`' % self.name)
+            logger.debug('Sender%s closed itself.',
+                         '' if self.name is None else ' `%s`' % self.name)
             self.running = False
             
         else:

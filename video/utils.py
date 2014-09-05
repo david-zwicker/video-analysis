@@ -13,17 +13,14 @@ import os
 import numpy as np
 from matplotlib.colors import ColorConverter
 
+logger = logging.getLogger('video')
+
 try:
     from tqdm import tqdm
 except ImportError:
     tqdm = None
-    logging.warn('Package tqdm could not be imported and progress bars are '
+    logger.warn('Package tqdm could not be imported and progress bars are '
                  'thus not available.')
-
-
-def logging_level():
-    """ returns the level of the current logger """
-    return logging.getLogger().getEffectiveLevel()
 
 
 def ensure_directory_exists(folder):
@@ -65,8 +62,8 @@ def prepare_data_for_yaml(data):
     elif isinstance(data, (list, tuple)):
         return [prepare_data_for_yaml(v) for v in data]
     elif data is not None and not isinstance(data, (bool, int, float, list, basestring)):
-        logging.warn('Encountered unknown instance of `%s` in YAML prepartion',
-                     data.__class__)
+        logger.warn('Encountered unknown instance of `%s` in YAML prepartion',
+                    data.__class__)
     return data
    
     
@@ -95,7 +92,7 @@ def display_progress(iterator, total=None):
     """
     displays a progress bar when iterating
     """
-    if tqdm is not None and logging.DEBUG < logging_level() <= logging.INFO:
+    if tqdm is not None:
         return tqdm(iterator, total=total, leave=True)
     else:
         return iterator

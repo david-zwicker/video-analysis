@@ -551,12 +551,24 @@ class FirstPass(DataHandler):
         for track in self.tracks:
             self.explored_area[labels == track.objects[-1].label] = 1
 
-        # degrade information about the mouse position depending on the burrow mask
-        self.explored_area[255 == self.burrows_mask] -= \
-            self.params['explored_area/adaptation_rate_burrows']
-        self.explored_area[  0 == self.burrows_mask] -= \
-            self.params['explored_area/adaptation_rate_outside']
-        self.explored_area[self.explored_area < 0] = 0
+        # the burrow color is similar to the sky color, because both are actually
+        # the background behind the cage
+        color_sand, color_burrow = self.result['colors/sand'], self.result['colors/sky']
+        # normalize frame such that burrows are 0 and sand is 1
+        frame_normalized = (self.background - color_burrow)/(color_sand - color_burrow)
+
+        # degrade information about the mouse position inside the burrows
+        self.explored_area[0 != self.burrows_mask] -= \
+            frame_normalized[0 != self.burrows_mask] \
+            *self.params['explored_area/adaptation_rate_burrows']
+            
+        # degrade information about the mouse position outside the burrows
+        self.explored_area[0 == self.burrows_mask] -= \
+            frame_normalized[0 == self.burrows_mask] \
+            *self.params['explored_area/adaptation_rate_outside']
+            
+        # restrict the range
+        np.clip(self.explored_area, 0, 1, out=self.explored_area)
 
     
     def find_objects(self, frame, mask_moving):
@@ -591,7 +603,7 @@ class FirstPass(DataHandler):
 
             self._mouse_pos_estimate = [obj.last.pos for obj in self.tracks]
         
-            # keep track of the regions that the mouse explored
+            # keep track of the regions that the mouse (or other objects) explored
             self.update_explored_area_objects(self.tracks, labels, num_features)
                 
                 
@@ -905,40 +917,53 @@ class FirstPass(DataHandler):
 
         # HANDLE BURROW END POINT
         # points at the burrow end
-        p1, p2 = centerline[-1], centerline[-2]
+        p1, p2 = centerline_new[-1], centerline_new[-2]
         angle = np.arctan2(p1[1] - p2[1], p1[0] - p2[0])
-        # get the farthest point on the outline as an estimate
-        point_max, _, _ = regions.get_farthest_intersection(
-            centerline_new[-1],
-            np.linspace(angle - np.pi/4, angle + np.pi/4, 16),
-            outline)
+
+        # shoot out rays in several angles        
+        angles = angle + np.pi/8*np.array((-2, -1, 0, 1, 2))
+        points = regions.get_ray_intersections(centerline_new[-1], angles, outline)
+        # filter unsuccessful points
+        points = (p for p in points if p is not None)
         
-        if point_max is not None: 
-            # determine the number of frames the mouse has been absent from the end
-            frames_absent = (
-                (1 - self.explored_area[int(p2[1]), int(p2[0])])
-                /self.params['explored_area/adaptation_rate_burrows']
-            )
+        # determine the number of frames the mouse has been absent from the end
+        frames_absent = (
+            (1 - self.explored_area[int(p2[1]), int(p2[0])])
+            /self.params['explored_area/adaptation_rate_burrows']
+        )
+        
+        point_max, dist_max = None, 0
+        point_anchor = centerline_new[-1]
+        for point in points:
             if frames_absent > 10/self.params['background/adaptation_rate']:
                 # mouse has been away for a long time
                 # => refine point using a line scan along the centerline
-                p1, p2 = centerline[-1], centerline[-2]
-                
+
                 # find local slope of the centerline
-                dx, dy = p1[0] - p2[0], p1[1] - p2[1]
+                dx, dy = point[0] - point_anchor[0], point[1] - point_anchor[1]
                 dist = np.hypot(dx, dy)
                 dx /= dist; dy /= dist
                 
                 # get profile along the centerline
-                p1e = (p2[0] + scan_length*dx, p2[1] + scan_length*dy)
-                profile = image.line_scan(self.background.astype(np.uint8, copy=False), p2, p1e, 3)
+                p1e = (point_anchor[0] + scan_length*dx, point_anchor[1] + scan_length*dy)
+                profile = image.line_scan(self.background.astype(np.uint8, copy=False),
+                                          point_anchor, p1e, 3)
 
                 # determine steepest point
                 l = image.get_steepest_point(profile, direction=1, smoothing=2)
                 
-                point_max = (p2[0] + l*dx, p2[1] + l*dy)
+                point = (point_anchor[0] + l*dx, point_anchor[1] + l*dy)
+
+            # add the point to the outline                
+            outline_new.append(point)
+            
+            # find the point with a maximal distance from the anchor point
+            dist = curves.point_distance(point, point_anchor)
+            if dist > dist_max:
+                point_max, dist_max = point, dist 
                 
-            outline_new.append(point_max)
+        # set the point with a maximal distance as the new centerline end
+        if point_max is not None:
             centerline_new.append(point_max)
         
         # HANDLE BURROW EXIT POINT
@@ -946,7 +971,7 @@ class FirstPass(DataHandler):
         # point until we hit the ground profile
         p1, p2 = centerline[1], centerline[2]
         angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
-        point_max, _, _ = regions.get_farthest_intersection(
+        point_max, _, _ = regions.get_farthest_ray_intersection(
             centerline_new[1], [angle], ground_line)
         if point_max is not None: 
             centerline_new[0] = point_max

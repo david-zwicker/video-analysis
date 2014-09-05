@@ -19,6 +19,8 @@ from .backend_opencv import (show_video_opencv, VideoWriterOpenCV, VideoOpenCV,
                              VideoImageStackOpenCV)
 from .backend_ffmpeg import (FFMPEG_BINARY, VideoWriterFFMPEG)
 
+logger = logging.getLogger('video.io')
+
 # set default handlers
 show_video = show_video_opencv
 VideoFile = VideoOpenCV
@@ -66,11 +68,11 @@ class VideoFileStack(VideoBase):
         
         # find all files that have to be considered
         if '*' in filename_scheme or '?' in filename_scheme:
-            logging.debug('Using glob module to locate files.')
+            logger.debug('Using glob module to locate files.')
             filenames = sorted(glob.glob(filename_scheme))
             
         elif r'%' in filename_scheme:
-            logging.debug('Iterating over possible filenames to find movies.')
+            logger.debug('Iterating over possible filenames to find movies.')
         
             # determine over which indices we have to iterate
             if index_end is None:
@@ -89,7 +91,7 @@ class VideoFileStack(VideoBase):
                     break
 
         else:
-            logging.warn('It seems as the filename scheme refers to a single file.')
+            logger.warn('It seems as the filename scheme refers to a single file.')
             filenames = [filename_scheme]
 
         if not filenames:
@@ -122,7 +124,7 @@ class VideoFileStack(VideoBase):
             # save the movie in the list
             self._movies.append(movie)
             
-            logging.info('Found movie `%s`', movie.filename)
+            logger.info('Found movie `%s`', movie.filename)
                         
         super(VideoFileStack, self).__init__(size=movie.size, frame_count=frame_count,
                                              fps=movie.fps, is_color=movie.is_color)

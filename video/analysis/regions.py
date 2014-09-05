@@ -219,7 +219,22 @@ def get_ray_hitpoint(point_anchor, point_far, line_string, ret_dist=False):
             return None
         
     
-def get_farthest_intersection(point_anchor, angles, polygon, ray_length=1000):
+
+def get_ray_intersections(point_anchor, angles, polygon, ray_length=1000):
+    """ shoots out rays from point_anchor in different angles and determines
+    the points where polygon is hit.
+    """
+    points = []
+    for angle in angles:
+        point_far = (point_anchor[0] + ray_length*np.cos(angle),
+                     point_anchor[1] + ray_length*np.sin(angle))
+        point_hit = get_ray_hitpoint(point_anchor, point_far, polygon)
+        points.append(point_hit)
+    return points
+
+
+    
+def get_farthest_ray_intersection(point_anchor, angles, polygon, ray_length=1000):
     """ shoots out rays from point_anchor in different angles and determines
     the farthest point where polygon is hit.
     Returns the hit point, its distance to point_anchor and the associated
@@ -228,8 +243,8 @@ def get_farthest_intersection(point_anchor, angles, polygon, ray_length=1000):
     point_max, dist_max, angle_max = None, 0, None
     # try some rays distributed around `angle`
     for angle in angles:
-        point_far = (point_anchor[0] + 1000*np.cos(angle),
-                     point_anchor[1] + 1000*np.sin(angle))
+        point_far = (point_anchor[0] + ray_length*np.cos(angle),
+                     point_anchor[1] + ray_length*np.sin(angle))
         point_hit, dist_hit = get_ray_hitpoint(point_anchor, point_far,
                                                polygon, ret_dist=True)
         if dist_hit > dist_max:

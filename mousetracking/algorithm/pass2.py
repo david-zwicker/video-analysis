@@ -54,7 +54,7 @@ class SecondPass(DataHandler):
         
         self.find_mouse_track()
         self.smooth_ground_profile()
-        #self.smooth_burrows()
+        #self.smooth_burrows() # this should be 'morphing'
         #self.classify_mouse_track()
         
         self.data['analysis-status'] = 'Finished second pass'
@@ -77,6 +77,7 @@ class SecondPass(DataHandler):
     #===========================================================================
     # CONNECT TEMPORAL DATA -- TRACKING
     #===========================================================================
+
 
     def get_track_graph(self, tracks, threshold):
         """ builds a weighted, directed graph representing the possible trajectories """

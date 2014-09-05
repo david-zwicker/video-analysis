@@ -18,6 +18,8 @@ except ImportError:
     sharedmem = None
         
         
+logger = logging.getLogger('video.io')
+
         
 def _show_image_from_pipe(pipe, image_array, title):
     """ function that runs in a separate process to display images """
@@ -75,15 +77,15 @@ class ImageShow(object):
                                             args=(pipe_child, self._data, title))
                     self._proc.daemon = True
                     self._proc.start()
-                    logging.debug('Started background process for displaying images')
+                    logger.debug('Started background process for displaying images')
                     
                 except AssertionError:
-                    logging.warn('Could not start a separate process to display images. '
-                                 'The main process will thus be used.')
+                    logger.warn('Could not start a separate process to display images. '
+                                'The main process will thus be used.')
                 
             else:
-                logging.warn('Package sharedmem could not be imported and '
-                             'images are thus shown using the main process.')
+                logger.warn('Package sharedmem could not be imported and '
+                            'images are thus shown using the main process.')
 
        
        

@@ -19,6 +19,7 @@ import h5py
 
 from .parameters_default import PARAMETERS_DEFAULT
 from .objects import ObjectTrack, GroundProfile, Burrow, BurrowTrack
+from .objects.utils import LazyValue
 from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists, prepare_data_for_yaml
@@ -340,6 +341,7 @@ class Data(collections.MutableMapping):
     sep = '/'
     
     def __init__(self, data=None):
+        # set data
         self.data = {}
         if data is not None:
             self.from_dict(data)
@@ -347,14 +349,23 @@ class Data(collections.MutableMapping):
     
     def __getitem__(self, key):
         if self.sep in key:
+            # sub-data is accessed
             parent, rest = key.split(self.sep, 1)
-            return self.data[parent][rest]
+            value = self.data[parent][rest]
         else:
-            return self.data[key]
+            value = self.data[key] 
+
+        # load lazy values            
+        if isinstance(value, LazyValue):
+            value = value.load()
+            self.data[key] = value
+            
+        return value
         
         
     def __setitem__(self, key, value):
         if self.sep in key:
+            # sub-data is written
             parent, rest = key.split(self.sep, 1)
             try:
                 self.data[parent][rest] = value
@@ -363,14 +374,17 @@ class Data(collections.MutableMapping):
                 child = Data()
                 child[rest] = value
                 self.data[parent] = child
+                
         else:
             self.data[key] = value
     
     
     def __delitem__(self, key):
         if self.sep in key:
+            # sub-data is deleted
             parent, rest = key.split(self.sep, 1)
             del self.data[parent][rest]
+
         else:
             del self.data[key]
 

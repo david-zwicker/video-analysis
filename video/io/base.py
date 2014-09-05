@@ -15,6 +15,7 @@ import numpy as np
 
 from video.utils import display_progress
 
+logger = logging.getLogger('video.io')
 
 # custom error classes
 class NotSeekableError(RuntimeError): pass
@@ -206,7 +207,7 @@ class VideoBase(object):
         # prevent circular import by lazy importing
         from .memory import VideoMemory
         
-        logging.debug('Copy a video stream and store it in memory')
+        logger.debug('Copy a video stream and store it in memory')
         
         # copy the data into a numpy array
         data = np.empty(self.shape, dtype)
@@ -333,10 +334,10 @@ class VideoSlice(VideoFilterBase):
         # correct the size, since we are going to crop the movie
         super(VideoSlice, self).__init__(source, frame_count=frame_count)
 
-        logging.debug('Created video slice [%d:%d:%d] of length %d.' % 
-                      (self._start, self._stop, self._step, frame_count)) 
+        logger.debug('Created video slice [%d:%d:%d] of length %d.' % 
+                     (self._start, self._stop, self._step, frame_count)) 
         if step < 0:
-            logging.warn('Reversing a video can slow down the processing significantly.')
+            logger.warn('Reversing a video can slow down the processing significantly.')
         
         
     def set_frame_pos(self, index):
@@ -444,7 +445,7 @@ class VideoFork(VideoFilterBase):
         self.status = 'normal'
         super(VideoFork, self).__init__(source)
         
-        logging.debug('Created video fork.')
+        logger.debug('Created video fork.')
 
 
     @property
@@ -518,14 +519,14 @@ class VideoFork(VideoFilterBase):
         """
         # remove all the iterators
         self._clients = []
-        logging.debug('Finished iterating and unregistered all clients of '
-                      'the video fork.')
+        logger.debug('Finished iterating and unregistered all clients of '
+                     'the video fork.')
         
     
     def abort_iteration(self):
         """ send SystemExit to all other clients """
-        logging.info('The video fork is aborting by sending a SystemExit '
-                     'signal to clients.')
+        logger.info('The video fork is aborting by sending a SystemExit '
+                    'signal to clients.')
         self.status = 'aborting'
         super(VideoFork, self).abort_iteration()
 
@@ -540,8 +541,8 @@ class VideoFork(VideoFilterBase):
         # create and register the client iterator
         client = _VideoForkClient(self)
         self._clients.append(client)
-        logging.debug('Registered client %d for video fork.', 
-                      len(self._clients))
+        logger.debug('Registered client %d for video fork.', 
+                     len(self._clients))
         
         self._retrieve_count = np.inf
         

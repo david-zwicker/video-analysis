@@ -11,7 +11,7 @@ from __future__ import division
 import numpy as np
 from scipy import ndimage
 
-from .burrow import cached_property 
+from .utils import cached_property 
 from video.analysis import curves
 
 

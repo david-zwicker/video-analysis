@@ -18,6 +18,8 @@ import cv2.cv as cv # still necessary for some constants
 
 from .base import VideoBase, VideoImageStackBase, NotSeekableError
 
+logger = logging.getLogger('video.io')
+
 
 # dictionary that maps standard file endings to fourcc codes
 # more codes can be found at http://www.fourcc.org/codecs.php
@@ -65,7 +67,7 @@ class VideoOpenCV(VideoBase):
         
         super(VideoOpenCV, self).__init__(size=size, frame_count=frame_count, fps=fps, is_color=True)
 
-        logging.debug('Initialized video `%s` with %d frames using OpenCV', filename, frame_count)
+        logger.debug('Initialized video `%s` with %d frames using OpenCV', filename, frame_count)
     
         
     def get_frame_pos(self):
@@ -178,7 +180,7 @@ class VideoWriterOpenCV(object):
         self._writer = cv2.VideoWriter(filename, fourcc=fourcc, fps=fps,
                                        frameSize=(size[1], size[0]), isColor=is_color)
 
-        logging.info('Start writing video `%s` with codec `%s`', filename, codec)
+        logger.info('Start writing video `%s` with codec `%s`', filename, codec)
                 
         
     @property
@@ -196,7 +198,7 @@ class VideoWriterOpenCV(object):
         
     def close(self):
         self._writer.release()
-        logging.info('Wrote video to file `%s`', self.filename)
+        logger.info('Wrote video to file `%s`', self.filename)
     
     
     def __enter__(self):

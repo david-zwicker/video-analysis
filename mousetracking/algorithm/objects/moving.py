@@ -13,7 +13,7 @@ import itertools
 
 import numpy as np
 
-from .burrow import cached_property 
+from .utils import cached_property 
 from video.analysis import curves
 
 from .. import debug  # @UnusedImport

@@ -24,6 +24,8 @@ except ImportError:
 from .io.base import VideoFilterBase
 from .analysis.regions import rect_to_slices
 from .utils import get_color_range
+
+logger = logging.getLogger('video')
   
 
 # translation dictionary for color channels
@@ -42,7 +44,7 @@ class FilterFunction(VideoFilterBase):
         
         super(FilterFunction, self).__init__(source)
         
-        logging.debug('Created filter applying a function to every frame')
+        logger.debug('Created filter applying a function to every frame')
 
 
     def _process_frame(self, frame):
@@ -74,7 +76,7 @@ class FilterNormalize(VideoFilterBase):
         self._alpha = None
         
         super(FilterNormalize, self).__init__(source)
-        logging.debug('Created filter for normalizing range [%g..%g]', vmin, vmax)
+        logger.debug('Created filter for normalizing range [%g..%g]', vmin, vmax)
 
 
     def _process_frame(self, frame):
@@ -91,9 +93,9 @@ class FilterNormalize(VideoFilterBase):
             # some safety checks on the first run:
             fmin, fmax = get_color_range(frame.dtype)
             if self._fmin < fmin:
-                logging.warn('Lower normalization bound is below what the format can hold.')
+                logger.warn('Lower normalization bound is below what the format can hold.')
             if self._fmax > fmax:
-                logging.warn('Upper normalization bound is above what the format can hold.')
+                logger.warn('Upper normalization bound is above what the format can hold.')
 
         # clip the data before converting
         np.clip(frame, self._fmin, self._fmax, out=frame)
@@ -167,7 +169,7 @@ class FilterCrop(VideoFilterBase):
         
         # contract with parent crop filters, if they exist 
         while isinstance(source, FilterCrop):
-            logging.debug('Combine this crop filter with the parent crop filter.')
+            logger.debug('Combine this crop filter with the parent crop filter.')
             left += source.rect[0]
             top += source.rect[1]
             if source.color_channel is not None:
@@ -184,7 +186,7 @@ class FilterCrop(VideoFilterBase):
 
         # correct the size, since we are going to crop the movie
         super(FilterCrop, self).__init__(source, size=self.rect[2:], is_color=is_color)
-        logging.debug('Created filter for cropping to rectangle %s', self.rect)
+        logger.debug('Created filter for cropping to rectangle %s', self.rect)
         
        
     def _process_frame(self, frame):
@@ -208,7 +210,7 @@ class FilterMonochrome(VideoFilterBase):
         self.mode = COLOR_CHANNELS.get(mode.lower(), mode.lower())
         super(FilterMonochrome, self).__init__(source, is_color=False)
 
-        logging.debug('Created filter for converting video to monochrome with method `%s`', mode)
+        logger.debug('Created filter for converting video to monochrome with method `%s`', mode)
 
 
     def _process_frame(self, frame):
@@ -236,7 +238,7 @@ class FilterBlur(VideoFilterBase):
         self.sigma = sigma
         super(FilterBlur, self).__init__(source)
 
-        logging.debug('Created filter blurring the video with radius %g', sigma)
+        logger.debug('Created filter blurring the video with radius %g', sigma)
 
         
     def _process_frame(self, frame):
@@ -393,7 +395,7 @@ class FilterTimeDifference(FilterDiffBase):
         # correct the frame count since we are going to return differences
         super(FilterTimeDifference, self).__init__(source)
 
-        logging.debug('Created filter for calculating differences between consecutive frames.')
+        logger.debug('Created filter for calculating differences between consecutive frames.')
 
       
     def _compare_frames(self, this_frame, prev_frame):

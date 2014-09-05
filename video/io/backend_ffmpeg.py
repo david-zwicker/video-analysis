@@ -19,6 +19,8 @@ import subprocess
 
 import numpy as np
 
+logger = logging.getLogger('video.io')
+
 # find the file handle to /dev/null to dumb strings
 try:
     from subprocess import DEVNULL # py3k
@@ -41,7 +43,7 @@ from subprocess import check_output
 # search for the ffmpeg command
 if try_cmd(['ffmpeg']):
     FFMPEG_BINARY = 'ffmpeg'
-    logging.debug('Found ffmpeg at: %s', check_output(['which', 'ffmpeg']).strip())
+    logger.debug('Found ffmpeg at: %s', check_output(['which', 'ffmpeg']).strip())
 elif try_cmd(['ffmpeg.exe']):
     FFMPEG_BINARY = 'ffmpeg.exe'
 else:
@@ -128,7 +130,7 @@ class VideoWriterFFMPEG(object):
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                                      stdout=DEVNULL, stderr=subprocess.PIPE)
 
-        logging.info('Start writing video `%s` with codec `%s`', filename, codec)
+        logger.info('Start writing video `%s` with codec `%s`', filename, codec)
 
     
     @property
@@ -188,7 +190,7 @@ class VideoWriterFFMPEG(object):
                 self.proc.stderr.close()
             self.proc.wait()
         
-            logging.info('Wrote video to file `%s`', self.filename)
+            logger.info('Wrote video to file `%s`', self.filename)
             
             self.proc = None
     
