@@ -48,13 +48,25 @@ class DataHandler(object):
         if parameters is not None:
             self.data['parameters'].from_dict(parameters)
             
-        # set up logging
+        # create logger for this object
         self.logger = logging.getLogger(self.name)
+        self.logger.setLevel(logging.DEBUG)
+        
+        # add default logger to stderr
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
+        handler.setFormatter(formatter)
+        level = logging.getLevelName(self.data['parameters/logging/level_stderr'])
+        handler.setLevel(level)
+        self.logger.addHandler(handler) 
+        
         if self.data.get('parameters/logging/folder', None) is not None:
-            logfile = self.get_filename('log.log',self.data['parameters/logging/folder'])
+            # setup handler to log to file
+            logfile = self.get_filename('log.log', self.data['parameters/logging/folder'])
             handler = logging.FileHandler(logfile, mode='w')
-            formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
             handler.setFormatter(formatter)
+            level = logging.getLevelName(self.data['parameters/logging/level_file'])
+            handler.setLevel(level)
             self.logger.addHandler(handler) 
             
         # setup mouse parameters as class variables
@@ -97,12 +109,12 @@ class DataHandler(object):
 
     def log_event(self, description):
         """ stores and/or outputs the time and date of the event given by name """
-        event = str(datetime.datetime.now()) + ': ' + description 
-        self.logger.info(event)
+        self.logger.info(description)
         
         # save the event in the result structure
         if 'event_log' not in self.data:
             self.data['event_log'] = []
+        event = str(datetime.datetime.now()) + ': ' + description 
         self.data['event_log'].append(event)
 
     

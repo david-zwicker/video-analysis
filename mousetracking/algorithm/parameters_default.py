@@ -25,6 +25,10 @@ PARAMETERS_DEFAULT = {
         
     # folder to which the log file is written
     'logging/folder': None,
+    # level of messages to log to stderr [standard python logging levels]
+    'logging/level_stderr': 'INFO',
+    # level of messages to log to file if folder is set [standard python logging levels]
+    'logging/level_file': 'INFO',
     
     # folder to which the YAML and HDF5 result files are written
     'output/result_folder': './results/',
