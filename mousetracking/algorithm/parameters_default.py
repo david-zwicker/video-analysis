@@ -53,7 +53,7 @@ PARAMETERS_DEFAULT = {
     'background/adaptation_rate': 1e-2,
     # the rate at which the explored area is adapted [in 1/frames]
     'explored_area/adaptation_rate_outside': 1e-3,
-    'explored_area/adaptation_rate_burrows': 1e-5,
+    'explored_area/adaptation_rate_burrows': 1e-6,
     
     # spacing of the support points describing the ground profile [in pixel]
     'ground/point_spacing': 20,

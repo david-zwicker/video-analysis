@@ -57,7 +57,8 @@ class DataHandler(object):
             handler.setFormatter(formatter)
             self.logger.addHandler(handler) 
             
-        # setup the mouse objects
+        # setup mouse parameters as class variables
+        # => the code is not thread-safe if different values for these parameters are used in the same process
         curvature_radius_max = self.data.get('parameters/burrows/curvature_radius_max', None)
         if curvature_radius_max:
             Burrow.curvature_radius_max = curvature_radius_max 

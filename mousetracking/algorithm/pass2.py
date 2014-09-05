@@ -27,7 +27,6 @@ class SecondPass(DataHandler):
     
     def __init__(self, name='', parameters=None, debug_output=None):
         super(SecondPass, self).__init__(name, parameters)
-        self.initialize_parameters()
         self.params = self.data['parameters']
         self.log_event('Pass 2 - Started initializing the analysis.')
 
