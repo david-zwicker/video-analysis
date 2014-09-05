@@ -270,22 +270,22 @@ class DataHandler(object):
         
         # read the main result file and copy data into internal dictionary
         filename = self.get_filename('results.yaml', 'results')
-        self.logger.debug('Read data from %s', filename)
+        self.logger.info('Read YAML data from %s', filename)
         
         with open(filename, 'r') as infile:
             self.data.from_dict(yaml.load(infile))
         
-        # overwrite parameters given by the user
-        self.data['parameters'].from_dict(self.user_parameters)
-            
         # initialize the parameters read from the YAML file
-        self.initialize_parameters()
+        self.initialize_parameters(self.user_parameters)
         
         # load additional data if requested
         if load_from_hdf:
+            self.logger.info('Read additional data from the associated HDF file')
             self.load_object_list_from_hdf('pass1/ground/profile', GroundProfile)            
             self.load_object_collection_from_hdf('pass1/objects/tracks', ObjectTrack)
             self.load_object_collection_from_hdf('pass1/burrows/data', BurrowTrack)
+            
+        self.log_event('Read previously calculated data from files.')
 
  
     #===========================================================================

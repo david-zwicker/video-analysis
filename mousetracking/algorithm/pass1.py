@@ -67,6 +67,7 @@ class FirstPass(DataHandler):
         self.frame_id = None           # id of the current frame
         self.result['mouse/moved_first_in_frame'] = None
         self.debug_output = [] if debug_output is None else debug_output
+        self.log_event('Pass 1 - Initialized the first pass analysis.')
 
 
     def load_video(self, video=None, crop_video=True):

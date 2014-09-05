@@ -28,10 +28,11 @@ class SecondPass(DataHandler):
     def __init__(self, name='', parameters=None, debug_output=None):
         super(SecondPass, self).__init__(name, parameters)
         self.params = self.data['parameters']
-        self.log_event('Pass 2 - Started initializing the analysis.')
+        self.result = self.data.create_child('pass2')
 
         self.debug = {} #< dictionary holding debug information
         self.debug_output = [] if debug_output is None else debug_output
+        self.log_event('Pass 2 - Initialized the second pass analysis.')
         
 
     @classmethod
