@@ -401,8 +401,14 @@ class Data(collections.MutableMapping):
         if data is not None:
             for key, value in data.iteritems():
                 if isinstance(value, dict):
-                    self[key] = Data(value)
+                    if key in self and isinstance(self[key], Data):
+                        # extend existing Data structure
+                        self[key].from_dict(value)
+                    else:
+                        # create new Data structure
+                        self[key] = Data(value)
                 else:
+                    # store simple value
                     self[key] = value
 
             
