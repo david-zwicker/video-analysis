@@ -15,7 +15,7 @@ import cv2
 import shapely
 import shapely.geometry as geometry
 
-from .utils import cached_property 
+from .utils import cached_property, LazyHDFCollection
 from video.analysis import curves, regions
 
 from ..debug import *  # @UnusedWildImport
@@ -34,6 +34,8 @@ class Burrow(object):
     centerline_segment_length = 25
     
     ground_point_distance = 10
+    
+    storage_class = LazyHDFCollection
     
     
     def __init__(self, outline, centerline=None, length=None, refined=False):
@@ -180,7 +182,7 @@ class Burrow(object):
         dist[k1] = np.inf
         k2 = np.argmin(dist)
         p1, p2 = ground[k1], ground[k2]
-        # get the points such that p1 is left of p2
+        # ensure that p1 is left of p2
         if p1[0] > p2[0]:
             p1, p2 = p2, p1
         
@@ -202,7 +204,7 @@ class Burrow(object):
                 point_anchor,
                 np.linspace(angle - angle_max, angle + angle_max, 16),
                 outline_poly)
-            # this also sets the angle for the next iteration
+                # this also sets the angle for the next iteration
 
             # abort if the search was not successful
             if point_max is None:
@@ -247,7 +249,7 @@ class Burrow(object):
         
         
 class BurrowTrack(object):
-    array_columns = ['Time', 'Position X', 'Position Y']
+    array_columns = ('Time', 'Position X', 'Position Y')
     
     def __init__(self, time=None, burrow=None):
         self.times = [] if time is None else [time]
@@ -258,9 +260,9 @@ class BurrowTrack(object):
         if len(self.times) == 0:
             return 'BurrowTrack([])'
         elif len(self.times) == 1:
-            return 'BurrowTrack(span=%d)' % (self.times[0])
+            return 'BurrowTrack(time=%d)' % (self.times[0])
         else:
-            return 'BurrowTrack(span=%d..%d)' % (self.times[0], self.times[-1])
+            return 'BurrowTrack(times=%d..%d)' % (self.times[0], self.times[-1])
         
         
     def __len__(self):
@@ -336,3 +338,14 @@ class BurrowTrack(object):
         """ creates a burrow track from data in a HDF5 file """
         return cls.from_array(hdf_file[key])
    
+   
+
+class BurrowTrackList(list):
+    storage_class = LazyHDFCollection
+   
+    @classmethod
+    def load_list(cls, data): 
+        result = [BurrowTrack.from_array(data[index])
+                  for index in sorted(data.keys())]
+        # here, we have to use sorted() to iterate in the correct order 
+        return cls(result)

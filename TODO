@@ -12,6 +12,7 @@
 	- this should improve the burrow front shape
 	- adjust the explored_area algorithm to take into account color in order to match retracting burrows
 	- fix the burrow breakup occurring in video DR
+* Write HDF file incrementally (to preserve older data)
 
 
 Performance improvements:
@@ -51,3 +52,4 @@ Low priority enhancements:
 		does not work
 	- Here, we might wanna introduce the distinction between VideoStreamBase and VideoBase, with the
 		difference that the first one can only be iterated over, while the second allows for random access
+* Write Query class, which can be used to query a complete data set to return useful data (like burrow length over time)

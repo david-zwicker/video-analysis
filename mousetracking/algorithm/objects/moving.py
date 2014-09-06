@@ -13,7 +13,7 @@ import itertools
 
 import numpy as np
 
-from .utils import cached_property 
+from .utils import cached_property, LazyHDFValue, LazyHDFCollection
 from video.analysis import curves
 
 from .. import debug  # @UnusedImport
@@ -40,9 +40,8 @@ class MovingObject(object):
 
 class ObjectTrack(object):
     """ represents a time course of objects """
+    array_columns = ('Time', 'Position X', 'Position Y', 'Object Area')
     mouse_area_mean = 700
-    
-    array_columns = ['Time', 'Position X', 'Position Y', 'Object Area']
     
     def __init__(self, time=None, obj=None, moving_window=20, moving_threshold=10):
         self.times = [] if time is None else [time]
@@ -154,11 +153,39 @@ class ObjectTrack(object):
     def create_from_hdf5(cls, hdf_file, key):
         """ creates a burrow track from data in a HDF5 file """
         return cls.from_array(hdf_file[key])
-        
+       
+       
+       
+class ObjectTrackList(list):
+    """ organizes a list of object tracks """
+    storage_class = LazyHDFCollection
+    
+    @classmethod
+    def load_list(cls, data): 
+        result = [ObjectTrack.from_array(data[index])
+                  for index in sorted(data.keys())]
+        # here, we have to use sorted() to iterate in the correct order 
+        return cls(result)
+
+
 
 
 class MouseTrack(object):
     """ class that describes the mouse track """
-    pass
+    
+    hdf_attributes = {'column_names': ('Position X', 'Position Y')}
+    storage_class = LazyHDFValue
+    
+    def __init__(self, trajectory):
+        print trajectory
+        self.pos = trajectory
+    
+    def to_array(self):
+        return self.pos
+    
+    @classmethod
+    def from_array(cls, data):
+        return cls(data)
+   
    
     

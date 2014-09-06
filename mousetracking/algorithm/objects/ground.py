@@ -11,15 +11,13 @@ from __future__ import division
 import numpy as np
 from scipy import ndimage
 
-from .utils import cached_property 
+from .utils import cached_property, LazyHDFValue
 from video.analysis import curves
 
 
 class GroundProfile(object):
     """ class representing a single ground profile at a certain point
     in time """
-    
-    array_columns = ['Time', 'Position X', 'Position Y']
     
     def __init__(self, time, points):
         self.time = time
@@ -52,6 +50,42 @@ class GroundProfile(object):
         data = np.asarray(data)
         return cls(data[0, 0], data[:, 1:])
    
+   
+
+class GroundProfileList(list):
+    """ organizes a list of ground profiles """
+    hdf_attributes = {'column_names': ('Time', 'Position X', 'Position Y')}
+    storage_class = LazyHDFValue
+   
+   
+    def to_array(self):
+        if len(self) == 0:
+            return []
+        else:
+            return np.concatenate([obj.to_array() for obj in self])
+    
+    
+    @classmethod
+    def from_array(cls, value):
+        result = cls()
+        index, obj_data = None, None
+        # iterate over the data and create objects from it
+        for line in value:
+            if line[0] == index:
+                # append object to the current track
+                obj_data.append(line)
+            else:
+                # save the track and start a new one
+                if obj_data:
+                    result.append(GroundProfile.from_array(obj_data))
+                obj_data = [line]
+                index = line[0]
+        
+        if obj_data:
+            result.append(GroundProfile.from_array(obj_data))
+            
+        return result
+   
 
 
 class GroundProfileTrack(object):
@@ -59,6 +93,12 @@ class GroundProfileTrack(object):
     For efficient data storage the ground profiles are re-parameterized
     to have the same number of support points.
     """
+    
+    hdf_attributes = {'row_names': ('Time 1', 'Time 2', '...'),
+                      'column_names': ('Time', 'Point 1', 'Point 2', '...'),
+                      'depth_names': ('X Coordinate', 'Y Coordinate')}
+    storage_class = LazyHDFValue
+
     
     def __init__(self, ground_profiles):
         # determine the maximal number of points

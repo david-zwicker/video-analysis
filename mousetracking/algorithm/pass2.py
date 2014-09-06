@@ -14,7 +14,7 @@ import numpy as np
 import networkx as nx
 
 from .data_handler import DataHandler
-from .objects import GroundProfileTrack
+from .objects import GroundProfileTrack, MouseTrack
 from video.analysis import curves
 from video.composer import VideoComposer
 from video.filters import FilterCrop
@@ -216,7 +216,7 @@ class SecondPass(DataHandler):
             for time, obj in track:
                 trajectory[time, :] = obj.pos
         
-        self.data['pass2/mouse_trajectory'] = trajectory
+        self.data['pass2/mouse_trajectory'] = MouseTrack(trajectory)
 
         return trajectory
     

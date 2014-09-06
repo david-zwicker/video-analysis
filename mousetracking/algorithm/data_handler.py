@@ -18,13 +18,26 @@ import yaml
 import h5py
 
 from .parameters_default import PARAMETERS_DEFAULT
-from .objects import ObjectTrack, GroundProfile, Burrow, BurrowTrack
-from .objects.utils import LazyValue
+import objects
+from .objects.utils import LazyHDFValue 
 from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists, prepare_data_for_yaml
 
 import debug  # @UnusedImport
+
+
+# dictionary of data items that are stored in a separated HDF file
+# and will be loaded only on access
+HDF_VALUES = {'pass1/ground/profile': objects.GroundProfileList,
+              'pass1/objects/tracks': objects.ObjectTrackList,
+              'pass1/burrows/data': objects.BurrowTrackList,
+              'pass2/ground_profile': objects.GroundProfileTrack,
+              'pass2/mouse_trajectory': objects.MouseTrack}
+
+
+
+class LazyLoadError(RuntimeError): pass
 
 
 class DataHandler(object):
@@ -35,7 +48,7 @@ class DataHandler(object):
 
         # initialize the data handled by this class
         self.video = None        
-        self.data = Data()
+        self.data = DataDict()
         self.data.create_child('parameters')
         self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
         self.user_parameters = parameters
@@ -74,13 +87,13 @@ class DataHandler(object):
         # => the code is not thread-safe if different values for these parameters are used in the same process
         curvature_radius_max = self.data.get('parameters/burrows/curvature_radius_max', None)
         if curvature_radius_max:
-            Burrow.curvature_radius_max = curvature_radius_max 
+            objects.Burrow.curvature_radius_max = curvature_radius_max 
         centerline_segment_length = self.data.get('parameters/burrows/centerline_segment_length', None)
         if centerline_segment_length:
-            Burrow.centerline_segment_length = centerline_segment_length
+            objects.Burrow.centerline_segment_length = centerline_segment_length
         ground_point_distance = self.data.get('parameters/burrows/ground_point_distance', None)
         if ground_point_distance:
-            Burrow.ground_point_distance = ground_point_distance
+            objects.Burrow.ground_point_distance = ground_point_distance
             
 
     def get_folder(self, folder):
@@ -180,48 +193,13 @@ class DataHandler(object):
         hdf_name = self.get_filename('results.hdf5')
         hdf_uri = self.get_filename('results.hdf5', 'results')
         with h5py.File(hdf_uri, 'w') as hdf_file:
-            # write the ground profile      
-            if 'pass1/ground/profile' in main_result:
-                ground_profile = main_result['pass1/ground/profile']
-                data = [obj.to_array() for obj in ground_profile]
-                if data:
-                    hdf_file.create_dataset('pass1/ground_profile', data=np.concatenate(data))
-                    hdf_file['pass1/ground_profile'].attrs['column_names'] = ground_profile[0].array_columns
-                    main_result['pass1/ground/profile'] = '@%s:pass1/ground_profile' % hdf_name
-    
-            # write out the object tracks
-            if 'pass1/objects/tracks' in main_result:
-                data = main_result['pass1/objects/tracks']
-                key_format = 'pass1/objects/%0{}d'.format(len(str(len(data))))
-                for index, object_track in enumerate(data):
-                    object_track.save_to_hdf5(hdf_file, key_format % index)
-                if main_result['pass1/objects/tracks']:
-                    main_result['pass1/objects/tracks'] = '@%s:pass1/objects' % hdf_name
-    
-            # write out the burrow tracks
-            if 'pass1/burrows/data' in main_result:
-                data = main_result['pass1/burrows/data']
-                key_format = 'pass1/burrows/%0{}d'.format(len(str(len(data))))
-                for index, burrow_track in enumerate(data):
-                    burrow_track.save_to_hdf5(hdf_file, key_format % index)
-                if main_result['pass1/burrows/data']:
-                    main_result['pass1/burrows/data'] = '@%s:pass1/burrows' % hdf_name
-                
-            # write out mouse trajectory 
-            if 'pass2/mouse_trajectory' in main_result:
-                data = main_result['pass2/mouse_trajectory']
-                hdf_file.create_dataset('pass2/mouse_trajectory', data=data)
-                hdf_file['pass2/mouse_trajectory'].attrs['column_names'] = ('X Position', 'Y Position')
-                main_result['pass2/mouse_trajectory'] = '@%s:pass2/mouse_trajectory' % hdf_name
-        
-            # write out ground profile
-            if 'pass2/ground_profile' in main_result:
-                data = main_result['pass2/ground_profile']
-                hdf_file.create_dataset('pass2/ground_profile', data=data.to_array())
-                hdf_file['pass2/ground_profile'].attrs['row_names'] = ('Time 1', 'Time 2', '...')
-                hdf_file['pass2/ground_profile'].attrs['column_names'] = ('Time', 'Point 1', 'Point 2', '...')
-                hdf_file['pass2/ground_profile'].attrs['depth_names'] = ('X Coordinate', 'Y Coordinate')
-                main_result['pass2/ground_profile'] = '@%s:pass2/ground_profile' % hdf_name
+            for key, cls in HDF_VALUES.iteritems():
+                if key in main_result:
+                    value = main_result.get_item(key, load_data=False)
+                    if not isinstance(value, LazyHDFValue):
+                        assert cls == value.__class__
+                        value = cls.storage_class.create_from_data(key, value, hdf_name, hdf_file)
+                    main_result[key] = value
         
         # write the main result file to YAML
         filename = self.get_filename('results.yaml', 'results')
@@ -230,62 +208,9 @@ class DataHandler(object):
                       outfile,
                       default_flow_style=False,
                       indent=4)       
-            
-            
-    def load_object_collection_from_hdf(self, key, cls): 
-        """ loads a list of data objects from the accompanied HDF file """
-        # check if the entry is not empty:
-        if self.data[key]:
-            # read the link
-            if self.data[key][0] != '@':
-                self.logger.warn('Item `%s` does not start with `@`' % key)
-                return 
-            data_str = self.data[key][1:] # strip the first character, which should be an @
-            hdf_filename, dataset = data_str.split(':')
-            
-            # open the associated HDF5 file
-            hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
-            with h5py.File(hdf_filepath, 'r') as hdf_file:
-                # iterate over the data and create objects from it
-                data = hdf_file[dataset]
-                self.data[key] = [cls.from_array(data[index])
-                                  for index in sorted(data.keys())]
-                # here, we have to use sorted() to iterate in the correct order 
+       
                         
-                        
-    def load_object_list_from_hdf(self, key, cls): 
-        """ load a data object from the accompanied HDF file """
-        # check if the entry is not empty:
-        if self.data[key]:
-            # read the link
-            if self.data[key][0] != '@':
-                self.logger.warn('Item `%s` does not start with `@`' % key)
-                return 
-            data_str = self.data[key][1:] # strip the first character, which should be an @
-            hdf_filename, dataset = data_str.split(':')
-            
-            # open the associated HDF5 file
-            hdf_filepath = os.path.join(self.get_folder('results'), hdf_filename)
-            with h5py.File(hdf_filepath, 'r') as hdf_file:
-                self.data[key] = []
-                index, obj_data = None, None
-                # iterate over the data and create objects from it
-                for line in hdf_file[dataset]:
-                    if line[0] == index:
-                        # append object to the current track
-                        obj_data.append(line)
-                    else:
-                        # save the track and start a new one
-                        if obj_data:
-                            self.data[key].append(cls.from_array(obj_data))
-                        obj_data = [line]
-                        index = line[0]
-                
-                if obj_data:
-                    self.data[key].append(cls.from_array(obj_data))
-            
-                        
-    def read_data(self, load_from_hdf=True):
+    def read_data(self):
         """ read the data from result files.
         If load_from_hdf is False, the data from the HDF file is not loaded.
         """
@@ -300,15 +225,19 @@ class DataHandler(object):
         # initialize the parameters read from the YAML file
         self.initialize_parameters(self.user_parameters)
         
-        # load additional data if requested
-        if load_from_hdf:
-            self.logger.info('Read additional data from the associated HDF file')
-            self.load_object_list_from_hdf('pass1/ground/profile', GroundProfile)            
-            self.load_object_collection_from_hdf('pass1/objects/tracks', ObjectTrack)
-            self.load_object_collection_from_hdf('pass1/burrows/data', BurrowTrack)
-            
-            # TODO load mouse trajectory and ground profile
-            
+        # initialize the loaders for values stored elsewhere
+        hdf_folder = self.get_folder('results')
+        for key, data_cls in HDF_VALUES.iteritems():
+            if key in self.data:
+                value = self.data.get_item(key, load_data=False) 
+                storage_cls = data_cls.storage_class
+                if isinstance(value, LazyHDFValue):
+                    value.hdf_folder = hdf_folder
+                else:
+                    lazy_loader = storage_cls.create_from_string(self.data[key],
+                                                                 data_cls, hdf_folder)
+                    self.data[key] = lazy_loader
+        
         self.log_event('Read previously calculated data from files.')
 
  
@@ -323,11 +252,11 @@ class DataHandler(object):
 
 
 
-class Data(collections.MutableMapping):
+class DataDict(collections.MutableMapping):
     """ special dictionary class representing nested dictionaries.
     This class allows easy access to nested properties using a single key:
     
-    d = Data({'a': {'b': 1}})
+    d = DataDict({'a': {'b': 1}})
     
     d['a/b']
     >>>> 1
@@ -345,48 +274,72 @@ class Data(collections.MutableMapping):
         self.data = {}
         if data is not None:
             self.from_dict(data)
-    
-    
-    def __getitem__(self, key):
-        if self.sep in key:
-            # sub-data is accessed
-            parent, rest = key.split(self.sep, 1)
-            value = self.data[parent][rest]
-        else:
-            value = self.data[key] 
 
-        # load lazy values            
-        if isinstance(value, LazyValue):
-            value = value.load()
+
+    def get_item(self, key, load_data=True):
+        try:
+            if self.sep in key:
+                # sub-data is accessed
+                child, grandchildren = key.split(self.sep, 1)
+                value = self.data[child].get_item(grandchildren, load_data)
+            else:
+                value = self.data[key] 
+        except KeyError:
+            raise KeyError(key)
+
+        # load lazy values
+        if load_data and isinstance(value, LazyHDFValue):
+            try:
+                value = value.load()
+            except KeyError as e:
+                # we have to relabel KeyErrors, since they otherwise shadow
+                # KeyErrors raised by the item actually not being in the DataDict
+                raise LazyLoadError(e) #< TODO preserve traceback
             self.data[key] = value
             
         return value
+
+    
+    def __getitem__(self, key):
+        return self.get_item(key)
         
         
     def __setitem__(self, key, value):
         if self.sep in key:
             # sub-data is written
-            parent, rest = key.split(self.sep, 1)
+            child, grandchildren = key.split(self.sep, 1)
             try:
-                self.data[parent][rest] = value
+                self.data[child][grandchildren] = value
             except KeyError:
                 # create new child if it does not exists
-                child = Data()
-                child[rest] = value
-                self.data[parent] = child
+                child_node = DataDict()
+                child_node[grandchildren] = value
+                self.data[child] = child_node
                 
         else:
             self.data[key] = value
     
     
     def __delitem__(self, key):
+        try:
+            if self.sep in key:
+                # sub-data is deleted
+                child, grandchildren = key.split(self.sep, 1)
+                del self.data[child][grandchildren]
+    
+            else:
+                del self.data[key]
+        except KeyError:
+            raise KeyError(key)
+
+
+    def __contains__(self, key):
         if self.sep in key:
-            # sub-data is deleted
-            parent, rest = key.split(self.sep, 1)
-            del self.data[parent][rest]
+            child, grandchildren = key.split(self.sep, 1)
+            return child in self.data and grandchildren in self.data[child]
 
         else:
-            del self.data[key]
+            return key in self.data
 
 
     # Miscellaneous dictionary methods are just mapped to data
@@ -402,7 +355,7 @@ class Data(collections.MutableMapping):
            
             
     def __repr__(self):
-        return 'Data(' + repr(self.data) + ')'
+        return 'DataDict(' + repr(self.data) + ')'
 
 
     def create_child(self, key, values=None):
@@ -413,9 +366,9 @@ class Data(collections.MutableMapping):
 
     def copy(self):
         """ makes a shallow copy of the data """
-        res = Data()
+        res = DataDict()
         for key, value in self.iteritems():
-            if isinstance(value, (dict, Data)):
+            if isinstance(value, (dict, DataDict)):
                 value = value.copy()
             res[key] = value
         return res
@@ -426,12 +379,12 @@ class Data(collections.MutableMapping):
         if data is not None:
             for key, value in data.iteritems():
                 if isinstance(value, dict):
-                    if key in self and isinstance(self[key], Data):
-                        # extend existing Data structure
+                    if key in self and isinstance(self[key], DataDict):
+                        # extend existing DataDict structure
                         self[key].from_dict(value)
                     else:
-                        # create new Data structure
-                        self[key] = Data(value)
+                        # create new DataDict structure
+                        self[key] = DataDict(value)
                 else:
                     # store simple value
                     self[key] = value
@@ -441,7 +394,7 @@ class Data(collections.MutableMapping):
         """ convert object to a nested dictionary structure """
         res = {}
         for key, value in self.iteritems():
-            if isinstance(value, Data):
+            if isinstance(value, DataDict):
                 value = value.to_dict()
             res[key] = value
         return res
@@ -452,7 +405,5 @@ class Data(collections.MutableMapping):
         from pprint import pprint
         pprint(self.to_dict(), *args, **kwargs)
 
-
-        
         
         

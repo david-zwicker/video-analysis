@@ -34,9 +34,9 @@ from video.composer import VideoComposer
 
 
 from .data_handler import DataHandler
-from .objects.moving import MovingObject, ObjectTrack
-from .objects.ground import GroundProfile, RidgeProfile
-from .objects.burrow import Burrow, BurrowTrack
+from .objects.moving import MovingObject, ObjectTrack, ObjectTrackList
+from .objects.ground import GroundProfile, GroundProfileList, RidgeProfile
+from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
 
 import debug  # @UnusedImport
 
@@ -139,9 +139,9 @@ class FirstPass(DataHandler):
     def setup_processing(self):
         """ sets up the processing of the video by initializing caches etc """
         
-        self.result['objects/tracks'] = []
-        self.result['ground/profile'] = []
-        self.result['burrows/data'] = []
+        self.result['objects/tracks'] = ObjectTrackList()
+        self.result['ground/profile'] = GroundProfileList()
+        self.result['burrows/data'] = BurrowTrackList()
 
         # creates a simple template for matching with the mouse.
         # This template can be used to update the current mouse position based
@@ -892,7 +892,7 @@ class FirstPass(DataHandler):
             k_c = int(k_l + k_r)//2 #< position of the new centerline
 
             color_threshold = self.result['colors/sand'] - self.result['colors/sand_std']
-            # the color threshold determines whether the fit was alright
+            # the color threshold determines whether the fit was all right
             if np.isfinite(d_l) and np.isfinite(d_r) and profile[k_c] < color_threshold:
                 # FIXME: only use the fitted version if we believe it
 
