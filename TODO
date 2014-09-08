@@ -8,18 +8,10 @@
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
 * Determine absolute times by checking when the lights go on
-* Get burrow front from three different rays, to estimate the shape better
-	- this should improve the burrow front shape
-	- adjust the explored_area algorithm to take into account color in order to match retracting burrows
-	- fix the burrow breakup occurring in video DR
-* Write HDF file incrementally (to preserve older data)
 
 
 Performance improvements:
 -------------------------
-* Speed up sand profile fitting by having a library of profiles with certain angles and just matching these
-	around the point of interest (move along perpendicular line, until overlap is maximal)
-	- an active snake model might be better anyway
 * Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)
 * Generally cache all kernels for morphological operations, since these are costly to make
 * There are problems when ffmpeg can't encode the output videos fast enough:
@@ -41,6 +33,8 @@ Low priority enhancements:
 * There is a memory leak somewhere. If the FirstPass object is deleted not all memory is released.
 	- This should not pose any problems, since we usually only do one scan and then end the whole process
 * Ground fitting could use some "active snake" ideas (http://en.wikipedia.org/wiki/Active_contour_model)
+	- Alternatively, Speed up sand profile fitting by having a library of profiles with certain angles and just matching these
+	around the point of interest (move along perpendicular line, until overlap is maximal)
 * Extend the ground profile till the edge of the cage
 	- this should automatically allow us to track the burrows close to the edge
 * Look into the possibility of writing a VideoFFMPEG class, which directly uses ffmpeg to read a video

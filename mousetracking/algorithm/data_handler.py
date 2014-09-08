@@ -34,6 +34,8 @@ HDF_VALUES = {'pass1/ground/profile': objects.GroundProfileList,
               'pass2/ground_profile': objects.GroundProfileTrack,
               'pass2/mouse_trajectory': objects.MouseTrack}
 
+LOGGING_FILE_MODES = {'create': 'w', #< create new log file 
+                      'append': 'a'} #< append to old log file
 
 
 class LazyLoadError(RuntimeError): pass
@@ -41,12 +43,13 @@ class LazyLoadError(RuntimeError): pass
 
 class DataHandler(object):
     """ class that handles the data and parameters of mouse tracking """
+    logging_mode = 'append'    
 
     def __init__(self, name='', parameters=None):
         self.name = name
 
         # initialize the data handled by this class
-        self.video = None        
+        self.video = None
         self.data = DataDict()
         self.data.create_child('parameters')
         self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
@@ -63,11 +66,14 @@ class DataHandler(object):
             
         # create logger for this object
         self.logger = logging.getLogger(self.name)
+        self.logger.handlers = []     #< reset list of handlers
+        self.logger.propagate = False #< disable default logger 
         self.logger.setLevel(logging.DEBUG)
         
         # add default logger to stderr
         handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
+        formatter = logging.Formatter('%(asctime)s %(levelname)7s: %(message)s',
+                                      datefmt='%Y-%m-%d %H:%M:%S')
         handler.setFormatter(formatter)
         level = logging.getLevelName(self.data['parameters/logging/level_stderr'])
         handler.setLevel(level)
@@ -76,7 +82,7 @@ class DataHandler(object):
         if self.data.get('parameters/logging/folder', None) is not None:
             # setup handler to log to file
             logfile = self.get_filename('log.log', self.data['parameters/logging/folder'])
-            handler = logging.FileHandler(logfile, mode='w')
+            handler = logging.FileHandler(logfile, mode=LOGGING_FILE_MODES[self.logging_mode])
             handler.setFormatter(formatter)
             level = logging.getLevelName(self.data['parameters/logging/level_file'])
             handler.setLevel(level)

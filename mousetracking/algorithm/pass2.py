@@ -88,17 +88,19 @@ class SecondPass(DataHandler):
         for a_idx, a in enumerate(tracks):
             for b in tracks[a_idx + 1:]:
                 gap_length = b.start - a.end #< time gap between the two chunks
-                if gap_length > 0:
+                if gap_length > -self.params['tracking/tolerated_overlap']:
                     # calculate the weight of this graph
                     # lower is better; all terms should be normalized to one
-                    #track_length = len(a) + len(b)
+                    
                     distance = curves.point_distance(a.last.pos, b.first.pos)
                     
                     weight = (
-                        #2 - a.mouse_score - b.mouse_score     # is it a mouse?
-                        + distance/self.params['mouse/speed_max'] # how close are the mice
-                        #+ np.exp(-track_length/time_scale)   # is it a long track?
-                    )*gap_length/time_scale               # is it a long gap?
+                        #+ (2 - a.mouse_score - b.mouse_score)       # is it a mouse? 
+                        + distance/self.params['mouse/speed_max']   # how close are the mice
+                        + abs(gap_length)/time_scale                     # is it a long gap?
+                    )
+                    
+                    # add the edge if the weight is not too high
                     if weight < threshold:
                         graph.add_weighted_edges_from([(a, b, weight)])
         return graph
@@ -125,31 +127,27 @@ class SecondPass(DataHandler):
         # try different thresholds until we found a result        
         track_found = False
         while not track_found:
-            self.logger.debug('Building tracking graph of %d nodes and with threshold %g',
-                              len(tracks), threshold) 
+            self.logger.info('Building tracking graph of %d nodes and with threshold %g',
+                             len(tracks), threshold) 
             graph = self.get_track_graph(tracks, threshold)
             graph.add_nodes_from(endtoend_nodes) 
-            self.logger.debug('Built tracking graph with %d nodes and %d edges',
-                              graph.number_of_nodes(), graph.number_of_edges()) 
+            self.logger.info('Built tracking graph with %d nodes and %d edges',
+                             graph.number_of_nodes(), graph.number_of_edges()) 
 
             if graph.number_of_nodes() > 0:
     
                 # find start and end nodes
                 start_nodes = [node for node in graph
-                               if graph.in_degree(node) == 0]
+                               if graph.in_degree(node) == 0 and 
+                                   node.start <= start_time + end_node_interval]
                 end_nodes = [node for node in graph
-                             if graph.out_degree(node) == 0]
-
-                # eliminate start nodes that are far from the beginning and end nodes that are far from the end
-                start_nodes = [node for node in start_nodes
-                               if node.start <= start_time + end_node_interval] 
-                end_nodes = [node for node in end_nodes
-                             if node.end >= end_time - end_node_interval]
+                             if graph.out_degree(node) == 0 and
+                                 node.end >= end_time - end_node_interval]
         
-                self.logger.debug('Found %d start node(s) and %d end node(s) in tracking graph.',
-                                  len(start_nodes), len(end_nodes)) 
+                self.logger.info('Found %d start node(s) and %d end node(s) in tracking graph.',
+                                 len(start_nodes), len(end_nodes)) 
                 
-                # find end points (without out-degree)
+                # find paths between start and end nodes
                 paths = []
                 for start_node in start_nodes:
                     for end_node in end_nodes:
@@ -158,13 +156,13 @@ class SecondPass(DataHandler):
                             path = nx.shortest_path(graph, start_node, end_node, weight='weight')
                             paths.append(path)
                         except nx.exception.NetworkXNoPath:
-                            continue # check the next nodes
+                            continue # check the next node
                         else:
                             track_found = True
 
             threshold *= 2
         
-        self.logger.debug('Found %d good tracking paths', len(paths))
+        self.logger.info('Found %d good tracking paths', len(paths))
         
         # identify the best path
         path_best, score_best = None, np.inf 
@@ -189,15 +187,12 @@ class SecondPass(DataHandler):
         """
         self.log_event('Pass 2 - Started identifying mouse trajectory.')
         
-        print self.data['pass1/objects/tracks']
         tracks = self.data['pass1/objects/tracks']
 
         #tracks = [track for track in tracks if track.start < 10000]
         
         # get the best collection of tracks that best fit mouse
         path = self.get_best_track(tracks)
-        
-        print self.data['pass1/objects/tracks']
         
         # build a single trajectory out of this
         trajectory = np.empty((self.data['video/input/frame_count'], 2))
@@ -293,8 +288,8 @@ class SecondPass(DataHandler):
             # TODO: Indicate burrow centerline
         
             # indicate the mouse position
-            if np.all(np.isfinite(mouse_track[frame_id])):
-                video.add_circle(mouse_track[frame_id],
+            if np.all(np.isfinite(mouse_track.pos[frame_id])):
+                video.add_circle(mouse_track.pos[frame_id],
                                  self.params['mouse/model_radius'], 'w', thickness=1)
             
 #                 # add additional debug information

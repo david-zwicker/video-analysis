@@ -24,11 +24,11 @@ PARAMETERS_DEFAULT = {
     'video/cropping_rect': None,
         
     # folder to which the log file is written
-    'logging/folder': None,
+    'logging/folder': './logging/',
     # level of messages to log to stderr [standard python logging levels]
     'logging/level_stderr': 'INFO',
     # level of messages to log to file if folder is set [standard python logging levels]
-    'logging/level_file': 'INFO',
+    'logging/level_file': 'DEBUG',
     
     # folder to which the YAML and HDF5 result files are written
     'output/result_folder': './results/',
@@ -91,7 +91,9 @@ PARAMETERS_DEFAULT = {
     # threshold speed above which an object is said to be moving [in pixels/frame]
     'tracking/moving_threshold': 10,
     # time duration of not seeing the mouse after which we don't know where it is anymore [in frames]
-    'tracking/time_scale': 100,
+    'tracking/time_scale': 10,
+    # how much are two consecutive tracks allowed to overlap [in frames]
+    'tracking/tolerated_overlap': 10,
     # initial threshold for building the tracking graph
     'tracking/initial_score_threshold': 1,
     # what time duration do we consider for start and end nodes [in frames]

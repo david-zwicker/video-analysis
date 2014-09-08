@@ -46,6 +46,7 @@ class FirstPass(DataHandler):
     """
     analyzes mouse movies
     """
+    logging_mode = 'create'    
     
     def __init__(self, name='', parameters=None, debug_output=None):
         """ initializes the whole mouse tracking and prepares the video filters """
@@ -113,10 +114,12 @@ class FirstPass(DataHandler):
             self.video.abort_iteration()
             self.logger.info('Tracking has been interrupted by user.')
             self.log_event('Pass 1 - Analysis run has been interrupted.')
+            self.data['analysis-status'] = 'Partly finished first pass'
             
         else:
             # finished analysis successfully
             self.log_event('Pass 1 - Finished iterating through the frames.')
+            self.data['analysis-status'] = 'Finished first pass'
             
         finally:
             # add the currently active tracks to the result
@@ -124,12 +127,7 @@ class FirstPass(DataHandler):
             # clean up
             self.video.close()
         
-        frames_analyzed = self.frame_id + 1
-        if frames_analyzed == self.video.frame_count:
-            self.data['analysis-status'] = 'Finished first pass'
-        else:
-            self.data['analysis-status'] = 'Partly finished first pass'
-        self.data['video/analyzed/frames_analyzed'] = frames_analyzed
+        self.data['video/analyzed/frames_analyzed'] = self.frame_id + 1
                     
         # cleanup and write out of data
         self.debug_finalize()
@@ -143,9 +141,8 @@ class FirstPass(DataHandler):
         self.result['ground/profile'] = GroundProfileList()
         self.result['burrows/data'] = BurrowTrackList()
 
-        # creates a simple template for matching with the mouse.
-        # This template can be used to update the current mouse position based
-        # on information about the changes in the video.
+        # create a simple template of the mouse, which will be used to update
+        # the background image only away from the mouse.
         # The template consists of a core region of maximal intensity and a ring
         # region with gradually decreasing intensity.
         
@@ -536,7 +533,7 @@ class FirstPass(DataHandler):
         
         # start new tracks for objects that had no previous match
         for i_f in idx_f:
-            self.logger.debug('%d:New mouse track at %s', self.frame_id, objects_found[i_f].pos)
+            self.logger.debug('%d: New mouse track at %s', self.frame_id, objects_found[i_f].pos)
             # start new track
             moving_window = self.params['tracking/moving_window']
             track = ObjectTrack(self.frame_id, objects_found[i_f], moving_window=moving_window)

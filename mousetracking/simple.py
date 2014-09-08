@@ -17,7 +17,7 @@ from .algorithm.pass2 import SecondPass
 
 
 
-def scan_video(name, video=None, parameters=None, **kwargs):
+def scan_video(name, video=None, parameters=None, passes=2, **kwargs):
     """ scans a single video """
     # initialize parameters dictionary
     if parameters is None:
@@ -39,8 +39,11 @@ def scan_video(name, video=None, parameters=None, **kwargs):
     job.process_video()
     
     # do second pass
-    job = SecondPass.from_first_pass(job)
-    
+    if passes > 1:
+        job = SecondPass.from_first_pass(job)
+        job.load_video()
+        job.process_data()
+        job.produce_video()
     
 
 def scan_video_in_folder(folder, name, parameters=None, **kwargs):
@@ -49,12 +52,14 @@ def scan_video_in_folder(folder, name, parameters=None, **kwargs):
     if parameters is None:
         parameters = {}
     
-    # set the folders
-    pattern = parameters.get('video/filename_pattern', PARAMETERS_DEFAULT['video/filename_pattern'])
-    parameters['video/filename_pattern'] = os.path.join(folder, pattern)
-    parameters['output/result_folder'] = os.path.join(folder, 'results') 
-    parameters['output/video/folder_debug'] = os.path.join(folder, 'debug') 
-    
+    # set the folder in the respective parameters
+    for key in ('video/filename_pattern', 'output/result_folder',
+                'output/video/folder_debug', 'logging/folder'):
+        value = parameters.get(key, PARAMETERS_DEFAULT[key])
+        if value:
+            parameters[key] = os.path.join(folder, value)
+        
+    # scan the video
     return scan_video(name, parameters=parameters, **kwargs)
 
 
