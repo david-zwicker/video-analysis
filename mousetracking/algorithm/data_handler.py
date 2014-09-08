@@ -18,10 +18,10 @@ import yaml
 
 from .parameters_default import PARAMETERS_DEFAULT
 import objects
-from .objects.utils import LazyHDFValue 
+from .objects.utils import LazyHDFValue, prepare_data_for_yaml
 from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
-from video.utils import ensure_directory_exists, prepare_data_for_yaml
+from video.utils import ensure_directory_exists
 
 import debug  # @UnusedImport
 
@@ -194,9 +194,9 @@ class DataHandler(object):
             if key in main_result:
                 value = main_result.get_item(key, load_data=False)
                 if not isinstance(value, LazyHDFValue):
-                    print cls, value.__class__
                     assert cls == value.__class__
-                    main_result[key] = cls.storage_class.create_from_data(key, value, hdf_filename)
+                    storage_manager = cls.storage_class.create_from_data(key, value, hdf_filename)
+                    main_result[key] = storage_manager#.yaml_string
         
         # write the main result file to YAML
         filename = self.get_filename('results.yaml', 'results')
@@ -229,10 +229,11 @@ class DataHandler(object):
                 value = self.data.get_item(key, load_data=False) 
                 storage_cls = data_cls.storage_class
                 if isinstance(value, LazyHDFValue):
-                    value.hdf_folder = hdf_folder
+                    value.set_hdf_folder(hdf_folder)
                 else:
-                    lazy_loader = storage_cls.create_from_string(self.data[key],
-                                                                 data_cls, hdf_folder)
+                    lazy_loader = storage_cls.create_from_yaml_string(self.data[key],
+                                                                      data_cls,
+                                                                      hdf_folder)
                     self.data[key] = lazy_loader
         
         self.log_event('Read previously calculated data from files.')

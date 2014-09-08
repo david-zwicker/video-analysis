@@ -47,24 +47,6 @@ def get_color_range(dtype):
         
     else:
         raise ValueError('Unsupported data type `%r`' % dtype)
-
-
-def prepare_data_for_yaml(data):
-    """ recursively converts all numpy types to their closest python equivalents """
-    if isinstance(data, np.ndarray):
-        return data.tolist()
-    elif isinstance(data, np.floating):
-        return float(data)
-    elif isinstance(data, np.integer):
-        return int(data)
-    elif isinstance(data, collections.MutableMapping):
-        return {k: prepare_data_for_yaml(v) for k, v in data.iteritems()}
-    elif isinstance(data, (list, tuple)):
-        return [prepare_data_for_yaml(v) for v in data]
-    elif data is not None and not isinstance(data, (bool, int, float, list, basestring)):
-        logger.warn('Encountered unknown instance of `%s` in YAML prepartion',
-                    data.__class__)
-    return data
    
     
 def homogenize_arraylist(data):
