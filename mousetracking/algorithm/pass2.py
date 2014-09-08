@@ -189,12 +189,15 @@ class SecondPass(DataHandler):
         """
         self.log_event('Pass 2 - Started identifying mouse trajectory.')
         
+        print self.data['pass1/objects/tracks']
         tracks = self.data['pass1/objects/tracks']
 
         #tracks = [track for track in tracks if track.start < 10000]
         
         # get the best collection of tracks that best fit mouse
         path = self.get_best_track(tracks)
+        
+        print self.data['pass1/objects/tracks']
         
         # build a single trajectory out of this
         trajectory = np.empty((self.data['video/input/frame_count'], 2))
@@ -230,7 +233,8 @@ class SecondPass(DataHandler):
         """ smooth the ground profile """
         
         # convert data to different format
-        profile = GroundProfileTrack(self.data['pass1/ground/profile'])
+        profile_list = self.data['pass1/ground/profile']
+        profile = GroundProfileTrack.create_from_ground_profile_list(profile_list)
         
         # standard deviation for smoothing [in number of profiles]
         sigma = self.params['ground/smoothing_sigma']/self.params['ground/adaptation_interval']

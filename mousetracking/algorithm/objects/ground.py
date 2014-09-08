@@ -45,7 +45,7 @@ class GroundProfile(object):
         return np.hstack((time_array, self.points))
 
     @classmethod
-    def from_array(cls, data):
+    def create_from_array(cls, data):
         """ constructs an object from an array previously created by to_array() """
         data = np.asarray(data)
         return cls(data[0, 0], data[:, 1:])
@@ -66,7 +66,7 @@ class GroundProfileList(list):
     
     
     @classmethod
-    def from_array(cls, value):
+    def create_from_array(cls, value):
         result = cls()
         index, obj_data = None, None
         # iterate over the data and create objects from it
@@ -77,12 +77,12 @@ class GroundProfileList(list):
             else:
                 # save the track and start a new one
                 if obj_data:
-                    result.append(GroundProfile.from_array(obj_data))
+                    result.append(GroundProfile.create_from_array(obj_data))
                 obj_data = [line]
                 index = line[0]
         
         if obj_data:
-            result.append(GroundProfile.from_array(obj_data))
+            result.append(GroundProfile.create_from_array(obj_data))
             
         return result
    
@@ -100,26 +100,21 @@ class GroundProfileTrack(object):
     storage_class = LazyHDFValue
 
     
-    def __init__(self, ground_profiles):
-        # determine the maximal number of points
-        num_points = max(len(profile) for profile in ground_profiles)
-
-        # iterate through all profiles and convert them to have equal number of points
-        # and store the data
-        times, profiles = [], []
-        for profile in ground_profiles:
-            points = curves.make_curve_equidistant(profile.points, count=num_points)
-            times.append(profile.time)
-            profiles.append(points)
-
+    def __init__(self, times, profiles):
         # store information in numpy arrays 
-        self.times = np.array(times)
-        self.profiles = np.array(profiles)
+        self.times = np.asarray(times, np.int)
+        self.profiles = np.asarray(profiles, np.double)
         # profiles is a 3D array: len(times) x num_points x 2
         
         
     def __len__(self):
-        return len(self.ground_profiles)
+        return len(self.times)
+    
+    
+    def __repr__(self):
+        return '%s(frames=%d, points=%d)' % (self.__class__.__name__,
+                                             self.profiles.shape[0],
+                                             self.profiles.shape[1])
     
     
     def smooth(self, sigma):
@@ -145,10 +140,27 @@ class GroundProfileTrack(object):
         
         
     @classmethod
-    def from_array(self, data):
+    def create_from_ground_profile_list(cls, ground_profiles):
+        # determine the maximal number of points
+        num_points = max(len(profile) for profile in ground_profiles)
+
+        # iterate through all profiles and convert them to have equal number of points
+        # and store the data
+        times, profiles = [], []
+        for profile in ground_profiles:
+            points = curves.make_curve_equidistant(profile.points, count=num_points)
+            times.append(profile.time)
+            profiles.append(points)
+
+        # store information in numpy arrays 
+        # profiles is a 3D array: len(times) x num_points x 2
+        return cls(times=times, profiles=profiles)        
+        
+        
+    @classmethod
+    def create_from_array(cls, data):
         """ collect the data in a single array """
-        self.times = data[:, 0, 0]
-        self.profiles = data[:, 1:, :]
+        return cls(times=data[:, 0, 0], profiles=data[:, 1:, :])
 
 
     

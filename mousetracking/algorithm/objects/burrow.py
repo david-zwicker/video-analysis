@@ -241,7 +241,7 @@ class Burrow(object):
         
 
     @classmethod
-    def from_array(cls, data):
+    def create_from_array(cls, data):
         """ creates a burrow track from a single array """
         return cls(outline=data[1:],
                    length=data[0][0], refined=bool(data[0][1]))
@@ -301,7 +301,7 @@ class BurrowTrack(object):
         
         
     @classmethod
-    def from_array(cls, data):
+    def create_from_array(cls, data):
         """ constructs an object from an array previously created by to_array() """
         burrow_track = cls()
         burrow_data = None
@@ -309,21 +309,23 @@ class BurrowTrack(object):
         for d in data:
             if d[0] != time_cur:
                 if burrow_data is not None:
-                    burrow_track.append(time_cur, Burrow.from_array(burrow_data))
+                    burrow_track.append(time_cur, Burrow.create_from_array(burrow_data))
                 time_cur = d[0]
                 burrow_data = [d[1:]]
             else:
                 burrow_data.append(d[1:])
 
         if burrow_data is not None:
-            burrow_track.append(time_cur, Burrow.from_array(burrow_data))
+            burrow_track.append(time_cur, Burrow.create_from_array(burrow_data))
 
         return burrow_track
     
  
     def save_to_hdf5(self, hdf_file, key):
         """ save the data of the current burrow to an HDF5 file """
-        hdf_file.create_dataset(key, data=self.to_array())
+        if key in hdf_file:
+            del hdf_file[key]
+        hdf_file.create_dataset(key, data=self.to_array(), track_times=True)
         hdf_file[key].attrs['column_names'] = self.array_columns
         hdf_file[key].attrs['remark'] = (
             'Each burrow is represented by its outline saved as a list of points '
@@ -336,16 +338,11 @@ class BurrowTrack(object):
     @classmethod
     def create_from_hdf5(cls, hdf_file, key):
         """ creates a burrow track from data in a HDF5 file """
-        return cls.from_array(hdf_file[key])
+        return cls.create_from_array(hdf_file[key])
    
    
 
 class BurrowTrackList(list):
+    """ class that stores instances of BurrowTrack in a list """
+    item_class = BurrowTrack
     storage_class = LazyHDFCollection
-   
-    @classmethod
-    def load_list(cls, data): 
-        result = [BurrowTrack.from_array(data[index])
-                  for index in sorted(data.keys())]
-        # here, we have to use sorted() to iterate in the correct order 
-        return cls(result)

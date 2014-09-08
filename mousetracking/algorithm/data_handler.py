@@ -15,7 +15,6 @@ import os
 
 import numpy as np
 import yaml
-import h5py
 
 from .parameters_default import PARAMETERS_DEFAULT
 import objects
@@ -190,16 +189,14 @@ class DataHandler(object):
         main_result = self.data.copy()
         
         # write large amounts of data to accompanying hdf file
-        hdf_name = self.get_filename('results.hdf5')
-        hdf_uri = self.get_filename('results.hdf5', 'results')
-        with h5py.File(hdf_uri, 'w') as hdf_file:
-            for key, cls in HDF_VALUES.iteritems():
-                if key in main_result:
-                    value = main_result.get_item(key, load_data=False)
-                    if not isinstance(value, LazyHDFValue):
-                        assert cls == value.__class__
-                        value = cls.storage_class.create_from_data(key, value, hdf_name, hdf_file)
-                    main_result[key] = value
+        hdf_filename= self.get_filename('results.hdf5', 'results')
+        for key, cls in HDF_VALUES.iteritems():
+            if key in main_result:
+                value = main_result.get_item(key, load_data=False)
+                if not isinstance(value, LazyHDFValue):
+                    print cls, value.__class__
+                    assert cls == value.__class__
+                    main_result[key] = cls.storage_class.create_from_data(key, value, hdf_filename)
         
         # write the main result file to YAML
         filename = self.get_filename('results.yaml', 'results')

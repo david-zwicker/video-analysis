@@ -135,7 +135,7 @@ class ObjectTrack(object):
 
 
     @classmethod
-    def from_array(cls, data):
+    def create_from_array(cls, data):
         """ constructs an object from an array previously created by to_array() """
         res = cls()
         res.times = [d[0] for d in data]
@@ -145,28 +145,24 @@ class ObjectTrack(object):
 
     def save_to_hdf5(self, hdf_file, key):
         """ save the data of the current burrow to an HDF5 file """
-        hdf_file.create_dataset(key, data=self.to_array())
+        if key in hdf_file:
+            del hdf_file[key]
+        hdf_file.create_dataset(key, data=self.to_array(), track_times=True)
         hdf_file[key].attrs['column_names'] = self.array_columns
 
 
     @classmethod
     def create_from_hdf5(cls, hdf_file, key):
         """ creates a burrow track from data in a HDF5 file """
-        return cls.from_array(hdf_file[key])
+        return cls.create_from_array(hdf_file[key])
        
        
        
 class ObjectTrackList(list):
-    """ organizes a list of object tracks """
+    """ organizes a list of ObjectTrack instances """
+    item_class = ObjectTrack
     storage_class = LazyHDFCollection
     
-    @classmethod
-    def load_list(cls, data): 
-        result = [ObjectTrack.from_array(data[index])
-                  for index in sorted(data.keys())]
-        # here, we have to use sorted() to iterate in the correct order 
-        return cls(result)
-
 
 
 
@@ -177,14 +173,16 @@ class MouseTrack(object):
     storage_class = LazyHDFValue
     
     def __init__(self, trajectory):
-        print trajectory
         self.pos = trajectory
+        
+    def __repr__(self):
+        return '%s(frames=%d)' % (self.__class__.__name__, len(self.pos))
     
     def to_array(self):
         return self.pos
     
     @classmethod
-    def from_array(cls, data):
+    def create_from_array(cls, data):
         return cls(data)
    
    
