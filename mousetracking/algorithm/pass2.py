@@ -85,8 +85,8 @@ class SecondPass(DataHandler):
         
         # find all possible connections
         time_scale = self.params['tracking/time_scale']
-        for a in tracks:
-            for b in tracks:
+        for a_idx, a in enumerate(tracks):
+            for b in tracks[a_idx + 1:]:
                 gap_length = b.start - a.end #< time gap between the two chunks
                 if gap_length > -self.params['tracking/tolerated_overlap']:
                     # calculate the weight of this graph
@@ -96,8 +96,8 @@ class SecondPass(DataHandler):
                     
                     weight = (
                         #+ (2 - a.mouse_score - b.mouse_score)       # is it a mouse? 
-                        + distance/self.params['mouse/speed_max']   # how close are the mice
-                        + abs(gap_length)/time_scale                     # is it a long gap?
+                        + distance/self.params['mouse/speed_max']    # how close are the mice
+                        + abs(gap_length)/time_scale                 # is it a long gap?
                     )
                     
                     # add the edge if the weight is not too high
@@ -266,6 +266,10 @@ class SecondPass(DataHandler):
         # we used the first frame to determine the cage dimensions in the first pass
         source_video = self.video[1:]
         
+        tracks = sorted(self.data['pass1/objects/tracks'],
+                        key=lambda track: track.start)
+        track_start = 0
+        
         for frame_id, frame in enumerate(display_progress(source_video)):
             # set real video as background
             video.set_frame(frame)
@@ -287,10 +291,21 @@ class SecondPass(DataHandler):
         
             # TODO: Indicate burrow centerline
         
+            # indicate all objects
+            for track_id, track in enumerate(tracks[track_start:], track_start):
+                if track.end < frame_id:
+                    track_start = track_id + 1
+                elif track.start > frame_id:
+                    break
+                else:
+                    video.add_circle(track.get_pos(frame_id),
+                                     self.params['mouse/model_radius'], '0.5', thickness=1)
+
             # indicate the mouse position
             if np.all(np.isfinite(mouse_track.pos[frame_id])):
                 video.add_circle(mouse_track.pos[frame_id],
-                                 self.params['mouse/model_radius'], 'w', thickness=1)
+                                 self.params['mouse/model_radius'], 'w', thickness=2)
+                    
             
 #                 # add additional debug information
             video.add_text(str(frame_id), (20, 20), anchor='top')   

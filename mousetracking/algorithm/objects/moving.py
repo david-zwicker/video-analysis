@@ -85,6 +85,16 @@ class ObjectTrack(object):
         area_score = np.exp(-2*(1 - mean_area/self.mouse_area_mean)**2)
         return area_score
     
+        
+    def get_pos(self, time):
+        """ returns the position at a specific time """
+        try:
+            idx = self.times.index(time)
+        except AttributeError:
+            # assume that self.times is a numpy array
+            idx = np.nonzero(self.times == time)[0][0]
+        return self.objects[idx].pos
+        
     
     def predict_pos(self):
         """ predict the position in the next frame.

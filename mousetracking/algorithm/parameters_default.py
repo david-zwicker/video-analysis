@@ -119,6 +119,8 @@ PARAMETERS_DEFAULT = {
     'burrows/fitting_eccentricity_threshold': 0.98,
     # the length above which burrows are refined by fitting [in pixel]
     'burrows/fitting_length_threshold': 75,
+    # width of the burrow edge used in the template for fitting
+    'burrows/edge_width': 3,
     # determines how much the burrow outline might be simplified. The quantity 
     # determines by what fraction the total outline length is allowed to change 
     'burrows/outline_simplification_threshold': 0.005,
