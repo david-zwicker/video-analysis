@@ -266,9 +266,7 @@ class SecondPass(DataHandler):
         # we used the first frame to determine the cage dimensions in the first pass
         source_video = self.video[1:]
         
-        tracks = sorted(self.data['pass1/objects/tracks'],
-                        key=lambda track: track.start)
-        track_start = 0
+        tracks = self.data['pass1/objects/tracks']
         
         for frame_id, frame in enumerate(display_progress(source_video)):
             # set real video as background
@@ -292,12 +290,8 @@ class SecondPass(DataHandler):
             # TODO: Indicate burrow centerline
         
             # indicate all objects
-            for track_id, track in enumerate(tracks[track_start:], track_start):
-                if track.end < frame_id:
-                    track_start = track_id + 1
-                elif track.start > frame_id:
-                    break
-                else:
+            for track in tracks:
+                if track.start <= frame_id <= track.end:
                     video.add_circle(track.get_pos(frame_id),
                                      self.params['mouse/model_radius'], '0.5', thickness=1)
 
