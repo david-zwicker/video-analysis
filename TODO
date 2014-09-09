@@ -7,6 +7,7 @@
 	- different logging behavior (log to file for release run!)
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
+* Refine orange burrow shapes to be able to adapt to receeding burrows
 * Determine absolute times by checking when the lights go on
 
 
@@ -47,3 +48,4 @@ Low priority enhancements:
 	- Here, we might wanna introduce the distinction between VideoStreamBase and VideoBase, with the
 		difference that the first one can only be iterated over, while the second allows for random access
 * Write Query class, which can be used to query a complete data set to return useful data (like burrow length over time)
+* Load the videos of a VideoStack one-by-one, only when they are actually needed

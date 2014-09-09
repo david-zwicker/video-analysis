@@ -41,7 +41,6 @@ def scan_video(name, video=None, parameters=None, passes=2, **kwargs):
     # do second pass
     if passes > 1:
         job = SecondPass.from_first_pass(job)
-        job.load_video()
         job.process_data()
         job.produce_video()
     

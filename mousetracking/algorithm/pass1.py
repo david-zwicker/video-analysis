@@ -102,7 +102,8 @@ class FirstPass(DataHandler):
         self.debug_setup()
         self.setup_processing()
 
-        self.log_event('Pass 1 - Started iterating through the video.')
+        self.log_event('Pass 1 - Started iterating through the video with %d frames.' %
+                       self.video.frame_count)
         self.data['analysis-status'] = 'Initialized video analysis'            
         
         try:

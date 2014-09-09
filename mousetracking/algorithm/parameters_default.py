@@ -122,5 +122,4 @@ PARAMETERS_DEFAULT = {
     # determines how much the burrow outline might be simplified. The quantity 
     # determines by what fraction the total outline length is allowed to change 
     'burrows/outline_simplification_threshold': 0.005,
-    
 }

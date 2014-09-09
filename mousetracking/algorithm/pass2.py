@@ -85,8 +85,8 @@ class SecondPass(DataHandler):
         
         # find all possible connections
         time_scale = self.params['tracking/time_scale']
-        for a_idx, a in enumerate(tracks):
-            for b in tracks[a_idx + 1:]:
+        for a in tracks:
+            for b in tracks:
                 gap_length = b.start - a.end #< time gap between the two chunks
                 if gap_length > -self.params['tracking/tolerated_overlap']:
                     # calculate the weight of this graph

@@ -53,18 +53,30 @@ def write_video(video, filename, **kwargs):
 
 class VideoFileStack(VideoBase):
     """
-    Class handling a movie distributed over several files.
+    Class handling a video distributed over several files.
     The filenames must contain consecutive numbers
     """ 
     
     def __init__(self, filename_scheme='%d', index_start=1, index_end=None, video_file_class=VideoFile):
+        """
+        initialize the VideoFileStack.
+        
+        A list of videos is found using a filename pattern, where two
+        alternative patterns are supported:
+            1) Using linux globs, i.e. placeholders * and ? in normal files
+            2) Using enumeration, where %d is replaced by consecutive integers
+        For the second method, the start and end of the running index can
+        be determined using index_start and index_end.
+        
+        video_file_class determines the class with which videos are loaded
+        """
         
         # initialize the list containing all the files
-        self._movies = []
+        self._videos = []
         # register at what frame_count the video start
         self._offsets = []
-        # internal pointer to the current movie from which to take a frame
-        self._movie_pos = 0
+        # internal pointer to the current video from which to take a frame
+        self._video_pos = 0
         
         # find all files that have to be considered
         if '*' in filename_scheme or '?' in filename_scheme:
@@ -72,7 +84,7 @@ class VideoFileStack(VideoBase):
             filenames = sorted(glob.glob(filename_scheme))
             
         elif r'%' in filename_scheme:
-            logger.debug('Iterating over possible filenames to find movies.')
+            logger.debug('Iterating over possible filenames to find videos.')
         
             # determine over which indices we have to iterate
             if index_end is None:
@@ -99,51 +111,51 @@ class VideoFileStack(VideoBase):
 
         # load all the files that have been found
         frame_count = 0
-        last_movie = None
+        last_video = None
         for filename in filenames:
             
-            # try to load the movie with given index
+            # try to load the video with given index
             try:
-                movie = video_file_class(filename)
+                video = video_file_class(filename)
             except IOError:
                 break
             
-            # compare its format to the previous movies
-            if last_movie:
-                if movie.fps != last_movie.fps:
+            # compare its format to the previous videos
+            if last_video:
+                if video.fps != last_video.fps:
                     raise ValueError('The FPS value of two videos does not agree')
-                if movie.size != last_movie.size:
+                if video.size != last_video.size:
                     raise ValueError('The size of two videos does not agree')
-                if movie.is_color != last_movie.is_color:
+                if video.is_color != last_video.is_color:
                     raise ValueError('The color format of two videos does not agree')
             
-            # calculate at which frame this movie starts
+            # calculate at which frame this video starts
             self._offsets.append(frame_count)  
-            frame_count += movie.frame_count
+            frame_count += video.frame_count
 
-            # save the movie in the list
-            self._movies.append(movie)
+            # save the video in the list
+            self._videos.append(video)
             
-            logger.info('Found movie `%s`', movie.filename)
+            logger.info('Found video `%s`', video.filename)
                         
-        super(VideoFileStack, self).__init__(size=movie.size, frame_count=frame_count,
-                                             fps=movie.fps, is_color=movie.is_color)
+        super(VideoFileStack, self).__init__(size=video.size, frame_count=frame_count,
+                                             fps=video.fps, is_color=video.is_color)
 
 
     @property
     def filecount(self):
-        return len(self._movies)
+        return len(self._videos)
     
 
-    def get_movie_index(self, frame_index):
-        """ returns the movie and local frame_index to which a certain frame belongs """
+    def get_video_index(self, frame_index):
+        """ returns the video and local frame_index to which a certain frame belongs """
         
-        for movie_index, movie_start in enumerate(self._offsets):
-            if frame_index < movie_start:
-                movie_index -= 1
+        for video_index, video_start in enumerate(self._offsets):
+            if frame_index < video_start:
+                video_index -= 1
                 break
 
-        return movie_index, frame_index - self._offsets[movie_index] 
+        return video_index, frame_index - self._offsets[video_index] 
     
 
     def set_frame_pos(self, index):
@@ -151,32 +163,32 @@ class VideoFileStack(VideoBase):
         # set the frame position 
         super(VideoFileStack, self).set_frame_pos(index)
         
-        # identify the movie that frame belongs to
-        self._movie_pos, frame_index = self.get_movie_index(index)
-        self._movies[self._movie_pos].set_frame_pos(frame_index)
+        # identify the video that frame belongs to
+        self._video_pos, frame_index = self.get_video_index(index)
+        self._videos[self._video_pos].set_frame_pos(frame_index)
         
-        # rewind all subsequent _movies, because we cannot start iterating 
+        # rewind all subsequent _videos, because we cannot start iterating 
         # from the current position of the video
-        for m in self._movies[self._movie_pos + 1:]:
+        for m in self._videos[self._video_pos + 1:]:
             m.set_frame_pos(0)
 
             
     def get_next_frame(self):
         """ returns the next frame in the video stack """
         
-        # iterate until all _movies are exhausted
+        # iterate until all _videos are exhausted
         while True:
             try:
                 # return next frame
-                frame = self._movies[self._movie_pos].get_next_frame()
+                frame = self._videos[self._video_pos].get_next_frame()
                 break
             
             except StopIteration:
-                # if movie is exhausted, step to next movie
-                self._movie_pos += 1
+                # if video is exhausted, step to next video
+                self._video_pos += 1
                 
             except IndexError:
-                # if the next movie does not exist, stop the iteration
+                # if the next video does not exist, stop the iteration
                 raise StopIteration
         
         # step to the next frame
@@ -187,10 +199,10 @@ class VideoFileStack(VideoBase):
     def get_frame(self, index):
         """ returns a specific frame identified by its index """
         
-        movie_index, frame_index = self.get_movie_index(index)
-        return self._movies[movie_index].get_frame(frame_index)
+        video_index, frame_index = self.get_video_index(index)
+        return self._videos[video_index].get_frame(frame_index)
             
 
     def close(self):
-        for movie in self._movies:
-            movie.close()
+        for video in self._videos:
+            video.close()
