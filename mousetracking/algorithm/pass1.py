@@ -1037,7 +1037,7 @@ class FirstPass(DataHandler):
         """ refines the outline of a bulky burrow """
         # get ground line
         ground_line = geometry.LineString(np.array(self.ground, np.double))
-        scan_length = int(2*self.params['burrows/width'])
+        scan_length = int(self.params['burrows/width'])
         
         # wrap around outline points on the edge
         outline = np.vstack((burrow.outline[-1],
@@ -1058,6 +1058,13 @@ class FirstPass(DataHandler):
     
                 p_a = (p[0] + scan_length*dy, p[1] - scan_length*dx)
                 p_b = (p[0] - scan_length*dy, p[1] + scan_length*dx)
+                
+#                 import matplotlib.pyplot as plt
+#                 plt.imshow(self.background)
+#                 plt.plot(outline[:, 0], outline[:, 1], color='w')
+#                 plt.plot(p_a[0], p_a[1], 'or')
+#                 plt.plot(p_b[0], p_b[1], 'og')
+#                 plt.show()
                 
                 # find the transition points by considering slopes
                 profile = image.line_scan(self.background.astype(np.uint8, copy=False), p_a, p_b, 3)
