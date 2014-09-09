@@ -471,10 +471,7 @@ class FirstPass(DataHandler):
 
         # check if there are previous tracks        
         if len(self.tracks) == 0:
-            moving_window = self.params['tracking/moving_window']
-            moving_threshold = self.params['tracking/moving_threshold']
-            self.tracks = [ObjectTrack(self.frame_id, obj, moving_window, moving_threshold)
-                           for obj in objects_found]
+            self.tracks = [ObjectTrack(self.frame_id, obj) for obj in objects_found]
             
             return # there is nothing to do anymore
             
@@ -536,8 +533,7 @@ class FirstPass(DataHandler):
         for i_f in idx_f:
             self.logger.debug('%d: New mouse track at %s', self.frame_id, objects_found[i_f].pos)
             # start new track
-            moving_window = self.params['tracking/moving_window']
-            track = ObjectTrack(self.frame_id, objects_found[i_f], moving_window=moving_window)
+            track = ObjectTrack(self.frame_id, objects_found[i_f])
             self.tracks.append(track)
         
         assert len(self.tracks) == len(objects_found)
@@ -595,9 +591,12 @@ class FirstPass(DataHandler):
                     self.result['mouse/moved_first_in_frame'] = self.frame_id
                 # remove the tracks that didn't move
                 # this essentially assumes that there is only one mouse
-                self.tracks = [obj
-                               for k, obj in enumerate(self.tracks)
-                               if obj_moving[k]]
+                for k, obj in enumerate(self.tracks):
+                    if obj_moving[k]:
+                        # keep only the moving object in the current list
+                        self.tracks = [obj]
+                    else:
+                        self.result['objects/tracks'].append(obj)
 
             self._mouse_pos_estimate = [obj.last.pos for obj in self.tracks]
         
@@ -1002,8 +1001,7 @@ class FirstPass(DataHandler):
                                           point_anchor, p1e, 3)
 
                 # determine steepest point
-                # FIXME: use find_burrow_edge
-                l = image.get_steepest_point(profile, direction=1, smoothing=2)
+                l = self.find_burrow_edge(profile, direction='up')
                 
                 point = (point_anchor[0] + l*dx, point_anchor[1] + l*dy)
 
@@ -1049,10 +1047,10 @@ class FirstPass(DataHandler):
         # iterate through all outline points
         outline_new = []
         for k, p in enumerate(outline[1:-1], 1):
+            # refine points away from the ground line
             dist = ground_line.distance(geometry.Point(p))
             if dist > self.params['burrows/ground_point_distance']:
-                # refine only points away from the ground line
-                # find local slope of the centerline
+                # find local slope of the outline
                 dx = outline[k+1][0] - outline[k-1][0]
                 dy = outline[k+1][1] - outline[k-1][1]
                 dist = np.hypot(dx, dy)
@@ -1174,7 +1172,7 @@ class FirstPass(DataHandler):
             debug_video = self.debug['video']
             
             # plot the ground profile
-            if self.ground is not None:
+            if self.ground is not None: 
                 debug_video.add_polygon(self.ground, is_closed=False, mark_points=True, color='y')
         
             # indicate the currently active burrow shapes

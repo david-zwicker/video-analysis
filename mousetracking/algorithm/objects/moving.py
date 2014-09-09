@@ -43,11 +43,12 @@ class ObjectTrack(object):
     array_columns = ('Time', 'Position X', 'Position Y', 'Object Area')
     mouse_area_mean = 700
     
-    def __init__(self, time=None, obj=None, moving_window=20, moving_threshold=10):
+    moving_window = 20
+    moving_threshold = 20*10
+    
+    def __init__(self, time=None, obj=None):
         self.times = [] if time is None else [time]
         self.objects = [] if obj is None else [obj]
-        self.moving_window = moving_window
-        self.moving_threshold = moving_threshold*moving_window
         
         
     def __repr__(self):
@@ -67,6 +68,8 @@ class ObjectTrack(object):
     def start(self): return self.times[0]
     @property
     def end(self): return self.times[-1]
+    @property
+    def duration(self): return self.times[-1] - self.times[0]
     @property
     def first(self): return self.objects[0]
     @property
@@ -173,6 +176,17 @@ class ObjectTrackList(list):
     item_class = ObjectTrack
     storage_class = LazyHDFCollection
     
+    duration_threshold = 2
+    
+    
+    def extend(self, items):
+        super(ObjectTrackList, self).extend(item for item in items
+                                            if item.duration >= self.duration_threshold)
+    
+    
+    def append(self, item):
+        if item.duration >= self.duration_threshold:
+            super(ObjectTrackList, self).append(item)
 
 
 

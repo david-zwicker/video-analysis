@@ -7,7 +7,8 @@
 	- different logging behavior (log to file for release run!)
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
-* Refine orange burrow shapes to be able to adapt to receding burrows
+* When fitting burrows, set currently moving parts to sky color in background model and do the fitting on this image
+* Simplify bulky burrows by removing trying to remove points and checking whether the area changes significantly
 * Determine absolute times by checking when the lights go on
 
 

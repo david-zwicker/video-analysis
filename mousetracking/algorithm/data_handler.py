@@ -90,6 +90,14 @@ class DataHandler(object):
             
         # setup mouse parameters as class variables
         # => the code is not thread-safe if different values for these parameters are used in the same process
+        # number of consecutive frames used for motion detection [in frames]
+        moving_window = self.data.get('parameters/tracking/moving_window', None)
+        if moving_window:
+            objects.ObjectTrack.moving_window = moving_window
+        moving_threshold = self.data.get('parameters/tracking/moving_threshold', None)
+        if moving_threshold:
+            objects.ObjectTrack.moving_threshold = objects.ObjectTrack.moving_window*moving_threshold
+        
         curvature_radius_max = self.data.get('parameters/burrows/curvature_radius_max', None)
         if curvature_radius_max:
             objects.Burrow.curvature_radius_max = curvature_radius_max 
