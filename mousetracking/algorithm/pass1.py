@@ -156,7 +156,7 @@ class FirstPass(DataHandler):
         x, y = np.ogrid[-size_total:size_total + 1, -size_total:size_total + 1]
         r = np.sqrt(x**2 + y**2)
 
-        # build the template
+        # build the mouse template
         mouse_template = (
             # inner circle of ones
             (r <= size_core).astype(float)
@@ -835,9 +835,60 @@ class FirstPass(DataHandler):
         
         return Burrow(contour)
     
+    
+    def find_burrow_edge(self, profile, direction='up'):
+        """ return the template for finding burrow edges
+        direction denotes whether we are looking for rising or
+        falling edges
+        """
+        # load parameters
+        edge_width = self.params['burrows/fitting_edge_width']
+        template_width = 2*edge_width # odd width preferred
+        
+        # create the templates if they are not in the cache
+        if 'burrows.template_edge_up' not in self._cache:
+            color_sand = self.result['colors/sand']
+            color_burrow = self.result['colors/sky']
+            
+            x = np.linspace(-template_width, template_width, 2*template_width + 1)
+            y = (1 + np.tanh(x/edge_width))/2 #< sigmoidal profile
+            y = color_burrow + (color_sand - color_burrow)*y
+            
+            y = np.uint8(y)
+            self._cache['burrows.template_edge_up'] = y 
+            self._cache['burrows.template_edge_down'] = y[::-1]
+            
+        # load the template
+        if direction == 'up':
+            template = self._cache['burrows.template_edge_up']
+        elif direction == 'down':
+            template = self._cache['burrows.template_edge_down']
+        else:
+            raise ValueError('Unknown direction `%s`' % direction)
+        
+        # get the cross-correlation between the profile and the template
+        conv = cv2.matchTemplate(profile.astype(np.uint8),
+                                 template, cv2.cv.CV_TM_SQDIFF)
+        
+        # find the best match
+        pos = np.argmin(conv) + template_width
+        
+        # calculate goodness of fit
+        profile_roi = profile[pos - template_width : pos + template_width + 1]
+        ss_tot = ((profile_roi - profile_roi.mean())**2).sum()
+        if ss_tot == 0:
+            rsquared = 0
+        else:
+            rsquared = 1 - conv.min()/ss_tot
+        
+        if rsquared > self.params['burrows/fitting_edge_R2min']:
+            return pos
+        else:
+            return None
+    
 
-    def refine_burrow(self, burrow):
-        """ refines a elongated burrow by doing linescans perpendicular to
+    def refine_long_burrow(self, burrow):
+        """ refines an elongated burrow by doing linescans perpendicular to
         its centerline """
         # keep the points close to the ground line
         ground_line = geometry.LineString(np.array(self.ground, np.double))
@@ -882,17 +933,12 @@ class FirstPass(DataHandler):
             profile = image.line_scan(self.background.astype(np.uint8, copy=False), p_a, p_b, 3)
             
             # find the transition points by considering slopes
-            k_l = image.get_steepest_point(profile[:scan_length], direction=-1, smoothing=2)
-            k_r = scan_length + image.get_steepest_point(profile[scan_length:], direction=1, smoothing=2)
-            # k_l, k_r are the indices of the left and right border
-            d_l, d_r = scan_length - k_l, scan_length - k_r
-            # d_l and d_r are the distance from p, where d_l > 0 and d_r < 0 accounting for direction
-            k_c = int(k_l + k_r)//2 #< position of the new centerline
+            k_l = self.find_burrow_edge(profile, direction='down')
+            k_r = self.find_burrow_edge(profile, direction='up')
 
-            color_threshold = self.result['colors/sand'] - self.result['colors/sand_std']
-            # the color threshold determines whether the fit was all right
-            if np.isfinite(d_l) and np.isfinite(d_r) and profile[k_c] < color_threshold:
-                # FIXME: only use the fitted version if we believe it
+            if k_l is not None and k_r is not None:
+                d_l, d_r = scan_length - k_l, scan_length - k_r
+                # d_l and d_r are the distance from p, where d_l > 0 and d_r < 0 accounting for direction
 
                 # ensure a minimal burrow width
                 width = d_l - d_r
@@ -1009,7 +1055,7 @@ class FirstPass(DataHandler):
                     self.debug['video'].add_polygon(burrow.outline, 'w', is_closed=True, width=2)
                 # refine the burrow
                 try:
-                    burrow = self.refine_burrow(burrow)
+                    burrow = self.refine_long_burrow(burrow)
                 except IndexError:
                     # use the non-refined burrow in case of errors
                     pass
