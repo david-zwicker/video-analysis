@@ -27,7 +27,9 @@ if not hasattr(geometry, 'LinearRing'):
 
 
 class Burrow(object):
-    """ represents a single burrow """
+    """ represents a single burrow
+    Note that the outline are always given in clockwise direction
+    """
     
     # parameters influencing how the centerline is determined
     curvature_radius_max = 50
@@ -43,11 +45,10 @@ class Burrow(object):
         if centerline is not None and length is None:
             length = curves.curve_length(centerline)
 
-        self._outline = np.asarray(outline, np.double)
+        self.outline = outline
         self.centerline = centerline
         self.length = length
         self.refined = refined
-        self._cache = {}
 
 
     def copy(self):
@@ -67,8 +68,14 @@ class Burrow(object):
 
     
     @outline.setter
-    def outline(self, value):
-        self._outline = value
+    def outline(self, point_list):
+        """ sets a new outline """
+        point_list = np.asarray(point_list, np.double)
+        # make sure that the outline is given in clockwise direction
+        if geometry.LinearRing(point_list).is_ccw:
+            point_list = point_list[::-1]
+        self._outline = point_list
+
         # reset cache
         self.centerline = None
         self.length = None
@@ -79,7 +86,7 @@ class Burrow(object):
     @cached_property
     def polygon(self):
         """ return the polygon of the burrow outline """
-        return geometry.Polygon(np.asarray(self.outline, np.double))    
+        return geometry.Polygon(np.asarray(self.outline, np.double))
     
     
     @property

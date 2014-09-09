@@ -525,7 +525,7 @@ class FirstPass(DataHandler):
                 idx_e.remove(i_e)
                 
         # end tracks that had no match in current frame 
-        for i_e in reversed(idx_e): # have to go backwards, since we delete items
+        for i_e in reversed(idx_e): #< have to go backwards, since we delete items
             self.logger.debug('%d: Copy mouse track of length %d to results',
                               self.frame_id, len(self.tracks[i_e]))
             # copy track to result dictionary
@@ -700,7 +700,7 @@ class FirstPass(DataHandler):
                 angle = np.pi/2
             else:
                 dp = ground[k+1] - ground[k-1]
-                angle = np.arctan2(dp[0], dp[1]) # y-coord, x-coord
+                angle = np.arctan2(dp[0], dp[1])
                 
             # extract the region around the point used for fitting
             region = image[p[1]-spacing : p[1]+spacing+1, p[0]-spacing : p[0]+spacing+1].copy()
@@ -870,6 +870,14 @@ class FirstPass(DataHandler):
         conv = cv2.matchTemplate(profile.astype(np.uint8),
                                  template, cv2.cv.CV_TM_SQDIFF)
         
+#         import matplotlib.pyplot as plt
+#         plt.plot(profile/profile.max(), 'b', label='profile')
+#         plt.plot(conv/conv.max(), 'r', label='conv')
+#         plt.axvline(np.argmin(conv), color='r')
+#         plt.axvline(np.argmin(conv) + template_width, color='b')
+#         plt.legend(loc='best')
+#         plt.show()
+        
         # find the best match
         pos = np.argmin(conv) + template_width
         
@@ -908,7 +916,7 @@ class FirstPass(DataHandler):
         
         # HANDLE INNER POINTS OF BURROW
         width_min = self.params['burrows/width_min']
-        scan_length = int(4*self.params['burrows/width'])
+        scan_length = int(2*self.params['burrows/width'])
         centerline_new = [centerline[0]]
         for k, p in enumerate(centerline[1:-1]):
             # get points adjacent to p
@@ -994,6 +1002,7 @@ class FirstPass(DataHandler):
                                           point_anchor, p1e, 3)
 
                 # determine steepest point
+                # FIXME: use find_burrow_edge
                 l = image.get_steepest_point(profile, direction=1, smoothing=2)
                 
                 point = (point_anchor[0] + l*dx, point_anchor[1] + l*dy)
@@ -1026,6 +1035,46 @@ class FirstPass(DataHandler):
         return Burrow(outline_new, centerline=centerline_new, refined=True)
     
     
+    def refine_bulky_burrow(self, burrow):
+        """ refines the outline of a bulky burrow """
+        # get ground line
+        ground_line = geometry.LineString(np.array(self.ground, np.double))
+        scan_length = int(2*self.params['burrows/width'])
+        
+        # wrap around outline points on the edge
+        outline = np.vstack((burrow.outline[-1],
+                             burrow.outline,
+                             burrow.outline[0]))
+        
+        # iterate through all outline points
+        outline_new = []
+        for k, p in enumerate(outline[1:-1], 1):
+            dist = ground_line.distance(geometry.Point(p))
+            if dist > self.params['burrows/ground_point_distance']:
+                # refine only points away from the ground line
+                # find local slope of the centerline
+                dx = outline[k+1][0] - outline[k-1][0]
+                dy = outline[k+1][1] - outline[k-1][1]
+                dist = np.hypot(dx, dy)
+                dx /= dist; dy /= dist
+    
+                p_a = (p[0] + scan_length*dy, p[1] - scan_length*dx)
+                p_b = (p[0] - scan_length*dy, p[1] + scan_length*dx)
+                
+                # find the transition points by considering slopes
+                profile = image.line_scan(self.background.astype(np.uint8, copy=False), p_a, p_b, 3)
+                k = self.find_burrow_edge(profile, direction='up')
+
+                if k is not None:
+                    d = scan_length - k
+                    p = (p[0] + d*dy, p[1] - d*dx)
+            
+            outline_new.append(p)
+
+        burrow.outline = outline_new
+        return burrow
+    
+    
     def find_burrows(self, mask_moving):
         """ locates burrows by combining the information of the ground_mask profile
         and the explored area """
@@ -1047,19 +1096,16 @@ class FirstPass(DataHandler):
             # get the burrow object from the contour of region
             burrow = self.get_burrow_from_mask(labels == label)
 
-            # refine the burrow if it looks like a proper burrow
+            # add the unrefined burrow to the debug video
+            if 'video' in self.debug:
+                self.debug['video'].add_polygon(burrow.outline, 'w', is_closed=True, width=2)
+
+            # refine the burrows by fitting
             if (burrow.eccentricity > self.params['burrows/fitting_eccentricity_threshold'] and 
                     burrow.get_length(self.ground) > self.params['burrows/fitting_length_threshold']):
-                # add the unrefined burrow to the debug video
-                if 'video' in self.debug:
-                    self.debug['video'].add_polygon(burrow.outline, 'w', is_closed=True, width=2)
-                # refine the burrow
-                try:
-                    burrow = self.refine_long_burrow(burrow)
-                except IndexError:
-                    # use the non-refined burrow in case of errors
-                    pass
-                    raise 
+                burrow = self.refine_long_burrow(burrow)
+            else:
+                burrow = self.refine_bulky_burrow(burrow)
             
             # add the burrow to our result list if it is valid
             if burrow.is_valid:

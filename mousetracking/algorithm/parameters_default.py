@@ -89,7 +89,7 @@ PARAMETERS_DEFAULT = {
     # number of consecutive frames used for motion detection [in frames]
     'tracking/moving_window': 20,
     # threshold speed above which an object is said to be moving [in pixels/frame]
-    'tracking/moving_threshold': 10,
+    'tracking/moving_threshold': 10*1e10,
     # time duration of not seeing the mouse after which we don't know where it is anymore [in frames]
     'tracking/time_scale': 10,
     # how much are two consecutive tracks allowed to overlap [in frames]
