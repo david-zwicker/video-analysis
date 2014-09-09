@@ -1071,6 +1071,7 @@ class FirstPass(DataHandler):
             
             outline_new.append(p)
 
+        outline_new = regions.regularize_contour(outline_new)
         burrow.outline = outline_new
         return burrow
     
