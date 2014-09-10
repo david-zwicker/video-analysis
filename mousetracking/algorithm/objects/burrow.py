@@ -15,7 +15,7 @@ import cv2
 import shapely
 import shapely.geometry as geometry
 
-from .utils import cached_property, LazyHDFCollection
+from .utils import cached_property, LazyHDFCollection, rtrim_nan
 from video.analysis import curves, regions
 
 from ..debug import *  # @UnusedWildImport
@@ -30,6 +30,10 @@ class Burrow(object):
     """ represents a single burrow
     Note that the outline are always given in clockwise direction
     """
+    
+    array_columns = ('Outline X', 'Outline Y', 
+                     'Burrow length + Centerline X',
+                     'Flag if burrow was refined + Centerline Y')
     
     # parameters influencing how the centerline is determined
     curvature_radius_max = 50
@@ -242,21 +246,46 @@ class Burrow(object):
     
     def to_array(self):
         """ converts the internal representation to a single array """
-        attributes = [[self.length, self.refined]]
-        return np.concatenate((np.array(attributes, np.double),
-                               np.asarray(self.outline, np.double)))
+        # collect the data for the first two columns
+        data1 = np.asarray(self.outline, np.double)
+
+        # collect the data for the last two columns
+        data_attr = np.array([[self.length, self.refined]], np.double)
+        spacer = np.array([[np.nan, np.nan]])
+        if self.centerline is None:
+            data_centerline = np.array([])
+        else:
+            data_centerline = self.centerline
+        data2 = np.concatenate((data_attr, spacer, data_centerline))
+        
+        # save the data in a convenient array
+        l1, l2 = len(data1), len(data2)
+        data_res = np.empty((max(l1, l2), 4), np.double)
+        data_res.fill(np.nan)
+        data_res[:l1, :2] = data1
+        data_res[:l2, 2:] = data2 
+        return data_res
         
 
     @classmethod
     def create_from_array(cls, data):
         """ creates a burrow track from a single array """
-        return cls(outline=data[1:],
-                   length=data[0][0], refined=bool(data[0][1]))
+        # load the data from the respective places
+        data = np.asarray(data)
+        data_attr = data[0, 2:]
+        data_outline = rtrim_nan(data[:, :2])
+        data_centerline = rtrim_nan(data[2:, 2:])
+        if len(data_centerline) == 0:
+            data_centerline = None
+            
+        # create the object
+        return cls(outline=data_outline, centerline=data_centerline,
+                   length=data_attr[0], refined=bool(data_attr[1]))
         
         
         
 class BurrowTrack(object):
-    array_columns = ('Time', 'Position X', 'Position Y')
+    array_columns = ('Time',) + Burrow.array_columns
     
     def __init__(self, time=None, burrow=None):
         self.times = [] if time is None else [time]
@@ -285,6 +314,15 @@ class BurrowTrack(object):
     @property
     def last_seen(self):
         return self.times[-1]
+    
+    
+    def get_burrow(self, time):
+        """ returns the position at a specific time """
+        if not self.times[0] <= time <= self.times[-1]:
+            raise IndexError
+        
+        idx = np.argmin(np.abs(np.asarray(self.times) - time))
+        return self.burrows[idx]
     
     
     def append(self, time, burrow):
@@ -336,9 +374,10 @@ class BurrowTrack(object):
         hdf_file[key].attrs['column_names'] = self.array_columns
         hdf_file[key].attrs['remark'] = (
             'Each burrow is represented by its outline saved as a list of points '
-            'of the format (Time, X, Y), where all points with the same Time belong '
-            'to the same burrow. However, the first entry contains burrow '
-            'attributes, i.e. the burrow length and whether it was refined.'
+            'of the format (Time, X, Y, a, b), where all points with the same '
+            'Time belong to the same burrow. The last two values (a, b) contain '
+            'additional data, e.g. the burrow length and the coordinates of the '
+            'centerline.'
         ) 
 
 

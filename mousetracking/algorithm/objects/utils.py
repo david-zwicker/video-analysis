@@ -13,6 +13,15 @@ import numpy as np
 import h5py
 
 
+def rtrim_nan(data):
+    """ removes nan values from the end of the array """
+    for k in xrange(len(data) - 1, -1, -1):
+        if not np.any(np.isnan(data[k])):
+            break
+    else:
+        return []
+    return data[:k + 1]
+
 
 class cached_property(object):
     """Decorator to use a function as a cached property.

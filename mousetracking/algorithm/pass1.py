@@ -141,7 +141,7 @@ class FirstPass(DataHandler):
         
         self.result['objects/tracks'] = ObjectTrackList()
         self.result['ground/profile'] = GroundProfileList()
-        self.result['burrows/data'] = BurrowTrackList()
+        self.result['burrows/tracks'] = BurrowTrackList()
 
         # create a simple template of the mouse, which will be used to update
         # the background image only away from the mouse.
@@ -678,7 +678,10 @@ class FirstPass(DataHandler):
         """ adapts a ground profile given as points to a given frame.
         Here, we fit a ridge profile in the vicinity of every point of the curve.
         The only fitting parameter is the distance by which a single points moves
-        in the direction perpendicular to the curve. """
+        in the direction perpendicular to the curve.
+        
+        See http://en.wikipedia.org/wiki/Active_contour_model
+        """
                 
         spacing = self.params['ground/point_spacing']
         
@@ -1315,7 +1318,7 @@ class FirstPass(DataHandler):
                 cv2.fillPoly(self.burrows_mask, np.array([burrow.outline], np.int32), color=255)
                 
                 # see whether this burrow is already known
-                for burrow_track in self.result['burrows/data']:
+                for burrow_track in self.result['burrows/tracks']:
                     if burrow_track.last.intersects(burrow.polygon):
                         burrow_track.append(self.frame_id, burrow)
                         break
@@ -1323,7 +1326,7 @@ class FirstPass(DataHandler):
                 else:
                     # otherwise, start a new burrow track
                     burrow_track = BurrowTrack(self.frame_id, burrow)
-                    self.result['burrows/data'].append(burrow_track)
+                    self.result['burrows/tracks'].append(burrow_track)
                     self.logger.debug('%d: Found new burrow at %s',
                                       self.frame_id, burrow.polygon.centroid)
             
@@ -1379,7 +1382,7 @@ class FirstPass(DataHandler):
                 debug_video.add_polygon(self.ground, is_closed=False, mark_points=True, color='y')
         
             # indicate the currently active burrow shapes
-            for burrow_track in self.result['burrows/data']:
+            for burrow_track in self.result['burrows/tracks']:
                 if burrow_track.last_seen > self.frame_id - self.params['burrows/adaptation_interval']:
                     burrow = burrow_track.last
                     burrow_color = 'red' if burrow.refined else 'orange'

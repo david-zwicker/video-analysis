@@ -268,27 +268,24 @@ class SecondPass(DataHandler):
         
         track_first = 0
         tracks = sorted(self.data['pass1/objects/tracks'], key=lambda track: track.start)
+        burrow_tracks = self.data['pass1/burrows/tracks']
         
         for frame_id, frame in enumerate(display_progress(source_video)):
             # set real video as background
             video.set_frame(frame)
         
             # plot the ground profile
-            video.add_polygon(ground_profile.get_profile(frame_id),
-                              is_closed=False, mark_points=False, color='y')
-#         
-#             # indicate the currently active burrow shapes
-#             for burrow_track in self.result['burrows/data']:
-#                 if burrow_track.last_seen > self.frame_id - self.params['burrows/adaptation_interval']:
-#                     burrow = burrow_track.last
-#                     burrow_color = 'red' if burrow.refined else 'orange'
-#                     debug_video.add_polygon(burrow.outline, burrow_color,
-#                                             is_closed=True, mark_points=True)
-#                     debug_video.add_polygon(burrow.get_centerline(self.ground),
-#                                             burrow_color, is_closed=False,
-#                                             width=2, mark_points=True)
-        
-            # TODO: Indicate burrow centerline
+            ground_line = ground_profile.get_profile(frame_id)
+            video.add_polygon(ground_line, is_closed=False, mark_points=False, color='y')
+
+            # indicate burrow centerline
+            for burrow_track in burrow_tracks:
+                try:
+                    burrow = burrow_track.get_burrow(frame_id)
+                except IndexError:
+                    continue
+                video.add_polygon(burrow.get_centerline(ground_line),
+                                  'k', is_closed=False, width=2)
         
             # find the first track which is still active
             while tracks[track_first].end < frame_id:

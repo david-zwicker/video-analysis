@@ -30,7 +30,7 @@ import debug  # @UnusedImport
 # and will be loaded only on access
 HDF_VALUES = {'pass1/ground/profile': objects.GroundProfileList,
               'pass1/objects/tracks': objects.ObjectTrackList,
-              'pass1/burrows/data': objects.BurrowTrackList,
+              'pass1/burrows/tracks': objects.BurrowTrackList,
               'pass2/ground_profile': objects.GroundProfileTrack,
               'pass2/mouse_trajectory': objects.MouseTrack}
 

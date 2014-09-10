@@ -9,6 +9,7 @@ This module contains convenience functions for scanning mouse videos.
 from __future__ import division
 
 import os
+import warnings
 
 from .algorithm.parameters_default import PARAMETERS_DEFAULT
 from .algorithm.data_handler import DataHandler
@@ -31,10 +32,13 @@ def scan_video(name, video=None, parameters=None, passes=2, **kwargs):
         parameters['video/frames'] = kwargs.pop('frames')
     if kwargs.get('crop', None) is not None:
         parameters['video/cropping_rect'] = kwargs.pop('crop')
+    debug_output = kwargs.pop('debug_output', None)
+    if kwargs:
+        warnings.warn('There are unused kwargs: %s' % ', '.join(kwargs))
         
     # do first pass
     job = FirstPass(name, parameters=parameters,
-                    debug_output=kwargs.get('debug_output', None))
+                    debug_output=debug_output)
     job.load_video(video, crop_video=crop_video)
     job.process_video()
     
