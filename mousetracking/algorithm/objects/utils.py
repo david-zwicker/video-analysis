@@ -134,6 +134,11 @@ class LazyHDFCollection(LazyHDFValue):
 
         # save a collection of objects to hdf
         with h5py.File(hdf_filename, 'a') as hdf_file:
+            # reset the whole structure if it is there
+            if key in hdf_file:
+                del hdf_file[key]
+
+            # write all objects as individual datasets            
             key_format = '{}/%0{}d'.format(key, len(str(len(data))))
             for index, obj in enumerate(data):
                 obj.save_to_hdf5(hdf_file, key_format % index)
