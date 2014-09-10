@@ -610,7 +610,71 @@ class FirstPass(DataHandler):
     #===========================================================================
 
 
-    def refine_ground_old(self, points, try_many_distances=False):
+    def find_rough_ground(self):
+        """ determines an estimate of the ground profile from a single frame """
+        frame = self.background.astype(np.uint8)
+        
+        # remove 10%/15% of each side of the frame
+        h = int(0.15*frame.shape[0])
+        w = int(0.10*frame.shape[1])
+        image_center = frame[h:-h, w:-w]
+        
+        # binarize frame
+        cv2.threshold(image_center, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
+        
+        # do morphological opening and closing to smooth the profile
+        s = 5*self.params['burrows/width']
+        ys, xs = np.ogrid[-s:s+1, -s:s+1]
+        kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8, copy=False)
+
+        # widen the mask
+        mask = cv2.copyMakeBorder(image_center, s, s, s, s, cv2.BORDER_REPLICATE)
+        # make sure their is sky on the top
+        mask[:s + h, :] = 0
+        # make sure their is sand at the bottom
+        mask[-s - h:, :] = 255
+
+        # morphological opening to remove noise and clutter
+        cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, dst=mask)
+
+        # morphological closing to smooth the boundary and remove burrows
+        cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, borderType=cv2.BORDER_REPLICATE, dst=mask)
+        
+        # reduce the mask to its original dimension
+        mask = mask[s:-s, s:-s]
+        
+        # get the contour from the mask and store points as (x, y)
+        points = [(x + w, np.nonzero(col)[0][0] + h)
+                  for x, col in enumerate(mask.T)]          
+        
+        # extend the ground line toward the left edge of the cage
+        p_x, p_y = points[0]
+        profile = image.line_scan(frame, (0, p_y), (p_x, p_y), 30)
+        color_threshold = (self.result['colors/sand'] + frame.max())/2
+        try:
+            p_x = np.nonzero(profile > color_threshold)[0][-1]
+            points.insert(0, (p_x, p_y))
+        except IndexError:
+            pass
+        
+        # extend the ground line toward the right edge of the cage
+        p_x, p_y = points[-1]
+        profile = image.line_scan(frame, (p_x, p_y), (frame.shape[1] - 1, p_y), 30)
+        try:
+            p_x += np.nonzero(profile > color_threshold)[0][0]
+            points.append((p_x, p_y))
+        except IndexError:
+            pass
+        
+        # simplify the curve        
+        points = curves.simplify_curve(points, epsilon=2)
+        # make the curve equidistant
+        points = curves.make_curve_equidistant(points, self.params['ground/point_spacing'])
+
+        return np.array(points, np.int32)
+   
+   
+    def refine_ground_snake(self, points, try_many_distances=False):
         """ adapts a ground profile given as points to a given frame.
         Here, we fit a ridge profile in the vicinity of every point of the curve.
         The only fitting parameter is the distance by which a single points moves
@@ -804,6 +868,13 @@ class FirstPass(DataHandler):
 
     def find_initial_ground(self):
         """ finds the ground profile given an image of an antfarm """
+        points = self.find_rough_ground()
+        self.ground = self.refine_ground(points, try_many_distances=True)
+        
+        self.logger.info('We found a ground profile of length %g',
+                         curves.curve_length(self.ground))
+        
+        return
 
         frame = self.background.astype(np.uint8)
         
