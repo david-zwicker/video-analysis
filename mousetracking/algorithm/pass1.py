@@ -837,8 +837,9 @@ class FirstPass(DataHandler):
     
     def find_burrow_edge(self, profile, direction='up'):
         """ return the template for finding burrow edges
-        direction denotes whether we are looking for rising or
-        falling edges
+        direction denotes whether we are looking for rising or falling edges
+        
+        returns the position of the edge or None, if the edge was not found
         """
         # load parameters
         edge_width = self.params['burrows/fitting_edge_width']
@@ -1000,10 +1001,10 @@ class FirstPass(DataHandler):
                 profile = image.line_scan(self.background.astype(np.uint8, copy=False),
                                           point_anchor, p1e, 3)
 
-                # determine steepest point
+                # determine position of burrow edge
                 l = self.find_burrow_edge(profile, direction='up')
-                
-                point = (point_anchor[0] + l*dx, point_anchor[1] + l*dy)
+                if l is not None:
+                    point = (point_anchor[0] + l*dx, point_anchor[1] + l*dy)
 
             # add the point to the outline                
             outline_new.append(point)

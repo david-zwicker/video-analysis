@@ -10,7 +10,8 @@
 * When fitting burrows, set currently moving parts to sky color in background model and do the fitting on this image
 * Simplify bulky burrows by removing trying to remove points and checking whether the area changes significantly
 * Determine absolute times by checking when the lights go on
-* Think about introducing a flag that is positive, if we are sure that we know where the mouse is (by considering its movement)
+* Think about introducing a flag indicating whether we are sure we know where the mouse is (by considering its movement)
+	- this could be used to reject moving objects that are certainly not a mouse
 
 
 Performance improvements:
