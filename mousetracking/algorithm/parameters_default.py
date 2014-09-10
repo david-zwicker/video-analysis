@@ -67,8 +67,8 @@ PARAMETERS_DEFAULT = {
     'ground/flat_top_fraction': 0.2,
     # how often is the ground profile adapted [in frames]
     'ground/adaptation_interval': 100,
-#     # width of the ground profile ridge [in pixel]
-#     'ground/width': 5,
+    # width of the ground profile ridge [in pixel]
+    'ground/width': 5,
     # determines the stiffness of the ground profile
     'ground/snake_bending_energy': 5e5, # 1e4
     # standard deviation for Gaussian smoothing [in frames]

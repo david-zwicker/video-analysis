@@ -610,7 +610,7 @@ class FirstPass(DataHandler):
     #===========================================================================
 
 
-    def refine_ground(self, points, try_many_distances=False):
+    def refine_ground_old(self, points, try_many_distances=False):
         """ adapts a ground profile given as points to a given frame.
         Here, we fit a ridge profile in the vicinity of every point of the curve.
         The only fitting parameter is the distance by which a single points moves
@@ -726,13 +726,12 @@ class FirstPass(DataHandler):
         return ground
     
         
-    def refine_ground_old(self, image):
-        """ adapts a ground profile given as points to a given image.
+    def refine_ground(self, points, **kwargs):
+        """ adapts a ground profile given as points to a given frame.
         Here, we fit a ridge profile in the vicinity of every point of the curve.
         The only fitting parameter is the distance by which a single points moves
         in the direction perpendicular to the curve. """
-                
-        points = self.ground
+        frame = self.background
         spacing = self.params['ground/point_spacing']
             
         if not 'ground.model' in self._cache or \
@@ -747,7 +746,7 @@ class FirstPass(DataHandler):
         
         # calculate the bounds for the points
         p_min = spacing 
-        y_max, x_max = image.shape[0] - spacing, image.shape[1] - spacing
+        y_max, x_max = frame.shape[0] - spacing, frame.shape[1] - spacing
 
         # iterate through all points and correct profile
         ground_model = self._cache['ground.model']
@@ -771,7 +770,7 @@ class FirstPass(DataHandler):
                 angle = np.arctan2(dp[0], dp[1])
                 
             # extract the region around the point used for fitting
-            region = image[p[1]-spacing : p[1]+spacing+1, p[0]-spacing : p[0]+spacing+1].copy()
+            region = frame[p[1]-spacing : p[1]+spacing+1, p[0]-spacing : p[0]+spacing+1].copy()
             ground_model.set_data(region, angle) 
 
             # move the ground profile model perpendicular until it fits best
@@ -800,8 +799,7 @@ class FirstPass(DataHandler):
             # add up the total deviations from the previous profile
             deviation += abs(x[0])
             
-        self.ground = np.array(corrected_points)
-        return deviation 
+        return np.array(corrected_points)
             
 
     def find_initial_ground(self):
