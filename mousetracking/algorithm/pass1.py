@@ -19,6 +19,8 @@ top to bottom. The origin is thus in the upper left corner.
 
 from __future__ import division
 
+import itertools
+
 import numpy as np
 import scipy.ndimage as ndimage
 from scipy.optimize import leastsq
@@ -31,7 +33,6 @@ from video.filters import FilterCrop
 from video.analysis import regions, curves, image
 from video.utils import display_progress
 from video.composer import VideoComposer
-
 
 from .data_handler import DataHandler
 from .objects.moving import MovingObject, ObjectTrack, ObjectTrackList
@@ -210,7 +211,7 @@ class FirstPass(DataHandler):
                 
                 # estimate initial ground profile
                 self.logger.debug('Find the initial ground profile.')
-                self.find_initial_ground(frame_blurred)
+                self.find_initial_ground()
         
             elif self.frame_id > self.params['video/initial_adaptation_frames']:
                 # do the main analysis
@@ -225,7 +226,7 @@ class FirstPass(DataHandler):
                 
                 # use the background to find the current ground profile and burrows
                 if self.frame_id % self.params['ground/adaptation_interval'] == 0:
-                    self.refine_ground(self.background)
+                    self.ground = self.refine_ground(self.ground)
                     ground = GroundProfile(self.frame_id, self.ground)
                     self.result['ground/profile'].append(ground)
         
@@ -609,70 +610,123 @@ class FirstPass(DataHandler):
     #===========================================================================
 
 
-    def find_rough_ground(self, frame):
-        """ determines an estimate of the ground profile from a single frame """
+    def refine_ground(self, points, try_many_distances=False):
+        """ adapts a ground profile given as points to a given frame.
+        Here, we fit a ridge profile in the vicinity of every point of the curve.
+        The only fitting parameter is the distance by which a single points moves
+        in the direction perpendicular to the curve. """
+                
+        spacing = self.params['ground/point_spacing']
         
-        # remove 10%/15% of each side of the frame
-        h = int(0.15*frame.shape[0])
-        w = int(0.10*frame.shape[1])
-        image_center = frame[h:-h, w:-w]
+        # make sure the curve has equidistant points
+        ground = curves.make_curve_equidistant(points, spacing=spacing)
         
-        # binarize frame
-        cv2.threshold(image_center, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
+        ground = np.array(np.round(ground), np.int32)
         
-        # do morphological opening and closing to smooth the profile
-        s = 5*self.params['burrows/width']
-        ys, xs = np.ogrid[-s:s+1, -s:s+1]
-        kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8, copy=False)
+        # make sure that points are not above each other
+        for k in xrange(1, len(ground)):
+            if ground[k-1][0] == ground[k][0]:
+                ground[k][0] += 1
+        
+        snake_stiffness = self.params['ground/snake_bending_energy']
+        snake_length = curves.curve_length(ground)
+        alpha = snake_length*1e3
+        beta = snake_length*snake_stiffness
+        
+        # get the edges of the current background image
+        frame = self.background
+        sobel_x = cv2.Sobel(frame, cv2.CV_64F, 1, 0, ksize=11)
+        sobel_y = cv2.Sobel(frame, cv2.CV_64F, 0, 1, ksize=11)
+        grad = np.hypot(sobel_x, sobel_y)
+        
+        grad = cv2.GaussianBlur(grad, (0, 0), 5)
+        
+        frame_energy = cv2.cv.fromarray(-grad) #< convert to cvMat
+        
+        def get_snake_energy(ps):
+            # bending energy from second derivative
+            energy_len = 0
+            energy_curv = 0#abs(ps[0][1] - ps[1][1]) + abs(ps[-2][1] - ps[-1][1])
+            for k in xrange(1, len(ps) - 1):
+                curve_len = curves.curve_length(ps[k-1:k+2])
+                energy_len += curve_len
 
-        # widen the mask
-        mask = cv2.copyMakeBorder(image_center, s, s, s, s, cv2.BORDER_REPLICATE)
-        # make sure their is sky on the top
-        mask[:s + h, :] = 0
-        # make sure their is sand at the bottom
-        mask[-s - h:, :] = 255
+                a, b, c = ps[k-1], ps[k], ps[k+1]
+                curv = ((b[1] - a[1])/(a[0] - b[0]) + (b[1] - c[1])/(b[0] - c[0]))/(c[0] - a[0])
+                #curv = np.sum((ps[k-1] - 2*ps[k] + ps[k+1])**2)
+                energy_curv += curv**2 * curve_len
+                
+            energy_len *= alpha
+            energy_curv *= beta
+#             print energy
+            
+            # image energy from integrating along the snake
+            energy_ext = 0
+            for p1, p2 in itertools.izip(ps[:-1], ps[1:]):
+                p1 = (int(p1[0]), int(p1[1]))
+                p2 = (int(p2[0]), int(p2[1]))
+#                 im = image.line_scan(-grad, p1, p2, 1).sum()
+#                 it = sum(cv2.cv.InitLineIterator(frame_energy, p1, p2))
+#                 print 'im', im, it
+#                 exit()
+#                 exit()
+                #energy += image.line_scan(-grad, p1, p2, 1).mean()
+                energy_ext += sum(cv2.cv.InitLineIterator(frame_energy, p1, p2))
+                
+            energy = energy_len + energy_curv + energy_ext
+                
+#             print energy, ps[:, 1].mean(), ps[:, 1].std()
+#             print 'second', energy
+#             print energy_len/1e7, energy_curv/1e7, energy_ext/1e7
+            return energy
 
-        # morphological opening to remove noise and clutter
-        cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, dst=mask)
-
-        # morphological closing to smooth the boundary and remove burrows
-        cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, borderType=cv2.BORDER_REPLICATE, dst=mask)
+        def adapt_snake(ps_y):
+            ps = ground.copy()
+            ps[:, 1] = ps_y
+            return get_snake_energy(ps)
         
-        # reduce the mask to its original dimension
-        mask = mask[s:-s, s:-s]
+        import scipy.optimize as so
         
-        # get the contour from the mask and store points as (x, y)
-        points = [(x + w, np.nonzero(col)[0][0] + h)
-                  for x, col in enumerate(mask.T)]          
+        bounds = np.empty_like(ground)
+        bounds[:, 0] = 0
+        bounds[:, 1] = frame.shape[1]
         
-        # extend the ground line toward the left edge of the cage
-        p_x, p_y = points[0]
-        profile = image.line_scan(frame, (0, p_y), (p_x, p_y), 30)
-        color_threshold = (self.result['colors/sand'] + frame.max())/2
-        try:
-            p_x = np.nonzero(profile > color_threshold)[0][-1]
-            points.insert(0, (p_x, p_y))
-        except IndexError:
-            pass
+        #ground[:, 1] = so.fmin(adapt_snake, ground[:, 1], xtol=1)
+        #ground[:, 1] = so.fmin_bfgs(adapt_snake, ground[:, 1], epsilon=1)
         
-        # extend the ground line toward the right edge of the cage
-        p_x, p_y = points[-1]
-        profile = image.line_scan(frame, (p_x, p_y), (frame.shape[1] - 1, p_y), 30)
-        try:
-            p_x += np.nonzero(profile > color_threshold)[0][0]
-            points.append((p_x, p_y))
-        except IndexError:
-            pass
+#         ground[:, 1] = so.fmin_tnc(adapt_snake, ground[:, 1], epsilon=1, approx_grad=True, bounds=bounds)[0]
+        ground[:, 1] = so.fmin_l_bfgs_b(adapt_snake, ground[:, 1], epsilon=1, approx_grad=True, bounds=bounds)[0]
+        return ground
+                
+        if try_many_distances:
+            ds = np.array((1, 2, 4, 8, 16, 32))
+            distances = np.concatenate((ds, -ds))
+        else:
+            distances = (-1, 1)
+                
+        # iterate through all points and correct profile
+        snake_energy = get_snake_energy(ground)
+        energy_reduced = True
+        while energy_reduced:
+            energy_reduced = False
+            for k in xrange(len(ground)):
+                for d in distances:
+                    ground[k, 1] += d
+                    energy = get_snake_energy(ground)
+                    if energy < snake_energy:
+                        snake_energy = energy
+                        energy_reduced = True
+                    else:
+                        ground[k, 1] -= d
         
-        # simplify the curve        
-        points = curves.simplify_curve(points, epsilon=2)
-        # make the curve equidistant
-        points = curves.make_curve_equidistant(points, self.params['ground/point_spacing'])
-
-        return np.array(points, np.int32)
-   
+#         debug.show_shape(geometry.LineString(points.astype(np.double)),
+#                          geometry.LineString(ground.astype(np.double)),
+#                          background=-grad, mark_points=True, wait_for_key=False)
+            
+        return ground
+    
         
-    def refine_ground(self, image):
+    def refine_ground_old(self, image):
         """ adapts a ground profile given as points to a given image.
         Here, we fit a ridge profile in the vicinity of every point of the curve.
         The only fitting parameter is the distance by which a single points moves
@@ -750,20 +804,77 @@ class FirstPass(DataHandler):
         return deviation 
             
 
-    def find_initial_ground(self, image):
+    def find_initial_ground(self):
         """ finds the ground profile given an image of an antfarm """
 
-        # get an estimate of a profile
-        self.ground = self.find_rough_ground(image)
+        frame = self.background.astype(np.uint8)
         
-        # iterate until the profile does not change significantly anymore
-        deviation, iterations = np.inf, 0
-        while deviation > len(self.ground) and iterations < 50:
-            deviation = self.refine_ground(image)
-            iterations += 1
-            
-        self.logger.info('We found a ground profile of length %g after %d iterations',
-                         curves.curve_length(self.ground), iterations)
+        # remove 10%/15% of each side of the frame
+        h = int(0.15*frame.shape[0])
+        w = int(0.10*frame.shape[1])
+        image_center = frame[h:-h, w:-w]
+        
+        # binarize frame
+        cv2.threshold(image_center, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
+        
+        # do morphological opening and closing to smooth the profile
+        s = self.params['burrows/width']
+        ys, xs = np.ogrid[-s:s+1, -s:s+1]
+        kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8, copy=False)
+
+        # morphological opening to remove noise and clutter
+        cv2.morphologyEx(image_center, cv2.MORPH_OPEN, kernel, dst=image_center)
+
+        # get the contour from the mask and store points as (x, y)
+        width_video = self.video.size[0]
+        top_min = self.params['ground/flat_top_fraction']*width_video
+        top_max = width_video - top_min
+        points = []
+        for x, col in enumerate(image_center.T):
+            xp = x + w
+            if top_min <= xp <= top_max:
+                try:
+                    # add topmost white point as estimate 
+                    yp = np.nonzero(col)[0][0] + h
+                except IndexError:
+                    # there are no white points => continue from last time
+                    yp = points[-1][1]
+                points.append((xp, yp))
+        
+        # extend the ground line toward the left edge of the cage
+        p_y = points[0][1]
+        dist_from_edge = 2*self.params['cage/frame_width']
+        profile = image.line_scan(frame, (0, p_y), (dist_from_edge, p_y), 30)
+        color_threshold = (self.result['colors/sand'] + frame.max())/2
+        
+#         import matplotlib.pyplot as plt
+#         plt.plot(profile)
+#         plt.axhline(color_threshold)
+#         plt.show()
+        
+        try:
+            p_x = np.nonzero(profile > color_threshold)[0][-1] + 10
+            points.insert(0, (p_x, p_y))
+        except IndexError:
+            pass
+        
+        # extend the ground line toward the right edge of the cage
+        p_y = points[-1][1]
+        x_max = frame.shape[1] - 1
+        p_x = x_max - dist_from_edge
+        profile = image.line_scan(frame, (p_x, p_y), (x_max, p_y), 30)
+        try:
+            p_x += np.nonzero(profile > color_threshold)[0][0] - 10
+            points.append((p_x, p_y))
+        except IndexError:
+            pass
+        
+        # simplify and refine the curve        
+        points = curves.simplify_curve(points, epsilon=2)
+        self.ground = self.refine_ground(points, try_many_distances=True)
+        
+        self.logger.info('We found a ground profile of length %g',
+                         curves.curve_length(self.ground))
         
     
     def get_ground_mask(self, color=255):

@@ -64,37 +64,63 @@ def show_shape(*shapes, **kwargs):
     import shapely.geometry as geometry
     import descartes
     
+    background = kwargs.get('background', None)
+    wait_for_key = kwargs.get('wait_for_key', True)
+    mark_points = kwargs.get('mark_points', False)
+    
     # set up the plotting
     plt.figure()
     ax = plt.gca()
-    colors = itertools.cycle('k b g r c m y'.split(' '))
+    colors = itertools.cycle('b g r c m y k'.split(' '))
+    
+    # plot background, if applicable
+    if background is not None:
+        axim = ax.imshow(background, origin='upper',
+                         interpolation='nearest', cmap=plt.get_cmap('gray'))
+        if background.min() != background.max():
+            # recipe from http://stackoverflow.com/a/18195921/932593
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            plt.colorbar(axim, cax=cax)
     
     # iterate through all shapes and plot them
     for shape in shapes:
+        color = kwargs.get('color', colors.next())
+        line_width = kwargs.get('lw', 3)
+        
         if isinstance(shape, geometry.Polygon):
             patch = descartes.PolygonPatch(shape,
                                            ec=kwargs.get('ec', 'none'),
-                                           fc=kwargs.get('color', colors.next()), alpha=0.5)
+                                           fc=color, alpha=0.5)
             ax.add_patch(patch)
+            if mark_points:
+                ax.plot(shape.xy[0], shape.xy[1], 'o', markersize=2*line_width, color=color)
             
         elif isinstance(shape, geometry.LineString):
-            x, y = shape.xy
-            ax.plot(x, y, color=kwargs.get('color', colors.next()), lw=kwargs.get('lw', 3))
+            ax.plot(shape.xy[0], shape.xy[1], color=color, lw=line_width)
+            if mark_points:
+                ax.plot(shape.xy[0], shape.xy[1], 'o', markersize=2*line_width, color=color)
             
         elif isinstance(shape, geometry.multilinestring.MultiLineString):
             for line in shape:
-                x, y = line.xy
-                ax.plot(x, y, color=kwargs.get('color', colors.next()), lw=kwargs.get('lw', 3))
+                ax.plot(line.xy[0], line.xy[1], color=color, lw=line_width)
+                if mark_points:
+                    ax.plot(line.xy[0], line.xy[1], 'o', markersize=2*line_width, color=color)
             
         else:
             raise ValueError("Don't know how to plot %r" % shape)
         
-    ax.invert_yaxis()
-    ax.margins(0.1)
-    ax.autoscale_view(tight=False, scalex=True, scaley=True)
-            
+    # adjust image axes
+    if background is None:
+        ax.invert_yaxis()
+        ax.margins(0.1)
+        ax.autoscale_view(tight=False, scalex=True, scaley=True)
+    else:
+        ax.set_xlim(0, background.shape[1])
+        ax.set_ylim(background.shape[0], 0)
+    
     plt.show()
-    if kwargs.get('wait_for_key', True):
+    if wait_for_key:
         raw_input('Press enter to continue...')
            
 

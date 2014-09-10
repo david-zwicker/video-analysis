@@ -49,6 +49,8 @@ PARAMETERS_DEFAULT = {
     'cage/width_max': 800,
     'cage/height_min': 400,
     'cage/height_max': 500,
+    # width of the cage frame [in pixel]
+    'cage/frame_width': 25,
                                
     # how often are the color estimates adapted [in frames]
     'colors/adaptation_interval': 1000,
@@ -61,10 +63,14 @@ PARAMETERS_DEFAULT = {
     
     # spacing of the support points describing the ground profile [in pixel]
     'ground/point_spacing': 20,
+    # fraction of total width where the top of the ground is flat [fraction]
+    'ground/flat_top_fraction': 0.2,
     # how often is the ground profile adapted [in frames]
     'ground/adaptation_interval': 100,
-    # width of the ground profile ridge [in pixel]
-    'ground/width': 5,
+#     # width of the ground profile ridge [in pixel]
+#     'ground/width': 5,
+    # determines the stiffness of the ground profile
+    'ground/snake_bending_energy': 5e5, # 1e4
     # standard deviation for Gaussian smoothing [in frames]
     'ground/smoothing_sigma': 300,
     

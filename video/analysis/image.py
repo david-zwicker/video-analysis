@@ -30,7 +30,7 @@ def line_scan(image, p1, p2, width=5):
 
     # determine and apply the affine transformation
     matrix = cv2.getAffineTransform(pts1, pts2)
-    res = cv2.warpAffine(image.astype(np.uint8), matrix, (int(length), 2*width))
+    res = cv2.warpAffine(image, matrix, (int(length), 2*width))
 
     # return the profile
     return res.mean(axis=0)
