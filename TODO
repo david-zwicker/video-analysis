@@ -39,8 +39,6 @@ Low priority enhancements:
 * Ground fitting could use some "active snake" ideas (http://en.wikipedia.org/wiki/Active_contour_model)
 	- Alternatively, Speed up sand profile fitting by having a library of profiles with certain angles and just matching these
 	around the point of interest (move along perpendicular line, until overlap is maximal)
-* Extend the ground profile till the edge of the cage
-	- this should automatically allow us to track the burrows close to the edge
 * Look into the possibility of writing a VideoFFMPEG class, which directly uses ffmpeg to read a video
 	- This will give us more flexibility in reading videos (also with more control over parameters)
 	- see https://github.com/Zulko/moviepy/blob/master/moviepy/video/io/ffmpeg_reader.py
@@ -51,4 +49,3 @@ Low priority enhancements:
 	- Here, we might wanna introduce the distinction between VideoStreamBase and VideoBase, with the
 		difference that the first one can only be iterated over, while the second allows for random access
 * Write Query class, which can be used to query a complete data set to return useful data (like burrow length over time)
-* Load the videos of a VideoStack one-by-one, only when they are actually needed
