@@ -8,7 +8,7 @@
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
 * When fitting burrows, set currently moving parts to sky color in background model and do the fitting on this image
-* Simplify bulky burrows by removing trying to remove points and checking whether the area changes significantly
+* Simplify bulky burrows by trying to remove points and checking whether the area changes significantly
 * Determine absolute times by checking when the lights go on
 * Think about introducing a flag indicating whether we are sure we know where the mouse is (by considering its movement)
 	- this could be used to reject moving objects that are certainly not a mouse
