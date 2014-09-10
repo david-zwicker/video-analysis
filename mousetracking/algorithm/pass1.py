@@ -609,15 +609,15 @@ class FirstPass(DataHandler):
     #===========================================================================
 
 
-    def find_rough_ground(self, image):
-        """ determines an estimate of the ground profile from a single image """
+    def find_rough_ground(self, frame):
+        """ determines an estimate of the ground profile from a single frame """
         
-        # remove 10%/15% of each side of the image
-        h = int(0.15*image.shape[0])
-        w = int(0.10*image.shape[1])
-        image_center = image[h:-h, w:-w]
+        # remove 10%/15% of each side of the frame
+        h = int(0.15*frame.shape[0])
+        w = int(0.10*frame.shape[1])
+        image_center = frame[h:-h, w:-w]
         
-        # binarize image
+        # binarize frame
         cv2.threshold(image_center, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
         
         # do morphological opening and closing to smooth the profile
@@ -645,10 +645,25 @@ class FirstPass(DataHandler):
         points = [(x + w, np.nonzero(col)[0][0] + h)
                   for x, col in enumerate(mask.T)]          
         
-        # TODO: extend the ground line to the edge of the cage
-        # Get an estimate of the cage edge by doing a horizontal line scan and
-        # determine the maximum slope  
-
+        # extend the ground line toward the left edge of the cage
+        p_x, p_y = points[0]
+        profile = image.line_scan(frame, (0, p_y), (p_x, p_y), 30)
+        color_threshold = (self.result['colors/sand'] + frame.max())/2
+        try:
+            p_x = np.nonzero(profile > color_threshold)[0][-1]
+            points.insert(0, (p_x, p_y))
+        except IndexError:
+            pass
+        
+        # extend the ground line toward the right edge of the cage
+        p_x, p_y = points[-1]
+        profile = image.line_scan(frame, (p_x, p_y), (frame.shape[1] - 1, p_y), 30)
+        try:
+            p_x += np.nonzero(profile > color_threshold)[0][0]
+            points.append((p_x, p_y))
+        except IndexError:
+            pass
+        
         # simplify the curve        
         points = curves.simplify_curve(points, epsilon=2)
         # make the curve equidistant

@@ -35,6 +35,9 @@ def make_curve_equidistant(points, spacing=None, count=None):
     if spacing is not None:
         # walk along and pick points with given spacing
         profile_length = curve_length(points)
+        if profile_length == 0:
+            return points
+        
         dx = profile_length/np.round(profile_length/spacing)
         dist = 0
         result = [points[0]]

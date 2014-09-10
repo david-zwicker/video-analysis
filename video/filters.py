@@ -58,7 +58,7 @@ class FilterFunction(VideoFilterBase):
 class FilterNormalize(VideoFilterBase):
     """ normalizes a color range to the interval 0..1 """
     
-    def __init__(self, source, vmin=0, vmax=1, dtype=None):
+    def __init__(self, source, vmin=None, vmax=None, dtype=None):
         """
         warning:
         vmin must not be smaller than the smallest value source can hold.
@@ -81,9 +81,13 @@ class FilterNormalize(VideoFilterBase):
 
     def _process_frame(self, frame):
         
-        # ensure that we decided on a dtype
+        # get dtype and bounds from first frame if they were not specified
         if self._dtype is None:
             self._dtype = frame.dtype
+        if self._fmin is None:
+            self._fmin = frame.min()
+        if self._fmax is None:
+            self._fmax = frame.max()
             
         # ensure that we know the bounds of this dtype
         if self._tmin is None:
