@@ -27,10 +27,11 @@ if not hasattr(geometry, 'LinearRing'):
 
 
 class Burrow(object):
-    """ represents a single burrow
+    """ represents a single burrow.
     Note that the outline are always given in clockwise direction
     """
     
+    storage_class = LazyHDFCollection
     array_columns = ('Outline X', 'Outline Y', 
                      'Burrow length + Centerline X',
                      'Flag if burrow was refined + Centerline Y')
@@ -38,10 +39,7 @@ class Burrow(object):
     # parameters influencing how the centerline is determined
     curvature_radius_max = 50
     centerline_segment_length = 25
-    
     ground_point_distance = 10
-    
-    storage_class = LazyHDFCollection
     
     
     def __init__(self, outline, centerline=None, length=None, refined=False):
@@ -285,6 +283,8 @@ class Burrow(object):
         
         
 class BurrowTrack(object):
+    """ class that stores the evolution of a single burrow over time.
+    """
     array_columns = ('Time',) + Burrow.array_columns
     
     def __init__(self, time=None, burrow=None):
@@ -307,7 +307,7 @@ class BurrowTrack(object):
     
     @property
     def last(self):
-        """ return the last position of the object """
+        """ return the last burrow in the track """
         return self.burrows[-1]
     
     
@@ -317,7 +317,7 @@ class BurrowTrack(object):
     
     
     def get_burrow(self, time):
-        """ returns the position at a specific time """
+        """ returns the burrow at a specific time """
         if not self.times[0] <= time <= self.times[-1]:
             raise IndexError
         

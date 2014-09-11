@@ -26,8 +26,8 @@ import debug  # @UnusedImport
 class SecondPass(DataHandler):
     """ class containing methods for the second pass """
     
-    def __init__(self, name='', parameters=None, debug_output=None):
-        super(SecondPass, self).__init__(name, parameters)
+    def __init__(self, name='', parameters=None, debug_output=None, **kwargs):
+        super(SecondPass, self).__init__(name, parameters, **kwargs)
         self.params = self.data['parameters']
         self.result = self.data.create_child('pass2')
 

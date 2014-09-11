@@ -49,11 +49,11 @@ class FirstPass(DataHandler):
     """
     logging_mode = 'create'    
     
-    def __init__(self, name='', parameters=None, debug_output=None):
+    def __init__(self, name='', parameters=None, debug_output=None, **kwargs):
         """ initializes the whole mouse tracking and prepares the video filters """
         
         # initialize the data handler
-        super(FirstPass, self).__init__(name, parameters)
+        super(FirstPass, self).__init__(name, parameters, **kwargs)
         self.params = self.data['parameters']
         self.result = self.data.create_child('pass1')
         

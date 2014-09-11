@@ -45,7 +45,7 @@ class DataHandler(object):
     """ class that handles the data and parameters of mouse tracking """
     logging_mode = 'append'    
 
-    def __init__(self, name='', parameters=None):
+    def __init__(self, name='', parameters=None, read_data=False):
         self.name = name
 
         # initialize the data handled by this class
@@ -54,9 +54,12 @@ class DataHandler(object):
         self.data.create_child('parameters')
         self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
         self.user_parameters = parameters
-        self.initialize_parameters(parameters)
 
+        self.initialize_parameters(parameters)
         self.data['analysis-status'] = 'Initialized parameters'
+
+        if read_data:
+            self.read_data()
         
 
     def initialize_parameters(self, parameters=None):

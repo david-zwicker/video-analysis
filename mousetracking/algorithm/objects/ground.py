@@ -16,8 +16,11 @@ from video.analysis import curves
 
 
 class GroundProfile(object):
-    """ class representing a single ground profile at a certain point
-    in time """
+    """ class representing a single ground profile
+    FIXME: This class should not know about time """
+
+    hdf_attributes = {'column_names': ('Position X', 'Position Y')}
+    storage_class = LazyHDFValue
     
     def __init__(self, time, points):
         self.time = time
@@ -56,7 +59,6 @@ class GroundProfileList(list):
     """ organizes a list of ground profiles """
     hdf_attributes = {'column_names': ('Time', 'Position X', 'Position Y')}
     storage_class = LazyHDFValue
-   
    
     def to_array(self):
         if len(self) == 0:

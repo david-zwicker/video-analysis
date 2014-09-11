@@ -21,7 +21,9 @@ from .. import debug  # @UnusedImport
 
 
 class MovingObject(object):
-    """ represents a single object by its position and size """
+    """ represents a single object by its position and size
+    FIXME: remove label, since it is not used
+    """
     __slots__ = ['pos', 'size', 'label'] #< save some memory
     
     def __init__(self, pos, size, label=None):
@@ -39,7 +41,7 @@ class MovingObject(object):
 
 
 class ObjectTrack(object):
-    """ represents a time course of objects """
+    """ represents a time course of moving objects """
     array_columns = ('Time', 'Position X', 'Position Y', 'Object Area')
     mouse_area_mean = 700
     
@@ -55,9 +57,9 @@ class ObjectTrack(object):
         if len(self.times) == 0:
             return 'ObjectTrack([])'
         elif len(self.times) == 1:
-            return 'ObjectTrack(span=%d)' % (self.times[0])
+            return 'ObjectTrack(time=%d)' % (self.times[0])
         else:
-            return 'ObjectTrack(span=%d..%d)' % (self.times[0], self.times[-1])
+            return 'ObjectTrack(timespan=%d..%d)' % (self.times[0], self.times[-1])
         
         
     def __len__(self): return len(self.times)

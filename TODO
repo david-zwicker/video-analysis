@@ -12,6 +12,10 @@
 * Determine absolute times by checking when the lights go on
 * Think about introducing a flag indicating whether we are sure we know where the mouse is (by considering its movement)
 	- this could be used to reject moving objects that are certainly not a mouse
+* Refactor GroundProfile use, such that self.ground refers to a Ground object which allows for caching of the ground line and more
+	- 
+* Calculate length scale from cage dimension
+	- Think about getting a more precise estimate of the cage
 
 
 Performance improvements:

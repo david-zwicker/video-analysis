@@ -12,7 +12,7 @@ import os
 import warnings
 
 from .algorithm.parameters_default import PARAMETERS_DEFAULT
-from .algorithm.data_handler import DataHandler
+from .algorithm.analyzer import Analyzer
 from .algorithm.pass1 import FirstPass
 from .algorithm.pass2 import SecondPass
 
@@ -67,10 +67,8 @@ def scan_video_in_folder(folder, name, parameters=None, **kwargs):
 
 
 
-def load_results(name, parameters=None, cls=DataHandler, **kwargs):
+def load_results(name, parameters=None, cls=Analyzer, **kwargs):
     """ loads the results of a previously scanned video """
     # set up the result structure
-    results = cls(name, parameters=parameters, **kwargs)
-    results.read_data()
-    return results
+    return cls(name, parameters=parameters, read_data=True, **kwargs)
 
