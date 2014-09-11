@@ -5,7 +5,7 @@ rdp
 Pure Python implementation of the Ramer-Douglas-Peucker algorithm.
 
 :copyright: (c) 2014 Fabian Hirschmann <fabian@hirschmann.email>
-:license: MIT, see LICENSE.txt for more details.
+:license: MIT, see LICENSE_MIT.txt for more details.
 
 The code was copied from
 https://github.com/fhirschmann/rdp/blob/master/rdp/__init__.py

@@ -13,8 +13,9 @@ import itertools
 
 import numpy as np
 
-from .utils import cached_property, LazyHDFValue, LazyHDFCollection
+from .utils import LazyHDFValue, LazyHDFCollection
 from video.analysis import curves
+from video.analysis.utils import cached_property
 
 from .. import debug  # @UnusedImport
 

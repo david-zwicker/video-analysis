@@ -14,8 +14,9 @@ import numpy as np
 from scipy import ndimage
 from shapely import geometry
 
-from .utils import cached_property, LazyHDFValue
+from .utils import LazyHDFValue
 from video.analysis import curves
+from video.analysis.utils import cached_property
 
 
 class GroundProfile(object):
