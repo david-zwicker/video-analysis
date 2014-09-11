@@ -118,7 +118,8 @@ class VideoFileStack(VideoBase):
             try:
                 video = video_file_class(filename)
             except IOError:
-                break
+                raise IOError('Could not read video `%s`' % filename)
+                continue
             
             # compare its format to the previous videos
             if last_video:
@@ -137,6 +138,9 @@ class VideoFileStack(VideoBase):
             self._videos.append(video)
             
             logger.info('Found video `%s`', video.filename)
+                        
+        if not self._videos:
+            raise RuntimeError('Could not load any videos')
                         
         super(VideoFileStack, self).__init__(size=video.size, frame_count=frame_count,
                                              fps=video.fps, is_color=video.is_color)
