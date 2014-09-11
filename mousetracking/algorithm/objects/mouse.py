@@ -18,10 +18,13 @@ The location is encoded in the last two digits
 
 10..19 = mouse is overground
     11 = mouse is in the air
+    12 = mouse is on hill
+    13 = mouse is in valley
 
 20..29 = mouse is underground
     21 = mouse is in the burrow
 """
+
 
 
 def state_to_int(state):
@@ -34,9 +37,15 @@ def state_to_int(state):
     underground = state.pop('underground', None)
     if underground == False:
         value += 10
-        if state.get('location') == 'air':
+        location = state.pop('location')
+        if  location == 'air':
             value += 1
-            state.pop('location')
+        elif location == 'hill':
+            value += 2
+        elif location == 'valley':
+            value += 3
+        else:
+            state['location'] = location
             
     elif underground == True:
         value += 20
@@ -60,6 +69,11 @@ def int_to_state(value):
         state['underground'] = False
         if value_loc == 11:
             state['location'] = 'air'
+        elif value_loc == 12:
+            state['location'] = 'hill'
+        elif value_loc == 13:
+            state['location'] = 'valley'
+            
     elif 20 <= value_loc < 30:
         state['underground'] = True
         if value_loc == 21:

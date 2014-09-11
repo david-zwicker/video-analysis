@@ -26,40 +26,58 @@ class GroundProfile(object):
         self._line = np.asarray(line)
         self._cache = {}
         
+        
     @property
     def line(self):
         return self._line
+    
     
     @line.setter
     def line(self, value):
         self._line = np.asarray(value)
         self._cache = {}
         
+        
     def __repr__(self):
         return 'GroundProfile(%d line)' % (len(self.line))
     
+    
     def __len__(self):
         return len(self.line)
+        
         
     @cached_property
     def length(self):
         """ returns the length of the profile """
         return curves.curve_length(self.line)
     
+    
     @cached_property
     def linestring(self):
         """ returns a shapely line string corresponding to the ground """
         return geometry.LineString(np.array(self.line, np.double))
     
+    
     def make_equidistant(self, **kwargs):
         """ makes the ground profile equidistant """
         self.line = curves.make_curve_equidistant(self.line, **kwargs)
-   
+
+
+    @cached_property
+    def midline(self):
+        """ returns the average y-value along the profile """
+        return np.mean(self.line[:, 1])
+
+
     def get_y(self, x):
+        """ returns the y-value of the profile at a given x-position.
+        This function interpolates between points and extrapolates beyond the
+        edge points. """
         if 'interpolator' in self._cache:
             interpolator = self._cache['interpolator']
         else:
-            interpolator = Interpolate_1D_Extrapolated(self._line[:, 0], self._line[:, 1])
+            interpolator = Interpolate_1D_Extrapolated(self._line[:, 0],
+                                                       self._line[:, 1])
            
         return interpolator(x)
    

@@ -23,12 +23,6 @@ Performance improvements:
 * There are problems when ffmpeg can't encode the output videos fast enough:
 	 - Presumably, the ffmpeg pipe gets full and the whole process just stops
 * Calculate the Jacobian for the fitting explicitly (feasible for the sand profile)
-* Loading the data from HDF is very slow - think about better format for collecting the data
-	- maybe we could just be smarter about loading the relevant amount of data
-	- a lazy loader and writer should be implemented
-	- we could achieve this by subclassing Data and instantiate this for the right branches
-	- this would require an observer class taking care of the mapping and how to store/read data 
-* Writing the data is also slow since everything is rewritten every time
 
 
 Low priority enhancements:

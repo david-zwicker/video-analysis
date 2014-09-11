@@ -395,3 +395,18 @@ class BurrowTrackList(list):
     """ class that stores instances of BurrowTrack in a list """
     item_class = BurrowTrack
     storage_class = LazyHDFCollection
+
+    def get_burrows(self, frame_id):
+        """ returns a list of all burrows active in a given frame """
+        result = []
+        for burrow_track in self:
+            try:
+                burrow = burrow_track.get_burrow(frame_id)
+            except IndexError:
+                continue
+            else:
+                result.append(burrow)
+                
+                
+        return result
+

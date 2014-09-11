@@ -268,22 +268,24 @@ class SecondPass(DataHandler):
             if ground is not None:
                 # compare y value of mouse and ground
                 # Note that the y-axis points down
-                state['underground'] = mouse_pos[1] > ground.get_y(mouse_pos[0])
-                
-                if mouse_pos[1] + mouse_radius < ground.get_y(mouse_pos[0]):
-                    state['location'] = 'air'
+                if mouse_pos[1] < ground.get_y(mouse_pos[0]):
+                    state['underground'] = False
+                    if mouse_pos[1] + mouse_radius < ground.get_y(mouse_pos[0]):
+                        state['location'] = 'air'
+                    elif mouse_pos[1] < ground.midline:
+                        state['location'] = 'hill'
+                    else:
+                        state['location'] = 'valley'
                     
-            # check whether the mouse is inside a burrow
-            mouse_point = geometry.Point(mouse_pos)
-            for burrow_track in burrow_tracks:
-                try:
-                    burrow = burrow_track.get_burrow(frame_id)
-                except IndexError:
-                    continue
-                else:
-                    if burrow and burrow.polygon.contains(mouse_point):
-                        state['location'] = 'burrow'
-                        break
+                else: 
+                    state['underground'] = True
+                            
+                    # check whether the mouse is inside a burrow
+                    mouse_point = geometry.Point(mouse_pos)
+                    for burrow in burrow_tracks.get_burrows(frame_id):
+                        if burrow and burrow.polygon.contains(mouse_point):
+                            state['location'] = 'burrow'
+                            break
             
             # set the mouse state
             mouse_track.set_state(frame_id, state)
@@ -358,6 +360,7 @@ class SecondPass(DataHandler):
                     
             
 #                 # add additional debug information
+            
             video.add_text(str(frame_id), (20, 20), anchor='top')   
 #                 video.add_text(str(self.frame_id/self.fps), (20, 20), anchor='top')   
                 
