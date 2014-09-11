@@ -8,6 +8,7 @@ This can also be seen as some kind of documentation of the available
 parameters.
 '''
 
+from __future__ import division
 
 PARAMETERS_DEFAULT = {
     # filename pattern used to look for videos
@@ -121,10 +122,12 @@ PARAMETERS_DEFAULT = {
     'burrows/centerline_segment_length': 25,
     # the maximal radius of curvature the centerline is allowed to have
     'burrows/curvature_radius_max': 50,
-    # the eccentricity above which burrows are refined by fitting [dimensionless]
-    'burrows/fitting_eccentricity_threshold': 0.98,
+#     # the eccentricity above which burrows are refined by fitting [dimensionless]
+#     'burrows/fitting_eccentricity_threshold': 0.98,
     # the length above which burrows are refined by fitting [in pixel]
     'burrows/fitting_length_threshold': 75,
+    # the length below which burrows are refined by fitting [in pixel]
+    'burrows/fitting_width_threshold': 40,
     # width of the burrow edge used in the template for fitting
     'burrows/fitting_edge_width': 3,
     'burrows/fitting_edge_R2min': -10,

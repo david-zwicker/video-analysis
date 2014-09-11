@@ -6,6 +6,8 @@ Created on Sep 11, 2014
 Contains a class that can be used to analyze results from the tracking
 '''
 
+from __future__ import division
+
 import numpy as np
 
 from data_handler import DataHandler

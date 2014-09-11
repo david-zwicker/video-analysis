@@ -6,6 +6,8 @@ Created on Aug 11, 2014
 contains functions that are useful for curve analysis
 '''
 
+from __future__ import division
+
 import itertools
 import math
 import numpy as np

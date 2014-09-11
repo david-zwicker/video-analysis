@@ -1309,8 +1309,11 @@ class FirstPass(DataHandler):
                 self.debug['video'].add_polygon(burrow.outline, 'w', is_closed=True, width=2)
 
             # refine the burrows by fitting
-            if (burrow.eccentricity > self.params['burrows/fitting_eccentricity_threshold'] and 
-                    burrow.get_length(self.ground) > self.params['burrows/fitting_length_threshold']):
+            burrow_length = burrow.get_length(self.ground)
+            burrow_width = burrow.area / burrow.length
+            min_length = self.params['burrows/fitting_length_threshold']
+            max_width = self.params['burrows/fitting_width_threshold']
+            if (burrow_length > min_length and burrow_width < max_width):
                 burrow = self.refine_long_burrow(burrow)
             else:
                 burrow = self.refine_bulky_burrow(burrow)

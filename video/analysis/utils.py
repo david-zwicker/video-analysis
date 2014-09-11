@@ -4,6 +4,7 @@ Created on Sep 11, 2014
 @author: zwicker
 '''
 
+from __future__ import division
 
 
 class cached_property(object):

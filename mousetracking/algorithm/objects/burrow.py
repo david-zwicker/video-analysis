@@ -92,7 +92,7 @@ class Burrow(object):
         return geometry.Polygon(np.asarray(self.outline, np.double))
     
     
-    @property
+    @cached_property
     def area(self):
         """ return the area of the burrow shape """
         return self.polygon.area
@@ -233,13 +233,14 @@ class Burrow(object):
                     
         # save results                    
         self.centerline = centerline
-        self.length = curves.curve_length(centerline)
         return centerline
             
         
     def get_length(self, ground):
         """ calculates the centerline and returns its length """
-        self.get_centerline(ground)
+        if self.length is None:
+            centerline = self.get_centerline(ground)
+            self.length = curves.curve_length(centerline)
         return self.length
             
     

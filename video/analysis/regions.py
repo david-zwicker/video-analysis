@@ -4,6 +4,8 @@ Created on Aug 4, 2014
 @author: zwicker
 '''
 
+from __future__ import division
+
 import operator
 
 import numpy as np

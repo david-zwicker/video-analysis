@@ -4,6 +4,8 @@ Created on Sep 5, 2014
 @author: zwicker
 '''
 
+from __future__ import division
+
 import collections
 import os
 import warnings

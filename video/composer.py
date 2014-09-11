@@ -4,6 +4,8 @@ Created on Aug 6, 2014
 @author: zwicker
 '''
 
+from __future__ import division
+
 import numpy as np
 import cv2
 

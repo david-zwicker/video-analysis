@@ -126,7 +126,7 @@ class regionprops(object):
     @cached_property
     def inertia_tensor_eigvals(self):
         m = self.moments
-        a, b, c = m['mu20'], -m['mu11'], m['mu02']
+        a, b, c = m['mu20']/m['m00'], -m['mu11']/m['m00'], m['mu02']/m['m00']
         # eigenvalues of inertia tensor
         e1 = (a + c) + np.sqrt(4*b**2 + (a - c)**2)
         e2 = (a + c) - np.sqrt(4*b**2 + (a - c)**2)
