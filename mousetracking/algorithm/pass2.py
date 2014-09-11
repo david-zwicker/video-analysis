@@ -12,6 +12,7 @@ import itertools
 
 import numpy as np
 import networkx as nx
+from shapely import geometry
 
 from .data_handler import DataHandler
 from .objects import GroundProfileTrack, MouseTrack
@@ -55,7 +56,7 @@ class SecondPass(DataHandler):
         self.find_mouse_track()
         self.smooth_ground_profile()
         #self.smooth_burrows() # this should be 'morphing'
-        #self.classify_mouse_track()
+        self.classify_mouse_track()
         
         self.data['analysis-status'] = 'Finished second pass'
         self.log_event('Pass 2 - Finished second pass.')
@@ -215,8 +216,6 @@ class SecondPass(DataHandler):
                 trajectory[time, :] = obj.pos
         
         self.data['pass2/mouse_trajectory'] = MouseTrack(trajectory)
-
-        return trajectory
     
                         
     #===========================================================================
@@ -238,6 +237,59 @@ class SecondPass(DataHandler):
         # store the result
         self.data['pass2/ground_profile'] = profile
         
+        
+    #===========================================================================
+    # HANDLE THE MOUSE
+    #===========================================================================
+
+
+    def classify_mouse_track(self):
+        """ classifies the mouse at all times """
+        self.log_event('Pass 2 - Start classifying the mouse.')
+        
+        # load the mouse, the ground, and the burrows
+        mouse_track = self.data['pass2/mouse_trajectory']
+        ground_profile = self.data['pass2/ground_profile']
+        burrow_tracks = self.data['pass1/burrows/tracks']
+        
+        # load some variables
+        mouse_radius = self.data['parameters/mouse/model_radius']
+        
+        for frame_id, mouse_pos in enumerate(mouse_track.pos):
+            if not np.all(np.isfinite(mouse_pos)):
+                # the mouse position is invalid
+                continue
+            
+            # initialize variables
+            state = {}
+                    
+            # check the mouse position
+            ground = ground_profile.get_ground(frame_id)
+            if ground is not None:
+                # compare y value of mouse and ground
+                # Note that the y-axis points down
+                state['underground'] = mouse_pos[1] > ground.get_y(mouse_pos[0])
+                
+                if mouse_pos[1] + mouse_radius < ground.get_y(mouse_pos[0]):
+                    state['location'] = 'air'
+                    
+            # check whether the mouse is inside a burrow
+            mouse_point = geometry.Point(mouse_pos)
+            for burrow_track in burrow_tracks:
+                try:
+                    burrow = burrow_track.get_burrow(frame_id)
+                except IndexError:
+                    continue
+                else:
+                    if burrow and burrow.polygon.contains(mouse_point):
+                        state['location'] = 'burrow'
+                        break
+            
+            # set the mouse state
+            mouse_track.set_state(frame_id, state)
+        
+        self.log_event('Pass 2 - Finished classifying the mouse.')
+
 
     #===========================================================================
     # PRODUCE VIDEO

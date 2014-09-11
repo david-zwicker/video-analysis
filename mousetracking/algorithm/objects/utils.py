@@ -11,6 +11,7 @@ import os
 import warnings
 
 import numpy as np
+from scipy.interpolate import interp1d
 
 import h5py
 
@@ -23,8 +24,25 @@ def rtrim_nan(data):
     else:
         return []
     return data[:k + 1]
+    
 
 
+class Interpolate_1D_Extrapolated(interp1d):
+    """ extend the interpolate class from scipy to return boundary values for
+    values beyond the support """
+    
+    def __call__(self, x):
+        try:
+            return super(Interpolate_1D_Extrapolated, self).__call__(x)
+        except ValueError:
+            if x < self.x[0]:
+                return self.y[0]
+            elif x > self.x[-1]:
+                return self.y[-1]
+            else:
+                raise
+            
+            
 
 class LazyHDFValue(object):
     """ class that represents a value that is only loaded when it is accessed """

@@ -8,6 +8,7 @@ Utility functions
 
 from __future__ import division
 
+
 def mean(values, empty=0):
     """ calculates mean of generator or iterator.
     Returns `empty` in case of an empty sequence """
@@ -16,4 +17,3 @@ def mean(values, empty=0):
         total += value
         n += 1
     return total/n if n > 0 else empty
-    

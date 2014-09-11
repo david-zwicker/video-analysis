@@ -442,7 +442,7 @@ class VideoFork(VideoFilterBase):
         self._frame = None
         self._frame_index = -1
         self._retrieve_count = np.inf #< how often was the current frame retrieved?
-        self.status = 'normal'
+        self.state = 'normal'
         super(VideoFork, self).__init__(source)
         
         logger.debug('Created video fork.')
@@ -476,7 +476,7 @@ class VideoFork(VideoFilterBase):
         In any other case a RuntimeError is raised, since it is assumed
         that this function is only used to iterate sequentially.
         """
-        if self.status == 'aborting':
+        if self.state == 'aborting':
             raise SystemExit('Another client of the VideoFork requested to '
                              'abort the iteration.')
         
@@ -527,7 +527,7 @@ class VideoFork(VideoFilterBase):
         """ send SystemExit to all other clients """
         logger.info('The video fork is aborting by sending a SystemExit '
                     'signal to clients.')
-        self.status = 'aborting'
+        self.state = 'aborting'
         super(VideoFork, self).abort_iteration()
 
 

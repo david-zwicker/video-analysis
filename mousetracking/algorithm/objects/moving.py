@@ -13,7 +13,7 @@ import itertools
 
 import numpy as np
 
-from .utils import LazyHDFValue, LazyHDFCollection
+from .utils import LazyHDFCollection
 from video.analysis import curves
 from video.analysis.utils import cached_property
 
@@ -192,25 +192,5 @@ class ObjectTrackList(list):
             super(ObjectTrackList, self).append(item)
 
 
-
-class MouseTrack(object):
-    """ class that describes the mouse track """
-    
-    hdf_attributes = {'column_names': ('Position X', 'Position Y')}
-    storage_class = LazyHDFValue
-    
-    def __init__(self, trajectory):
-        self.pos = trajectory
-        
-    def __repr__(self):
-        return '%s(frames=%d)' % (self.__class__.__name__, len(self.pos))
-    
-    def to_array(self):
-        return self.pos
-    
-    @classmethod
-    def create_from_array(cls, data):
-        return cls(data)
-   
    
     

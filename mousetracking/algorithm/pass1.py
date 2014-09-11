@@ -1306,11 +1306,12 @@ class FirstPass(DataHandler):
 
             # add the unrefined burrow to the debug video
             if 'video' in self.debug:
-                self.debug['video'].add_polygon(burrow.outline, 'w', is_closed=True, width=2)
+                self.debug['video'].add_polygon(burrow.outline, 'w',
+                                                is_closed=True, width=2)
 
             # refine the burrows by fitting
             burrow_length = burrow.get_length(self.ground)
-            burrow_width = burrow.area / burrow.length
+            burrow_width = burrow.area/burrow_length if burrow_length > 0 else 0
             min_length = self.params['burrows/fitting_length_threshold']
             max_width = self.params['burrows/fitting_width_threshold']
             if (burrow_length > min_length and burrow_width < max_width):
@@ -1321,7 +1322,8 @@ class FirstPass(DataHandler):
             # add the burrow to our result list if it is valid
             if burrow.is_valid:
                 # add the burrow to the current mask
-                cv2.fillPoly(self.burrows_mask, np.array([burrow.outline], np.int32), color=255)
+                cv2.fillPoly(self.burrows_mask,
+                             np.array([burrow.outline], np.int32), color=255)
                 
                 # see whether this burrow is already known
                 for burrow_track in self.result['burrows/tracks']:
@@ -1389,7 +1391,7 @@ class FirstPass(DataHandler):
         
             # indicate the currently active burrow shapes
             for burrow_track in self.result['burrows/tracks']:
-                if burrow_track.last_seen > self.frame_id - self.params['burrows/adaptation_interval']:
+                if burrow_track.track_end > self.frame_id - self.params['burrows/adaptation_interval']:
                     burrow = burrow_track.last
                     burrow_color = 'red' if burrow.refined else 'orange'
                     debug_video.add_polygon(burrow.outline, burrow_color,

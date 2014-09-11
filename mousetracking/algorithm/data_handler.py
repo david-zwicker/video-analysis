@@ -56,7 +56,7 @@ class DataHandler(object):
         self.user_parameters = parameters
 
         self.initialize_parameters(parameters)
-        self.data['analysis-status'] = 'Initialized parameters'
+        self.data['analysis-state'] = 'Initialized parameters'
 
         if read_data:
             self.read_data()

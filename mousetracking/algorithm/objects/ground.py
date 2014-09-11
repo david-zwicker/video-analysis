@@ -14,7 +14,7 @@ import numpy as np
 from scipy import ndimage
 from shapely import geometry
 
-from .utils import LazyHDFValue
+from .utils import LazyHDFValue, Interpolate_1D_Extrapolated
 from video.analysis import curves
 from video.analysis.utils import cached_property
 
@@ -23,7 +23,17 @@ class GroundProfile(object):
     """ class representing a single ground profile """
     
     def __init__(self, line):
-        self.line = np.asarray(line)
+        self._line = np.asarray(line)
+        self._cache = {}
+        
+    @property
+    def line(self):
+        return self._line
+    
+    @line.setter
+    def line(self, value):
+        self._line = np.asarray(value)
+        self._cache = {}
         
     def __repr__(self):
         return 'GroundProfile(%d line)' % (len(self.line))
@@ -45,7 +55,15 @@ class GroundProfile(object):
         """ makes the ground profile equidistant """
         self.line = curves.make_curve_equidistant(self.line, **kwargs)
    
+    def get_y(self, x):
+        if 'interpolator' in self._cache:
+            interpolator = self._cache['interpolator']
+        else:
+            interpolator = Interpolate_1D_Extrapolated(self._line[:, 0], self._line[:, 1])
+           
+        return interpolator(x)
    
+
 
 class GroundProfileList(object):
     """ organizes a list of ground profiles """
@@ -127,6 +145,7 @@ class GroundProfileTrack(object):
         self.times = np.asarray(times, np.int)
         self.profiles = np.asarray(profiles, np.double)
         # profiles is a 3D array: len(times) x num_points x 2
+        self._cache = {}
         
         
     def __len__(self):
@@ -135,8 +154,8 @@ class GroundProfileTrack(object):
     
     def __repr__(self):
         return '%s(frames=%d, line=%d)' % (self.__class__.__name__,
-                                             self.profiles.shape[0],
-                                             self.profiles.shape[1])
+                                           self.profiles.shape[0],
+                                           self.profiles.shape[1])
     
     
     def smooth(self, sigma):
@@ -146,6 +165,16 @@ class GroundProfileTrack(object):
                                                           sigma,  #< std of the filter
                                                           axis=0, #< time axis
                                                           mode='nearest')
+
+
+    def get_ground(self, frame_id):
+        """ returns the ground object for a certain frame """
+        # for simplicity, find the index which is closest to the data we have
+        idx = np.argmin(np.abs(self.times - frame_id))
+        if self._cache.get('ground_idx') != idx:
+            self._cache['ground'] = GroundProfile(self.profiles[idx, :, :])
+            self._cache['ground_idx'] = idx
+        return self._cache['ground']
 
 
     def get_profile(self, frame_id):

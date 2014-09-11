@@ -314,8 +314,9 @@ class BurrowTrack(object):
     
     
     @property
-    def last_seen(self):
-        return self.times[-1]
+    def track_start(self): return self.times[0]
+    @property
+    def track_end(self): return self.times[-1]
     
     
     def get_burrow(self, time):
