@@ -211,7 +211,8 @@ class FirstPass(DataHandler):
                 
                 # estimate initial ground profile
                 self.logger.debug('Find the initial ground profile.')
-                self.find_initial_ground()
+                self.ground = self.find_initial_ground()
+                self.result['ground/profile'].append(self.frame_id, self.ground)
         
             elif self.frame_id > self.params['video/initial_adaptation_frames']:
                 # do the main analysis
@@ -227,8 +228,7 @@ class FirstPass(DataHandler):
                 # use the background to find the current ground profile and burrows
                 if self.frame_id % self.params['ground/adaptation_interval'] == 0:
                     self.ground = self.refine_ground(self.ground)
-                    ground = GroundProfile(self.frame_id, self.ground)
-                    self.result['ground/profile'].append(ground)
+                    self.result['ground/profile'].append(self.frame_id, self.ground)
         
                 if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
                     self.find_burrows(mask_moving)
@@ -671,11 +671,11 @@ class FirstPass(DataHandler):
         # make the curve equidistant
         points = curves.make_curve_equidistant(points, self.params['ground/point_spacing'])
 
-        return np.array(points, np.int32)
+        return GroundProfile(points)
    
    
-    def refine_ground_snake(self, points, try_many_distances=False):
-        """ adapts a ground profile given as points to a given frame.
+    def refine_ground_snake(self, ground, try_many_distances=False):
+        """ adapts a points profile given as points to a given frame.
         Here, we fit a ridge profile in the vicinity of every point of the curve.
         The only fitting parameter is the distance by which a single points moves
         in the direction perpendicular to the curve.
@@ -686,17 +686,17 @@ class FirstPass(DataHandler):
         spacing = self.params['ground/point_spacing']
         
         # make sure the curve has equidistant points
-        ground = curves.make_curve_equidistant(points, spacing=spacing)
+        points = curves.make_curve_equidistant(ground.line, spacing=spacing)
         
-        ground = np.array(np.round(ground), np.int32)
+        points = np.array(np.round(points), np.int32)
         
         # make sure that points are not above each other
-        for k in xrange(1, len(ground)):
-            if ground[k-1][0] == ground[k][0]:
-                ground[k][0] += 1
+        for k in xrange(1, len(points)):
+            if points[k-1][0] == points[k][0]:
+                points[k][0] += 1
         
         snake_stiffness = self.params['ground/snake_bending_energy']
-        snake_length = curves.curve_length(ground)
+        snake_length = curves.curve_length(points)
         alpha = snake_length*1e3
         beta = snake_length*snake_stiffness
         
@@ -748,22 +748,22 @@ class FirstPass(DataHandler):
             return energy
 
         def adapt_snake(ps_y):
-            ps = ground.copy()
+            ps = points.copy()
             ps[:, 1] = ps_y
             return get_snake_energy(ps)
         
         import scipy.optimize as so
         
-        bounds = np.empty_like(ground)
+        bounds = np.empty_like(points)
         bounds[:, 0] = 0
         bounds[:, 1] = frame.shape[1]
         
-        #ground[:, 1] = so.fmin(adapt_snake, ground[:, 1], xtol=1)
-        #ground[:, 1] = so.fmin_bfgs(adapt_snake, ground[:, 1], epsilon=1)
+        #points[:, 1] = so.fmin(adapt_snake, points[:, 1], xtol=1)
+        #points[:, 1] = so.fmin_bfgs(adapt_snake, points[:, 1], epsilon=1)
         
-#         ground[:, 1] = so.fmin_tnc(adapt_snake, ground[:, 1], epsilon=1, approx_grad=True, bounds=bounds)[0]
-        ground[:, 1] = so.fmin_l_bfgs_b(adapt_snake, ground[:, 1], epsilon=1, approx_grad=True, bounds=bounds)[0]
-        return ground
+#         points[:, 1] = so.fmin_tnc(adapt_snake, points[:, 1], epsilon=1, approx_grad=True, bounds=bounds)[0]
+        points[:, 1] = so.fmin_l_bfgs_b(adapt_snake, points[:, 1], epsilon=1, approx_grad=True, bounds=bounds)[0]
+        return points
                 
         if try_many_distances:
             ds = np.array((1, 2, 4, 8, 16, 32))
@@ -772,29 +772,29 @@ class FirstPass(DataHandler):
             distances = (-1, 1)
                 
         # iterate through all points and correct profile
-        snake_energy = get_snake_energy(ground)
+        snake_energy = get_snake_energy(points)
         energy_reduced = True
         while energy_reduced:
             energy_reduced = False
-            for k in xrange(len(ground)):
+            for k in xrange(len(points)):
                 for d in distances:
-                    ground[k, 1] += d
-                    energy = get_snake_energy(ground)
+                    points[k, 1] += d
+                    energy = get_snake_energy(points)
                     if energy < snake_energy:
                         snake_energy = energy
                         energy_reduced = True
                     else:
-                        ground[k, 1] -= d
+                        points[k, 1] -= d
         
 #         debug.show_shape(geometry.LineString(points.astype(np.double)),
-#                          geometry.LineString(ground.astype(np.double)),
+#                          geometry.LineString(points.astype(np.double)),
 #                          background=-grad, mark_points=True, wait_for_key=False)
             
-        return ground
+        return GroundProfile(points)
     
         
-    def refine_ground(self, points, **kwargs):
-        """ adapts a ground profile given as points to a given frame.
+    def refine_ground(self, ground, **kwargs):
+        """ adapts a points profile given as points to a given frame.
         Here, we fit a ridge profile in the vicinity of every point of the curve.
         The only fitting parameter is the distance by which a single points moves
         in the direction perpendicular to the curve. """
@@ -808,8 +808,8 @@ class FirstPass(DataHandler):
                     RidgeProfile(spacing, self.params['ground/width'])
                 
         # make sure the curve has equidistant points
-        ground = curves.make_curve_equidistant(points, spacing)
-        ground = np.array(np.round(ground),  np.int32)
+        points = curves.make_curve_equidistant(ground.line, spacing)
+        points = np.array(np.round(points),  np.int32)
         
         # calculate the bounds for the points
         p_min = spacing 
@@ -820,7 +820,7 @@ class FirstPass(DataHandler):
         corrected_points = []
         x_previous = spacing
         deviation = 0
-        for k, p in enumerate(ground):
+        for k, p in enumerate(points):
             
             # skip points that are too close to the boundary
             if (p[0] < p_min or p[0] > x_max or 
@@ -828,19 +828,19 @@ class FirstPass(DataHandler):
                 continue
             
             # determine the local slope of the profile, which fixes the angle 
-            if k == 0 or k == len(ground) - 1:
-                # we only move these vertically to prevent the ground profile
+            if k == 0 or k == len(points) - 1:
+                # we only move these vertically to prevent the points profile
                 # from shortening
                 angle = np.pi/2
             else:
-                dp = ground[k+1] - ground[k-1]
+                dp = points[k+1] - points[k-1]
                 angle = np.arctan2(dp[0], dp[1])
                 
             # extract the region around the point used for fitting
             region = frame[p[1]-spacing : p[1]+spacing+1, p[0]-spacing : p[0]+spacing+1].copy()
             ground_model.set_data(region, angle) 
 
-            # move the ground profile model perpendicular until it fits best
+            # move the points profile model perpendicular until it fits best
             x, _, infodict, _, _ = leastsq(ground_model.get_difference, [0],
                                            xtol=0.5, epsfcn=0.5, full_output=True)
             
@@ -853,7 +853,7 @@ class FirstPass(DataHandler):
                 rsquared = 1 - ss_err/ss_tot
 
             # Note, that we never remove the first and the last point
-            if rsquared > 0 or k == 0 or k == len(ground) - 1:
+            if rsquared > 0 or k == 0 or k == len(points) - 1:
                 # we are rather confident that this point is better than it was
                 # before and thus add it to the result list
                 p_x = p[0] + x[0]*np.cos(angle)
@@ -866,18 +866,18 @@ class FirstPass(DataHandler):
             # add up the total deviations from the previous profile
             deviation += abs(x[0])
             
-        return np.array(corrected_points)
+        return GroundProfile(corrected_points)
             
 
     def find_initial_ground(self):
         """ finds the ground profile given an image of an antfarm """
-        points = self.find_rough_ground()
-        self.ground = self.refine_ground(points, try_many_distances=True)
+        ground = self.find_rough_ground()
+        ground = self.refine_ground(ground, try_many_distances=True)
         
         self.logger.info('We found a ground profile of length %g',
-                         curves.curve_length(self.ground))
+                         ground.length)
         
-        return
+        return ground
 
         frame = self.background.astype(np.uint8)
         
@@ -943,10 +943,13 @@ class FirstPass(DataHandler):
         
         # simplify and refine the curve        
         points = curves.simplify_curve(points, epsilon=2)
-        self.ground = self.refine_ground(points, try_many_distances=True)
+        points = self.refine_ground(points, try_many_distances=True)
+        ground = GroundProfile(points)
         
         self.logger.info('We found a ground profile of length %g',
-                         curves.curve_length(self.ground))
+                         ground.length)
+        
+        return ground
         
     
     def get_ground_mask(self, color=255):
@@ -959,7 +962,7 @@ class FirstPass(DataHandler):
         
         # create a mask for the region below the current ground_mask profile
         ground_points = np.empty((len(self.ground) + 4, 2), np.int32)
-        ground_points[:-4, :] = self.ground
+        ground_points[:-4, :] = self.ground.line
         ground_points[-4, :] = (width, ground_points[-5, 1])
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
@@ -1097,7 +1100,7 @@ class FirstPass(DataHandler):
         """ refines an elongated burrow by doing linescans perpendicular to
         its centerline """
         # keep the points close to the ground line
-        ground_line = geometry.LineString(np.array(self.ground, np.double))
+        ground_line = self.ground.linestring
         outline_new = sorted([p.coords[0]
                               for p in geometry.MultiPoint(burrow.outline)
                               if p.distance(ground_line) < self.params['burrows/ground_point_distance']])
@@ -1235,7 +1238,7 @@ class FirstPass(DataHandler):
     def refine_bulky_burrow(self, burrow):
         """ refines the outline of a bulky burrow """
         # get ground line
-        ground_line = geometry.LineString(np.array(self.ground, np.double))
+        ground_line = self.ground.linestring
         scan_length = int(self.params['burrows/width'])
         
         # wrap around outline points on the edge
@@ -1379,7 +1382,7 @@ class FirstPass(DataHandler):
             
             # plot the ground profile
             if self.ground is not None: 
-                debug_video.add_polygon(self.ground, is_closed=False, mark_points=True, color='y')
+                debug_video.add_polygon(self.ground.line, is_closed=False, mark_points=True, color='y')
         
             # indicate the currently active burrow shapes
             for burrow_track in self.result['burrows/tracks']:
@@ -1441,8 +1444,8 @@ class FirstPass(DataHandler):
             
             # plot the ground profile
             if self.ground is not None:
-                debug_video.add_polygon(self.ground, is_closed=False, color='y')
-                debug_video.add_points(self.ground, radius=2, color='y')
+                debug_video.add_polygon(self.ground.line, is_closed=False, color='y')
+                debug_video.add_points(self.ground.line, radius=2, color='y')
 
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
 

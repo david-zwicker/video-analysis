@@ -43,7 +43,7 @@ class Burrow(object):
     
     
     def __init__(self, outline, centerline=None, length=None, refined=False):
-        """ initialize the structure using points on its outline """
+        """ initialize the structure using line on its outline """
         if centerline is not None and length is None:
             length = curves.curve_length(centerline)
 
@@ -168,7 +168,7 @@ class Burrow(object):
             return self.centerline
         
         # get the ground line 
-        ground_line = geometry.LineString(np.array(ground, np.double))
+        ground_line = ground.linestring
         
         # reparameterize the burrow outline to locate the burrow exit reliably
         outline = curves.make_curve_equidistant(self.outline, 10)
@@ -186,11 +186,11 @@ class Burrow(object):
         p_exit = curves.get_projection_point(ground_line, p_exit)
             
         # get the two ground points closest to the exit point
-        dist = np.linalg.norm(ground - p_exit, axis=1)
+        dist = np.linalg.norm(ground.line - p_exit, axis=1)
         k1 = np.argmin(dist)
         dist[k1] = np.inf
         k2 = np.argmin(dist)
-        p1, p2 = ground[k1], ground[k2]
+        p1, p2 = ground.line[k1], ground.line[k2]
         # ensure that p1 is left of p2
         if p1[0] > p2[0]:
             p1, p2 = p2, p1

@@ -8,67 +8,88 @@ Holds classes useful for describing and fitting the ground profile
 
 from __future__ import division
 
+import itertools
+
 import numpy as np
 from scipy import ndimage
+from shapely import geometry
 
 from .utils import cached_property, LazyHDFValue
 from video.analysis import curves
 
 
 class GroundProfile(object):
-    """ class representing a single ground profile
-    FIXME: This class should not know about time """
-
-    hdf_attributes = {'column_names': ('Position X', 'Position Y')}
-    storage_class = LazyHDFValue
+    """ class representing a single ground profile """
     
-    def __init__(self, time, points):
-        self.time = time
-        self.points = points
+    def __init__(self, line):
+        self.line = np.asarray(line)
         
     def __repr__(self):
-        return 'GroundProfile(time=%d, %d points)' % (self.time, len(self.points))
+        return 'GroundProfile(%d line)' % (len(self.line))
     
     def __len__(self):
-        return len(self.points)
+        return len(self.line)
         
     @cached_property
     def length(self):
         """ returns the length of the profile """
-        return curves.curve_length(self.points)
+        return curves.curve_length(self.line)
     
-    def make_equidistant(self, num_points):
+    @cached_property
+    def linestring(self):
+        """ returns a shapely line string corresponding to the ground """
+        return geometry.LineString(np.array(self.line, np.double))
+    
+    def make_equidistant(self, **kwargs):
         """ makes the ground profile equidistant """
-        self.points = curves.make_curve_equidistant(self.points, count=num_points)
-        
-    def to_array(self):
-        """ converts the internal representation to a single array
-        useful for storing the data """
-        time_array = np.zeros((len(self.points), 1), np.int32) + self.time
-        return np.hstack((time_array, self.points))
-
-    @classmethod
-    def create_from_array(cls, data):
-        """ constructs an object from an array previously created by to_array() """
-        data = np.asarray(data)
-        return cls(data[0, 0], data[:, 1:])
+        self.line = curves.make_curve_equidistant(self.line, **kwargs)
    
    
 
-class GroundProfileList(list):
+class GroundProfileList(object):
     """ organizes a list of ground profiles """
     hdf_attributes = {'column_names': ('Time', 'Position X', 'Position Y')}
     storage_class = LazyHDFValue
    
+    def __init__(self):
+        self.times = []
+        self.grounds = []
+    
+    
+    def __len__(self):
+        return len(self.times)
+
+
+    def append(self, time, ground):
+        self.times.append(time)
+        self.grounds.append(ground)
+   
+
+    def append_from_array(self, data):
+        """ append a single ground profile with data taken from an array """
+        if data:
+            data = np.asarray(data)
+            time = data[0, 0]
+            ground = GroundProfile(data[:, 1:])
+            self.append(time, ground)
+
+   
     def to_array(self):
-        if len(self) == 0:
-            return []
+        """ convert the data stored in the object to an array """
+        results = []
+        for time, ground in itertools.izip(self.times, self.grounds):
+            time_array = np.zeros((len(ground), 1), np.int32) + time
+            results.append(np.hstack((time_array, ground.line)))
+
+        if results:
+            return np.concatenate(results)
         else:
-            return np.concatenate([obj.to_array() for obj in self])
+            return []
     
     
     @classmethod
     def create_from_array(cls, value):
+        """ create the object from a supplied array """
         result = cls()
         index, obj_data = None, None
         # iterate over the data and create objects from it
@@ -78,13 +99,11 @@ class GroundProfileList(list):
                 obj_data.append(line)
             else:
                 # save the track and start a new one
-                if obj_data:
-                    result.append(GroundProfile.create_from_array(obj_data))
+                result.append_from_array(obj_data)
                 obj_data = [line]
                 index = line[0]
         
-        if obj_data:
-            result.append(GroundProfile.create_from_array(obj_data))
+        result.append_from_array(obj_data)
             
         return result
    
@@ -93,7 +112,7 @@ class GroundProfileList(list):
 class GroundProfileTrack(object):
     """ class holding the ground profile information for the entire video.
     For efficient data storage the ground profiles are re-parameterized
-    to have the same number of support points.
+    to have the same number of support line.
     """
     
     hdf_attributes = {'row_names': ('Time 1', 'Time 2', '...'),
@@ -114,7 +133,7 @@ class GroundProfileTrack(object):
     
     
     def __repr__(self):
-        return '%s(frames=%d, points=%d)' % (self.__class__.__name__,
+        return '%s(frames=%d, line=%d)' % (self.__class__.__name__,
                                              self.profiles.shape[0],
                                              self.profiles.shape[1])
     
@@ -143,17 +162,15 @@ class GroundProfileTrack(object):
         
     @classmethod
     def create_from_ground_profile_list(cls, ground_profiles):
-        # determine the maximal number of points
-        num_points = max(len(profile) for profile in ground_profiles)
+        # determine the maximal number of points in a single ground
+        num_points = max(len(ground) for ground in ground_profiles.grounds)
 
-        # iterate through all profiles and convert them to have equal number of points
+        # iterate through all profiles and convert them to have equal number of line
         # and store the data
-        times, profiles = [], []
-        for profile in ground_profiles:
-            points = curves.make_curve_equidistant(profile.points, count=num_points)
-            times.append(profile.time)
-            profiles.append(points)
-
+        times = ground_profiles.times
+        profiles = [curves.make_curve_equidistant(ground.line, count=num_points)
+                    for ground in ground_profiles.grounds]
+        
         # store information in numpy arrays 
         # profiles is a 3D array: len(times) x num_points x 2
         return cls(times=times, profiles=profiles)        

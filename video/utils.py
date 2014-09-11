@@ -6,7 +6,6 @@ Created on Aug 2, 2014
 
 from __future__ import division
 
-import collections
 import logging
 import os
 
