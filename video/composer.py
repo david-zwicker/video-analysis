@@ -79,7 +79,6 @@ class VideoComposer(VideoFileWriter):
         elif frame.ndim == 2 and image.ndim == 3:
             raise ValueError('Cannot add a color image to a monochrome one')
 
-        # TODO: this creates an extra copy of the frame, which might not be necessary
         result = cv2.addWeighted(frame, 1 - weight, image, weight, gamma=0)
 
         if mask is not None:

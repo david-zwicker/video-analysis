@@ -201,7 +201,8 @@ class FirstPass(DataHandler):
                 
             # blur frame - if the frame is contiguous in memory, we don't need to make a copy
             frame_blurred = np.ascontiguousarray(frame)
-            cv2.sepFilter2D(frame_blurred, cv2.CV_8U, blur_kernel, blur_kernel, dst=frame_blurred)
+            cv2.sepFilter2D(frame_blurred, cv2.CV_8U,
+                            blur_kernel, blur_kernel, dst=frame_blurred)
             
             if self.frame_id == self.params['video/initial_adaptation_frames']:
                 # prepare the main analysis
@@ -306,7 +307,8 @@ class FirstPass(DataHandler):
 
         if not (self.params['cage/width_min'] < width < self.params['cage/width_max'] and
                 self.params['cage/height_min'] < height < self.params['cage/height_max']):
-            raise RuntimeError('The cage bounding box (%dx%d) is out of the limits.' % (width, height)) 
+            raise RuntimeError('The cage bounding box (%dx%d) is out of the '
+                               'limits.' % (width, height)) 
         
         rect_cage = (rect_cage[0], rect_cage[1], width, height)
         
@@ -333,7 +335,8 @@ class FirstPass(DataHandler):
                                      cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         # find sky by locating the largest black areas
-        sky_mask = regions.get_largest_region(1 - binarized).astype(np.uint8, copy=False)*255
+        sky_mask = regions.get_largest_region(1 - binarized)
+        sky_mask = sky_mask.astype(np.uint8, copy=False)*255
 
         # Finding sure foreground area using a distance transform
         dist_transform = cv2.distanceTransform(sky_mask, cv2.cv.CV_DIST_L2, 5)
@@ -416,7 +419,8 @@ class FirstPass(DataHandler):
         diff = -self.background + frame 
         
         # find movement by comparing the difference to a threshold 
-        mask_moving = (diff > self.params['mouse/intensity_threshold']*self.result['colors/sky_std'])
+        moving_threshold = self.params['mouse/intensity_threshold']*self.result['colors/sky_std']
+        mask_moving = (diff > moving_threshold)
         mask_moving = 255*mask_moving.astype(np.uint8, copy=False)
 
         kernel = self._cache['find_moving_features.kernel']
@@ -471,7 +475,8 @@ class FirstPass(DataHandler):
 
         # check if there are previous tracks        
         if len(self.tracks) == 0:
-            self.tracks = [ObjectTrack([self.frame_id], [obj]) for obj in objects_found]
+            self.tracks = [ObjectTrack([self.frame_id], [obj])
+                           for obj in objects_found]
             
             return # there is nothing to do anymore
             
@@ -531,7 +536,8 @@ class FirstPass(DataHandler):
         
         # start new tracks for objects that had no previous match
         for i_f in idx_f:
-            self.logger.debug('%d: New mouse track at %s', self.frame_id, objects_found[i_f].pos)
+            self.logger.debug('%d: New mouse track at %s',
+                              self.frame_id, objects_found[i_f].pos)
             # start new track
             track = ObjectTrack([self.frame_id], [objects_found[i_f]])
             self.tracks.append(track)
@@ -618,8 +624,9 @@ class FirstPass(DataHandler):
         w = int(0.10*frame.shape[1])
         image_center = frame[h:-h, w:-w]
         
-        # binarize frame
-        cv2.threshold(image_center, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
+        # turn frame into a binary image
+        cv2.threshold(image_center, 0, 255,
+                      cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
         
         # do morphological opening and closing to smooth the profile
         s = 5*self.params['burrows/width']
@@ -637,7 +644,8 @@ class FirstPass(DataHandler):
         cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, dst=mask)
 
         # morphological closing to smooth the boundary and remove burrows
-        cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, borderType=cv2.BORDER_REPLICATE, dst=mask)
+        cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel,
+                         borderType=cv2.BORDER_REPLICATE, dst=mask)
         
         # reduce the mask to its original dimension
         mask = mask[s:-s, s:-s]
@@ -760,8 +768,10 @@ class FirstPass(DataHandler):
         #points[:, 1] = so.fmin(adapt_snake, points[:, 1], xtol=1)
         #points[:, 1] = so.fmin_bfgs(adapt_snake, points[:, 1], epsilon=1)
         
-#         points[:, 1] = so.fmin_tnc(adapt_snake, points[:, 1], epsilon=1, approx_grad=True, bounds=bounds)[0]
-        points[:, 1] = so.fmin_l_bfgs_b(adapt_snake, points[:, 1], epsilon=1, approx_grad=True, bounds=bounds)[0]
+#         points[:, 1] = so.fmin_tnc(adapt_snake, points[:, 1], epsilon=1,
+#                                    approx_grad=True, bounds=bounds)[0]
+        points[:, 1] = so.fmin_l_bfgs_b(adapt_snake, points[:, 1],
+                                        epsilon=1, approx_grad=True, bounds=bounds)[0]
         return points
                 
         if try_many_distances:
@@ -869,7 +879,8 @@ class FirstPass(DataHandler):
             angle = np.arctan2(dp[0], dp[1])
                 
             # extract the region around the point used for fitting
-            region = frame[p[1]-spacing : p[1]+spacing+1, p[0]-spacing : p[0]+spacing+1].copy()
+            region = frame[p[1]-spacing : p[1]+spacing+1,
+                           p[0]-spacing : p[0]+spacing+1].copy()
             ground_model.set_data(region, angle) 
 
             # move the points profile model perpendicular until it fits best
@@ -928,8 +939,9 @@ class FirstPass(DataHandler):
         w = int(0.10*frame.shape[1])
         image_center = frame[h:-h, w:-w]
         
-        # binarize frame
-        cv2.threshold(image_center, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
+        # turn frame in binary image
+        cv2.threshold(image_center, 0, 255,
+                      cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
         
         # do morphological opening and closing to smooth the profile
         s = self.params['burrows/width']
@@ -968,8 +980,6 @@ class FirstPass(DataHandler):
     
     def get_ground_mask(self, color=255):
         """ returns a binary mask distinguishing the ground from the sky """
-        # TODO: Think about caching this result
-        
         # build a mask with potential burrows
         width, height = self.video.size
         ground_mask = np.zeros((height, width), np.uint8)
@@ -1007,8 +1017,8 @@ class FirstPass(DataHandler):
         explored_area[:, : margin] = 0
         explored_area[:, -margin:] = 0
         
-        # remove all regions that are less than a threshold distance away from the ground line
-        # and which are not connected to any other region
+        # remove all regions that are less than a threshold distance away from
+        # the ground line and which are not connected to any other region
         kernel_large = self._cache['get_potential_burrows_mask.kernel_large']
         kernel_small = self._cache['get_potential_burrows_mask.kernel_small']
 
@@ -1111,13 +1121,14 @@ class FirstPass(DataHandler):
     
 
     def refine_long_burrow(self, burrow):
-        """ refines an elongated burrow by doing linescans perpendicular to
+        """ refines an elongated burrow by doing line scans perpendicular to
         its centerline """
         # keep the points close to the ground line
         ground_line = self.ground.linestring
+        distance_threshold = self.params['burrows/ground_point_distance']
         outline_new = sorted([p.coords[0]
                               for p in geometry.MultiPoint(burrow.outline)
-                              if p.distance(ground_line) < self.params['burrows/ground_point_distance']])
+                              if p.distance(ground_line) < distance_threshold])
 
         # replace the remaining points by fitting perpendicular to the center line
         outline = geometry.LinearRing(burrow.outline)
@@ -1153,7 +1164,8 @@ class FirstPass(DataHandler):
             # do a line scan perpendicular
             p_a = (p[0] + scan_length*dy, p[1] - scan_length*dx)
             p_b = (p[0] - scan_length*dy, p[1] + scan_length*dx)
-            profile = image.line_scan(self.background.astype(np.uint8, copy=False), p_a, p_b, 3)
+            background = self.background.astype(np.uint8, copy=False)
+            profile = image.line_scan(background, p_a, p_b, 3)
             
             # find the transition points by considering slopes
             k_l = self.find_burrow_edge(profile, direction='down')
@@ -1161,7 +1173,8 @@ class FirstPass(DataHandler):
 
             if k_l is not None and k_r is not None:
                 d_l, d_r = scan_length - k_l, scan_length - k_r
-                # d_l and d_r are the distance from p, where d_l > 0 and d_r < 0 accounting for direction
+                # d_l and d_r are the distance from p
+                # d_l > 0 and d_r < 0 accounting for direction
 
                 # ensure a minimal burrow width
                 width = d_l - d_r
@@ -1213,8 +1226,8 @@ class FirstPass(DataHandler):
                 
                 # get profile along the centerline
                 p1e = (point_anchor[0] + scan_length*dx, point_anchor[1] + scan_length*dy)
-                profile = image.line_scan(self.background.astype(np.uint8, copy=False),
-                                          point_anchor, p1e, 3)
+                background = self.background.astype(np.uint8, copy=False)
+                profile = image.line_scan(background, point_anchor, p1e, 3)
 
                 # determine position of burrow edge
                 l = self.find_burrow_edge(profile, direction='up')
@@ -1283,7 +1296,8 @@ class FirstPass(DataHandler):
 #                 plt.show()
                 
                 # find the transition points by considering slopes
-                profile = image.line_scan(self.background.astype(np.uint8, copy=False), p_a, p_b, 3)
+                background = self.background.astype(np.uint8, copy=False)
+                profile = image.line_scan(background, p_a, p_b, 3)
                 k = self.find_burrow_edge(profile, direction='up')
 
                 if k is not None:
@@ -1298,8 +1312,8 @@ class FirstPass(DataHandler):
     
     
     def find_burrows(self, mask_moving):
-        """ locates burrows by combining the information of the ground_mask profile
-        and the explored area """
+        """ locates burrows by combining the information of the ground_mask
+        profile and the explored area """
 
         # reset the current burrow model
         self.burrows_mask.fill(0)
@@ -1381,8 +1395,9 @@ class FirstPass(DataHandler):
                                                 codec=video_codec, bitrate=video_bitrate)
             
             if 'video.show' in self.debug_output:
+                name = self.name if self.name else ''
                 self.debug['video.show'] = ImageShow(self.debug['video'].shape,
-                                                     'Debug video' + ' [%s]'%self.name if self.name else '')
+                                                     'Debug video' + ' [%s]' % name)
 
         # set up additional video writers
         for identifier in ('difference', 'background', 'explored_area'):
@@ -1404,11 +1419,13 @@ class FirstPass(DataHandler):
             
             # plot the ground profile
             if self.ground is not None: 
-                debug_video.add_polygon(self.ground.line, is_closed=False, mark_points=True, color='y')
+                debug_video.add_polygon(self.ground.line, is_closed=False,
+                                        mark_points=True, color='y')
         
             # indicate the currently active burrow shapes
+            time_interval = self.params['burrows/adaptation_interval']
             for burrow_track in self.result['burrows/tracks']:
-                if burrow_track.track_end > self.frame_id - self.params['burrows/adaptation_interval']:
+                if burrow_track.track_end > self.frame_id - time_interval:
                     burrow = burrow_track.last
                     burrow_color = 'red' if burrow.refined else 'orange'
                     debug_video.add_polygon(burrow.outline, burrow_color,
@@ -1427,36 +1444,48 @@ class FirstPass(DataHandler):
                     else:
                         obj_color = 'b'
                     debug_video.add_polygon(obj.get_track(), '0.5', is_closed=False)
-                    debug_video.add_circle(obj.last.pos, self.params['mouse/model_radius'], obj_color, thickness=1)
+                    debug_video.add_circle(obj.last.pos,
+                                           self.params['mouse/model_radius'],
+                                           obj_color, thickness=1)
                 
             else: # there are no current tracks
                 for mouse_pos in self._mouse_pos_estimate:
-                    debug_video.add_circle(mouse_pos, self.params['mouse/model_radius'], 'k', thickness=1)
+                    debug_video.add_circle(mouse_pos,
+                                           self.params['mouse/model_radius'],
+                                           'k', thickness=1)
             
             # add additional debug information
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
-            debug_video.add_text('#objects:%d' % self.debug['object_count'], (120, 20), anchor='top')
-            debug_video.add_text(self.debug['video.mark.text1'], (300, 20), anchor='top')
-            debug_video.add_text(self.debug['video.mark.text2'], (300, 50), anchor='top')
+            debug_video.add_text('#objects:%d' % self.debug['object_count'],
+                                 (120, 20), anchor='top')
+            debug_video.add_text(self.debug['video.mark.text1'],
+                                 (300, 20), anchor='top')
+            debug_video.add_text(self.debug['video.mark.text2'],
+                                 (300, 50), anchor='top')
             if self.debug.get('video.mark.rect1'):
                 debug_video.add_rectangle(self.debug['rect1'])
             if self.debug.get('video.mark.points'):
-                debug_video.add_points(self.debug['video.mark.points'], radius=4, color='y')
+                debug_video.add_points(self.debug['video.mark.points'],
+                                       radius=4, color='y')
             if self.debug.get('video.mark.highlight', False):
-                debug_video.add_rectangle((0, 0, self.video.size[0], self.video.size[1]), 'w', 10)
+                rect = (0, 0, self.video.size[0], self.video.size[1])
+                debug_video.add_rectangle(rect, 'w', 10)
                 self.debug['video.mark.highlight'] = False
             
             if 'video.show' in self.debug:
                 self.debug['video.show'].show(debug_video.frame)
                 
         if 'difference.video' in self.debug:
-            diff = np.clip(frame.astype(int, copy=False) - self.background + 128, 0, 255)
-            self.debug['difference.video'].write_frame(diff.astype(np.uint8, copy=False))
-            self.debug['difference.video'].add_text(str(self.frame_id), (20, 20), anchor='top')   
+            diff = frame.astype(int, copy=False) - self.background + 128
+            diff = np.clip(diff, 0, 255).astype(np.uint8, copy=False)
+            self.debug['difference.video'].write_frame(diff)
+            self.debug['difference.video'].add_text(str(self.frame_id),
+                                                    (20, 20), anchor='top')   
                 
         if 'background.video' in self.debug:
             self.debug['background.video'].write_frame(self.background)
-            self.debug['background.video'].add_text(str(self.frame_id), (20, 20), anchor='top')   
+            self.debug['background.video'].add_text(str(self.frame_id),
+                                                    (20, 20), anchor='top')   
 
         if 'explored_area.video' in self.debug:
             debug_video = self.debug['explored_area.video']

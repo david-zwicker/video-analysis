@@ -12,6 +12,7 @@ import collections
 import datetime
 import logging
 import os
+import sys
 
 import numpy as np
 import yaml
@@ -99,7 +100,8 @@ class DataHandler(object):
             objects.ObjectTrack.moving_window = moving_window
         moving_threshold = self.data.get('parameters/tracking/moving_threshold', None)
         if moving_threshold:
-            objects.ObjectTrack.moving_threshold = objects.ObjectTrack.moving_window*moving_threshold
+            threshold = objects.ObjectTrack.moving_window*moving_threshold
+            objects.ObjectTrack.moving_threshold = threshold
         
         curvature_radius_max = self.data.get('parameters/burrows/curvature_radius_max', None)
         if curvature_radius_max:
@@ -306,10 +308,13 @@ class DataDict(collections.MutableMapping):
         if load_data and isinstance(value, LazyHDFValue):
             try:
                 value = value.load()
-            except KeyError as e:
+            except KeyError:
                 # we have to relabel KeyErrors, since they otherwise shadow
                 # KeyErrors raised by the item actually not being in the DataDict
-                raise LazyLoadError(e) #< TODO preserve traceback
+                # This then allows us to distinguish between items not found in
+                # DataDict (raising KeyError) and items not being able to load
+                # (raising LazyLoadError)
+                raise LazyLoadError, 'Cannot load item `%s`' % key, sys.exc_info()[2] 
             self.data[key] = value
             
         return value

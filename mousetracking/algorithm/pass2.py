@@ -366,7 +366,8 @@ class SecondPass(DataHandler):
         
             # plot the ground profile
             ground_line = ground_profile.get_profile(frame_id)
-            video.add_polygon(ground_line, is_closed=False, mark_points=False, color='y')
+            video.add_polygon(ground_line, is_closed=False,
+                              mark_points=False, color='y')
 
             # indicate burrow centerline
             for burrow in burrow_tracks.get_burrows(frame_id):
@@ -384,12 +385,14 @@ class SecondPass(DataHandler):
                     break
                 elif track.start <= frame_id <= track.end:
                     video.add_circle(track.get_pos(frame_id),
-                                     self.params['mouse/model_radius'], '0.5', thickness=1)
+                                     self.params['mouse/model_radius'],
+                                     '0.5', thickness=1)
 
             # indicate the mouse position
             if np.all(np.isfinite(mouse_track.pos[frame_id])):
                 video.add_circle(mouse_track.pos[frame_id],
-                                 self.params['mouse/model_radius'], 'w', thickness=2)
+                                 self.params['mouse/model_radius'],
+                                 'w', thickness=2)
                     
             
 #                 # add additional debug information
