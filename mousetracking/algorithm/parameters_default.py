@@ -77,6 +77,8 @@ PARAMETERS = [
               'plausibility test of the results.'),
     Parameter('cage/frame_width', 25, UNIT.LENGTH_PIXEL,
               'Width of the cage frame'),
+    Parameter('cage/linescan_width', 30, UNIT.LENGTH_PIXEL,
+              'Width of the linescan use to detect the cage frame.'),
                 
     # Colors               
     Parameter('colors/adaptation_interval', 1000, UNIT.TIME_FRAMES,

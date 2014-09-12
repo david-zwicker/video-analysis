@@ -820,7 +820,9 @@ class FirstPass(DataHandler):
         corrected_points = []
         x_previous = spacing
         deviation = 0
-        for k, p in enumerate(points):
+        
+        # iterate over all but the boundary points
+        for k, p in enumerate(points[1:-1], 1):
             
             # skip points that are too close to the boundary
             if (p[0] < p_min or p[0] > x_max or 
@@ -828,13 +830,13 @@ class FirstPass(DataHandler):
                 continue
             
             # determine the local slope of the profile, which fixes the angle 
-            if k == 0 or k == len(points) - 1:
-                # we only move these vertically to prevent the points profile
-                # from shortening
-                angle = np.pi/2
-            else:
-                dp = points[k+1] - points[k-1]
-                angle = np.arctan2(dp[0], dp[1])
+#             if k == 0 or k == len(points) - 1:
+#                 # we only move these vertically to prevent the points profile
+#                 # from shortening
+#                 angle = np.pi/2
+#             else:
+            dp = points[k+1] - points[k-1]
+            angle = np.arctan2(dp[0], dp[1])
                 
             # extract the region around the point used for fitting
             region = frame[p[1]-spacing : p[1]+spacing+1, p[0]-spacing : p[0]+spacing+1].copy()
@@ -865,6 +867,32 @@ class FirstPass(DataHandler):
             
             # add up the total deviations from the previous profile
             deviation += abs(x[0])
+
+        # extend the ground line toward the left edge of the cage
+        p_y = corrected_points[0][1]
+        dist_from_edge = 2*self.params['cage/frame_width']
+        profile = image.line_scan(frame, (0, p_y), (dist_from_edge, p_y),
+                                  self.params['cage/linescan_width'])
+        color_threshold = (self.result['colors/sand'] + profile.max())/2
+        
+        try:
+            p_x = np.nonzero(profile > color_threshold)[0][-1] + 10
+            corrected_points.insert(0, (p_x, p_y))
+        except IndexError:
+            pass
+        
+        # extend the ground line toward the right edge of the cage
+        p_y = corrected_points[-1][1]
+        x_max = frame.shape[1] - 1
+        p_x = x_max - dist_from_edge
+        profile = image.line_scan(frame, (p_x, p_y), (x_max, p_y),
+                                  self.params['cage/linescan_width'])
+        color_threshold = (self.result['colors/sand'] + profile.max())/2
+        try:
+            p_x += np.nonzero(profile > color_threshold)[0][0] - 10
+            corrected_points.append((p_x, p_y))
+        except IndexError:
+            pass
             
         return GroundProfile(corrected_points)
             
@@ -912,34 +940,6 @@ class FirstPass(DataHandler):
                     # there are no white points => continue from last time
                     yp = points[-1][1]
                 points.append((xp, yp))
-        
-        # extend the ground line toward the left edge of the cage
-        p_y = points[0][1]
-        dist_from_edge = 2*self.params['cage/frame_width']
-        profile = image.line_scan(frame, (0, p_y), (dist_from_edge, p_y), 30)
-        color_threshold = (self.result['colors/sand'] + frame.max())/2
-        
-#         import matplotlib.pyplot as plt
-#         plt.plot(profile)
-#         plt.axhline(color_threshold)
-#         plt.show()
-        
-        try:
-            p_x = np.nonzero(profile > color_threshold)[0][-1] + 10
-            points.insert(0, (p_x, p_y))
-        except IndexError:
-            pass
-        
-        # extend the ground line toward the right edge of the cage
-        p_y = points[-1][1]
-        x_max = frame.shape[1] - 1
-        p_x = x_max - dist_from_edge
-        profile = image.line_scan(frame, (p_x, p_y), (x_max, p_y), 30)
-        try:
-            p_x += np.nonzero(profile > color_threshold)[0][0] - 10
-            points.append((p_x, p_y))
-        except IndexError:
-            pass
         
         # simplify and refine the curve        
         points = curves.simplify_curve(points, epsilon=2)
