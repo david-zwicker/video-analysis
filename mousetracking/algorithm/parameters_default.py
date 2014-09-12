@@ -65,18 +65,20 @@ PARAMETERS = [
     # Cage
     Parameter('cage/width_min', 650, UNIT.LENGTH_PIXEL,
               'Minimal width of the cage. This is only used to make a '
-              'plausibility test of the results.'),
+              'plausibility test of the results'),
     Parameter('cage/width_max', 800, UNIT.LENGTH_PIXEL,
               'Maximal width of the cage. This is only used to make a '
-              'plausibility test of the results.'),
+              'plausibility test of the results'),
     Parameter('cage/height_min', 400, UNIT.LENGTH_PIXEL,
               'Minimal height of the cage. This is only used to make a '
-              'plausibility test of the results.'),
+              'plausibility test of the results'),
     Parameter('cage/height_max', 500, UNIT.LENGTH_PIXEL,
               'Maximal height of the cage. This is only used to make a '
-              'plausibility test of the results.'),
+              'plausibility test of the results'),
     Parameter('cage/linescan_width', 30, UNIT.LENGTH_PIXEL,
-              'Width of the linescan use to detect the cage frame.'),
+              'Width of the line scan use to detect the cage frame'),
+    Parameter('cage/linescan_smooth', 5, UNIT.LENGTH_PIXEL,
+              'Standard deviation used for smoothing the line scan profile'),
                 
     # Colors               
     Parameter('colors/adaptation_interval', 1000, UNIT.TIME_FRAMES,
@@ -116,7 +118,7 @@ PARAMETERS = [
     Parameter('mouse/area_mean', 700, UNIT.AREA_PIXEL,
               'Mean area of a mouse, which is used to score the mouse'),
     Parameter('mouse/speed_max', 30, UNIT.SPEED_PIXEL_FRAME,
-              'Maximal speed of the mouse.'),
+              'Maximal speed of the mouse'),
     Parameter('mouse/max_rel_area_change', 0.5, UNIT.FACTOR,
               'Maximal area change allowed between consecutive frames'),
     Parameter('tracking/weight', 0.5, UNIT.FACTOR,

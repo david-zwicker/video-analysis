@@ -4,6 +4,7 @@ h5py        -- HDF5 python binding for writing out data
 matplotlib  -- Plotting library used for output
 networkx    -- Graph based tracking
 numpy		-- Array library used for manipulating data
+pint		-- Unit library to handle output with physical units
 scipy       -- Miscellaneous scientific functions
 shapely     -- for manipulating shapes
 yaml        -- YAML binding for writing out data

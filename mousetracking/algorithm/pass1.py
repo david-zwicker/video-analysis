@@ -23,8 +23,7 @@ import itertools
 
 import numpy as np
 import scipy.ndimage as ndimage
-from scipy.optimize import leastsq
-from scipy.spatial import distance
+from scipy import optimize, signal, spatial
 import shapely.geometry as geometry
 import cv2
 
@@ -477,9 +476,9 @@ class FirstPass(DataHandler):
             return # there is nothing to do anymore
             
         # calculate the distance between new and old objects
-        dist = distance.cdist([obj.pos for obj in objects_found],
-                              [obj.predict_pos() for obj in self.tracks],
-                              metric='euclidean')
+        dist =spatial.distance.cdist([obj.pos for obj in objects_found],
+                                     [obj.predict_pos() for obj in self.tracks],
+                                     metric='euclidean')
         # normalize distance to the maximum speed
         dist /= self.params['mouse/speed_max']
         
@@ -792,6 +791,43 @@ class FirstPass(DataHandler):
             
         return GroundProfile(points)
     
+    
+    def _get_cage_boundary(self, ground_point, direction='left'):
+        """ determines the cage boundary starting from a ground_point
+        going in the given direction """
+        
+        # extend the ground line toward the left edge of the cage
+        if direction == 'left':
+            border_point = (0, ground_point[1])
+        elif direction == 'right':
+            image_width = self.background.shape[1] - 1
+            border_point = (image_width, ground_point[1])
+        else:
+            raise ValueError('Unknown direction `%s`' % direction)
+        
+        # do the line scan
+        profile = image.line_scan(self.background, border_point, ground_point,
+                                  self.params['cage/linescan_width'])
+        
+        # smooth the profile slightly
+        profile = ndimage.filters.gaussian_filter1d(profile,
+                                                    self.params['cage/linescan_smooth'])
+        
+        # add extra points to make determining the extrema reliable
+        profile = np.r_[0, profile, 255]
+
+        # determine first maximum and first minimum after that
+        pos_max = signal.argrelmax(profile)[0][0]
+        pos_min = signal.argrelmin(profile[pos_max:])[0][0] + pos_max
+        
+        # get steepest point in this interval
+        pos_edge = np.argmin(np.diff(profile[pos_max:pos_min])) + pos_max
+
+        if direction == 'right':
+            pos_edge = image_width - pos_edge
+        
+        return (pos_edge, ground_point[1])
+    
         
     def refine_ground(self, ground, **kwargs):
         """ adapts a points profile given as points to a given frame.
@@ -829,12 +865,6 @@ class FirstPass(DataHandler):
                 p[1] < p_min or p[1] > y_max):
                 continue
             
-            # determine the local slope of the profile, which fixes the angle 
-#             if k == 0 or k == len(points) - 1:
-#                 # we only move these vertically to prevent the points profile
-#                 # from shortening
-#                 angle = np.pi/2
-#             else:
             dp = points[k+1] - points[k-1]
             angle = np.arctan2(dp[0], dp[1])
                 
@@ -843,8 +873,8 @@ class FirstPass(DataHandler):
             ground_model.set_data(region, angle) 
 
             # move the points profile model perpendicular until it fits best
-            x, _, infodict, _, _ = leastsq(ground_model.get_difference, [0],
-                                           xtol=0.5, epsfcn=0.5, full_output=True)
+            x, _, infodict, _, _ = optimize.leastsq(ground_model.get_difference, [0],
+                                                    xtol=0.5, epsfcn=0.5, full_output=True)
             
             # calculate goodness of fit
             ss_err = (infodict['fvec']**2).sum()
@@ -869,28 +899,14 @@ class FirstPass(DataHandler):
             deviation += abs(x[0])
 
         # extend the ground line toward the left edge of the cage
-        p_x, p_y = corrected_points[0]
-        profile = image.line_scan(frame, (0, p_y), (p_x, p_y),
-                                  self.params['cage/linescan_width'])
-        color_threshold = (self.result['colors/sand'] + profile.max())/2
-        
-        try:
-            p_x = np.nonzero(profile > color_threshold)[0][-1]
-            corrected_points.insert(0, (p_x, p_y))
-        except IndexError:
-            pass
-        
+        edge_point = self._get_cage_boundary(corrected_points[0], 'left')
+        if edge_point is not None:
+            corrected_points.insert(0, edge_point)
+            
         # extend the ground line toward the right edge of the cage
-        p_x, p_y = corrected_points[-1]
-        x_max = frame.shape[1] - 1
-        profile = image.line_scan(frame, (p_x, p_y), (x_max, p_y),
-                                  self.params['cage/linescan_width'])
-        color_threshold = (self.result['colors/sand'] + profile.max())/2
-        try:
-            p_x += np.nonzero(profile > color_threshold)[0][0]
-            corrected_points.append((p_x, p_y))
-        except IndexError:
-            pass
+        edge_point = self._get_cage_boundary(corrected_points[-1], 'right')
+        if edge_point is not None:
+            corrected_points.append(edge_point)
             
         return GroundProfile(corrected_points)
             
