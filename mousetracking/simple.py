@@ -11,7 +11,7 @@ from __future__ import division
 import os
 import warnings
 
-from .algorithm.parameters_default import PARAMETERS_DEFAULT
+from .algorithm.parameters import PARAMETERS_DEFAULT
 from .algorithm.analyzer import Analyzer
 from .algorithm.pass1 import FirstPass
 from .algorithm.pass2 import SecondPass

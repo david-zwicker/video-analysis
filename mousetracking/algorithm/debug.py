@@ -94,18 +94,21 @@ def show_shape(*shapes, **kwargs):
                                            fc=color, alpha=0.5)
             ax.add_patch(patch)
             if mark_points:
-                ax.plot(shape.xy[0], shape.xy[1], 'o', markersize=2*line_width, color=color)
+                ax.plot(shape.xy[0], shape.xy[1], 'o',
+                        markersize=2*line_width, color=color)
             
         elif isinstance(shape, geometry.LineString):
             ax.plot(shape.xy[0], shape.xy[1], color=color, lw=line_width)
             if mark_points:
-                ax.plot(shape.xy[0], shape.xy[1], 'o', markersize=2*line_width, color=color)
+                ax.plot(shape.xy[0], shape.xy[1], 'o',
+                        markersize=2*line_width, color=color)
             
         elif isinstance(shape, geometry.multilinestring.MultiLineString):
             for line in shape:
                 ax.plot(line.xy[0], line.xy[1], color=color, lw=line_width)
                 if mark_points:
-                    ax.plot(line.xy[0], line.xy[1], 'o', markersize=2*line_width, color=color)
+                    ax.plot(line.xy[0], line.xy[1], 'o',
+                            markersize=2*line_width, color=color)
             
         else:
             raise ValueError("Don't know how to plot %r" % shape)
@@ -136,7 +139,8 @@ def show_tracking_graph(graph, path, **kwargs):
                  'r', lw=(1 + 10*node.mouse_score))
         
     try:
-        max_weight = max(data['weight'] for _, _, data in graph.edges_iter(data=True))
+        max_weight = max(data['weight']
+                         for _, _, data in graph.edges_iter(data=True))
     except ValueError:
         max_weight = 1
     

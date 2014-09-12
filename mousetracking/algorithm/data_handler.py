@@ -17,7 +17,7 @@ import sys
 import numpy as np
 import yaml
 
-from .parameters_default import PARAMETERS_DEFAULT
+from .parameters import PARAMETERS_DEFAULT
 import objects
 from .objects.utils import LazyHDFValue, prepare_data_for_yaml
 from video.io import VideoFileStack
