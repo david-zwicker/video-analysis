@@ -133,9 +133,10 @@ class SecondPass(DataHandler):
         
         threshold = self.params['tracking/initial_score_threshold']
         
-        # try different thresholds until we found a result        
-        track_found = False
-        while not track_found:
+        # try different thresholds until we found a result
+        first_track_found = False
+        look_for_tracks = True
+        while look_for_tracks:
             self.logger.info('Building tracking graph of %d nodes and with threshold %g',
                              len(tracks), threshold) 
             graph = self.get_track_graph(tracks, threshold)
@@ -165,11 +166,20 @@ class SecondPass(DataHandler):
                             path = nx.shortest_path(graph, start_node, end_node, weight='weight')
                             paths.append(path)
                         except nx.exception.NetworkXNoPath:
-                            continue # check the next node
+                            # there are no connections between the start and the end node 
+                            continue #< check the next node
                         else:
-                            track_found = True
+                            if first_track_found:
+                                # we did the additional search with an increased threshold
+                                look_for_tracks = False
+                            else:
+                                first_track_found = True
 
-            threshold *= 2
+            if first_track_found:
+                # we'll do an additional search with an increased threshold
+                threshold *= 10
+            else:
+                threshold *= 2
         
         self.logger.info('Found %d good tracking paths', len(paths))
         

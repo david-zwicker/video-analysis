@@ -14,8 +14,6 @@
 	- this could be used to reject moving objects that are certainly not a mouse
 * Calculate length scale from cage dimension
 	- Think about getting a more precise estimate of the cage
-* If two long tracks overlap, break them apart and let the graph joining figure out what to do
-	- This should help finding the right trajectory for cases where mouse and sand cannot be distinguished reliably 
 
 
 Performance improvements:
