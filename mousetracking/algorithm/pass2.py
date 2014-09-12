@@ -113,7 +113,15 @@ class SecondPass(DataHandler):
             return []
 
         # sort them according to their start time
-        tracks = sorted(tracks, key=lambda track: track.start)
+        tracks.sort(key=lambda track: track.start)
+
+        # break apart long tracks to facilitate graph matching
+        track_len_orig = len(tracks)
+        tracks.break_long_tracks(self.params['tracking/splitting_duration_min'])
+        if len(tracks) != track_len_orig:
+            self.logger.info('Increased the track count from %d to %d by '
+                             'splitting long, overlapping tracks.',
+                             len(tracks), track_len_orig)
         
         # get some statistics about the tracks
         start_time = min(track.start for track in tracks)
@@ -321,7 +329,8 @@ class SecondPass(DataHandler):
         source_video = self.video[1:]
         
         track_first = 0
-        tracks = sorted(self.data['pass1/objects/tracks'], key=lambda track: track.start)
+        tracks = self.data['pass1/objects/tracks']
+        tracks.sort(key=lambda track: track.start)
         burrow_tracks = self.data['pass1/burrows/tracks']
         
         for frame_id, frame in enumerate(display_progress(source_video)):
@@ -333,14 +342,11 @@ class SecondPass(DataHandler):
             video.add_polygon(ground_line, is_closed=False, mark_points=False, color='y')
 
             # indicate burrow centerline
-            for burrow_track in burrow_tracks:
-                try:
-                    burrow = burrow_track.get_burrow(frame_id)
-                except IndexError:
-                    continue
+            for burrow in burrow_tracks.get_burrows(frame_id):
                 video.add_polygon(burrow.get_centerline(ground_line),
                                   'k', is_closed=False, width=2)
         
+            # indicate all moving objects
             # find the first track which is still active
             while tracks[track_first].end < frame_id:
                 track_first += 1

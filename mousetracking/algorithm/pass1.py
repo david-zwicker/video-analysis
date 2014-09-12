@@ -472,7 +472,7 @@ class FirstPass(DataHandler):
 
         # check if there are previous tracks        
         if len(self.tracks) == 0:
-            self.tracks = [ObjectTrack(self.frame_id, obj) for obj in objects_found]
+            self.tracks = [ObjectTrack([self.frame_id], [obj]) for obj in objects_found]
             
             return # there is nothing to do anymore
             
@@ -534,7 +534,7 @@ class FirstPass(DataHandler):
         for i_f in idx_f:
             self.logger.debug('%d: New mouse track at %s', self.frame_id, objects_found[i_f].pos)
             # start new track
-            track = ObjectTrack(self.frame_id, objects_found[i_f])
+            track = ObjectTrack([self.frame_id], [objects_found[i_f]])
             self.tracks.append(track)
         
         assert len(self.tracks) == len(objects_found)
@@ -1325,9 +1325,12 @@ class FirstPass(DataHandler):
                 cv2.fillPoly(self.burrows_mask,
                              np.array([burrow.outline], np.int32), color=255)
                 
-                # see whether this burrow is already known
+                # see whether this burrow can be appended to an active track
+                adaptation_interval = self.params['burrows/adaptation_interval']
                 for burrow_track in self.result['burrows/tracks']:
-                    if burrow_track.last.intersects(burrow.polygon):
+                    if (burrow_track.track_end > self.frame_id - adaptation_interval
+                        and burrow_track.last.intersects(burrow.polygon)):
+                        
                         burrow_track.append(self.frame_id, burrow)
                         break
                     

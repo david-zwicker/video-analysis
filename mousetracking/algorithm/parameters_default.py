@@ -105,6 +105,8 @@ PARAMETERS_DEFAULT = {
     'tracking/initial_score_threshold': 1,
     # what time duration do we consider for start and end nodes [in frames]
     'tracking/end_node_interval': 1000,
+    # track duration above which two overlapping tracks are split [in frames] 
+    'tracking/splitting_duration_min': 100,
         
     # how often are the burrow shapes adapted [in frames]
     'burrows/adaptation_interval': 100,

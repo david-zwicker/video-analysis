@@ -22,9 +22,8 @@ from .. import debug  # @UnusedImport
 
 
 class MovingObject(object):
-    """ represents a single object by its position and size
-    FIXME: remove label, since it is not used
-    """
+    """ represents a single object by its position and size.
+    The label is used to distinguish different objects in the detection phase """
     __slots__ = ['pos', 'size', 'label'] #< save some memory
     
     def __init__(self, pos, size, label=None):
@@ -49,9 +48,9 @@ class ObjectTrack(object):
     moving_window = 20
     moving_threshold = 20*10
     
-    def __init__(self, time=None, obj=None):
-        self.times = [] if time is None else [time]
-        self.objects = [] if obj is None else [obj]
+    def __init__(self, times=None, objects=None):
+        self.times = [] if times is None else times
+        self.objects = [] if objects is None else objects
         
         
     def __repr__(self):
@@ -142,6 +141,18 @@ class ObjectTrack(object):
         return (s0 <= o1 and o0 <= s1)
     
     
+    def split(self, split_times):
+        """ splits the current track into chunks separated by the given split_times """
+        split_indices = np.asarray(split_times) - self.start
+        chunks = np.split(self.times, split_indices)
+        idx, result = 0, []
+        for chunk in chunks:
+            track = ObjectTrack(chunk, self.objects[idx: idx+len(chunk)])
+            idx += len(chunk)
+            result.append(track)
+        return result
+    
+    
     def to_array(self):
         """ converts the internal representation to a single array
         useful for storing the data """
@@ -153,10 +164,8 @@ class ObjectTrack(object):
     @classmethod
     def create_from_array(cls, data):
         """ constructs an object from an array previously created by to_array() """
-        res = cls()
-        res.times = [d[0] for d in data]
-        res.objects = [MovingObject(pos=(d[1], d[2]), size=d[3]) for d in data]
-        return res
+        objects = [MovingObject(pos=(d[1], d[2]), size=d[3]) for d in data]
+        return cls([d[0] for d in data], objects)
 
 
     def save_to_hdf5(self, hdf_file, key):
@@ -179,18 +188,88 @@ class ObjectTrackList(list):
     item_class = ObjectTrack
     storage_class = LazyHDFCollection
     
-    duration_threshold = 2
+    duration_min = 2 #< minimal duration of a track to be considered
+    
+    
+    def insert(self, index, item):
+        if item.duration >= self.duration_min:
+            super(ObjectTrackList, self).insert(index, item)
     
     
     def extend(self, items):
         super(ObjectTrackList, self).extend(item for item in items
-                                            if item.duration >= self.duration_threshold)
+                                            if item.duration >= self.duration_min)
     
     
     def append(self, item):
-        if item.duration >= self.duration_threshold:
+        if item.duration >= self.duration_min:
             super(ObjectTrackList, self).append(item)
 
 
-   
-    
+    def insert_sorted(self, item, index_min=0):
+        """ inserts a new item into the sorted list.
+        Assumes that the internal list is already sorted.
+        index_min can optionally indicate a minimal index beyond
+        which the item will be insert. Supplying this option can
+        increase the insertion process. 
+        """
+        if len(item) > 0:
+            for k, track in enumerate(self[index_min:], index_min):
+                if item.start <= track.start:
+                    self.insert(k, item)
+                    break
+            else:
+                self.append(item)
+
+
+    def break_long_tracks(self, duration_cutoff):
+        """ breaks apart long tracks and stores the chunks """
+        k1 = 0
+        # iterate over changing list
+        while k1 < len(self):
+            track1 = self[k1]
+            if track1.duration < duration_cutoff:
+                # track is short => check next one
+                k1 += 1
+                continue
+            
+            # check against overlapping tracks
+            for k2, track2 in enumerate(self[k1 + 1:], k1 + 1):
+                if track2.start >= track1.end - duration_cutoff:
+                    # there won't be any overlapping tracks 
+                    break
+                if track2.duration >= duration_cutoff:
+                    # both tracks are long and they overlap => break them apart
+                    track1s, track2s = [], [] #< split tracks
+                    if track1.start == track2.start:
+                        if track1.end < track2.end:
+                            track2s = track2.split([track1.end + 1])
+                        elif track2.end < track1.end:
+                            track1s = track1.split([track2.end + 1])
+                        # else track1.end == track2.end and we don't do anything
+
+                    # we know that track1.start < track2.start 
+                    elif track1.end < track2.end:
+                        track1s = track1.split([track2.start])
+                        track2s = track2.split([track1.end + 1])
+                    elif track1.end == track2.end:
+                        track1s = track1.split([track2.start])
+                    else: # track1.end > track2.end
+                        track1s = track1.split([track2.start, track2.end + 1])
+                        
+                    if track1s or track2s:
+                        # delete tracks that have been split
+                        if track1s: del self[k1]
+                        if track2s: del self[k2]
+                                
+                        # insert the split tracks
+                        for track in itertools.chain(track1s, track2s):
+                            self.insert_sorted(track, index_min=k1)
+                        
+                        k1 -= 1 #< the track at k1 might have been replaced => check it again 
+                        break #< check the next track1
+
+            # check the next track
+            k1 += 1
+
+

@@ -18,11 +18,11 @@ The location is encoded in the last two digits
 
 10..19 = mouse is overground
     11 = mouse is in the air
-    12 = mouse is on hill
-    13 = mouse is in valley
+    12 = mouse is on either hill
+    13 = mouse is in the valley
 
 20..29 = mouse is underground
-    21 = mouse is in the burrow
+    21 = mouse is in any burrow
 """
 
 
