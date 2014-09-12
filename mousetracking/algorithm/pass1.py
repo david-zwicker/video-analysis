@@ -869,9 +869,8 @@ class FirstPass(DataHandler):
             deviation += abs(x[0])
 
         # extend the ground line toward the left edge of the cage
-        p_y = corrected_points[0][1]
-        dist_from_edge = 2*self.params['cage/frame_width']
-        profile = image.line_scan(frame, (0, p_y), (dist_from_edge, p_y),
+        p_x, p_y = corrected_points[0]
+        profile = image.line_scan(frame, (0, p_y), (p_x, p_y),
                                   self.params['cage/linescan_width'])
         color_threshold = (self.result['colors/sand'] + profile.max())/2
         
@@ -882,9 +881,8 @@ class FirstPass(DataHandler):
             pass
         
         # extend the ground line toward the right edge of the cage
-        p_y = corrected_points[-1][1]
+        p_x, p_y = corrected_points[-1]
         x_max = frame.shape[1] - 1
-        p_x = x_max - dist_from_edge
         profile = image.line_scan(frame, (p_x, p_y), (x_max, p_y),
                                   self.params['cage/linescan_width'])
         color_threshold = (self.result['colors/sand'] + profile.max())/2
