@@ -14,6 +14,8 @@
 	- this could be used to reject moving objects that are certainly not a mouse
 * Calculate length scale from cage dimension
 	- Think about getting a more precise estimate of the cage
+	- Get the width from the sand profile fits.
+	- Get the height by doing a whole width line scan and determine the edge
 
 
 Performance improvements:

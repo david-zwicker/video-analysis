@@ -875,7 +875,7 @@ class FirstPass(DataHandler):
         color_threshold = (self.result['colors/sand'] + profile.max())/2
         
         try:
-            p_x = np.nonzero(profile > color_threshold)[0][-1] + 10
+            p_x = np.nonzero(profile > color_threshold)[0][-1]
             corrected_points.insert(0, (p_x, p_y))
         except IndexError:
             pass
@@ -887,7 +887,7 @@ class FirstPass(DataHandler):
                                   self.params['cage/linescan_width'])
         color_threshold = (self.result['colors/sand'] + profile.max())/2
         try:
-            p_x += np.nonzero(profile > color_threshold)[0][0] - 10
+            p_x += np.nonzero(profile > color_threshold)[0][0]
             corrected_points.append((p_x, p_y))
         except IndexError:
             pass
