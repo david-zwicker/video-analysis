@@ -199,7 +199,7 @@ class FilterCrop(VideoFilterBase):
             frame = frame[self.slices]
 
         else:
-            # extract the given rectangle and get the color channel 
+            # extract the given rectangle and get the color channel
             frame = frame[self.slices[0], self.slices[1], self.color_channel]
 
         # pass the frame to the parent function

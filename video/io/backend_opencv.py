@@ -65,9 +65,11 @@ class VideoOpenCV(VideoBase):
         # rewind _movie
         self.set_frame_pos(0)
         
-        super(VideoOpenCV, self).__init__(size=size, frame_count=frame_count, fps=fps, is_color=True)
+        super(VideoOpenCV, self).__init__(size=size, frame_count=frame_count,
+                                          fps=fps, is_color=True)
 
-        logger.debug('Initialized video `%s` with %d frames using OpenCV', filename, frame_count)
+        logger.debug('Initialized video `%s` with %d frames using OpenCV',
+                     filename, frame_count)
     
         
     def get_frame_pos(self):

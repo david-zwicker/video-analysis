@@ -161,7 +161,7 @@ class DataHandler(object):
 
         # save some data about the video
         self.data.create_child('video/raw', {'frame_count': self.video.frame_count,
-                                             'size': '%d x %d' % self.video.size,
+                                             'size': '%d x %d' % tuple(self.video.size),
                                              'fps': self.video.fps})
         try:
             self.data['video/raw/filecount'] = self.video.filecount

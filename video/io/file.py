@@ -17,18 +17,19 @@ import logging
 from .base import VideoBase
 from .backend_opencv import (show_video_opencv, VideoWriterOpenCV, VideoOpenCV,
                              VideoImageStackOpenCV)
-from .backend_ffmpeg import (FFMPEG_BINARY, VideoWriterFFMPEG)
+from .backend_ffmpeg import (FFMPEG_BINARY, VideoFFmpeg, VideoWriterFFmpeg)
 
 logger = logging.getLogger('video.io')
 
 # set default handlers
 show_video = show_video_opencv
-VideoFile = VideoOpenCV
 VideoImageStack = VideoImageStackOpenCV
 
 if FFMPEG_BINARY is not None:
-    VideoFileWriter = VideoWriterFFMPEG
+    VideoFile = VideoFFmpeg
+    VideoFileWriter = VideoWriterFFmpeg
 else:
+    VideoFile = VideoOpenCV
     VideoFileWriter = VideoWriterOpenCV
 
 
