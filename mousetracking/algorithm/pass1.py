@@ -245,12 +245,12 @@ class FirstPass(DataHandler):
     #===========================================================================
     
     
-    def find_cage(self, image):
-        """ analyzes a single image and locates the mouse cage in it.
+    def find_cage_approximately(self, frame):
+        """ analyzes a single frame and locates the mouse cage in it.
         Try to find a bounding box for the cage.
         The rectangle [top, left, height, width] enclosing the cage is returned. """
         # do automatic thresholding to find large, bright areas
-        _, binarized = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, binarized = cv2.threshold(frame, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
         # find the largest bright are, which should contain the cage
         cage_mask = regions.get_largest_region(binarized)
@@ -258,19 +258,19 @@ class FirstPass(DataHandler):
         # find an enclosing rectangle, which usually overestimates the cage bounding box
         rect_large = regions.find_bounding_box(cage_mask)
          
-        # crop image to this rectangle, which should surely contain the cage 
-        image = image[regions.rect_to_slices(rect_large)]
+        # crop frame to this rectangle, which should surely contain the cage 
+        frame = frame[regions.rect_to_slices(rect_large)]
 
         # initialize the rect coordinates
         top = 0 # start on first row
-        bottom = image.shape[0] - 1 # start on last row
-        width = image.shape[1]
+        bottom = frame.shape[0] - 1 # start on last row
+        width = frame.shape[1]
 
         # threshold again, because large distractions outside of cages are now
         # definitely removed. Still, bright objects close to the cage, e.g. the
         # stands or some pipes in the background might distract the estimate.
         # We thus adjust the rectangle in the following  
-        _, binarized = cv2.threshold(image, 0, 255,
+        _, binarized = cv2.threshold(frame, 0, 255,
                                      cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         # move top line down until we hit the cage boundary.
@@ -292,13 +292,22 @@ class FirstPass(DataHandler):
         p2 = (rect_large[0] + width - 1, rect_large[1] + bottom)
         return regions.corners_to_rect(p1, p2)
 
+
+    def find_cage_exactly(self, frame, rect_cage):
+        """
+        """
+        return rect_cage
+
   
     def crop_video_to_cage(self, video):
         """ crops the video to a suitable cropping rectangle given by the cage """
         # find the cage in the blurred image
         blurred_frame = cv2.GaussianBlur(video[0], ksize=(0, 0),
                                          sigmaX=self.params['video/blur_radius'])
-        rect_cage = self.find_cage(blurred_frame)
+        
+        # find the rectangle describing the cage
+        rect_cage = self.find_cage_approximately(blurred_frame)
+        rect_cage = self.find_cage_exactly(blurred_frame, rect_cage)
         
         # determine the rectangle of the cage in global coordinates
         width = rect_cage[2] - rect_cage[2] % 2   # make sure its divisible by 2

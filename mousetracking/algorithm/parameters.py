@@ -12,8 +12,6 @@ from __future__ import division
 
 from collections import namedtuple
 
-from .data_handler import DataDict
-
 class UNIT(object):
     FACTOR = 1
     FRACTION = 2
@@ -182,12 +180,10 @@ PARAMETERS_DEFAULT = {p.key: p.default_value for p in PARAMETER_LIST}
 def scale_parameters(parameters, factor_length=1, factor_time=1):
     """ takes a dictionary of parameters and scales them according to their
     unit and the given scale factors """
-    # convert to plain dictionary if it is a DataDict
-    if isinstance(parameters, DataDict):
+    # convert to plain dictionary if it is anything else
+    parameters_type = type(parameters)
+    if parameters_type != dict:
         parameters = parameters.to_dict()
-        is_datadict = True
-    else:
-        is_datadict = False
         
     # scale each parameter in the list
     for key in parameters:
@@ -203,8 +199,6 @@ def scale_parameters(parameters, factor_length=1, factor_time=1):
         elif unit == UNIT.SPEED_PIXEL_FRAME:
             parameters[key] *= factor_length/factor_time
             
-    # return a DataDict if one was supplied
-    if is_datadict:
-        parameters = DataDict(parameters)
-    return parameters
+    # return the result as the original type 
+    return parameters_type(parameters)
 
