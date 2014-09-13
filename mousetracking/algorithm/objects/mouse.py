@@ -1,7 +1,7 @@
 '''
 Created on Sep 11, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 '''
 
 from __future__ import division
@@ -82,6 +82,24 @@ def int_to_state(value):
     return state
 
 
+def query_state(states, query):
+    """ returns a boolean value/array where query is True """
+    if query == 'underground':
+        return (10 <= states) & (states < 20)
+    elif query == 'in_air':
+        return states == 11
+    elif query == 'on_hill':
+        return states == 12
+    elif query == 'in_valley':
+        return states == 13
+    elif query == 'underground':
+        return (20 <= states) & (states < 30)
+    elif query == 'in_burrow':
+        return states == 21
+    else:
+        raise ValueError('Unknown query `%s`' % query)
+
+
 
 class MouseTrack(object):
     """ class that describes the mouse track """
@@ -103,6 +121,10 @@ class MouseTrack(object):
     
     def set_state(self, frame_id, state):
         self.states[frame_id] = state_to_int(state)
+    
+    
+    def query_state(self, query):
+        return query_state(self.states, query)
     
     
     def to_array(self):

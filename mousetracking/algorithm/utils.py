@@ -1,7 +1,7 @@
 '''
 Created on Sep 10, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 Utility functions
 '''

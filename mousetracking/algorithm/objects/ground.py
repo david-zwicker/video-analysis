@@ -1,7 +1,7 @@
 '''
 Created on Aug 28, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 Holds classes useful for describing and fitting the ground profile
 '''

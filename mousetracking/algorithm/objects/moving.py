@@ -1,7 +1,7 @@
 '''
 Created on Aug 19, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 Holds classes that describe moving objects.
 Note that we only identify the mouse in the second pass of the tracking. 

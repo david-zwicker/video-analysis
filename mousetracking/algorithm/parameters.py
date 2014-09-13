@@ -1,7 +1,7 @@
 '''
 Created on Aug 27, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 Provides a dictionary with default parameters for the mouse tracking.
 This can also be seen as some kind of documentation of the available
@@ -11,6 +11,8 @@ parameters.
 from __future__ import division
 
 from collections import namedtuple
+
+from .data_handler import DataDict
 
 class UNIT(object):
     FACTOR = 1
@@ -26,7 +28,7 @@ Parameter = namedtuple('Parameter',
                        ['key', 'default_value', 'unit', 'description'])
 
 
-PARAMETERS = [
+PARAMETER_LIST = [
     # Video input
     Parameter('video/filename_pattern', 'raw_video/*.MTS', None,
               'Filename pattern used to look for videos'),
@@ -172,4 +174,37 @@ PARAMETERS = [
               'length is allowed to change'),
 ]
 
-PARAMETERS_DEFAULT = {p.key: p.default_value for p in PARAMETERS}
+PARAMETERS = {p.key: p for p in PARAMETER_LIST}
+PARAMETERS_DEFAULT = {p.key: p.default_value for p in PARAMETER_LIST}
+
+
+
+def scale_parameters(parameters, factor_length=1, factor_time=1):
+    """ takes a dictionary of parameters and scales them according to their
+    unit and the given scale factors """
+    # convert to plain dictionary if it is a DataDict
+    if isinstance(parameters, DataDict):
+        parameters = parameters.to_dict()
+        is_datadict = True
+    else:
+        is_datadict = False
+        
+    # scale each parameter in the list
+    for key in parameters:
+        unit = PARAMETERS[key].unit
+        if unit == UNIT.LENGTH_PIXEL:
+            parameters[key] *= factor_length
+        elif unit == UNIT.AREA_PIXEL:
+            parameters[key] *= factor_length**2
+        elif unit == UNIT.TIME_FRAMES:
+            parameters[key] *= factor_time
+        elif unit == UNIT.RATE_FRAMES:
+            parameters[key] /= factor_time
+        elif unit == UNIT.SPEED_PIXEL_FRAME:
+            parameters[key] *= factor_length/factor_time
+            
+    # return a DataDict if one was supplied
+    if is_datadict:
+        parameters = DataDict(parameters)
+    return parameters
+

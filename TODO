@@ -12,7 +12,9 @@
 * Determine absolute times by checking when the lights go on
 * Think about introducing a flag indicating whether we are sure we know where the mouse is (by considering its movement)
 	- this could be used to reject moving objects that are certainly not a mouse
-* Calculate length scale from cage dimension
+* Get precise cage dimensions:
+	- Do line scans at border in all directions and determine cage edge
+	- Calculate length scale from cage dimension
 	- Think about getting a more precise estimate of the cage
 	- Get the width from the sand profile fits.
 	- Get the height by doing a whole width line scan and determine the edge
@@ -37,9 +39,3 @@ Low priority enhancements:
 * Ground fitting could use some "active snake" ideas (http://en.wikipedia.org/wiki/Active_contour_model)
 	- Alternatively, Speed up sand profile fitting by having a library of profiles with certain angles and just matching these
 	around the point of interest (move along perpendicular line, until overlap is maximal)
-* Look into the possibility of writing a VideoFFMPEG class, which directly uses ffmpeg to read a video
-	- This will give us more flexibility in reading videos (also with more control over parameters)
-	- This might resolve the bug that OpenCV thinks our MTS videos are 60fps
-	- see https://github.com/Zulko/moviepy/blob/master/moviepy/video/io/ffmpeg_reader.py
-	- This should also allow us to read the video in a separate process/thread, thus speeding up the
-		processing

@@ -1,7 +1,7 @@
 '''
 Created on Aug 5, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 Module that contains the class responsible for the second pass of the algorithm
 

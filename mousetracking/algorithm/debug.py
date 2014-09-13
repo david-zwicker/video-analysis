@@ -1,7 +1,7 @@
 '''
 Created on Aug 8, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 module that contains several functions useful when debugging the algorithm
 '''

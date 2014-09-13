@@ -1,7 +1,7 @@
 '''
 Created on Aug 19, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 This module contains convenience functions for scanning mouse videos.
 '''

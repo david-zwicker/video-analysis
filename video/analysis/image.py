@@ -1,7 +1,7 @@
 '''
 Created on Aug 22, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 
 contains functions that are useful for image analysis

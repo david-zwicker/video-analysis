@@ -1,7 +1,7 @@
 '''
 Created on Aug 2, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 '''
 
 from __future__ import division

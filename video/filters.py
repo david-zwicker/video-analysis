@@ -1,7 +1,7 @@
 '''
 Created on Aug 1, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 Filter are iterators that take a video as an input and return a special Video
 that can be iterated over, but that doesn't store its data in memory.

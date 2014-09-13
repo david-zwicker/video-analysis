@@ -1,7 +1,7 @@
 '''
 Created on Aug 16, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 contains classes that manage data input and output 
 '''

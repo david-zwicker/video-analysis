@@ -1,7 +1,7 @@
 '''
 Created on Aug 22, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 Establishes a video pipe, which can be used to transfer video frames between 
 different processes.

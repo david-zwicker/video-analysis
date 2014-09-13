@@ -1,7 +1,7 @@
 '''
 Created on Aug 22, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 This module contains convenience functions for scanning multiple
 mouse videos in parallel.

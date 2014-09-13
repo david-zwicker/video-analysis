@@ -1,7 +1,7 @@
 '''
 Created on Jul 31, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 Package provides an abstract base classes to define an interface and common
 functions for video handling.

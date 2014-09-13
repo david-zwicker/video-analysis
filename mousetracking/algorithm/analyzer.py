@@ -1,7 +1,7 @@
 '''
 Created on Sep 11, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 Contains a class that can be used to analyze results from the tracking
 '''

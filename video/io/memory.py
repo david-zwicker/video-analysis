@@ -1,7 +1,7 @@
 '''
 Created on Jul 31, 2014
 
-@author: zwicker
+@author: David Zwicker <dzwicker@seas.harvard.edu>
 
 This package provides class definitions for describing videos
 that are stored in memory using numpt arrays
