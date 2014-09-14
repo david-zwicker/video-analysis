@@ -183,8 +183,9 @@ class FirstPass(DataHandler):
         # setup more cache variables
         video_shape = (self.video.size[1], self.video.size[0]) 
         self.explored_area = np.zeros(video_shape, np.double)
-        self._cache['background.adaptation_rate'] = np.ones(video_shape, np.double)
         self.burrows_mask = np.zeros(video_shape, np.uint8)
+        self._cache['image_uint8'] = np.empty(video_shape, np.uint8)
+        self._cache['image_double'] = np.empty(video_shape, np.double)
   
 
     def _iterate_over_video(self, video):
@@ -215,11 +216,13 @@ class FirstPass(DataHandler):
                 self.result['ground/profile'].append(self.frame_id, self.ground)
         
             elif self.frame_id > self.params['video/initial_adaptation_frames']:
-                # do the main analysis
+                # do the main analysis after an initial wait period
+                
+                # update the color estimates
                 if self.frame_id % self.params['colors/adaptation_interval'] == 0:
                     self.find_color_estimates(frame_blurred)
 
-                # identify objects from this
+                # identify moving objects by comparing current frame to background
                 self.find_objects(frame_blurred)
                 
                 # use the background to find the current ground profile and burrows
@@ -386,7 +389,7 @@ class FirstPass(DataHandler):
         
         if self._mouse_pos_estimate:
             # load some values from the cache
-            adaptation_rate = self._cache['background.adaptation_rate']
+            adaptation_rate = self._cache['image_double']
             template = self._cache['mouse.template']
             adaptation_rate.fill(self.params['background/adaptation_rate'])
             
@@ -417,9 +420,11 @@ class FirstPass(DataHandler):
         the background must be moving. Here, we additionally only focus on 
         features that become brighter, i.e. move forward.
         """
-                        
+        # use internal cache to avoid allocating memory
+        mask_moving = self._cache['image_uint8']
+
         # calculate the difference to the current background model
-        mask_moving = cv2.subtract(frame, self.background, dtype=cv2.CV_8U)
+        cv2.subtract(frame, self.background, dtype=cv2.CV_8U, dst=mask_moving)
         # Note that all points where the difference would be negative are set
         # to zero. However, we only need the positive differences.
         
@@ -556,23 +561,17 @@ class FirstPass(DataHandler):
         for track in self.tracks:
             self.explored_area[labels == track.last.label] = 1
 
-        # the burrow color is similar to the sky color, because both are actually
-        # the background behind the cage
-        color_sand, color_burrow = self.result['colors/sand'], self.result['colors/sky']
-        # normalize frame such that burrows are 0 and sand is 1
-        adaptation_rate = (self.background - color_burrow)/(color_sand - color_burrow)
-
-        # set the respective adaptation rates inside and outside of burrows
-        adaptation_rate[0 != self.burrows_mask] = \
-                        self.params['explored_area/adaptation_rate_burrows']
-        adaptation_rate[0 == self.burrows_mask] = \
-                        self.params['explored_area/adaptation_rate_outside']
-
-        # degrade information about the mouse position
-        self.explored_area -= adaptation_rate
-
-        # restrict the range
-        np.clip(self.explored_area, 0, 1, out=self.explored_area)
+        # degrade information about the mouse position inside burrows
+        cv2.subtract(self.explored_area,
+                     self.params['explored_area/adaptation_rate_burrows'],
+                     dst=self.explored_area,
+                     mask=(0 != self.burrows_mask).astype(np.uint8))
+ 
+        # degrade information about the mouse position outside burrows
+        cv2.subtract(self.explored_area,
+                     self.params['explored_area/adaptation_rate_outside'],
+                     dst=self.explored_area,
+                     mask=(0 == self.burrows_mask).astype(np.uint8))
 
     
     def find_objects(self, frame):
@@ -582,7 +581,8 @@ class FirstPass(DataHandler):
         moving_objects = self.find_moving_features(frame)
     
         # find all distinct features and label them
-        num_features = ndimage.measurements.label(moving_objects, output=moving_objects)
+        num_features = ndimage.measurements.label(moving_objects,
+                                                  output=moving_objects)
         self.debug['object_count'] = num_features
         
         if num_features == 0:
@@ -1358,7 +1358,7 @@ class FirstPass(DataHandler):
             if burrow.is_valid:
                 # add the burrow to the current mask
                 cv2.fillPoly(self.burrows_mask,
-                             np.array([burrow.outline], np.int32), color=255)
+                             np.array([burrow.outline], np.int32), color=1)
                 
                 # see whether this burrow can be appended to an active track
                 adaptation_interval = self.params['burrows/adaptation_interval']
@@ -1498,7 +1498,7 @@ class FirstPass(DataHandler):
             debug_video = self.debug['explored_area.video']
              
             # set the background
-            debug_video.set_frame(128*self.explored_area)
+            debug_video.set_frame(128*np.clip(self.explored_area, 0, 1))
             
             # plot the ground profile
             if self.ground is not None:

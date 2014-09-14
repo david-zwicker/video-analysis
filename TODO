@@ -24,9 +24,8 @@
 Performance improvements:
 -------------------------
 * Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)
+	- Do operations in place as often as possible
 * Generally cache all kernels for morphological operations, since these are costly to make
-* There are problems when ffmpeg can't encode the output videos fast enough:
-	 - Presumably, the ffmpeg pipe gets full and the whole process just stops
 * Calculate the Jacobian for the fitting explicitly (feasible for the sand profile)
 
 
