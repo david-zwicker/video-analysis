@@ -175,7 +175,7 @@ class VideoFFmpeg(VideoBase):
 
         else:
             # frame has been obtained properly
-            result = np.fromstring(s, dtype='uint8').reshape((h, w, len(s)//(w*h)))
+            result = np.frombuffer(s, dtype='uint8').reshape((h, w, len(s)//(w*h)))
             self.lastread = result
             self._frame_pos += 1
             

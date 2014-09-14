@@ -242,7 +242,7 @@ class VideoPipe(VideoFilterBase):
                 # don't proceed before we got the next frame
                 while self._waiting_for_frame:
                     self.try_getting_frame()
-                    time.sleep(0.01)
+                    time.sleep(0.001)
 
         except (KeyboardInterrupt, SystemExit):
             self.abort_iteration()
