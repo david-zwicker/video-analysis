@@ -18,6 +18,7 @@
 	- Think about getting a more precise estimate of the cage
 	- Get the width from the sand profile fits.
 	- Get the height by doing a whole width line scan and determine the edge
+* Define units for frames and pixel using pint (for proper output)
 
 
 Performance improvements:

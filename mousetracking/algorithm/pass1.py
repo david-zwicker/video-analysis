@@ -183,7 +183,7 @@ class FirstPass(DataHandler):
         # setup more cache variables
         video_shape = (self.video.size[1], self.video.size[0]) 
         self.explored_area = np.zeros(video_shape, np.double)
-        self._cache['background.mask'] = np.ones(video_shape, np.double)
+        self._cache['background.adaptation_rate'] = np.ones(video_shape, np.double)
         self.burrows_mask = np.zeros(video_shape, np.uint8)
   
 
@@ -219,11 +219,8 @@ class FirstPass(DataHandler):
                 if self.frame_id % self.params['colors/adaptation_interval'] == 0:
                     self.find_color_estimates(frame_blurred)
 
-                # find a binary image that indicates movement in the frame
-                mask_moving = self.find_moving_features(frame_blurred)
-    
                 # identify objects from this
-                self.find_objects(frame_blurred, mask_moving)
+                self.find_objects(frame_blurred)
                 
                 # use the background to find the current ground profile and burrows
                 if self.frame_id % self.params['ground/adaptation_interval'] == 0:
@@ -231,7 +228,7 @@ class FirstPass(DataHandler):
                     self.result['ground/profile'].append(self.frame_id, self.ground)
         
                 if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
-                    self.find_burrows(mask_moving)
+                    self.find_burrows()
                     
             # update the background model
             self.update_background_model(frame_blurred)
@@ -389,25 +386,23 @@ class FirstPass(DataHandler):
         
         if self._mouse_pos_estimate:
             # load some values from the cache
-            mask = self._cache['background.mask']
+            adaptation_rate = self._cache['background.adaptation_rate']
             template = self._cache['mouse.template']
-            mask.fill(1)
+            adaptation_rate.fill(self.params['background/adaptation_rate'])
             
-            # cut out holes from the mask for each mouse estimate
+            # cut out holes from the adaptation_rate for each mouse estimate
             for mouse_pos in self._mouse_pos_estimate:
                 # get the slices required for comparing the template to the image
                 t_s, i_s = regions.get_overlapping_slices(mouse_pos, template.shape,
                                                           frame.shape)
-                mask[i_s[0], i_s[1]] *= 1 - template[t_s[0], t_s[1]]
+                adaptation_rate[i_s[0], i_s[1]] *= 1 - template[t_s[0], t_s[1]]
                 
         else:
-            # disable the mask if no mouse is known
-            mask = 1
+            # disable the adaptation_rate if no mouse is known
+            adaptation_rate = self.params['background/adaptation_rate']
 
-        # adapt the background to current frame, but only inside the mask 
-        self.background += (self.params['background/adaptation_rate']  # adaptation rate 
-                            *mask                                      # mask 
-                            *(frame - self.background))                # difference to current frame
+        # adapt the background to current frame, but only inside the adaptation_rate 
+        self.background += adaptation_rate*(frame - self.background)
 
                         
     #===========================================================================
@@ -424,14 +419,15 @@ class FirstPass(DataHandler):
         """
                         
         # calculate the difference to the current background model
-        # Note that the first operand determines the dtype of the result.
-        diff = -self.background + frame 
+        mask_moving = cv2.subtract(frame, self.background, dtype=cv2.CV_8U)
+        # Note that all points where the difference would be negative are set
+        # to zero. However, we only need the positive differences.
         
         # find movement by comparing the difference to a threshold 
         moving_threshold = self.params['mouse/intensity_threshold']*self.result['colors/sky_std']
-        mask_moving = (diff > moving_threshold)
-        mask_moving = 255*mask_moving.astype(np.uint8, copy=False)
-
+        cv2.threshold(mask_moving, moving_threshold, 255, cv2.THRESH_BINARY,
+                      dst=mask_moving)
+        
         kernel = self._cache['find_moving_features.kernel']
         # perform morphological opening to remove noise
         cv2.morphologyEx(mask_moving, cv2.MORPH_OPEN, kernel, dst=mask_moving)    
@@ -445,7 +441,7 @@ class FirstPass(DataHandler):
         return mask_moving
 
 
-    def find_objects_in_binary_image(self, labels, num_features):
+    def _find_objects_in_binary_image(self, labels, num_features):
         """ finds objects in a binary image.
         Returns a list with characteristic properties
         """
@@ -480,7 +476,7 @@ class FirstPass(DataHandler):
         """ analyzes objects in a single frame and tries to add them to
         previous tracks """
         # get potential objects
-        objects_found = self.find_objects_in_binary_image(labels, num_features)
+        objects_found = self._find_objects_in_binary_image(labels, num_features)
 
         # check if there are previous tracks        
         if len(self.tracks) == 0:
@@ -490,9 +486,9 @@ class FirstPass(DataHandler):
             return # there is nothing to do anymore
             
         # calculate the distance between new and old objects
-        dist =spatial.distance.cdist([obj.pos for obj in objects_found],
-                                     [obj.predict_pos() for obj in self.tracks],
-                                     metric='euclidean')
+        dist = spatial.distance.cdist([obj.pos for obj in objects_found],
+                                      [obj.predict_pos() for obj in self.tracks],
+                                      metric='euclidean')
         # normalize distance to the maximum speed
         dist /= self.params['mouse/speed_max']
         
@@ -558,33 +554,35 @@ class FirstPass(DataHandler):
         """ update the explored area using the found objects """
         # add new information
         for track in self.tracks:
-            self.explored_area[labels == track.objects[-1].label] = 1
+            self.explored_area[labels == track.last.label] = 1
 
         # the burrow color is similar to the sky color, because both are actually
         # the background behind the cage
         color_sand, color_burrow = self.result['colors/sand'], self.result['colors/sky']
         # normalize frame such that burrows are 0 and sand is 1
-        frame_normalized = (self.background - color_burrow)/(color_sand - color_burrow)
+        adaptation_rate = (self.background - color_burrow)/(color_sand - color_burrow)
 
-        # degrade information about the mouse position inside the burrows
-        self.explored_area[0 != self.burrows_mask] -= \
-            frame_normalized[0 != self.burrows_mask] \
-            *self.params['explored_area/adaptation_rate_burrows']
-            
-        # degrade information about the mouse position outside the burrows
-        self.explored_area[0 == self.burrows_mask] -= \
-            frame_normalized[0 == self.burrows_mask] \
-            *self.params['explored_area/adaptation_rate_outside']
-            
+        # set the respective adaptation rates inside and outside of burrows
+        adaptation_rate[0 != self.burrows_mask] = \
+                        self.params['explored_area/adaptation_rate_burrows']
+        adaptation_rate[0 == self.burrows_mask] = \
+                        self.params['explored_area/adaptation_rate_outside']
+
+        # degrade information about the mouse position
+        self.explored_area -= adaptation_rate
+
         # restrict the range
         np.clip(self.explored_area, 0, 1, out=self.explored_area)
 
     
-    def find_objects(self, frame, mask_moving):
+    def find_objects(self, frame):
         """ adapts the current mouse position, if enough information is available """
 
+        # find a binary image that indicates movement in the frame
+        moving_objects = self.find_moving_features(frame)
+    
         # find all distinct features and label them
-        labels, num_features = ndimage.measurements.label(mask_moving)
+        num_features = ndimage.measurements.label(moving_objects, output=moving_objects)
         self.debug['object_count'] = num_features
         
         if num_features == 0:
@@ -597,7 +595,7 @@ class FirstPass(DataHandler):
 
         else:
             # some moving features have been found in the video 
-            self._handle_object_tracks(frame, labels, num_features)
+            self._handle_object_tracks(frame, moving_objects, num_features)
 
             # check whether objects moved and call them a mouse
             obj_moving = [obj.is_moving() for obj in self.tracks]
@@ -616,7 +614,7 @@ class FirstPass(DataHandler):
             self._mouse_pos_estimate = [obj.last.pos for obj in self.tracks]
         
             # keep track of the regions that the mouse (or other objects) explored
-            self.update_explored_area_objects(self.tracks, labels, num_features)
+            self.update_explored_area_objects(self.tracks, moving_objects, num_features)
                 
                 
     #===========================================================================
@@ -1320,7 +1318,7 @@ class FirstPass(DataHandler):
         return burrow
     
     
-    def find_burrows(self, mask_moving):
+    def find_burrows(self):
         """ locates burrows by combining the information of the ground_mask
         profile and the explored area """
 

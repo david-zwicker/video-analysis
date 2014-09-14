@@ -58,6 +58,7 @@ class VideoOpenCV(VideoBase):
                 int(self._movie.get(cv.CV_CAP_PROP_FRAME_HEIGHT)))
         frame_count = int(self._movie.get(cv.CV_CAP_PROP_FRAME_COUNT))
         fps = self._movie.get(cv.CV_CAP_PROP_FPS)
+        self.pix_fmt = 'bgr' #< seems to be OpenCV default
 
         if frame_count == 0:
             raise IOError('There were problems loading the video.')

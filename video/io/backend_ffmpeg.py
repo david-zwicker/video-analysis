@@ -75,8 +75,10 @@ class VideoFFmpeg(VideoBase):
         self.pix_fmt = pix_fmt
         if pix_fmt == 'rgba':
             self.depth = 4
-        else:
+        elif pix_fmt == 'rgb24':
             self.depth = 3
+        else:
+            raise ValueError('Unsupported pixel format `%s`' % pix_fmt)
 
         if bufsize is None:
             w, h = infos['video_size']
@@ -112,7 +114,7 @@ class VideoFFmpeg(VideoBase):
             i_arg = ['-ss', "%.03f" % (starttime - offset),
                      '-i', self.filename,
                      '-ss', "%.03f" % offset]
-            logger.debug('Seek video to %.03f seconds' % starttime)
+            logger.debug('Seek video to frame %d (=%.03f sec)' % (index, starttime))
             
         else:
             i_arg = ['-i', self.filename]
@@ -250,7 +252,8 @@ class VideoWriterFFmpeg(object):
     
     """
         
-    def __init__(self, filename, size, fps, is_color=True, codec="libx264", bitrate=None):
+    def __init__(self, filename, size, fps, is_color=True, codec="libx264",
+                 bitrate=None):
 
         self.filename = filename
         self.codec = codec

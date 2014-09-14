@@ -27,23 +27,34 @@ class VideoComposer(VideoFileWriter):
 
 
     def set_frame(self, frame, copy=True):
-        # write the current frame
-        if self.frame is not None:
+        """ set the current frame from an image """
+        if self.frame is None:
+            # first frame => initialize
+            if self.is_color and frame.ndim == 2:
+                self.frame = frame[:, :, None]*np.ones((1, 1, 3), np.uint8)
+            elif not self.is_color and frame.ndim == 3:
+                raise ValueError('Cannot copy a color image into a monochrome video.')
+            else:
+                self.frame = frame.copy()
+            
+        else:
+            # write the last frame
             self.write_frame(self.frame)
         
-        # set current frame
-        if self.is_color and frame.ndim == 2:
-            self.frame = frame[:, :, None]*np.ones((1, 1, 3), np.uint8)
-        elif copy:
-            self.frame = frame.copy()
-        else:
-            self.frame = frame
+            # set current frame
+            if self.is_color and frame.ndim == 2:
+                # set all three color channels
+                # Here, explicit iteration is faster than numpy broadcasting
+                for c in xrange(3): 
+                    self.frame[:, :, c] = frame
+            elif copy:
+                self.frame[:] = frame[:]
+            else:
+                self.frame = frame
         
     
-    def add_image(self, image, mask=None, alpha=1):
-        """ adds an image to the frame
-        FIXME: alpha does not seem to work!
-        """
+    def add_image(self, image, mask=None):
+        """ adds an image to the frame """
         frame = self.frame
         
         # check image dimensions
@@ -55,9 +66,6 @@ class VideoComposer(VideoFileWriter):
             image = cv2.cvtColor(image, cv2.cv.CV_GRAY2RGB)
         elif frame.ndim == 2 and image.ndim == 3:
             raise ValueError('Cannot add a color image to a monochrome one')
-        
-        if alpha != 1:
-            image = (alpha*image).astype(np.uint8)
         
         if mask is None:
             cv2.add(frame, image, frame)
