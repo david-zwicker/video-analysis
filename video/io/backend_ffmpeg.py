@@ -90,7 +90,7 @@ class VideoFFmpeg(VideoBase):
 
         self.lastread = None
         
-        super(VideoFFmpeg, self).__init__(size=infos['video_size'],
+        super(VideoFFmpeg, self).__init__(size=tuple(infos['video_size']),
                                           frame_count=infos['video_nframes'],
                                           fps=infos['video_fps'], is_color=True)
 
@@ -272,7 +272,7 @@ class VideoWriterFFmpeg(object):
             "-loglevel", "error", #"info" if verbose() else "error",
             "-f", 'rawvideo',
             "-vcodec","rawvideo",
-            '-s', "%dx%d" % size,
+            '-s', "%dx%d" % tuple(size),
             '-pix_fmt', "rgb24" if is_color else "gray",
             '-r', "%.02f" % fps,
             '-i', '-',

@@ -98,7 +98,7 @@ class FirstPass(DataHandler):
             cropping_rect = None
         self.data.create_child('video/analyzed', {'frame_count': self.video.frame_count,
                                                   'region_cage': cropping_rect,
-                                                  'size': '%d x %d' % self.video.size,
+                                                  'size': '%d x %d' % tuple(self.video.size),
                                                   'fps': self.video.fps})
         
         self.debug_setup()
