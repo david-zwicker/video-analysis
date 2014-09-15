@@ -797,7 +797,7 @@ class FirstPass(DataHandler):
         going in the given direction """
 
         # check whether we have to calculate anything
-        if not self.params['determine_boundaries']:
+        if not self.params['cage/determine_boundaries']:
             if direction == 'left':
                 return (0, ground_point[1])
             elif direction == 'right':
