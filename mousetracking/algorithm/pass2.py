@@ -121,7 +121,7 @@ class SecondPass(DataHandler):
         if len(tracks) != track_len_orig:
             self.logger.info('Increased the track count from %d to %d by '
                              'splitting long, overlapping tracks.',
-                             len(tracks), track_len_orig)
+                             track_len_orig, len(tracks))
         
         # get some statistics about the tracks
         start_time = min(track.start for track in tracks)
@@ -137,7 +137,7 @@ class SecondPass(DataHandler):
         first_track_found = False
         look_for_tracks = True
         while look_for_tracks:
-            self.logger.info('Building tracking graph of %d nodes and with threshold %g',
+            self.logger.info('Building tracking graph of %d nodes with threshold %g',
                              len(tracks), threshold) 
             graph = self.get_track_graph(tracks, threshold)
             graph.add_nodes_from(endtoend_nodes) 

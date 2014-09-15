@@ -61,7 +61,6 @@ class FirstPass(DataHandler):
         self.debug = {}                # dictionary holding debug information
         self.background = None         # current background model
         self.ground = None             # current model of the ground profile
-        self.burrows_mask = None       # current mask for found burrows
         self.tracks = []               # list of plausible mouse models in current frame
         self._mouse_pos_estimate = []  # list of estimated mouse positions
         self.explored_area = None      # region the mouse has explored yet
@@ -183,7 +182,6 @@ class FirstPass(DataHandler):
         # setup more cache variables
         video_shape = (self.video.size[1], self.video.size[0]) 
         self.explored_area = np.zeros(video_shape, np.double)
-        self.burrows_mask = np.zeros(video_shape, np.uint8)
         self._cache['image_uint8'] = np.empty(video_shape, np.uint8)
         self._cache['image_double'] = np.empty(video_shape, np.double)
   
@@ -555,25 +553,6 @@ class FirstPass(DataHandler):
         assert len(self.tracks) == len(objects_found)
         
     
-    def update_explored_area_objects(self, tracks, labels, num_features):
-        """ update the explored area using the found objects """
-        # add new information
-        for track in self.tracks:
-            self.explored_area[labels == track.last.label] = 1
-
-        # degrade information about the mouse position inside burrows
-        cv2.subtract(self.explored_area,
-                     self.params['explored_area/adaptation_rate_burrows'],
-                     dst=self.explored_area,
-                     mask=(0 != self.burrows_mask).astype(np.uint8))
- 
-        # degrade information about the mouse position outside burrows
-        cv2.subtract(self.explored_area,
-                     self.params['explored_area/adaptation_rate_outside'],
-                     dst=self.explored_area,
-                     mask=(0 == self.burrows_mask).astype(np.uint8))
-
-    
     def find_objects(self, frame):
         """ adapts the current mouse position, if enough information is available """
 
@@ -613,8 +592,9 @@ class FirstPass(DataHandler):
 
             self._mouse_pos_estimate = [obj.last.pos for obj in self.tracks]
         
-            # keep track of the regions that the mouse (or other objects) explored
-            self.update_explored_area_objects(self.tracks, moving_objects, num_features)
+            # add new information to explored area
+            for track in self.tracks:
+                self.explored_area[moving_objects == track.last.label] = 1
                 
                 
     #===========================================================================
@@ -1323,7 +1303,8 @@ class FirstPass(DataHandler):
         profile and the explored area """
 
         # reset the current burrow model
-        self.burrows_mask.fill(0)
+        burrows_mask = self._cache['image_uint8']
+        burrows_mask.fill(0)
 
         # estimate the new burrow mask        
         potential_burrows = self.get_potential_burrows_mask()
@@ -1357,8 +1338,7 @@ class FirstPass(DataHandler):
             # add the burrow to our result list if it is valid
             if burrow.is_valid:
                 # add the burrow to the current mask
-                cv2.fillPoly(self.burrows_mask,
-                             np.array([burrow.outline], np.int32), color=1)
+                cv2.fillPoly(burrows_mask, np.array([burrow.outline], np.int32), color=1)
                 
                 # see whether this burrow can be appended to an active track
                 adaptation_interval = self.params['burrows/adaptation_interval']
@@ -1376,6 +1356,20 @@ class FirstPass(DataHandler):
                     self.logger.debug('%d: Found new burrow at %s',
                                       self.frame_id, burrow.polygon.centroid)
             
+        # degrade information about the mouse position inside burrows
+        rate = self.params['explored_area/adaptation_rate_burrows']* \
+                self.params['burrows/adaptation_interval']
+        cv2.subtract(self.explored_area, rate,
+                     dst=self.explored_area,
+                     mask=(0 != burrows_mask).astype(np.uint8))
+ 
+        # degrade information about the mouse position outside burrows
+        rate = self.params['explored_area/adaptation_rate_outside']* \
+                self.params['burrows/adaptation_interval']
+        cv2.subtract(self.explored_area, rate,
+                     dst=self.explored_area,
+                     mask=(0 == burrows_mask).astype(np.uint8))
+        
 
     #===========================================================================
     # DEBUGGING
@@ -1450,7 +1444,10 @@ class FirstPass(DataHandler):
                         obj_color = 'w'
                     else:
                         obj_color = 'b'
-                    debug_video.add_polygon(obj.get_track(), '0.5', is_closed=False)
+                    track = obj.get_track()
+                    if len(track) > 1000:
+                        track = track[-1000:]
+                    debug_video.add_polygon(track, '0.5', is_closed=False)
                     debug_video.add_circle(obj.last.pos,
                                            self.params['mouse/model_radius'],
                                            obj_color, thickness=1)
