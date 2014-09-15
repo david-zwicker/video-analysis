@@ -71,7 +71,7 @@ PARAMETER_LIST = [
               'Bitrate used for debug videos'),
     
     # Cage
-    Parameter('cage/determine_crop_rect', True, None,
+    Parameter('cage/determine_boundaries', True, None,
               'Flag indicating whether the cropping rectangle should be determined '
               'automatically. If False, we assume that the original video is '
               'already cropped.'),

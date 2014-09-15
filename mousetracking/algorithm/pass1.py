@@ -92,7 +92,7 @@ class FirstPass(DataHandler):
         self.log_event('Pass 1 - Started initializing the video analysis.')
         
         # restrict the video to the region of interest (the cage)
-        if self.params['cage/determine_crop_rect']:
+        if self.params['cage/determine_boundaries']:
             self.video, cropping_rect = self.crop_video_to_cage(self.video)
         else:
             cropping_rect = None
@@ -795,7 +795,16 @@ class FirstPass(DataHandler):
     def _get_cage_boundary(self, ground_point, direction='left'):
         """ determines the cage boundary starting from a ground_point
         going in the given direction """
-        
+
+        # check whether we have to calculate anything
+        if not self.params['determine_boundaries']:
+            if direction == 'left':
+                return (0, ground_point[1])
+            elif direction == 'right':
+                return (self.background.shape[1] - 1, ground_point[1])
+            else:
+                raise ValueError('Unknown direction `%s`' % direction)
+            
         # extend the ground line toward the left edge of the cage
         if direction == 'left':
             border_point = (0, ground_point[1])
