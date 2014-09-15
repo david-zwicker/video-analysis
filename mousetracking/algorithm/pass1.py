@@ -170,12 +170,12 @@ class FirstPass(DataHandler):
         self._cache['find_moving_features.kernel'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
             
-        w = self.params['mouse/model_radius']
+        w = int(self.params['mouse/model_radius'])
         self._cache['get_potential_burrows_mask.kernel_large'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w+1, 2*w+1))
         self._cache['get_potential_burrows_mask.kernel_small'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        w = self.params['burrows/width']//2
+        w = int(self.params['burrows/width']/2)
         self._cache['update_burrows_mask.kernel'] = \
             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w+1, 2*w+1))
         
@@ -190,7 +190,7 @@ class FirstPass(DataHandler):
         """ internal function doing the heavy lifting by iterating over the video """
 
         sigma = self.params['video/blur_radius']
-        blur_kernel = cv2.getGaussianKernel(3*sigma, sigma=sigma)
+        blur_kernel = cv2.getGaussianKernel(int(3*sigma), sigma=sigma)
 
         # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video)):
@@ -616,7 +616,7 @@ class FirstPass(DataHandler):
                       cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
         
         # do morphological opening and closing to smooth the profile
-        s = 5*self.params['burrows/width']
+        s = int(5*self.params['burrows/width'])
         ys, xs = np.ogrid[-s:s+1, -s:s+1]
         kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8, copy=False)
 
@@ -832,7 +832,7 @@ class FirstPass(DataHandler):
         The only fitting parameter is the distance by which a single points moves
         in the direction perpendicular to the curve. """
         frame = self.background
-        spacing = self.params['ground/point_spacing']
+        spacing = int(self.params['ground/point_spacing'])
             
         if not 'ground.model' in self._cache or \
             self._cache['ground.model'].size != spacing:
@@ -998,7 +998,7 @@ class FirstPass(DataHandler):
         explored_area = 255*(self.explored_area > 0).astype(np.uint8, copy=False)
         
         # remove accidental burrows at borders
-        margin = self.params['burrows/cage_margin']
+        margin = int(self.params['burrows/cage_margin'])
         explored_area[: margin, :] = 0
         explored_area[-margin:, :] = 0
         explored_area[:, : margin] = 0
@@ -1055,7 +1055,7 @@ class FirstPass(DataHandler):
         """
         # load parameters
         edge_width = self.params['burrows/fitting_edge_width']
-        template_width = 2*edge_width # odd width preferred
+        template_width = int(2*edge_width)
         
         # create the templates if they are not in the cache
         if 'burrows.template_edge_up' not in self._cache:

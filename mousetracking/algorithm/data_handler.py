@@ -17,7 +17,7 @@ import sys
 import numpy as np
 import yaml
 
-from .parameters import PARAMETERS_DEFAULT
+from .parameters import PARAMETERS_DEFAULT, scale_parameters
 import objects
 from .objects.utils import LazyHDFValue, prepare_data_for_yaml
 from video.io import VideoFileStack
@@ -68,6 +68,13 @@ class DataHandler(object):
         if parameters is not None:
             self.data['parameters'].from_dict(parameters)
             
+        # scale parameters, if requested
+        if self.data['parameters/factor_length'] != 1:
+            self.data['parameters'] = scale_parameters(self.data['parameters'],
+                                                       factor_length=self.data['parameters/factor_length'])
+            # reset the factor since the scaling was performed
+            self.data['parameters/factor_length'] = 1
+            
         # create logger for this object
         self.logger = logging.getLogger(self.name)
         self.logger.handlers = []     #< reset list of handlers
@@ -76,21 +83,21 @@ class DataHandler(object):
         
         # add default logger to stderr
         handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s %(levelname)7s: %(message)s',
+        formatter = logging.Formatter('%(asctime)s ' + self.name + '%(levelname)7s: %(message)s',
                                       datefmt='%Y-%m-%d %H:%M:%S')
         handler.setFormatter(formatter)
         level = logging.getLevelName(self.data['parameters/logging/level_stderr'])
         handler.setLevel(level)
         self.logger.addHandler(handler) 
         
-        if self.data.get('parameters/logging/folder', None) is not None:
+        if self.data['parameters/logging/enabled']:
             # setup handler to log to file
-            logfile = self.get_filename('log.log', self.data['parameters/logging/folder'])
+            logfile = self.get_filename('log.log', 'logging')
             handler = logging.FileHandler(logfile, mode=LOGGING_FILE_MODES[self.logging_mode])
             handler.setFormatter(formatter)
             level = logging.getLevelName(self.data['parameters/logging/level_file'])
             handler.setLevel(level)
-            self.logger.addHandler(handler) 
+            self.logger.addHandler(handler)
             
         # setup mouse parameters as class variables
         # => the code is not thread-safe if different values for these parameters are used in the same process
@@ -117,9 +124,13 @@ class DataHandler(object):
     def get_folder(self, folder):
         """ makes sure that a folder exists and returns its path """
         if folder == 'results':
-            folder = os.path.abspath(self.data['parameters/output/result_folder'])
+            folder = os.path.abspath(self.data['parameters/output/folder'])
+        elif folder == 'video':
+            folder = os.path.abspath(self.data['parameters/output/video/folder'])
+        elif folder == 'logging':
+            folder = os.path.abspath(self.data['parameters/logging/folder'])
         elif folder == 'debug':
-            folder = os.path.abspath(self.data['parameters/output/video/folder_debug'])
+            folder = os.path.abspath(self.data['parameters/debug/folder'])
             
         ensure_directory_exists(folder)
         return folder
@@ -396,27 +407,34 @@ class DataDict(collections.MutableMapping):
 
     def from_dict(self, data):
         """ fill the object with data from a dictionary """
-        if data is not None:
-            for key, value in data.iteritems():
-                if isinstance(value, dict):
-                    if key in self and isinstance(self[key], DataDict):
-                        # extend existing DataDict structure
-                        self[key].from_dict(value)
-                    else:
-                        # create new DataDict structure
-                        self[key] = DataDict(value)
+        for key, value in data.iteritems():
+            if isinstance(value, dict):
+                if key in self and isinstance(self[key], DataDict):
+                    # extend existing DataDict structure
+                    self[key].from_dict(value)
                 else:
-                    # store simple value
-                    self[key] = value
+                    # create new DataDict structure
+                    self[key] = DataDict(value)
+            else:
+                # store simple value
+                self[key] = value
 
             
-    def to_dict(self):
-        """ convert object to a nested dictionary structure """
+    def to_dict(self, flatten=False):
+        """ convert object to a nested dictionary structure.
+        If flatten is True a single dictionary with complex keys is returned.
+        If flatten is False, a nested dictionary with simple keys is returned """
         res = {}
         for key, value in self.iteritems():
             if isinstance(value, DataDict):
-                value = value.to_dict()
-            res[key] = value
+                value = value.to_dict(flatten)
+                if flatten:
+                    for k, v in value.iteritems():
+                        res[key + self.sep + k] = v
+                else:
+                    res[key] = value
+            else:
+                res[key] = value
         return res
 
     

@@ -10,11 +10,14 @@ parameters.
 
 from __future__ import division
 
+import os
 from collections import namedtuple
+
 
 class UNIT(object):
     FACTOR = 1
     FRACTION = 2
+    FOLDER = 3
     LENGTH_PIXEL = 11
     AREA_PIXEL = 12
     TIME_FRAMES = 20
@@ -22,13 +25,12 @@ class UNIT(object):
     SPEED_PIXEL_FRAME = 30
     
 
-Parameter = namedtuple('Parameter',
-                       ['key', 'default_value', 'unit', 'description'])
+Parameter = namedtuple('Parameter', ['key', 'default_value', 'unit', 'description'])
 
 
 PARAMETER_LIST = [
     # Video input
-    Parameter('video/filename_pattern', 'raw_video/*.MTS', None,
+    Parameter('video/filename_pattern', 'raw_video/*.MTS', UNIT.FOLDER,
               'Filename pattern used to look for videos'),
     Parameter('video/initial_adaptation_frames', 100, UNIT.TIME_FRAMES,
               'Number of initial frames to skip during analysis'),
@@ -41,8 +43,10 @@ PARAMETER_LIST = [
               "numbers [left, top, width, height] or some string like "
               "'upper left', 'lower right', etc."),
           
-    # Logging    
-    Parameter('logging/folder', './logging/', None,
+    # Logging
+    Parameter('logging/enabled',  True, None,
+              'Flag indicating whether logging is enabled'),
+    Parameter('logging/folder', './logging/', UNIT.FOLDER,
               'Folder to which the log file is written'),
     Parameter('logging/level_stderr', 'INFO', None,
               'Level of messages to log to stderr [standard python logging levels]'),
@@ -50,11 +54,15 @@ PARAMETER_LIST = [
               'Level of messages to log to file if folder is set '
               '[standard python logging levels]'),
             
-    # Output
-    Parameter('output/result_folder', './results/', None,
-              'Folder to which the YAML and HDF5 result files are written'),
-    Parameter('output/video/folder_debug', './debug/', None,
+    # Debug
+    Parameter('debug/folder', './debug/', UNIT.FOLDER,
               'Folder to which debug videos are written'),
+            
+    # Output
+    Parameter('output/folder', './results/', UNIT.FOLDER,
+              'Folder to which the YAML and HDF5 result files are written'),
+    Parameter('output/video/folder', './results/', UNIT.FOLDER,
+              'Folder to which the result video is written'),
     Parameter('output/video/extension', '.mov', None,
               'File extension used for debug videos'),
     Parameter('output/video/codec', 'libx264', None,
@@ -170,10 +178,31 @@ PARAMETER_LIST = [
               'Determines how much the burrow outline might be simplified. '
               'The quantity determines by what fraction the total outline '
               'length is allowed to change'),
+                  
+    Parameter('factor_length', 1, UNIT.FACTOR,
+              'A factor by which all length scales will be scaled.'),
 ]
 
 PARAMETERS = {p.key: p for p in PARAMETER_LIST}
 PARAMETERS_DEFAULT = {p.key: p.default_value for p in PARAMETER_LIST}
+
+
+
+def set_base_folder(parameters, folder):
+    """ changes the base folder of all folders given in the parameter
+    dictionary """
+    # convert to plain dictionary if it is anything else
+    parameters_type = type(parameters)
+    if parameters_type != dict:
+        parameters = parameters.to_dict(flatten=True)
+        
+    # adjust the folders
+    for key, value in parameters.iteritems():
+        if PARAMETERS[key].unit == UNIT.FOLDER:
+            parameters[key] = os.path.join(folder, value)
+            
+    # return the result as the original type 
+    return parameters_type(parameters)
 
 
 
@@ -183,7 +212,7 @@ def scale_parameters(parameters, factor_length=1, factor_time=1):
     # convert to plain dictionary if it is anything else
     parameters_type = type(parameters)
     if parameters_type != dict:
-        parameters = parameters.to_dict()
+        parameters = parameters.to_dict(flatten=True)
         
     # scale each parameter in the list
     for key in parameters:

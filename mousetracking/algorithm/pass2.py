@@ -343,7 +343,7 @@ class SecondPass(DataHandler):
         if self.video is None:
             self.load_video()
         
-        filename = self.get_filename('video' + video_extension, 'results')
+        filename = self.get_filename('video' + video_extension, 'video')
         video = VideoComposer(filename, size=self.video.size, fps=self.video.fps,
                               is_color=True, codec=video_codec, bitrate=video_bitrate)
         

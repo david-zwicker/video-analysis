@@ -102,7 +102,8 @@ class VideoComposer(VideoFileWriter):
         if copy:
             mask = mask.copy()
         contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        cv2.drawContours(self.frame, contours, -1,  get_color(color), thickness=thickness)
+        cv2.drawContours(self.frame, contours, -1,
+                         get_color(color), thickness=int(thickness))
     
     
     def add_polygon(self, points, color='w', is_closed=True, mark_points=False, width=1):
@@ -110,7 +111,7 @@ class VideoComposer(VideoFileWriter):
         # add the polygon
         cv2.polylines(self.frame, np.array([points], np.int32),
                       isClosed=is_closed, color=get_color(color),
-                      thickness=width)
+                      thickness=int(width))
         # mark the anchor points if requested
         if mark_points:
             for p in points:
@@ -121,7 +122,7 @@ class VideoComposer(VideoFileWriter):
     def add_rectangle(self, rect, color='w', width=1):
         """ add a rect=(left, top, width, height) to the frame """
         cv2.rectangle(self.frame, *rect_to_corners(rect),
-                      color=get_color(color), thickness=width)
+                      color=get_color(color), thickness=int(width))
         
         
     def add_circle(self, pos, radius=2, color='w', thickness=-1):
@@ -129,7 +130,7 @@ class VideoComposer(VideoFileWriter):
         thickness=-1 denotes a filled circle 
         """
         pos = (int(pos[0]), int(pos[1]))
-        cv2.circle(self.frame, pos, radius, get_color(color), thickness=thickness)
+        cv2.circle(self.frame, pos, int(radius), get_color(color), thickness=int(thickness))
         
     
     def add_points(self, points, radius, color):

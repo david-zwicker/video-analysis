@@ -27,8 +27,6 @@ Performance improvements:
 	- Do operations in place as often as possible
 * Generally cache all kernels for morphological operations, since these are costly to make
 * Calculate the Jacobian for the fitting explicitly (feasible for the sand profile)
-* Only plot the last 10000 points of a trace to limit performance impact
-* Adapt explored area only every 100 frames
 * Threaded reading of videos (get next frame in separate thread and store it for access)
 	http://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
 	http://stefaanlippens.net/python-asynchronous-subprocess-pipe-reading

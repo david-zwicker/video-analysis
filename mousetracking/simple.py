@@ -8,10 +8,9 @@ This module contains convenience functions for scanning mouse videos.
 
 from __future__ import division
 
-import os
 import warnings
 
-from .algorithm.parameters import PARAMETERS_DEFAULT
+from .algorithm.parameters import PARAMETERS_DEFAULT, set_base_folder
 from .algorithm.analyzer import Analyzer
 from .algorithm.pass1 import FirstPass
 from .algorithm.pass2 import SecondPass
@@ -28,14 +27,14 @@ def scan_video(name, video=None, parameters=None, passes=2, **kwargs):
     crop_video = kwargs.pop('crop_video', True)
     
     # set extra parameters that were given
-    if kwargs.get('frames', None) is not None:
-        parameters['video/frames'] = kwargs.pop('frames')
-    if kwargs.get('crop', None) is not None:
-        parameters['video/cropping_rect'] = kwargs.pop('crop')
+    parameters['video/frames'] = kwargs.pop('frames', None)
+    parameters['video/cropping_rect'] = kwargs.pop('crop', None)
+    parameters['factor_length'] = kwargs.pop('scale_length', 1)
+
     debug_output = kwargs.pop('debug_output', None)
     if kwargs:
         warnings.warn('There are unused kwargs: %s' % ', '.join(kwargs))
-        
+    
     # do first pass
     job = FirstPass(name, parameters=parameters,
                     debug_output=debug_output)
@@ -49,21 +48,19 @@ def scan_video(name, video=None, parameters=None, passes=2, **kwargs):
         job.produce_video()
     
 
+
 def scan_video_in_folder(folder, name, parameters=None, **kwargs):
     """ scans a single video from a folder """
     
-    if parameters is None:
-        parameters = {}
+    # create parameter dictionary
+    params = PARAMETERS_DEFAULT.copy()  # @UndefinedVariable
+    params.update(parameters)
     
     # set the folder in the respective parameters
-    for key in ('video/filename_pattern', 'output/result_folder',
-                'output/video/folder_debug', 'logging/folder'):
-        value = parameters.get(key, PARAMETERS_DEFAULT[key])
-        if value:
-            parameters[key] = os.path.join(folder, value)
+    params = set_base_folder(params, folder)
         
     # scan the video
-    return scan_video(name, parameters=parameters, **kwargs)
+    return scan_video(name, parameters=params, **kwargs)
 
 
 
