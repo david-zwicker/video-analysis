@@ -27,10 +27,12 @@ def scan_video(name, video=None, parameters=None, passes=2, **kwargs):
     crop_video = kwargs.pop('crop_video', True)
     
     # set extra parameters that were given
-    parameters['video/frames'] = kwargs.pop('frames', None)
-    parameters['video/cropping_rect'] = kwargs.pop('crop', None)
-    parameters['factor_length'] = kwargs.pop('scale_length', 1)
-
+    if 'frames' in kwargs: # don't overwrite frames if given in parameters
+        parameters['video/frames'] = kwargs.pop('frames', None)
+    if 'crop' in kwargs: # don't overwrite cropping_rect if given in parameters
+        parameters['video/cropping_rect'] = kwargs.pop('crop', None)
+    if 'scale_length' in kwargs: # don't overwrite factor_length if given in parameters
+        parameters['factor_length'] = kwargs.pop('scale_length', 1)
     debug_output = kwargs.pop('debug_output', None)
     if kwargs:
         warnings.warn('There are unused kwargs: %s' % ', '.join(kwargs))
