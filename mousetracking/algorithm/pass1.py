@@ -81,7 +81,7 @@ class FirstPass(DataHandler):
         super(FirstPass, self).load_video(video, crop_video=crop_video)
                 
         self.data.create_child('video/input', {'frame_count': self.video.frame_count,
-                                               'size': '%d x %d' % self.video.size,
+                                               'size': '%d x %d' % tuple(self.video.size),
                                                'fps': self.video.fps})
         
         self.data['analysis-status'] = 'Loaded video'            
@@ -92,7 +92,10 @@ class FirstPass(DataHandler):
         self.log_event('Pass 1 - Started initializing the video analysis.')
         
         # restrict the video to the region of interest (the cage)
-        self.video, cropping_rect = self.crop_video_to_cage(self.video)
+        if self.params['cage/determine_crop_rect']:
+            self.video, cropping_rect = self.crop_video_to_cage(self.video)
+        else:
+            cropping_rect = None
         self.data.create_child('video/analyzed', {'frame_count': self.video.frame_count,
                                                   'region_cage': cropping_rect,
                                                   'size': '%d x %d' % self.video.size,

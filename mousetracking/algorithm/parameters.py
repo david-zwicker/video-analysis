@@ -71,6 +71,10 @@ PARAMETER_LIST = [
               'Bitrate used for debug videos'),
     
     # Cage
+    Parameter('cage/determine_crop_rect', True, None,
+              'Flag indicating whether the cropping rectangle should be determined '
+              'automatically. If False, we assume that the original video is '
+              'already cropped.'),
     Parameter('cage/width_min', 650, UNIT.LENGTH_PIXEL,
               'Minimal width of the cage. This is only used to make a '
               'plausibility test of the results'),
