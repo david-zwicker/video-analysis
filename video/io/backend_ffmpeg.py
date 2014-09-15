@@ -163,7 +163,7 @@ class VideoFFmpeg(VideoBase):
                         "at frame %d/%d, at time %.02f/%.02f sec. "
                         "Using the last valid frame instead." %
                         (self.filename, nbytes, len(s),
-                         self._frame_pos, self.nframes,
+                         self._frame_pos, self.frame_count,
                          self._frame_pos/self.fps, self.duration))
             
             if not hasattr(self, 'lastread'):
