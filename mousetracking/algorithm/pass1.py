@@ -1356,7 +1356,7 @@ class FirstPass(DataHandler):
                 # see whether this burrow can be appended to an active track
                 adaptation_interval = self.params['burrows/adaptation_interval']
                 for burrow_track in self.result['burrows/tracks']:
-                    if (burrow_track.track_end > self.frame_id - adaptation_interval
+                    if (burrow_track.track_end >= self.frame_id - adaptation_interval
                         and burrow_track.last.intersects(burrow.polygon)):
                         
                         burrow_track.append(self.frame_id, burrow)

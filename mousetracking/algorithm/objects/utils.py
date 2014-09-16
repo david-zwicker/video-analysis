@@ -32,15 +32,12 @@ class Interpolate_1D_Extrapolated(interp1d):
     values beyond the support """
     
     def __call__(self, x):
-        try:
+        if x < self.x[0]:
+            return self.y[0]
+        elif x > self.x[-1]:
+            return self.y[-1]
+        else:
             return super(Interpolate_1D_Extrapolated, self).__call__(x)
-        except ValueError:
-            if x < self.x[0]:
-                return self.y[0]
-            elif x > self.x[-1]:
-                return self.y[-1]
-            else:
-                raise
             
             
 
@@ -76,6 +73,7 @@ class LazyHDFValue(object):
     def create_from_yaml_string(cls, value, data_cls, hdf_folder):
         """ create an instance of the class from the yaml string and additional
         information """
+
         # consistency check
         if value[0] != '@':
             raise RuntimeError('Item with lazy loading does not start with `@`')
@@ -147,7 +145,7 @@ class LazyHDFCollection(LazyHDFValue):
         with h5py.File(self.hdf_filename, 'r') as hdf_file:
             # iterate over the data and create objects from it
             data = hdf_file[self.key]
-            result = self.data_cls(item_cls.create_from_array(data[index])
+            result = self.data_cls(item_cls.create_from_array(data[index][:])
                                    for index in sorted(data.keys()))
             # here, we have to use sorted() to iterate in the correct order 
                 

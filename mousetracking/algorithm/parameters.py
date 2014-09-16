@@ -192,13 +192,20 @@ PARAMETERS_DEFAULT = {p.key: p.default_value for p in PARAMETER_LIST}
 
 
 
-def set_base_folder(parameters, folder):
+def set_base_folder(parameters, folder, include_default=False):
     """ changes the base folder of all folders given in the parameter
-    dictionary """
+    dictionary.
+    include_default is a flag indicating whether the default parameters
+    should also be included and their folders should be changed. """
     # convert to plain dictionary if it is anything else
     parameters_type = type(parameters)
     if parameters_type != dict:
         parameters = parameters.to_dict(flatten=True)
+        
+    if include_default:
+        p_copy = PARAMETERS_DEFAULT.copy()
+        p_copy.update(parameters)
+        parameters = p_copy
         
     # adjust the folders
     for key, value in parameters.iteritems():

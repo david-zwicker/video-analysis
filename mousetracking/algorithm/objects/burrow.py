@@ -319,13 +319,22 @@ class BurrowTrack(object):
     def track_end(self): return self.times[-1]
     
     
-    def get_burrow(self, time):
-        """ returns the burrow at a specific time """
+    def get_burrow(self, time, ret_next_change=False):
+        """ returns the burrow at a specific time.
+        If ret_next_change is True, we also return the frame where the burrow
+        changes next. """
         if not self.times[0] <= time <= self.times[-1]:
             raise IndexError
         
         idx = np.argmin(np.abs(np.asarray(self.times) - time))
-        return self.burrows[idx]
+        burrow = self.burrows[idx]
+        if ret_next_change:
+            if idx == len(self.times):
+                return burrow, time + 1
+            else:
+                return burrow, (self.times[idx] + self.times[idx + 1])/2
+        else:
+            return burrow
     
     
     def append(self, time, burrow):
@@ -396,17 +405,28 @@ class BurrowTrackList(list):
     item_class = BurrowTrack
     storage_class = LazyHDFCollection
 
-    def get_burrows(self, frame_id):
-        """ returns a list of all burrows active in a given frame """
+    def get_burrows(self, frame_id, ret_next_change=False):
+        """ returns a list of all burrows active in a given frame.
+        If ret_next_change is True, the number of the frame where something
+        will change in the returned burrows is also returned. This can be
+        useful while iterating over all frames. """
         result = []
         for burrow_track in self:
             try:
-                burrow = burrow_track.get_burrow(frame_id)
+                res = burrow_track.get_burrow(frame_id, ret_next_change=True)
             except IndexError:
                 continue
             else:
-                result.append(burrow)
+                result.append(res)
                 
-                
-        return result
+        if ret_next_change:
+            burrows = [res[0] for res in result]
+
+            if burrows:
+                next_change = min(res[1] for res in result)
+            else:
+                next_change = frame_id + 1
+            return burrows, next_change
+        else:
+            return result
 

@@ -319,14 +319,16 @@ class DataDict(collections.MutableMapping):
         if load_data and isinstance(value, LazyHDFValue):
             try:
                 value = value.load()
-            except KeyError:
+            except KeyError as err:
                 # we have to relabel KeyErrors, since they otherwise shadow
                 # KeyErrors raised by the item actually not being in the DataDict
                 # This then allows us to distinguish between items not found in
                 # DataDict (raising KeyError) and items not being able to load
                 # (raising LazyLoadError)
-                raise LazyLoadError, 'Cannot load item `%s`' % key, sys.exc_info()[2] 
-            self.data[key] = value
+                err_msg = ('Cannot load item `%s`.\nThe original error was: %s'
+                           % (key, err)) 
+                raise LazyLoadError, err_msg, sys.exc_info()[2] 
+            self.data[key] = value #< replace loader with actual value
             
         return value
 

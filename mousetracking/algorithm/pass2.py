@@ -289,7 +289,7 @@ class SecondPass(DataHandler):
         
         # load some variables
         mouse_radius = self.data['parameters/mouse/model_radius']
-        
+        burrow_next_change = 0
         for frame_id, mouse_pos in enumerate(mouse_track.pos):
             if not np.all(np.isfinite(mouse_pos)):
                 # the mouse position is invalid
@@ -314,11 +314,15 @@ class SecondPass(DataHandler):
                     
                 else: 
                     state['underground'] = True
-                            
+                    # check the burrow structure
+                    if frame_id >= burrow_next_change:
+                        burrows, burrow_next_change = \
+                            burrow_tracks.get_burrows(frame_id, ret_next_change=True)
+                    
                     # check whether the mouse is inside a burrow
                     mouse_point = geometry.Point(mouse_pos)
-                    for burrow in burrow_tracks.get_burrows(frame_id):
-                        if burrow and burrow.polygon.contains(mouse_point):
+                    for burrow in burrows:
+                        if burrow.polygon.contains(mouse_point):
                             state['location'] = 'burrow'
                             break
             

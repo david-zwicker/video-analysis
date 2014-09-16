@@ -24,7 +24,6 @@ class GroundProfile(object):
     
     def __init__(self, line):
         self._line = np.asarray(line)
-        self._cache = {}
         
         
     @property
@@ -35,7 +34,6 @@ class GroundProfile(object):
     @line.setter
     def line(self, value):
         self._line = np.asarray(value)
-        self._cache = {}
         
         
     def __repr__(self):
@@ -69,17 +67,20 @@ class GroundProfile(object):
         return np.mean(self.line[:, 1])
 
 
-    def get_y(self, x):
+    @cached_property
+    def interpolator(self):
+        return Interpolate_1D_Extrapolated(self._line[:, 0], self._line[:, 1])
+
+
+    def get_y(self, x, nearest_neighbor=True):
         """ returns the y-value of the profile at a given x-position.
         This function interpolates between points and extrapolates beyond the
         edge points. """
-        if 'interpolator' in self._cache:
-            interpolator = self._cache['interpolator']
+        if nearest_neighbor:
+            idx = np.argmin(np.abs(self.line[:, 0] - x))
+            return self.line[idx, 1]
         else:
-            interpolator = Interpolate_1D_Extrapolated(self._line[:, 0],
-                                                       self._line[:, 1])
-           
-        return interpolator(x)
+            return self.interpolator(x)
    
 
 
