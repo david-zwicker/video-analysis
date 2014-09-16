@@ -1533,6 +1533,9 @@ class FirstPass(DataHandler):
                     self.logger.exception('Error while writing out the debug video') 
 
         # remove all windows that may have been opened
-        cv2.destroyAllWindows()
+        try:
+            cv2.destroyAllWindows()
+        except cv2.error:
+            pass #< some builds of openCV do not implement destroyAllWindows()
             
     
