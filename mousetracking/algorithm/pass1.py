@@ -605,45 +605,46 @@ class FirstPass(DataHandler):
     #===========================================================================
 
 
-    def find_rough_ground(self):
+    def estimate_ground(self):
         """ determines an estimate of the ground profile from a single frame """
         frame = self.background.astype(np.uint8)
         
-        # remove 10%/15% of each side of the frame
-        h = int(0.15*frame.shape[0])
-        w = int(0.10*frame.shape[1])
-        image_center = frame[h:-h, w:-w]
+        # build the ground ridge template for matching 
+        width = self.params['ground/width']
+        dist_width = int(width + frame.shape[0]/10)
+        dist = np.arange(-dist_width, dist_width + 1)
+        color_sky = self.result['colors/sky']
+        color_sand = self.result['colors/sand']
+        model = (1 + np.tanh(dist/width))/2
+        model = color_sky + (color_sand - color_sky)*model
+        model = model.astype(np.uint8)
         
-        # turn frame into a binary image
-        cv2.threshold(image_center, 0, 255,
-                      cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
-        
-        # do morphological opening and closing to smooth the profile
-        s = int(5*self.params['burrows/width'])
-        ys, xs = np.ogrid[-s:s+1, -s:s+1]
-        kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8, copy=False)
+        # do vertical line scans
+        spacing = int(self.params['ground/point_spacing'])
+        border_width = frame.shape[1] - self.params['cage/width_min'] 
+        points = []
+        for k in xrange(frame.shape[1]//spacing):
+            pos_x = (k + 0.5)*spacing
+            if (border_width < pos_x < frame.shape[1] - border_width):
+                line_scan = frame[:, spacing*k:spacing*(k + 1)].mean(axis=1)
+                # get the cross-correlation between the profile and the template
+                conv = cv2.matchTemplate(line_scan.astype(np.uint8),
+                                         model, cv2.cv.CV_TM_CCORR_NORMED)
+                # get the minimum, indicating the best match
+                pos_y = np.argmax(conv)  + dist_width
+                # add point
+                points.append((pos_x, pos_y))
+            
+#             import matplotlib.pyplot as plt
+#             plt.plot(line_scan, label='line scan')
+#             plt.plot(model, label='model')
+#             plt.plot(conv/conv.max()*255, label='conv')
+#             plt.legend(loc='best')
+#             plt.show()
 
-        # widen the mask
-        mask = cv2.copyMakeBorder(image_center, s, s, s, s, cv2.BORDER_REPLICATE)
-        # make sure their is sky on the top
-        mask[:s + h, :] = 0
-        # make sure their is sand at the bottom
-        mask[-s - h:, :] = 255
+#         debug.show_shape(GroundProfile(points).linestring,
+#                          background=frame)
 
-        # morphological opening to remove noise and clutter
-        cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, dst=mask)
-
-        # morphological closing to smooth the boundary and remove burrows
-        cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel,
-                         borderType=cv2.BORDER_REPLICATE, dst=mask)
-        
-        # reduce the mask to its original dimension
-        mask = mask[s:-s, s:-s]
-        
-        # get the contour from the mask and store points as (x, y)
-        points = [(x + w, np.nonzero(col)[0][0] + h)
-                  for x, col in enumerate(mask.T)]          
-        
         # extend the ground line toward the left edge of the cage
         p_x, p_y = points[0]
         profile = image.line_scan(frame, (0, p_y), (p_x, p_y), 30)
@@ -923,7 +924,7 @@ class FirstPass(DataHandler):
 
     def find_initial_ground(self):
         """ finds the ground profile given an image of an antfarm """
-        ground = self.find_rough_ground()
+        ground = self.estimate_ground()
         ground = self.refine_ground(ground, try_many_distances=True)
         
         self.logger.info('We found a ground profile of length %g',
