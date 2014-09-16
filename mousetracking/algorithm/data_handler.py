@@ -21,7 +21,7 @@ from .parameters import PARAMETERS_DEFAULT, scale_parameters
 import objects
 from .objects.utils import LazyHDFValue, prepare_data_for_yaml
 from .utils import get_loglevel_from_name
-from video.io import VideoFileStack
+from video.io import VideoFile, VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists
 
@@ -167,7 +167,12 @@ class DataHandler(object):
         # initialize the video
         if video is None:
             video_filename_pattern = os.path.join(self.data['parameters/video/filename_pattern'])
-            self.video = VideoFileStack(video_filename_pattern)
+            if any(c in video_filename_pattern for c in r'*?%'):
+                # contains placeholder => load multiple videos
+                self.video = VideoFileStack(video_filename_pattern)
+            else:
+                # no placeholder => load single video
+                self.video = VideoFile(video_filename_pattern)
         else:
             self.video = video
 
