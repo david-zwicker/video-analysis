@@ -1393,7 +1393,7 @@ class FirstPass(DataHandler):
         # set up the general video output, if requested
         if 'video' in self.debug_output or 'video.show' in self.debug_output:
             # initialize the writer for the debug video
-            debug_file = self.get_filename('video' + video_extension, 'debug')
+            debug_file = self.get_filename('debugvideo' + video_extension, 'debug')
             self.debug['video'] = VideoComposer(debug_file, size=self.video.size,
                                                 fps=self.video.fps, is_color=True,
                                                 codec=video_codec, bitrate=video_bitrate)
