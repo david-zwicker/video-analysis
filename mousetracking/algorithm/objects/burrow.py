@@ -413,7 +413,7 @@ class BurrowTrackList(list):
         result = []
         for burrow_track in self:
             try:
-                res = burrow_track.get_burrow(frame_id, ret_next_change=True)
+                res = burrow_track.get_burrow(frame_id, ret_next_change)
             except IndexError:
                 continue
             else:

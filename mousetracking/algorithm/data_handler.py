@@ -20,6 +20,7 @@ import yaml
 from .parameters import PARAMETERS_DEFAULT, scale_parameters
 import objects
 from .objects.utils import LazyHDFValue, prepare_data_for_yaml
+from .utils import get_loglevel_from_name
 from video.io import VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists
@@ -86,7 +87,7 @@ class DataHandler(object):
         formatter = logging.Formatter('%(asctime)s ' + self.name + '%(levelname)7s: %(message)s',
                                       datefmt='%Y-%m-%d %H:%M:%S')
         handler.setFormatter(formatter)
-        level = logging.getLevelName(self.data['parameters/logging/level_stderr'])
+        level = get_loglevel_from_name(self.data['parameters/logging/level_stderr'])
         handler.setLevel(level)
         self.logger.addHandler(handler) 
         
@@ -95,7 +96,7 @@ class DataHandler(object):
             logfile = self.get_filename('log.log', 'logging')
             handler = logging.FileHandler(logfile, mode=LOGGING_FILE_MODES[self.logging_mode])
             handler.setFormatter(formatter)
-            level = logging.getLevelName(self.data['parameters/logging/level_file'])
+            level = get_loglevel_from_name(self.data['parameters/logging/level_file'])
             handler.setLevel(level)
             self.logger.addHandler(handler)
             

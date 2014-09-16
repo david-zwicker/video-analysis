@@ -619,7 +619,7 @@ class FirstPass(DataHandler):
         model = color_sky + (color_sand - color_sky)*model
         model = model.astype(np.uint8)
         
-        # do vertical line scans
+        # do vertical line scans and determine ground position
         spacing = int(self.params['ground/point_spacing'])
         border_width = frame.shape[1] - self.params['cage/width_min'] 
         points = []
@@ -634,16 +634,6 @@ class FirstPass(DataHandler):
                 pos_y = np.argmax(conv)  + dist_width
                 # add point
                 points.append((pos_x, pos_y))
-            
-#             import matplotlib.pyplot as plt
-#             plt.plot(line_scan, label='line scan')
-#             plt.plot(model, label='model')
-#             plt.plot(conv/conv.max()*255, label='conv')
-#             plt.legend(loc='best')
-#             plt.show()
-
-#         debug.show_shape(GroundProfile(points).linestring,
-#                          background=frame)
 
         # extend the ground line toward the left edge of the cage
         p_x, p_y = points[0]

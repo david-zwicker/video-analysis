@@ -48,9 +48,9 @@ PARAMETER_LIST = [
               'Flag indicating whether logging is enabled'),
     Parameter('logging/folder', './logging/', UNIT.FOLDER,
               'Folder to which the log file is written'),
-    Parameter('logging/level_stderr', 'INFO', None,
+    Parameter('logging/level_stderr', 'WARN', None,
               'Level of messages to log to stderr [standard python logging levels]'),
-    Parameter('logging/level_file', 'DEBUG', None,
+    Parameter('logging/level_file', 'INFO', None,
               'Level of messages to log to file if folder is set '
               '[standard python logging levels]'),
             
