@@ -45,6 +45,10 @@ class SecondPass(DataHandler):
         obj.data = first_pass.data
         obj.params = first_pass.data['parameters']
         obj.tracks = first_pass.tracks
+
+        # close logging handlers and other files        
+        first_pass.close()
+        
         # initialize parameters
         obj.initialize_parameters()
         return obj

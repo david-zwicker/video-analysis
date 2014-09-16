@@ -14,7 +14,6 @@ import logging
 import os
 import sys
 
-import numpy as np
 import yaml
 
 from .parameters import PARAMETERS_DEFAULT, scale_parameters
@@ -240,7 +239,7 @@ class DataHandler(object):
             yaml.dump(prepare_data_for_yaml(main_result),
                       outfile,
                       default_flow_style=False,
-                      indent=4)       
+                      indent=4) 
        
                         
     def read_data(self):
@@ -275,14 +274,8 @@ class DataHandler(object):
         self.log_event('Read previously calculated data from files.')
 
  
-    #===========================================================================
-    # DATA ANALYSIS
-    #===========================================================================
-        
-    def mouse_underground(self, position):
-        """ checks whether the mouse is under ground """
-        ground_y = np.interp(position[0], self.ground[:, 0], self.ground[:, 1])
-        return position[1] - self.params['mouse.model_radius']/2 > ground_y
+    def close(self):
+        self.logger = None
 
 
 
