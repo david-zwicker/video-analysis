@@ -122,7 +122,7 @@ class SecondPass(DataHandler):
         track_len_orig = len(tracks)
         tracks.break_long_tracks(self.params['tracking/splitting_duration_min'])
         if len(tracks) != track_len_orig:
-            self.logger.info('Increased the track count from %d to %d by '
+            self.logger.info('Pass 2 - Increased the track count from %d to %d by '
                              'splitting long, overlapping tracks.',
                              track_len_orig, len(tracks))
         
@@ -140,11 +140,11 @@ class SecondPass(DataHandler):
         first_track_found = False
         look_for_tracks = True
         while look_for_tracks:
-            self.logger.info('Building tracking graph of %d nodes with threshold %g',
+            self.logger.info('Pass 2 - Building tracking graph of %d nodes with threshold %g',
                              len(tracks), threshold) 
             graph = self.get_track_graph(tracks, threshold)
             graph.add_nodes_from(endtoend_nodes) 
-            self.logger.info('Built tracking graph with %d nodes and %d edges',
+            self.logger.info('Pass 2 - Built tracking graph with %d nodes and %d edges',
                              graph.number_of_nodes(), graph.number_of_edges()) 
 
             if graph.number_of_nodes() > 0:
@@ -157,7 +157,7 @@ class SecondPass(DataHandler):
                              if graph.out_degree(node) == 0 and
                                  node.end >= end_time - end_node_interval]
         
-                self.logger.info('Found %d start node(s) and %d end node(s) in tracking graph.',
+                self.logger.info('Pass 2 - Found %d start node(s) and %d end node(s) in tracking graph.',
                                  len(start_nodes), len(end_nodes)) 
                 
                 # find paths between start and end nodes
@@ -184,7 +184,7 @@ class SecondPass(DataHandler):
             else:
                 threshold *= 2
         
-        self.logger.info('Found %d good tracking paths', len(paths))
+        self.logger.info('Pass 2 - Found %d good tracking paths', len(paths))
         
         # identify the best path
         path_best, score_best = None, np.inf 
@@ -357,7 +357,7 @@ class SecondPass(DataHandler):
         mouse_track = self.data['pass2/mouse_trajectory']
         ground_profile = self.data['pass2/ground_profile']
         
-        self.logger.info('Start producing final video with %d frames', len(self.video))
+        self.logger.info('Pass 2 - Start producing final video with %d frames', len(self.video))
         
         # we used the first frame to determine the cage dimensions in the first pass
         source_video = self.video[1:]

@@ -115,7 +115,7 @@ class FirstPass(DataHandler):
         except (KeyboardInterrupt, SystemExit):
             # abort the video analysis
             self.video.abort_iteration()
-            self.logger.info('Tracking has been interrupted by user.')
+            self.logger.info('Pass 1 - Tracking has been interrupted by user.')
             self.log_event('Pass 1 - Analysis run has been interrupted.')
             self.data['analysis-status'] = 'Partly finished first pass'
             
@@ -917,7 +917,7 @@ class FirstPass(DataHandler):
         ground = self.estimate_ground()
         ground = self.refine_ground(ground, try_many_distances=True)
         
-        self.logger.info('We found a ground profile of length %g',
+        self.logger.info('Pass 1 - We found a ground profile of length %g',
                          ground.length)
         
         return ground
@@ -962,7 +962,7 @@ class FirstPass(DataHandler):
         points = self.refine_ground(points, try_many_distances=True)
         ground = GroundProfile(points)
         
-        self.logger.info('We found a ground profile of length %g',
+        self.logger.info('Pass 1 - We found a ground profile of length %g',
                          ground.length)
         
         return ground
