@@ -31,14 +31,15 @@ class SecondPass(DataHandler):
         super(SecondPass, self).__init__(name, parameters, **kwargs)
         self.params = self.data['parameters']
         self.result = self.data.create_child('pass2')
-        self.log_event('Pass 2 - Initialized the second pass analysis.')
+        if kwargs.get('initialize_parameters', True):
+            self.log_event('Pass 2 - Initialized the second pass analysis.')
         
 
     @classmethod
     def from_first_pass(cls, first_pass):
         """ create the object directly from the first pass """
         # create the data and copy the data from first_pass
-        obj = cls(first_pass.name)
+        obj = cls(first_pass.name, initialize_parameters=False)
         obj.data = first_pass.data
         obj.params = obj.data['parameters']
         obj.result = obj.data.create_child('pass2')
@@ -48,6 +49,7 @@ class SecondPass(DataHandler):
         
         # initialize parameters
         obj.initialize_parameters()
+        obj.log_event('Pass 2 - Initialized the second pass analysis.')
         return obj
     
 
