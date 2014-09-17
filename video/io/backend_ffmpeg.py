@@ -408,7 +408,9 @@ def ffmpeg_parse_infos(filename, print_infos=False):
     if "No such file or directory" in lines[-1]:
         raise IOError("The file %s could not be found!\n"
                       "Please check that you entered the correct "
-                      "path." % filename)
+                      "path.\n"
+                      "Here are the file information returned by FFmpeg:\n\n%s"
+                      % (filename, infos))
     
     # get duration (in seconds)
     result = {}
@@ -419,8 +421,8 @@ def ffmpeg_parse_infos(filename, print_infos=False):
         result['duration'] = time_to_seconds(match)
     except:
         raise IOError("Failed to read the duration of file %s.\n"
-                      "Here are the file information returned by FFmpeg:\n\n%s" %
-                      (filename, infos))
+                      "Here are the file information returned by FFmpeg:\n\n%s"
+                      % (filename, infos))
 
     # get the output line that speaks about video
     lines_video = [l for l in lines if ' Video: ' in l]

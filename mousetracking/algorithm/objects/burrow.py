@@ -250,13 +250,10 @@ class Burrow(object):
         data1 = np.asarray(self.outline, np.double)
 
         # collect the data for the last two columns
-        data_attr = np.array([[self.length, self.refined]], np.double)
-        spacer = np.array([[np.nan, np.nan]])
-        if self.centerline is None:
-            data_centerline = np.array([])
-        else:
-            data_centerline = self.centerline
-        data2 = np.concatenate((data_attr, spacer, data_centerline))
+        data2 = np.array([[self.length, self.refined],
+                          [np.nan, np.nan]], np.double)
+        if self.centerline is not None:
+            data2 = np.concatenate((data2, self.centerline))
         
         # save the data in a convenient array
         l1, l2 = len(data1), len(data2)

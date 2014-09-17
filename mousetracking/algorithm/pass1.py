@@ -1187,64 +1187,65 @@ class FirstPass(DataHandler):
 
         # HANDLE BURROW END POINT
         # points at the burrow end
-        p1, p2 = centerline_new[-1], centerline_new[-2]
-        angle = np.arctan2(p1[1] - p2[1], p1[0] - p2[0])
-
-        # shoot out rays in several angles        
-        angles = angle + np.pi/8*np.array((-2, -1, 0, 1, 2))
-        points = regions.get_ray_intersections(centerline_new[-1], angles, outline)
-        # filter unsuccessful points
-        points = (p for p in points if p is not None)
-        
-        # determine the number of frames the mouse has been absent from the end
-        frames_absent = (
-            (1 - self.explored_area[int(p2[1]), int(p2[0])])
-            /self.params['explored_area/adaptation_rate_burrows']
-        )
-        
-        point_max, dist_max = None, 0
-        point_anchor = centerline_new[-1]
-        for point in points:
-            if frames_absent > 10/self.params['background/adaptation_rate']:
-                # mouse has been away for a long time
-                # => refine point using a line scan along the centerline
-
-                # find local slope of the centerline
-                dx, dy = point[0] - point_anchor[0], point[1] - point_anchor[1]
-                dist = np.hypot(dx, dy)
-                dx /= dist; dy /= dist
-                
-                # get profile along the centerline
-                p1e = (point_anchor[0] + scan_length*dx, point_anchor[1] + scan_length*dy)
-                background = self.background.astype(np.uint8, copy=False)
-                profile = image.line_scan(background, point_anchor, p1e, 3)
-
-                # determine position of burrow edge
-                l = self.find_burrow_edge(profile, direction='up')
-                if l is not None:
-                    point = (point_anchor[0] + l*dx, point_anchor[1] + l*dy)
-
-            # add the point to the outline                
-            outline_new.append(point)
+        if len(centerline_new) >= 2:
+            p1, p2 = centerline_new[-1], centerline_new[-2]
+            angle = np.arctan2(p1[1] - p2[1], p1[0] - p2[0])
+    
+            # shoot out rays in several angles        
+            angles = angle + np.pi/8*np.array((-2, -1, 0, 1, 2))
+            points = regions.get_ray_intersections(centerline_new[-1], angles, outline)
+            # filter unsuccessful points
+            points = (p for p in points if p is not None)
             
-            # find the point with a maximal distance from the anchor point
-            dist = curves.point_distance(point, point_anchor)
-            if dist > dist_max:
-                point_max, dist_max = point, dist 
+            # determine the number of frames the mouse has been absent from the end
+            frames_absent = (
+                (1 - self.explored_area[int(p2[1]), int(p2[0])])
+                /self.params['explored_area/adaptation_rate_burrows']
+            )
+            
+            point_max, dist_max = None, 0
+            point_anchor = centerline_new[-1]
+            for point in points:
+                if frames_absent > 10/self.params['background/adaptation_rate']:
+                    # mouse has been away for a long time
+                    # => refine point using a line scan along the centerline
+    
+                    # find local slope of the centerline
+                    dx, dy = point[0] - point_anchor[0], point[1] - point_anchor[1]
+                    dist = np.hypot(dx, dy)
+                    dx /= dist; dy /= dist
+                    
+                    # get profile along the centerline
+                    p1e = (point_anchor[0] + scan_length*dx, point_anchor[1] + scan_length*dy)
+                    background = self.background.astype(np.uint8, copy=False)
+                    profile = image.line_scan(background, point_anchor, p1e, 3)
+    
+                    # determine position of burrow edge
+                    l = self.find_burrow_edge(profile, direction='up')
+                    if l is not None:
+                        point = (point_anchor[0] + l*dx, point_anchor[1] + l*dy)
+    
+                # add the point to the outline                
+                outline_new.append(point)
                 
-        # set the point with a maximal distance as the new centerline end
-        if point_max is not None:
-            centerline_new.append(point_max)
+                # find the point with a maximal distance from the anchor point
+                dist = curves.point_distance(point, point_anchor)
+                if dist > dist_max:
+                    point_max, dist_max = point, dist 
+                    
+            # set the point with a maximal distance as the new centerline end
+            if point_max is not None:
+                centerline_new.append(point_max)
         
-        # HANDLE BURROW EXIT POINT
-        # determine the ground exit point by extrapolating from first
-        # point until we hit the ground profile
-        p1, p2 = centerline[1], centerline[2]
-        angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
-        point_max, _, _ = regions.get_farthest_ray_intersection(
-            centerline_new[1], [angle], ground_line)
-        if point_max is not None: 
-            centerline_new[0] = point_max
+            # HANDLE BURROW EXIT POINT
+            # determine the ground exit point by extrapolating from first
+            # point until we hit the ground profile
+            p1, p2 = centerline[1], centerline[2]
+            angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
+            point_max, _, _ = regions.get_farthest_ray_intersection(
+                centerline_new[1], [angle], ground_line)
+            if point_max is not None: 
+                centerline_new[0] = point_max
 
         # make sure that shape is a valid polygon
         outline_new = regions.regularize_contour(outline_new)
