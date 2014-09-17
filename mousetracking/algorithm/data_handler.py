@@ -48,6 +48,7 @@ class DataHandler(object):
 
     def __init__(self, name='', parameters=None, read_data=False):
         self.name = name
+        self.logger = logging.getLogger('mousetracking')
 
         # initialize the data handled by this class
         self.video = None
@@ -131,6 +132,8 @@ class DataHandler(object):
             folder = os.path.abspath(self.data['parameters/logging/folder'])
         elif folder == 'debug':
             folder = os.path.abspath(self.data['parameters/debug/folder'])
+        else:
+            self.logger.warn('Requested unknown folder `%s`.' % folder)
             
         ensure_directory_exists(folder)
         return folder

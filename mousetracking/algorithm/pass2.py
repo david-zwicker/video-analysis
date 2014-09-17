@@ -27,13 +27,10 @@ import debug  # @UnusedImport
 class SecondPass(DataHandler):
     """ class containing methods for the second pass """
     
-    def __init__(self, name='', parameters=None, debug_output=None, **kwargs):
+    def __init__(self, name='', parameters=None, **kwargs):
         super(SecondPass, self).__init__(name, parameters, **kwargs)
         self.params = self.data['parameters']
         self.result = self.data.create_child('pass2')
-
-        self.debug = {} #< dictionary holding debug information
-        self.debug_output = [] if debug_output is None else debug_output
         self.log_event('Pass 2 - Initialized the second pass analysis.')
         
 
@@ -43,8 +40,8 @@ class SecondPass(DataHandler):
         # create the data and copy the data from first_pass
         obj = cls(first_pass.name)
         obj.data = first_pass.data
-        obj.params = first_pass.data['parameters']
-        obj.tracks = first_pass.tracks
+        obj.params = obj.data['parameters']
+        obj.result = obj.data.create_child('pass2')
 
         # close logging handlers and other files        
         first_pass.close()
