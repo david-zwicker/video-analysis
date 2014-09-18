@@ -39,6 +39,7 @@ from .objects.ground import GroundProfile, GroundProfileList, RidgeProfile
 from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
 
 import debug  # @UnusedImport
+from IPython.qt.console.mainwindow import background
 
 
 
@@ -605,6 +606,141 @@ class FirstPass(DataHandler):
     #===========================================================================
 
 
+    def estimate_ground_new(self):
+        """ determines an estimate of the ground profile from a single frame """
+        frame = self.background
+
+        # build the ground ridge template for matching 
+        width = self.params['ground/width']
+        dist_width = int(width + frame.shape[0]/10)
+        dist = np.arange(-dist_width, dist_width + 1)
+        color_sky = self.result['colors/sky']
+        color_sand = self.result['colors/sand']
+        model = (1 + np.tanh(dist/width))/2
+        model = color_sky + (color_sand - color_sky)*model
+        model = model.astype(np.uint8)
+        
+        # estimate for ground profile very roughly        
+        width, height = self.video.size
+        dx, dy = width//5, height//3
+        x = np.array([dy, 2*dy, dx, 2*dx, 3*dx, 4*dx])
+        y1, y2, x1, x2, x3, x4 = x
+        points = [[0.1*dx,     y1],
+                  [    x1,     y1],
+                  [    x2,     y2],
+                  [    x3,     y2],
+                  [    x4,     y1],
+                  [width-0.1*dx,     y1]]
+        
+        dx = int(self.params['ground/point_spacing']/2)
+        dy = 10*dx
+        points = curves.make_curve_equidistant(points, 2*dx)
+        
+        result = []
+        for p in points:
+            x, y = int(p[0]), int(p[1])
+            # get line scan
+            profile = frame[y-dy:y+dy+1, x-dx:x+dx+1].mean(axis=1)
+            
+            conv = cv2.matchTemplate(profile.astype(np.uint8),
+                                     model, cv2.cv.CV_TM_CCORR_NORMED)
+            # get the minimum, indicating the best match
+            pos_y = np.argmax(conv) + dist_width
+            # add point
+            result.append((x, pos_y))
+            
+#             import matplotlib.pyplot as plt
+#             plt.plot(profile)
+#             plt.show()
+#             exit()
+        
+        
+        debug.show_shape(geometry.LineString(points),
+                         geometry.LineString(result),
+                         background=self.background)
+        exit()
+        
+        
+        # refine ground profile along the estimated one
+
+        return GroundProfile(points)
+
+        
+        
+        def make_poly(data):
+            y1, y2, x1, x2, x3, x4 = data
+            points = [[    0,     y1],
+                      [   x1,     y1],
+                      [   x2,     y2],
+                      [   x3,     y2],
+                      [   x4,     y1],
+                      [width,     y1],
+                      [width, height],
+                      [    0, height]]
+            return geometry.LinearRing(points)
+                
+        
+        debug.show_shape(make_poly(x), background=self.background)
+        exit()
+
+        
+        for level in (6, 5, 4, 3, 2, 1):
+            
+            # create pyramid
+            frame = self.background.astype(np.uint8, copy=True)
+            for _ in xrange(level):
+                frame = cv2.pyrDown(frame)
+    
+            x /= 2**level
+                
+            # create model
+            model = np.empty_like(frame)
+            color_sky = self.result['colors/sky']
+            color_sand = self.result['colors/sand']
+            
+            def get_model(data):
+                model.fill(color_sky)
+                y1, y2, x1, x2, x3, x4 = data
+                points = [[    0,     y1],
+                          [   x1,     y1],
+                          [   x2,     y2],
+                          [   x3,     y2],
+                          [   x4,     y1],
+                          [width,     y1],
+                          [width, height],
+                          [    0, height]]
+                cv2.fillPoly(model, [np.asarray(points, np.int)], color=color_sand)
+                return model
+            
+            def residual(data):
+                res = np.ravel(frame - get_model(data))
+                return np.sum(res**2)
+                
+            x0 = x[:]
+            
+            min_res = residual(x)
+            res_changing = True
+            while res_changing:
+                res_changing = False 
+                for k in xrange(6):
+                    for d in (-2, -1, 1, 2):
+                        x[k] += d
+                        res = residual(x)
+                        if res < min_res:
+                            print res
+                            min_res = res
+                            res_changing = True 
+                        else:
+                            x[k] -= d #revert
+                        
+            debug.show_image(frame, get_model(x0), get_model(x), equalize_colors=True)   
+            
+            x *= 2**level     
+        
+        #debug.show_shape(make_poly(data), background=frame)
+        exit()
+        
+
     def estimate_ground(self):
         """ determines an estimate of the ground profile from a single frame """
         frame = self.background.astype(np.uint8)
@@ -632,8 +768,22 @@ class FirstPass(DataHandler):
                                          model, cv2.cv.CV_TM_CCORR_NORMED)
                 # get the minimum, indicating the best match
                 pos_y = np.argmax(conv)  + dist_width
+                
                 # add point
                 points.append((pos_x, pos_y))
+
+        # iterate through points and check slopes
+        slope_max = self.params['ground/slope_max']
+        k = 1
+        while k < len(points):
+            p1, p2 = points[k-1], points[k]
+            slope = (p2[1] - p1[1])/(p2[0] - p1[0]) # dy/dx
+            if slope < -slope_max:
+                del points[k-1]
+            elif slope > slope_max:
+                del points[k]
+            else:
+                k += 1
 
         # extend the ground line toward the left edge of the cage
         p_x, p_y = points[0]

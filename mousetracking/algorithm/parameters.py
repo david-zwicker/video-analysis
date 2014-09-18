@@ -107,6 +107,8 @@ PARAMETER_LIST = [
     # Ground
     Parameter('ground/point_spacing', 20, UNIT.LENGTH_PIXEL,
               'Spacing of the support points describing the ground profile'),
+    Parameter('ground/slope_max', 3, UNIT.FRACTION,
+              'Maximal slope of the side ridges.'),
     Parameter('ground/flat_top_fraction', 0.2, UNIT.FRACTION,
               'Fraction of total width where the top of the ground is flat'),
     Parameter('ground/adaptation_interval', 100, UNIT.TIME_FRAMES,
