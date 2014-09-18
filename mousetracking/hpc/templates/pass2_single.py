@@ -14,21 +14,12 @@ from mousetracking.algorithm import SecondPass
 # configure basic logging, which will be overwritten later
 logging.basicConfig()
 
-# set job parameters
-parameters = {
-    'logging/folder': '.',
-    'debug/folder': '.',
-    'output/folder': '.',
-    'output/video/folder': '.',
-    'cage/determine_boundaries': False
-}
-
 # create file structure
 open('_running_pass2', 'a').close()
 
 try:
     # do the actual scan
-    results = load_results({NAME}, parameters, cls=SecondPass)
+    results = load_results({NAME}, cls=SecondPass)
     results.process_data()
     results.produce_video()
 finally:

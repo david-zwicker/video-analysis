@@ -13,15 +13,16 @@ from mousetracking import scan_video
 # configure basic logging, which will be overwritten later
 logging.basicConfig()
 
+parameters = {TRACKING_PARAMETERS}
+
 # set job parameters
-parameters = {{
+parameters.update({
     'video/filename_pattern': {VIDEO_FILE},
     'logging/folder': '.',
     'debug/folder': '.',
     'output/folder': '.',
     'output/video/folder': '.',
-    'cage/determine_boundaries': False
-}}
+})
 
 # create file structure
 open('_running_pass1', 'a').close()

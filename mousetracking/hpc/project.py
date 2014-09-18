@@ -9,6 +9,7 @@ from __future__ import division
 import logging
 import os
 
+import pprint
 
 
 class HPCProjectBase(object):
@@ -19,9 +20,17 @@ class HPCProjectBase(object):
     job_files = []
     
     
-    def __init__(self, video_file, result_folder, video_name=None):
+    def __init__(self, video_file, result_folder, video_name=None,
+                 tracking_parameters=None):
+        
         self.logger = logging.getLogger(self.__class__.__name__)
         self.video_file = video_file
+        
+        # save tracking parameters
+        if tracking_parameters is None:
+            self.tracking_parameters = {}
+        else:
+            self.tracking_parameters = tracking_parameters
         
         # determine parameters for the video
         if video_name is None:
@@ -54,6 +63,7 @@ class HPCProjectBase(object):
         params = self.machine_configuration.copy()
         params['JOB_DIRECTORY'] = self.folder
         params['VIDEO_FILE'] = self.video_file
+        params['TRACKING_PARAMETERS'] = pprint.pformat(self.tracking_parameters)
         
         # ensure that the result folder exists
         try:
