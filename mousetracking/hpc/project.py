@@ -39,8 +39,8 @@ class HPCProjectBase(object):
             self.name = '.'.join(fileparts[:-1])
         self.name = video_name
             
-        self.folder = os.path.join(os.path.expanduser(result_folder), 
-                                   self.name)
+        result_folder = os.path.abspath(os.path.expanduser(result_folder))
+        self.folder = os.path.join(result_folder, self.name)
         
         
     def get_tempalte(self, template):
@@ -62,6 +62,7 @@ class HPCProjectBase(object):
         # setup information
         params = self.machine_configuration.copy()
         params['JOB_DIRECTORY'] = self.folder
+        params['NAME'] = self.name
         params['VIDEO_FILE'] = self.video_file
         params['TRACKING_PARAMETERS'] = pprint.pformat(self.tracking_parameters)
         

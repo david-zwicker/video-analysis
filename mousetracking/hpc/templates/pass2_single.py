@@ -18,7 +18,7 @@ logging.basicConfig()
 open('_running_pass2', 'a').close()
 
 try:
-    # do the actual scan
+    # do the second pass scan
     results = load_results({NAME}, cls=SecondPass)
     results.process_data()
     results.produce_video()

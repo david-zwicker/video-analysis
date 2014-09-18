@@ -28,10 +28,8 @@ parameters.update({{
 open('_running_pass1', 'a').close()
 
 try:
-    # do the actual scan
-    scan_video({NAME}, parameters=parameters,
-               scale_length=720/1080,
-               passes=1)
+    # do the first pass scan
+    scan_video({NAME}, parameters=parameters, passes=1)
 finally:
     # remove temporary file
     os.remove('_running_pass1')
