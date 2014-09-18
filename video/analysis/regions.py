@@ -187,11 +187,12 @@ def regularize_polygon(polygon):
 
 
 def regularize_contour(contour):
-    """ regularizes a list of points defining a contour """ 
-    polygon = geometry.Polygon(contour)
-    regular_polygon = regularize_polygon(polygon)
-    if polygon is not regular_polygon:
-        contour = regular_polygon.exterior.coords
+    """ regularizes a list of points defining a contour """
+    if len(contour) >= 3:
+        polygon = geometry.Polygon(contour)
+        regular_polygon = regularize_polygon(polygon)
+        if polygon is not regular_polygon:
+            contour = regular_polygon.exterior.coords
     return contour
 
     

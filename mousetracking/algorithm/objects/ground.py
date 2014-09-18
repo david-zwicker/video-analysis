@@ -196,11 +196,16 @@ class GroundProfileTrack(object):
         return self._cache['ground']
 
 
-    def get_profile(self, frame_id):
+    def get_groundline(self, frame_id):
         """ returns the ground line for a certain frame """
-        # for simplicity, find the index which is closest to the data we have
         idx = np.argmin(np.abs(self.times - frame_id))
         return self.profiles[idx, :, :]
+
+
+    def get_profile(self, frame_id):
+        """ returns the ground object for a certain frame """
+        # for simplicity, find the index which is closest to the data we have
+        return GroundProfile(self.get_groundline(frame_id))
 
     
     def to_array(self):
