@@ -1410,11 +1410,14 @@ class FirstPass(DataHandler):
     
     
     def refine_bulky_burrow(self, burrow, burrow_prev=None):
+        """ refine burrow by thresholding background image using the grabcut
+        algorithm """
         ground_mask = self.get_ground_mask(255)
         frame = self.background
 
-        # get region of interest        
-        rect = burrow.get_bounding_rect(30)
+        # get region of interest
+        width_min = self.params['burrows/width_min']
+        rect = burrow.get_bounding_rect(3*width_min)
         (_, slices), rect = regions.get_overlapping_slices(rect[:2],
                                                            (rect[3], rect[2]),
                                                            frame.shape,
@@ -1422,15 +1425,8 @@ class FirstPass(DataHandler):
                                                            ret_rect=True)
         
         mask = ground_mask[slices]
-        img = frame[slices].astype(np.uint8)
-        
-#         # get reference point of burrow
-#         rp = burrow.polygon.representative_point()
-#         ref_point = (rp[0] - rect[0], rp[1] - rect[1])
-#         
-#         color_sky = self.result['colors/sky']
+        img = frame[slices].astype(np.uint8)        
         color_sand = self.result['colors/sand']
-#         color_ref = img[ref_point[1], ref_point[0]]
 
         burrow_mask = np.zeros_like(mask)
         outline = regions.translate_points(burrow.outline,
@@ -1447,10 +1443,10 @@ class FirstPass(DataHandler):
         # prepare the mask over ground
         img[mask == 0] = color_sand #< turn into background
         mask[:] = cv2.GC_BGD #< obvious background
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20, 20))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*width_min, 2*width_min))
         mask[cv2.dilate(burrow_mask, kernel) == 255] = cv2.GC_PR_BGD 
         mask[burrow_mask == 255] = cv2.GC_PR_FGD
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (width_min//2, width_min//2))
         mask[cv2.erode(burrow_mask, kernel) == 255] = cv2.GC_FGD 
         
         # run grabCut algorithm

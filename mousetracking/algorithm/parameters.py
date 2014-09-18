@@ -170,7 +170,7 @@ PARAMETER_LIST = [
               'Length of a segment of the center line of a burrow'),
     Parameter('burrows/curvature_radius_max', 50, UNIT.LENGTH_PIXEL,
               'Maximal radius of curvature the centerline is allowed to have'),
-    Parameter('burrows/fitting_length_threshold', 75, UNIT.LENGTH_PIXEL,
+    Parameter('burrows/fitting_length_threshold', 150, UNIT.LENGTH_PIXEL,
               'Length above which burrows are refined by fitting'),
     Parameter('burrows/fitting_width_threshold', 40, UNIT.LENGTH_PIXEL,
               'Length below which burrows are refined by fitting'),
