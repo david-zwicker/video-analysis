@@ -6,8 +6,10 @@ Created on Aug 14, 2014
 
 from __future__ import division
 
+import sys
 import multiprocessing as mp
 import logging
+
 import numpy as np
 
 import cv2
@@ -23,8 +25,12 @@ logger = logging.getLogger('video.io')
         
 def _show_image_from_pipe(pipe, image_array, title):
     """ function that runs in a separate process to display images """
+    cv2.namedWindow(title)
+    cv2.waitKey(10)
+
+    show_image = True
     try:
-        while True:
+        while show_image:
             # read next command from pipe
             command = pipe.recv()
             while pipe.poll():
@@ -38,9 +44,15 @@ def _show_image_from_pipe(pipe, image_array, title):
                 cv2.imshow(title, image_array)
                 
                 # check whether the user wants to abort
-                if cv2.waitKey(1) & 0xFF in {27, ord('q')}:
-                    pipe.send('interrupt')
-                    break
+                while True:
+                    # waitKey also handles other GUI events and we thus call it
+                    # until everything is handled
+                    key = cv2.waitKey(1)
+                    if key & 0xFF in {27, ord('q')}:
+                        pipe.send('interrupt')
+                        show_image = False
+                    elif key == -1:
+                        break
     
             elif command == 'close':
                 break
@@ -60,9 +72,13 @@ def _show_image_from_pipe(pipe, image_array, title):
 class ImageShow(object):
     """ class that can show an image """
     
-    def __init__(self, size, title='', multiprocessing=True):
+    def __init__(self, size, title='', multiprocessing=None):
         self.title = title
         self._proc = None
+        
+        # multiprocessing does not work in current MacOS OpenCV
+        if multiprocessing is None:
+            multiprocessing = (sys.platform != "darwin")
         
         if multiprocessing:
             
@@ -110,9 +126,16 @@ class ImageShow(object):
         else:
             # update the image
             cv2.imshow(self.title, image.astype(np.uint8))
-            # check whether the user wants to quit
-            if cv2.waitKey(1) & 0xFF in {27, ord('q')}:
-                raise KeyboardInterrupt
+            
+            # check whether the user wants to abort
+            while True:
+                # waitKey also handles other GUI events and we thus call it
+                # until everything is handled
+                key = cv2.waitKey(1)
+                if key & 0xFF in {27, ord('q')}:
+                    raise KeyboardInterrupt
+                elif key == -1:
+                    break
         
         
     def close(self):
