@@ -1409,7 +1409,7 @@ class FirstPass(DataHandler):
         return Burrow(outline_new, centerline=centerline_new, refined=True)
     
     
-    def refine_bulky_burrow(self, burrow):
+    def refine_bulky_burrow(self, burrow, burrow_prev=None):
         ground_mask = self.get_ground_mask(255)
         frame = self.background
 
@@ -1432,6 +1432,12 @@ class FirstPass(DataHandler):
                                            xoff=-rect[0],
                                            yoff=-rect[1])
         cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
+
+        if burrow_prev:
+            outline = regions.translate_points(burrow_prev.outline,
+                                               xoff=-rect[0],
+                                               yoff=-rect[1])
+            cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
 
         # prepare the mask over ground
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
@@ -1526,7 +1532,7 @@ class FirstPass(DataHandler):
         burrows_mask = self._cache['image_uint8']
         burrows_mask.fill(0)
 
-        # estimate the new burrow mask        
+        # estimate the new burrow mask
         potential_burrows = self.get_potential_burrows_mask()
         labels, num_features = ndimage.measurements.label(potential_burrows)
             
@@ -1545,14 +1551,30 @@ class FirstPass(DataHandler):
                 self.debug['video'].add_polygon(burrow.outline, 'w',
                                                 is_closed=True, width=2)
 
+            # check whether this burrow belongs to a previously found one                
+            adaptation_interval = self.params['burrows/adaptation_interval']
+            for track_id, burrow_track in enumerate(self.result['burrows/tracks']):
+                if (burrow_track.track_end >= self.frame_id - adaptation_interval
+                    and burrow_track.last.intersects(burrow.polygon)):
+                    
+                    break
+            else:
+                track_id = None
+
             # refine the burrows by fitting
             burrow_length = burrow.get_length(self.ground)
             burrow_width = burrow.area/burrow_length if burrow_length > 0 else 0
             min_length = self.params['burrows/fitting_length_threshold']
             max_width = self.params['burrows/fitting_width_threshold']
             if (burrow_length > min_length and burrow_width < max_width):
+                # fit the current burrow
                 burrow = self.refine_long_burrow(burrow)
+            elif track_id is not None:
+                # refine burrow taken any previous burrows into account
+                burrow_prev = self.result['burrows/tracks'][track_id].last
+                burrow = self.refine_bulky_burrow(burrow, burrow_prev)
             else:
+                # refine burrow taken any previous burrows into account
                 burrow = self.refine_bulky_burrow(burrow)
             
             # add the burrow to our result list if it is valid
@@ -1560,16 +1582,19 @@ class FirstPass(DataHandler):
                 # add the burrow to the current mask
                 cv2.fillPoly(burrows_mask, np.array([burrow.outline], np.int32), color=1)
                 
-                # see whether this burrow can be appended to an active track
-                adaptation_interval = self.params['burrows/adaptation_interval']
-                for burrow_track in self.result['burrows/tracks']:
-                    if (burrow_track.track_end >= self.frame_id - adaptation_interval
-                        and burrow_track.last.intersects(burrow.polygon)):
-                        
-                        burrow_track.append(self.frame_id, burrow)
-                        break
-                    
+                if track_id is not None:
+                    self.result['burrows/tracks'][track_id].append(self.frame_id, burrow)
                 else:
+#                 # see whether this burrow can be appended to an active track
+#                 adaptation_interval = self.params['burrows/adaptation_interval']
+#                 for burrow_track in self.result['burrows/tracks']:
+#                     if (burrow_track.track_end >= self.frame_id - adaptation_interval
+#                         and burrow_track.last.intersects(burrow.polygon)):
+#                         
+#                         burrow_track.append(self.frame_id, burrow)
+#                         break
+#                     
+#                 else:
                     # otherwise, start a new burrow track
                     burrow_track = BurrowTrack(self.frame_id, burrow)
                     self.result['burrows/tracks'].append(burrow_track)
