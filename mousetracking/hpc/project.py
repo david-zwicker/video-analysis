@@ -8,7 +8,6 @@ from __future__ import division
 
 import logging
 import os
-
 import pprint
 
 
@@ -17,14 +16,23 @@ class HPCProjectBase(object):
     # general information about the setup 
     machine_configuration = {'FOLDER_CODE': '~/Code/video-analysis',
                              'USER_EMAIL': 'dzwicker@seas.harvard.edu'}
-    job_files = []
+    job_files = [] #< files that need to be set up for the project
     
     
     def __init__(self, video_file, result_folder, video_name=None,
                  tracking_parameters=None):
+        """ initializes a project with all necessary information
+        video_file is the filename of the video to scan
+        result_folder is a general folder in which the results will be stored.
+            Note that a subfolder will be used for all results
+        video_name denotes a name associated with this video, which will be used
+            to name folders and such. If no name is given, the filename is used.
+        tracking_parameters is a dictionary that sets the parameters that are
+            used for tracking.
+        """
         
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.video_file = video_file
+        self.video_file = os.path.abspath(video_file)
         
         # save tracking parameters
         if tracking_parameters is None:
@@ -32,7 +40,7 @@ class HPCProjectBase(object):
         else:
             self.tracking_parameters = tracking_parameters
         
-        # determine parameters for the video
+        # determine the name of the video
         if video_name is None:
             _, filename = os.path.split(video_file)
             fileparts = filename.split('.')

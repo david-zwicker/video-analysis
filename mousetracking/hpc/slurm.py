@@ -20,6 +20,7 @@ class SlurmProject(HPCProjectBase):
                  'pass2_single.py', 'pass2_single_slurm.sh'}
         
     def submit(self):
+        """ submit the tracking job using slurm """
         # submit first job
         os.chdir(self.folder)
         res = subprocess.check_output(['sbatch', 'pass1_single_slurm.sh'])
