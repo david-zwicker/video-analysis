@@ -11,7 +11,6 @@ from __future__ import division
 import itertools
 
 import numpy as np
-from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport
 
 __all__ = ['show_image', 'show_shape', 'print_filter_chain']
 
@@ -47,6 +46,7 @@ def show_image(*images, **kwargs):
         
         if image.min() != image.max():
             # recipe from http://stackoverflow.com/a/18195921/932593
+            from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport
             divider = make_axes_locatable(plt.gca())
             cax = divider.append_axes("right", size="5%", pad=0.05)
             plt.colorbar(cax=cax)
@@ -79,6 +79,7 @@ def show_shape(*shapes, **kwargs):
                          interpolation='nearest', cmap=plt.get_cmap('gray'))
         if background.min() != background.max():
             # recipe from http://stackoverflow.com/a/18195921/932593
+            from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport
             divider = make_axes_locatable(ax)
             cax = divider.append_axes("right", size="5%", pad=0.05)
             plt.colorbar(axim, cax=cax)
