@@ -1180,8 +1180,9 @@ class FirstPass(DataHandler):
         return mask_burrows
     
         
-    def get_burrow_from_mask(self, mask):
-        """ creates a burrow object given a contour outline """
+    def get_burrow_from_mask(self, mask, offset=None):
+        """ creates a burrow object given a contour outline.
+        If offset=(xoffs, yoffs) is given, all the points are translate. """
     
         # find the contour of the mask    
         contours, _ = cv2.findContours(mask.astype(np.uint8, copy=False),
@@ -1197,11 +1198,16 @@ class FirstPass(DataHandler):
         # remove potential invalid structures from contour
         contour = regions.regularize_contour(contour)
         
+        if offset is not None:
+            contour = regions.translate_points(contour,
+                                               xoff=offset[0],
+                                               yoff=offset[1])
+        
         return Burrow(contour)
     
     
     def find_burrow_edge(self, profile, direction='up'):
-        """ return the template for finding burrow edges
+        """ finds a burrow edge in a given profile
         direction denotes whether we are looking for rising or falling edges
         
         returns the position of the edge or None, if the edge was not found
@@ -1404,6 +1410,66 @@ class FirstPass(DataHandler):
     
     
     def refine_bulky_burrow(self, burrow):
+        ground_mask = self.get_ground_mask(255)
+        frame = self.background
+
+        # get region of interest        
+        rect = burrow.get_bounding_rect(20)
+        slice_y, slice_x = regions.rect_to_slices(rect)
+        mask = ground_mask[slice_y, slice_x]
+        img = frame[slice_y, slice_x].astype(np.uint8)
+        
+#         # get reference point of burrow
+#         rp = burrow.polygon.representative_point()
+#         ref_point = (rp[0] - rect[0], rp[1] - rect[1])
+#         
+#         color_sky = self.result['colors/sky']
+        color_sand = self.result['colors/sand']
+#         color_ref = img[ref_point[1], ref_point[0]]
+
+        burrow_mask = np.zeros_like(mask)
+        outline = regions.translate_points(burrow.outline,
+                                           xoff=-rect[0],
+                                           yoff=-rect[1])
+        cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
+
+        # prepare the mask over ground
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
+        img[mask == 0] = color_sand #< turn into background
+        mask[:] = cv2.GC_BGD #< obvious background
+        mask[cv2.dilate(burrow_mask, kernel) == 255] = cv2.GC_PR_BGD 
+        mask[burrow_mask == 255] = cv2.GC_PR_FGD
+        mask[cv2.erode(burrow_mask, kernel) == 255] = cv2.GC_FGD 
+        
+        # run grabCut algorithm
+        bgdmodel = np.zeros((1, 65), np.float64)
+        fgdmodel = np.zeros((1, 65), np.float64)
+        # have to convert to color image, since grabCut only supports color
+        img = cv2.cvtColor(img, cv2.cv.CV_GRAY2RGB)
+        cv2.grabCut(img, mask, (0, 0, 1, 1),
+                    bgdmodel, fgdmodel, 1, cv2.GC_INIT_WITH_MASK)
+
+#         debug.show_image(img, mask, burrow_mask)
+
+        mask2 = np.where((mask == cv2.GC_PR_FGD) + (mask == cv2.GC_FGD), 255, 0).astype(np.uint8)
+        
+        # find the contour of the mask
+        burrow = self.get_burrow_from_mask(mask2, offset=rect[:2])
+#         contours, _ = cv2.findContours(mask2,
+#                                        cv2.RETR_EXTERNAL,
+#                                        cv2.CHAIN_APPROX_SIMPLE)
+#         contour = np.squeeze(np.asarray(contours[0], np.double))
+#         
+#         contour = regions.translate_points(contour,
+#                                            xoff=rect[0],
+#                                            yoff=rect[1])
+#         debug.show_shape(geometry.LinearRing(contour),
+#                  background=img)
+#         
+        return burrow
+    
+    
+    def refine_bulky_burrow_old(self, burrow):
         """ refines the outline of a bulky burrow """
         # get ground line
         ground_line = self.ground.linestring

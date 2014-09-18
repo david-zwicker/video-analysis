@@ -144,7 +144,8 @@ class Burrow(object):
         """ returns the bounding rectangle of the burrow """
         bounds = self.polygon.bounds
         bound_rect = regions.corners_to_rect(bounds[:2], bounds[2:])
-        return regions.expand_rectangle(bound_rect, margin)
+        bound_rect = regions.expand_rectangle(bound_rect, margin)
+        return np.asarray(bound_rect, np.int)
     
     
     def extend_outline(self, extension_polygon, simplify_threshold):

@@ -22,6 +22,7 @@
 * Find more reliable ground model
 * Test burrow flood fill model (for bulky burrows?!)
 
+
 Performance improvements:
 -------------------------
 * Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)

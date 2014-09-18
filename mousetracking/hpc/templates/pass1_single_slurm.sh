@@ -1,10 +1,10 @@
 #!/bin/bash
 
-#SBATCH -n 2                 # Number of cores
+#SBATCH -n {PASS1_CORES}     # Number of cores
 #SBATCH -N 1                 # Ensure that all cores are on one machine
-#SBATCH -t 600               # Runtime in minutes
-#SBATCH -p general           # Partition to submit to
-#SBATCH --mem=4000           # Memory per cpu in MB (see also --mem)
+#SBATCH -t {PASS1_TIME}      # Runtime in minutes
+#SBATCH -p {PARTITION}       # Partition to submit to
+#SBATCH --mem={PASS1_MEMORY} # Memory per cpu in MB (see also --mem)
 #SBATCH -o {JOB_DIRECTORY}/log_pass1_%j.txt    # File to which stdout and stderr will be written
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user={USER_EMAIL}
