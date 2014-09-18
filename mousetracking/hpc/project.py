@@ -74,7 +74,7 @@ class HPCProjectBase(object):
         # set up job scripts
         for filename in self.job_files:
             script = self.get_tempalte(filename)
-            script = script.format(params)
+            script = script.format(**params)
             open(os.path.join(self.folder, filename), 'w').write(script)
             
         self.logger.info('Prepared project in %s', self.folder)
