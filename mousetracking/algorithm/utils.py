@@ -8,7 +8,9 @@ Utility functions
 
 from __future__ import division
 
+import contextlib
 import logging
+import os
 
 
 
@@ -30,3 +32,17 @@ def mean(values, empty=0):
         total += value
         n += 1
     return total/n if n > 0 else empty
+
+
+
+@contextlib.contextmanager
+def change_directory(path):
+    """
+    A context manager which changes the directory to the given
+    path, and then changes it back to its previous value on exit.
+    Stolen from http://code.activestate.com/recipes/576620-changedirectory-context-manager/
+    """
+    prev_cwd = os.getcwd()
+    os.chdir(path)
+    yield
+    os.chdir(prev_cwd)

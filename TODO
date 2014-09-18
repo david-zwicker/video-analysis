@@ -20,7 +20,7 @@
 	- Get the height by doing a whole width line scan and determine the edge
 * Define units for frames and pixel using pint (for proper output)
 * Find more reliable ground model
-* Test burrow flood fill model (for bulky burrows?!)
+* Place windows for parallel scan automatically using cv2.moveWindow(winname, x, y) 
 
 
 Performance improvements:

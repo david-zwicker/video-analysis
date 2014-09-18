@@ -12,6 +12,7 @@ import collections
 import datetime
 import logging
 import os
+import subprocess
 import sys
 
 import yaml
@@ -19,7 +20,7 @@ import yaml
 from .parameters import PARAMETERS_DEFAULT, scale_parameters
 import objects
 from .objects.utils import LazyHDFValue, prepare_data_for_yaml
-from .utils import get_loglevel_from_name
+from .utils import get_loglevel_from_name, change_directory
 from video.io import VideoFile, VideoFileStack
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists
@@ -165,6 +166,29 @@ class DataHandler(object):
         event = str(datetime.datetime.now()) + ': ' + description 
         self.data['event_log'].append(event)
 
+    
+    def get_code_status(self):
+        """ returns a dictionary with information about the current version of
+        the code in the local git repository """
+        code_status = {}
+        
+        # go to root of mousetracking project
+        folder, _ = os.path.split(__file__)
+        with change_directory(os.path.join(folder, '..')):
+            # get number of commits
+            commit_count = subprocess.check_output(['git', 'rev-list', 'HEAD', '--count'])
+            code_status['commit_count'] = int(commit_count.strip())
+    
+            # get the current revision
+            revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'])        
+            code_status['revision'] = revision.splitlines()[0]
+            
+            # get the date of the last change
+            last_change = subprocess.check_output(['git', 'show', '-s', r'--format=%ci'])
+            code_status['last_change'] = last_change.splitlines()[0]
+        
+        return code_status
+    
     
     def load_video(self, video=None, crop_video=True):
         """ loads the video and applies a monochrome and cropping filter """

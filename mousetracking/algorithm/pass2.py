@@ -31,6 +31,7 @@ class SecondPass(DataHandler):
         super(SecondPass, self).__init__(name, parameters, **kwargs)
         self.params = self.data['parameters']
         self.result = self.data.create_child('pass2')
+        self.result['code_status'] = self.get_code_status()
         if kwargs.get('initialize_parameters', True):
             self.log_event('Pass 2 - Initialized the second pass analysis.')
         

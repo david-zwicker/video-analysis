@@ -56,6 +56,7 @@ class FirstPass(DataHandler):
         super(FirstPass, self).__init__(name, parameters, **kwargs)
         self.params = self.data['parameters']
         self.result = self.data.create_child('pass1')
+        self.result['code_status'] = self.get_code_status()
         
         # setup internal structures that will be filled by analyzing the video
         self._cache = {}               # cache that some functions might want to use
