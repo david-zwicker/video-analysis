@@ -1415,9 +1415,14 @@ class FirstPass(DataHandler):
 
         # get region of interest        
         rect = burrow.get_bounding_rect(20)
-        slice_y, slice_x = regions.rect_to_slices(rect)
-        mask = ground_mask[slice_y, slice_x]
-        img = frame[slice_y, slice_x].astype(np.uint8)
+        (_, slices), rect = regions.get_overlapping_slices(rect[:2],
+                                                           (rect[3], rect[2]),
+                                                           frame.shape,
+                                                           anchor='upper left',
+                                                           ret_rect=True)
+        
+        mask = ground_mask[slices]
+        img = frame[slices].astype(np.uint8)
         
 #         # get reference point of burrow
 #         rp = burrow.polygon.representative_point()
