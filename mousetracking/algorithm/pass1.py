@@ -1414,7 +1414,7 @@ class FirstPass(DataHandler):
         frame = self.background
 
         # get region of interest        
-        rect = burrow.get_bounding_rect(20)
+        rect = burrow.get_bounding_rect(30)
         (_, slices), rect = regions.get_overlapping_slices(rect[:2],
                                                            (rect[3], rect[2]),
                                                            frame.shape,
@@ -1445,11 +1445,12 @@ class FirstPass(DataHandler):
             cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
 
         # prepare the mask over ground
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
         img[mask == 0] = color_sand #< turn into background
         mask[:] = cv2.GC_BGD #< obvious background
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20, 20))
         mask[cv2.dilate(burrow_mask, kernel) == 255] = cv2.GC_PR_BGD 
         mask[burrow_mask == 255] = cv2.GC_PR_FGD
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
         mask[cv2.erode(burrow_mask, kernel) == 255] = cv2.GC_FGD 
         
         # run grabCut algorithm
