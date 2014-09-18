@@ -156,7 +156,9 @@ class VideoFFmpeg(VideoBase):
         s = self.proc.stdout.read(nbytes)
 
         if len(s) != nbytes:
-            if self._frame_pos == self.frame_count:
+            # frame_count is a rather crude estimate
+            # We thus stop the iteration, when we think we are close to the end 
+            if self._frame_pos >= 0.99*self.frame_count:
                 raise StopIteration
             
             logger.warn("Warning: in file %s, %d bytes wanted but %d bytes read, "
@@ -269,14 +271,14 @@ class VideoWriterFFmpeg(object):
         # build the FFmpeg command
         cmd = (
             [FFMPEG_BINARY, '-y',
-            "-loglevel", "error", #"info" if verbose() else "error",
-            "-f", 'rawvideo',
-            "-vcodec","rawvideo",
-            '-s', "%dx%d" % tuple(size),
-            '-pix_fmt', "rgb24" if is_color else "gray",
-            '-r', "%.02f" % fps,
-            '-i', '-',
-            '-an'] # no audio
+             "-loglevel", "error", #"info" if verbose() else "error",
+             "-f", 'rawvideo',
+             "-vcodec","rawvideo",
+             '-s', "%dx%d" % tuple(size),
+             '-pix_fmt', "rgb24" if is_color else "gray",
+             '-r', "%.02f" % fps,
+             '-i', '-',
+             '-an'] # no audio
             + ([] if (codec is None) else ['-vcodec', codec])
             + ([] if (bitrate is None) else ['-b', bitrate])
 
