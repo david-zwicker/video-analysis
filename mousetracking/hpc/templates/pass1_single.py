@@ -16,13 +16,13 @@ logging.basicConfig()
 parameters = {TRACKING_PARAMETERS}
 
 # set job parameters
-parameters.update({
+parameters.update({{
     'video/filename_pattern': {VIDEO_FILE},
     'logging/folder': '.',
     'debug/folder': '.',
     'output/folder': '.',
     'output/video/folder': '.',
-})
+}})
 
 # create file structure
 open('_running_pass1', 'a').close()
