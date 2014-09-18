@@ -27,14 +27,6 @@ from video.utils import ensure_directory_exists
 import debug  # @UnusedImport
 
 
-# dictionary of data items that are stored in a separated HDF file
-# and will be loaded only on access
-HDF_VALUES = {'pass1/ground/profile': objects.GroundProfileList,
-              'pass1/objects/tracks': objects.ObjectTrackList,
-              'pass1/burrows/tracks': objects.BurrowTrackList,
-              'pass2/ground_profile': objects.GroundProfileTrack,
-              'pass2/mouse_trajectory': objects.MouseTrack}
-
 LOGGING_FILE_MODES = {'create': 'w', #< create new log file 
                       'append': 'a'} #< append to old log file
 
@@ -46,6 +38,14 @@ class DataHandler(object):
     """ class that handles the data and parameters of mouse tracking """
     logging_mode = 'append'    
 
+    # dictionary of data items that are stored in a separated HDF file
+    # and will be loaded only on access
+    hdf_values = {'pass1/ground/profile': objects.GroundProfileList,
+                  'pass1/objects/tracks': objects.ObjectTrackList,
+                  'pass1/burrows/tracks': objects.BurrowTrackList,
+                  'pass2/ground_profile': objects.GroundProfileTrack,
+                  'pass2/mouse_trajectory': objects.MouseTrack}
+    
     def __init__(self, name='', parameters=None, initialize_parameters=True,
                  read_data=False):
         self.name = name
@@ -230,13 +230,14 @@ class DataHandler(object):
         
         # write large amounts of data to accompanying hdf file
         hdf_filename= self.get_filename('results.hdf5', 'results')
-        for key, cls in HDF_VALUES.iteritems():
+        for key, cls in self.hdf_values.iteritems():
             if key in main_result:
+                # get the value, but don't load it from HDF file
+                # This prevents unnecessary read/write cycles
                 value = main_result.get_item(key, load_data=False)
                 if not isinstance(value, LazyHDFValue):
                     assert cls == value.__class__
-                    storage_manager = cls.storage_class.create_from_data(key, value, hdf_filename)
-                    main_result[key] = storage_manager#.yaml_string
+                    main_result[key] = cls.storage_class.create_from_data(key, value, hdf_filename)
         
         # write the main result file to YAML
         filename = self.get_filename('results.yaml', 'results')
@@ -264,7 +265,7 @@ class DataHandler(object):
         
         # initialize the loaders for values stored elsewhere
         hdf_folder = self.get_folder('results')
-        for key, data_cls in HDF_VALUES.iteritems():
+        for key, data_cls in self.hdf_values.iteritems():
             if key in self.data:
                 value = self.data.get_item(key, load_data=False) 
                 storage_cls = data_cls.storage_class

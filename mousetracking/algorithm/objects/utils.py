@@ -125,6 +125,9 @@ class LazyHDFCollection(LazyHDFValue):
             # reset the whole structure if it is there
             if key in hdf_file:
                 del hdf_file[key]
+                
+            # create group in case data is empty
+            hdf_file.create_group(key)
 
             # write all objects as individual datasets            
             key_format = '{}/%0{}d'.format(key, len(str(len(data))))
@@ -145,8 +148,11 @@ class LazyHDFCollection(LazyHDFValue):
         with h5py.File(self.hdf_filename, 'r') as hdf_file:
             # iterate over the data and create objects from it
             data = hdf_file[self.key]
-            result = self.data_cls(item_cls.create_from_array(data[index][:])
-                                   for index in sorted(data.keys()))
+            if data:
+                result = self.data_cls(item_cls.create_from_array(data[index][:])
+                                       for index in sorted(data.keys()))
+            else: # empty dataset
+                result = self.data_cls()
             # here, we have to use sorted() to iterate in the correct order 
                 
         return result
