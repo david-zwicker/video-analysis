@@ -1,0 +1,1 @@
+from slurm import SlurmProject
