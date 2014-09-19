@@ -57,6 +57,8 @@ PARAMETER_LIST = [
     # Debug
     Parameter('debug/folder', './debug/', UNIT.FOLDER,
               'Folder to which debug videos are written'),
+    Parameter('debug/window_position', None, None,
+              'Position (x, y) of the top-left corner of the debug window'),
             
     # Output
     Parameter('output/folder', './results/', UNIT.FOLDER,

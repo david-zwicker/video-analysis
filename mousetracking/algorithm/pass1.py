@@ -1652,8 +1652,10 @@ class FirstPass(DataHandler):
             
             if 'video.show' in self.debug_output:
                 name = self.name if self.name else ''
+                position = self.params['debug/window_position']
                 self.debug['video.show'] = ImageShow(self.debug['video'].shape,
-                                                     'Debug video' + ' [%s]' % name)
+                                                     'Debug video' + ' [%s]' % name,
+                                                     position=position)
 
         # set up additional video writers
         for identifier in ('difference', 'background', 'explored_area'):

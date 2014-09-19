@@ -23,10 +23,12 @@ except ImportError:
 logger = logging.getLogger('video.io')
 
         
-def _show_image_from_pipe(pipe, image_array, title):
+def _show_image_from_pipe(pipe, image_array, title, position=None):
     """ function that runs in a separate process to display images """
     cv2.namedWindow(title)
-    cv2.waitKey(10)
+    if position is not None:
+        cv2.moveWindow(title, position[0], position[1])
+    cv2.waitKey(1)
 
     show_image = True
     try:
@@ -66,13 +68,16 @@ def _show_image_from_pipe(pipe, image_array, title):
     # cleanup
     #pipe.close()
     cv2.destroyWindow(title)
+    # work-around to handle GUI event loop 
+    for _ in xrange(10):
+        cv2.waitKey(1)
 
 
         
 class ImageShow(object):
     """ class that can show an image """
     
-    def __init__(self, size, title='', multiprocessing=None):
+    def __init__(self, size, title='', multiprocessing=None, position=None):
         self.title = title
         self._proc = None
         
@@ -81,7 +86,7 @@ class ImageShow(object):
             multiprocessing = (sys.platform != "darwin")
         
         if multiprocessing:
-            
+            # open 
             if sharedmem:
                 try:
                     # create the pipe to talk to the child
@@ -90,7 +95,8 @@ class ImageShow(object):
                     self._data = sharedmem.empty(size, np.uint8)
                     # initialize the process that shows the image
                     self._proc = mp.Process(target=_show_image_from_pipe,
-                                            args=(pipe_child, self._data, title))
+                                            args=(pipe_child, self._data,
+                                                  title, position))
                     self._proc.daemon = True
                     self._proc.start()
                     logger.debug('Started background process for displaying images')
@@ -102,7 +108,13 @@ class ImageShow(object):
             else:
                 logger.warn('Package sharedmem could not be imported and '
                             'images are thus shown using the main process.')
-
+                
+        if self._proc is None:
+            # open window in this process
+            cv2.namedWindow(title)
+            if position is not None:
+                cv2.moveWindow(title, position[0], position[1])
+            cv2.waitKey(1) 
        
        
     def show(self, image):
@@ -149,6 +161,9 @@ class ImageShow(object):
         else:
             # delete the opencv window
             cv2.destroyWindow(self.title)
+            # work-around to handle GUI event loop 
+            for _ in xrange(10):
+                cv2.waitKey(1)
 
 
     def __del__(self):

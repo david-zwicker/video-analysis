@@ -24,6 +24,22 @@ QUADRANTS = {'UL': 'upper left',
              'DR': 'lower right'}
   
 
+def get_window_pos(location, video_size):
+    """ calculate the window position given a location string and the size
+    of the total video """
+    width, height = video_size[0]//2, video_size[1]//2    
+    if location == 'upper left':
+        return 0, 0
+    elif location == 'lower left':
+        return 0, height
+    elif location == 'upper right':
+        return width, 0
+    elif location == 'lower right':
+        return width, height
+    else:
+        raise ValueError('Unknown location `%s`' % location)
+
+
 
 def scan_video_quadrants(video, parameters=None, **kwargs):
     """ Takes a video and scans all four quadrants in parallel.
@@ -46,6 +62,7 @@ def scan_video_quadrants(video, parameters=None, **kwargs):
     for name, crop in QUADRANTS.iteritems():
         # save the cropping rectangle for further analysis later
         parameters['video/cropping_rect'] = crop
+        parameters['debug/window_position'] = get_window_pos(crop, video_fork.size)
         kwargs['parameters'] = parameters
                 
         # crop the video to the right region
