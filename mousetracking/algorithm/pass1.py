@@ -808,8 +808,8 @@ class FirstPass(DataHandler):
         frame = self.background
         spacing = int(self.params['ground/point_spacing'])
             
-        if not 'ground.model' in self._cache or \
-            self._cache['ground.model'].size != spacing:
+        if (not 'ground.model' in self._cache or \
+            self._cache['ground.model'].size != spacing):
             
             self._cache['ground.model'] = \
                     RidgeProfile(spacing, self.params['ground/width'])
@@ -840,6 +840,7 @@ class FirstPass(DataHandler):
             angle = np.arctan2(dp[0], dp[1])
                 
             # extract the region around the point used for fitting
+            # TODO: do line scans instead of fitting
             region = frame[p[1]-spacing : p[1]+spacing+1,
                            p[0]-spacing : p[0]+spacing+1].copy()
             ground_model.set_data(region, angle) 
@@ -1276,7 +1277,6 @@ class FirstPass(DataHandler):
                                            yoff=-rect[1])
         cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
 
-
         # add to this mask the previous burrow
         if burrow_prev:
             outline = regions.translate_points(burrow_prev.outline,
@@ -1294,13 +1294,13 @@ class FirstPass(DataHandler):
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (int(width_min/2), int(width_min/2)))
         mask[cv2.erode(burrow_mask, kernel) == 255] = cv2.GC_FGD #< surely foreground 
         
-        # run grabCut algorithm
         # have to convert to color image, since grabCut only supports color
         img = cv2.cvtColor(img, cv2.cv.CV_GRAY2RGB)
         bgdmodel = np.zeros((1, 65), np.float64)
         fgdmodel = np.zeros((1, 65), np.float64)
+        # run GrabCut algorithm
         cv2.grabCut(img, mask, (0, 0, 1, 1),
-                    bgdmodel, fgdmodel, 1, cv2.GC_INIT_WITH_MASK)
+                    bgdmodel, fgdmodel, 2, cv2.GC_INIT_WITH_MASK)
 
         # calculate the mask of the foreground
         mask = np.where((mask == cv2.GC_FGD) + (mask == cv2.GC_PR_FGD), 255, 0)

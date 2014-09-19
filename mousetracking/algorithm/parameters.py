@@ -14,10 +14,12 @@ import os
 from collections import namedtuple
 
 
+# enum of different units that we use
 class UNIT(object):
     FACTOR = 1
     FRACTION = 2
     FOLDER = 3
+    COLOR = 4
     LENGTH_PIXEL = 11
     AREA_PIXEL = 12
     TIME_FRAMES = 20
@@ -99,7 +101,7 @@ PARAMETER_LIST = [
     # Colors               
     Parameter('colors/adaptation_interval', 1000, UNIT.TIME_FRAMES,
               'How often are the color estimates adapted'),
-    Parameter('colors/std_min', 4, None,
+    Parameter('colors/std_min', 5, UNIT.COLOR,
               'Minimal standard deviation of sky and sand colors.'),
 
     # Background and explored area                             

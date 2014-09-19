@@ -20,7 +20,10 @@
 	- Get the height by doing a whole width line scan and determine the edge
 * Define units for frames and pixel using pint (for proper output)
 * Maybe we can get away with just using GrabCut for finding burrows?
-	- Think about redetermining centerlines of elongated burrows that have not been fitted in pass 2 
+	- Think about redetermining centerlines of elongated burrows that have not been fitted in pass 2
+* Think about simple snake algorithm for ground fitting
+	- Two energy terms: add up results from line scans; add up bending contributions
+	- Move points along one line and minimize total energy 
 
 
 Performance improvements:
