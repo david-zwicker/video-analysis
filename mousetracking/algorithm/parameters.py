@@ -115,12 +115,15 @@ PARAMETER_LIST = [
               'Maximal slope of the side ridges.'),
     Parameter('ground/flat_top_fraction', 0.2, UNIT.FRACTION,
               'Fraction of total width where the top of the ground is flat'),
+    Parameter('ground/grabcut_uncertainty_margin', 75, UNIT.LENGTH_PIXEL,
+              'Width of the region around the estimated profile, in which '
+              'the GrabCut algorithm may optimize.'),
     Parameter('ground/adaptation_interval', 100, UNIT.TIME_FRAMES,
               'How often is the ground profile adapted'),
     Parameter('ground/width', 5, UNIT.LENGTH_PIXEL,
               'Width of the ground profile ridge'),
-    Parameter('ground/snake_bending_energy', 5e5, UNIT.FACTOR,
-              'Determines the stiffness of the snake model of the ground profile'),
+#     Parameter('ground/snake_bending_energy', 5e5, UNIT.FACTOR,
+#               'Determines the stiffness of the snake model of the ground profile'),
     Parameter('ground/smoothing_sigma', 300, UNIT.TIME_FRAMES,
               'Standard deviation for Gaussian smoothing'),
     

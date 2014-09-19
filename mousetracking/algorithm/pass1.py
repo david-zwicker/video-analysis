@@ -668,7 +668,8 @@ class FirstPass(DataHandler):
         mask.fill(cv2.GC_PR_BGD)
         mask[frame > color_border] = cv2.GC_PR_FGD
 
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (75, 75))
+        margin = int(self.params['ground/grabcut_uncertainty_margin'])
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (margin, margin))
         mask[cv2.erode(ground_mask, kernel) == 255] = cv2.GC_FGD
 
         #kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (50, 50))
@@ -688,7 +689,7 @@ class FirstPass(DataHandler):
 
         # iterate through the mask and extract the ground profile
         points = []
-        for x in xrange(100, frame.shape[1] - 100):
+        for x in xrange(margin, frame.shape[1] - margin):
             y = np.nonzero(mask[:, x])[0][0]
             points.append((x, y))
     
