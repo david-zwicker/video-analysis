@@ -115,10 +115,12 @@ PARAMETER_LIST = [
     # Ground
     Parameter('ground/point_spacing', 20, UNIT.LENGTH_PIXEL,
               'Spacing of the support points describing the ground profile'),
+    Parameter('ground/linescan_length', 100, UNIT.LENGTH_PIXEL,
+              'Length of the line scan used to determine the ground profile'),
     Parameter('ground/slope_max', 3, UNIT.FRACTION,
               'Maximal slope of the side ridges.'),
-    Parameter('ground/flat_top_fraction', 0.2, UNIT.FRACTION,
-              'Fraction of total width where the top of the ground is flat'),
+#     Parameter('ground/flat_top_fraction', 0.2, UNIT.FRACTION,
+#               'Fraction of total width where the top of the ground is flat'),
     Parameter('ground/grabcut_uncertainty_margin', 75, UNIT.LENGTH_PIXEL,
               'Width of the region around the estimated profile, in which '
               'the GrabCut algorithm may optimize.'),
@@ -129,7 +131,7 @@ PARAMETER_LIST = [
 #     Parameter('ground/snake_bending_energy', 5e5, UNIT.FACTOR,
 #               'Determines the stiffness of the snake model of the ground profile'),
     Parameter('ground/smoothing_sigma', 300, UNIT.TIME_FRAMES,
-              'Standard deviation for Gaussian smoothing'),
+              'Standard deviation for Gaussian smoothing over time'),
     
     # Mouse 
     Parameter('mouse/intensity_threshold', 1, UNIT.FACTOR,

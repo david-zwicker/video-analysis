@@ -823,35 +823,46 @@ class FirstPass(DataHandler):
         y_max, x_max = frame.shape[0] - spacing, frame.shape[1] - spacing
 
         # iterate through all points and correct profile
-        ground_model = self._cache['ground.model']
+#         ground_model = self._cache['ground.model']
         corrected_points = []
         x_previous = spacing
-        deviation = 0
         
+        # only consider the points away from the boundary
+        points = [p for p in points
+                  if (p[0] >= p_min and p[0] <= x_max and 
+                      p[1] >= p_min and p[1] <= y_max)]
+
         # iterate over all but the boundary points
         for k, p in enumerate(points[1:-1], 1):
             
-            # skip points that are too close to the boundary
-            if (p[0] < p_min or p[0] > x_max or 
-                p[1] < p_min or p[1] > y_max):
-                continue
-            
-            dp = points[k+1] - points[k-1]
-            angle = np.arctan2(dp[0], dp[1])
-                
-            # extract the region around the point used for fitting
-            # TODO: do line scans instead of fitting
-            region = frame[p[1]-spacing : p[1]+spacing+1,
-                           p[0]-spacing : p[0]+spacing+1].copy()
-            ground_model.set_data(region, angle) 
+            # calculate the deviation to the previous point
+            dx, dy = points[k+1] - points[k-1]
+            dist = np.sqrt(dx*dx + dy*dy)
+            dx /= dist; dy /= dist
 
-            # move the points profile model perpendicular until it fits best
-            x, _, infodict, _, _ = optimize.leastsq(ground_model.get_difference, [0],
+            # do the line scan            
+            profile_len = int(self.params['ground/linescan_length']/2)
+            profile_width = self.params['ground/point_spacing']/2
+            ground_width = 5
+            p_a = (p[0] - profile_len*dy, p[1] + profile_len*dx)
+            p_b = (p[0] + profile_len*dy, p[1] - profile_len*dx)
+            profile = image.line_scan(frame, p_a, p_b, width=profile_width)
+            profile -= profile.mean()
+            profile_std = profile.std()
+            
+            def residual(pos):
+                x = np.linspace(-profile_len - pos, profile_len - pos, len(profile))
+                model = np.tanh(-x/ground_width)
+                
+                return profile - profile_std*model
+            
+            # fit the simple model to the line scan profile            
+            x, _, infodict, _, _ = optimize.leastsq(residual, [0],
                                                     xtol=0.5, epsfcn=0.5, full_output=True)
             
             # calculate goodness of fit
             ss_err = (infodict['fvec']**2).sum()
-            ss_tot = ((region - region.mean())**2).sum()
+            ss_tot = (profile**2).sum()
             if ss_tot == 0:
                 rsquared = 0
             else:
@@ -861,15 +872,12 @@ class FirstPass(DataHandler):
             if rsquared > 0 or k == 0 or k == len(points) - 1:
                 # we are rather confident that this point is better than it was
                 # before and thus add it to the result list
-                p_x = p[0] + x[0]*np.cos(angle)
-                p_y = p[1] - x[0]*np.sin(angle)
+                p_x = p[0] + x[0]*dy
+                p_y = p[1] - x[0]*dx
                 # make sure that we have no overhanging ridges
                 if p_x >= x_previous:
                     corrected_points.append((int(p_x), int(p_y)))
                     x_previous = p_x
-            
-            # add up the total deviations from the previous profile
-            deviation += abs(x[0])
 
         # extend the ground line toward the left edge of the cage
         edge_point = self._get_cage_boundary(corrected_points[0], 'left')
@@ -888,51 +896,6 @@ class FirstPass(DataHandler):
         """ finds the ground profile given an image of an antfarm """
         ground = self.estimate_ground()
         ground = self.refine_ground(ground, try_many_distances=True)
-        
-        self.logger.info('Pass 1 - We found a ground profile of length %g',
-                         ground.length)
-        
-        return ground
-
-        frame = self.background.astype(np.uint8)
-        
-        # remove 10%/15% of each side of the frame
-        h = int(0.15*frame.shape[0])
-        w = int(0.10*frame.shape[1])
-        image_center = frame[h:-h, w:-w]
-        
-        # turn frame in binary image
-        cv2.threshold(image_center, 0, 255,
-                      cv2.THRESH_BINARY + cv2.THRESH_OTSU, dst=image_center)
-        
-        # do morphological opening and closing to smooth the profile
-        s = self.params['burrows/width']
-        ys, xs = np.ogrid[-s:s+1, -s:s+1]
-        kernel = (xs**2 + ys**2 <= s**2).astype(np.uint8, copy=False)
-
-        # morphological opening to remove noise and clutter
-        cv2.morphologyEx(image_center, cv2.MORPH_OPEN, kernel, dst=image_center)
-
-        # get the contour from the mask and store points as (x, y)
-        width_video = self.video.size[0]
-        top_min = self.params['ground/flat_top_fraction']*width_video
-        top_max = width_video - top_min
-        points = []
-        for x, col in enumerate(image_center.T):
-            xp = x + w
-            if top_min <= xp <= top_max:
-                try:
-                    # add topmost white point as estimate 
-                    yp = np.nonzero(col)[0][0] + h
-                except IndexError:
-                    # there are no white points => continue from last time
-                    yp = points[-1][1]
-                points.append((xp, yp))
-        
-        # simplify and refine the curve        
-        points = curves.simplify_curve(points, epsilon=2)
-        points = self.refine_ground(points, try_many_distances=True)
-        ground = GroundProfile(points)
         
         self.logger.info('Pass 1 - We found a ground profile of length %g',
                          ground.length)
