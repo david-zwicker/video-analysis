@@ -44,5 +44,7 @@ def change_directory(path):
     """
     prev_cwd = os.getcwd()
     os.chdir(path)
-    yield
-    os.chdir(prev_cwd)
+    try:
+        yield
+    finally:
+        os.chdir(prev_cwd)
