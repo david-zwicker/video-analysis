@@ -334,10 +334,10 @@ class FirstPass(DataHandler):
     # BACKGROUND MODEL AND COLOR ESTIMATES
     #===========================================================================
                
-               
-    def find_color_estimates(self, image):
-        """ estimate the colors in the sky region and the sand region """
-        
+    def estimate_sky_and_sand_regions(self, image):
+        """ returns estimates for masks that definitely contain sky and sand
+        regions, respectively """
+                   
         # add black border around image, which is important for the distance 
         # transform we use later
         image = cv2.copyMakeBorder(image, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
@@ -349,34 +349,43 @@ class FirstPass(DataHandler):
         # find sky by locating the largest black areas
         sky_mask = regions.get_largest_region(1 - binarized)
         sky_mask = sky_mask.astype(np.uint8, copy=False)*255
-
-        # Finding sure foreground area using a distance transform
+        
+        # Finding sure sky region using a distance transform
         dist_transform = cv2.distanceTransform(sky_mask, cv2.cv.CV_DIST_L2, 5)
+
         if len(dist_transform) == 2:
             # fallback for old behavior of OpenCV, where an additional parameter
             # would be returned
             dist_transform = dist_transform[0]
-        _, sky_sure = cv2.threshold(dist_transform, 0.25*dist_transform.max(), 255, 0)
-
-        # determine the sky color
-        sky_img = image[sky_sure.astype(np.bool, copy=False)]
-        self.result['colors/sky'] = sky_img.mean()
-        self.result['colors/sky_std'] = sky_img.std()
-        self.logger.debug('The sky color was determined to be %d +- %d',
-                          self.result['colors/sky'], self.result['colors/sky_std'])
+        _, sky_sure = cv2.threshold(dist_transform, 0.5*dist_transform.max(), 255, 0)
 
         # find the sand by looking at the largest bright region
         sand_mask = regions.get_largest_region(binarized).astype(np.uint8, copy=False)*255
         
-        # Finding sure foreground area using a distance transform
+        # Finding sure sand region using a distance transform
         dist_transform = cv2.distanceTransform(sand_mask, cv2.cv.CV_DIST_L2, 5)
         if len(dist_transform) == 2:
             # fallback for old behavior of OpenCV, where an additional parameter
             # would be returned
             dist_transform = dist_transform[0]
         _, sand_sure = cv2.threshold(dist_transform, 0.5*dist_transform.max(), 255, 0)
+
+        return sky_sure[1:-1, 1:-1], sand_sure[1:-1, 1:-1]
+      
+               
+    def find_color_estimates(self, image):
+        """ estimate the colors in the sky region and the sand region """
+        
+        sky_sure, sand_sure = self.estimate_sky_and_sand_regions(image)
         
         # determine the sky color
+        sky_img = image[sky_sure.astype(np.bool, copy=False)]
+        self.result['colors/sky'] = sky_img.mean()
+        self.result['colors/sky_std'] = sky_img.std()
+        self.logger.debug('The sky color was determined to be %d +- %d',
+                          self.result['colors/sky'], self.result['colors/sky_std'])
+        
+        # determine the sand color
         sand_img = image[sand_sure.astype(np.bool, copy=False)]
         self.result['colors/sand'] = sand_img.mean()
         self.result['colors/sand_std'] = sand_img.std()
@@ -740,6 +749,54 @@ class FirstPass(DataHandler):
         
         #debug.show_shape(make_poly(data), background=frame)
         exit()
+        
+        
+    def estimate_ground_test(self):
+        
+        # get the image on which we want to work
+        frame = self.background.astype(np.uint8)
+        
+        # restrict to inner region
+#         frame = frame[30:-30, 30:-30]
+        
+        mask = np.zeros_like(frame)
+
+        
+        # get the colors
+        colors = self.result['colors']
+        color_background_sure = colors['sky'] - 2*colors['sky_std']
+        color_border = (colors['sand'] + colors['sky'])/2
+        color_sand_sure = colors['sand'] + 2*colors['sand_std']
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*width_min, 2*width_min))
+        mask[cv2.dilate(burrow_mask, kernel) == 255] = cv2.GC_PR_BGD #< probable background
+
+
+        
+        self.ground = self.estimate_ground_old()
+        ground_mask = self.get_ground_mask(255)
+        
+        mask.fill(cv2.GC_PR_BGD)
+        mask[frame > color_border] = cv2.GC_PR_FGD
+        mask[sky_sure > 0] = cv2.GC_BGD
+        mask[sand_sure > 0] = cv2.GC_FGD
+        
+        debug.show_image(frame, mask, wait_for_key=False)
+        
+        # run grabCut algorithm
+        # have to convert to color image, since grabCut only supports color
+        frame = cv2.cvtColor(frame, cv2.cv.CV_GRAY2RGB)
+        bgdmodel = np.zeros((1, 65), np.float64)
+        fgdmodel = np.zeros((1, 65), np.float64)
+        cv2.grabCut(frame, mask, (0, 0, 1, 1),
+                    bgdmodel, fgdmodel, 1, cv2.GC_INIT_WITH_MASK)
+
+        
+        debug.show_image(frame, mask)
+        exit()
+
+        # calculate the mask of the foreground
+        mask = np.where((mask == cv2.GC_FGD) + (mask == cv2.GC_PR_FGD), 255, 0)
         
 
     def estimate_ground(self):
@@ -1421,70 +1478,65 @@ class FirstPass(DataHandler):
     
     
     def refine_bulky_burrow(self, burrow, burrow_prev=None):
-        """ refine burrow by thresholding background image using the grabcut
+        """ refine burrow by thresholding background image using the GrabCut
         algorithm """
+        # TODO: add caching for the masks
         ground_mask = self.get_ground_mask(255)
         frame = self.background
-
-        # get region of interest
         width_min = self.params['burrows/width_min']
+
+        # get region of interest from expanded bounding rectangle
         rect = burrow.get_bounding_rect(3*width_min)
+        # get respective slices for the image, respecting image borders 
         (_, slices), rect = regions.get_overlapping_slices(rect[:2],
                                                            (rect[3], rect[2]),
                                                            frame.shape,
                                                            anchor='upper left',
                                                            ret_rect=True)
         
+        # extract the region of interest from the ground mask and the frame 
         mask = ground_mask[slices]
         img = frame[slices].astype(np.uint8)        
         color_sand = self.result['colors/sand']
 
+        # create a mask representing the current estimate of the burrow
         burrow_mask = np.zeros_like(mask)
         outline = regions.translate_points(burrow.outline,
                                            xoff=-rect[0],
                                            yoff=-rect[1])
         cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
 
+
+        # add to this mask the previous burrow
         if burrow_prev:
             outline = regions.translate_points(burrow_prev.outline,
                                                xoff=-rect[0],
                                                yoff=-rect[1])
             cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
 
-        # prepare the mask over ground
+        # prepare the input mask for the GrabCut algorithm by defining 
+        # foreground and background regions  
         img[mask == 0] = color_sand #< turn into background
-        mask[:] = cv2.GC_BGD #< obvious background
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*width_min, 2*width_min))
-        mask[cv2.dilate(burrow_mask, kernel) == 255] = cv2.GC_PR_BGD 
-        mask[burrow_mask == 255] = cv2.GC_PR_FGD
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (width_min//2, width_min//2))
-        mask[cv2.erode(burrow_mask, kernel) == 255] = cv2.GC_FGD 
+        mask[:] = cv2.GC_BGD #< surely background
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (int(2*width_min), int(2*width_min)))
+        mask[cv2.dilate(burrow_mask, kernel) == 255] = cv2.GC_PR_BGD #< probable background
+        mask[burrow_mask == 255] = cv2.GC_PR_FGD #< probable foreground
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (int(width_min/2), int(width_min/2)))
+        mask[cv2.erode(burrow_mask, kernel) == 255] = cv2.GC_FGD #< surely foreground 
         
         # run grabCut algorithm
-        bgdmodel = np.zeros((1, 65), np.float64)
-        fgdmodel = np.zeros((1, 65), np.float64)
         # have to convert to color image, since grabCut only supports color
         img = cv2.cvtColor(img, cv2.cv.CV_GRAY2RGB)
+        bgdmodel = np.zeros((1, 65), np.float64)
+        fgdmodel = np.zeros((1, 65), np.float64)
         cv2.grabCut(img, mask, (0, 0, 1, 1),
                     bgdmodel, fgdmodel, 1, cv2.GC_INIT_WITH_MASK)
 
-#         debug.show_image(img, mask, burrow_mask)
-
-        mask2 = np.where((mask == cv2.GC_PR_FGD) + (mask == cv2.GC_FGD), 255, 0).astype(np.uint8)
+        # calculate the mask of the foreground
+        mask = np.where((mask == cv2.GC_FGD) + (mask == cv2.GC_PR_FGD), 255, 0)
         
-        # find the contour of the mask
-        burrow = self.get_burrow_from_mask(mask2, offset=rect[:2])
-#         contours, _ = cv2.findContours(mask2,
-#                                        cv2.RETR_EXTERNAL,
-#                                        cv2.CHAIN_APPROX_SIMPLE)
-#         contour = np.squeeze(np.asarray(contours[0], np.double))
-#         
-#         contour = regions.translate_points(contour,
-#                                            xoff=rect[0],
-#                                            yoff=rect[1])
-#         debug.show_shape(geometry.LinearRing(contour),
-#                  background=img)
-#         
+        # find the burrow from the mask
+        burrow = self.get_burrow_from_mask(mask.astype(np.uint8), offset=rect[:2])
         return burrow
     
     
