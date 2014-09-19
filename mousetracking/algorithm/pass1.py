@@ -1189,22 +1189,32 @@ class FirstPass(DataHandler):
         contours, _ = cv2.findContours(mask.astype(np.uint8, copy=False),
                                        cv2.RETR_EXTERNAL,
                                        cv2.CHAIN_APPROX_SIMPLE)
-        contour = np.squeeze(np.asarray(contours[0], np.double))
-
-        # simplify the contour
-        tolerance = self.params['burrows/outline_simplification_threshold'] \
-                        *curves.curve_length(contour)
-        contour = curves.simplify_curve(contour, tolerance).tolist()
-
-        # remove potential invalid structures from contour
-        contour = regions.regularize_contour(contour)
         
-        if offset is not None:
-            contour = regions.translate_points(contour,
-                                               xoff=offset[0],
-                                               yoff=offset[1])
+        # find the contour with the largest area, in case there are multiple
+        contour_areas = [cv2.contourArea(cnt) for cnt in contours]
+        contour_id = np.argmax(contour_areas)
         
-        return Burrow(contour)
+        if contour_areas[contour_id] < self.params['burrows/area_min']:
+            # disregard small burrows
+            burrow = None
+            
+        else:
+            # simplify the contour
+            contour = np.squeeze(np.asarray(contours[contour_id], np.double))
+            tolerance = self.params['burrows/outline_simplification_threshold'] \
+                            *curves.curve_length(contour)
+            contour = curves.simplify_curve(contour, tolerance).tolist()
+    
+            # remove potential invalid structures from contour
+            contour = regions.regularize_contour(contour)
+            
+            if offset is not None:
+                contour = regions.translate_points(contour,
+                                                   xoff=offset[0],
+                                                   yoff=offset[1])
+            burrow =  Burrow(contour)
+        
+        return burrow
     
     
     def find_burrow_edge(self, profile, direction='up'):
@@ -1541,13 +1551,10 @@ class FirstPass(DataHandler):
             
         # iterate through all features that have been found
         for label in xrange(1, num_features + 1):
-            # disregard features with a small area
-            area = np.sum(labels == label)
-            if area < self.params['burrows/area_min']:
-                continue
-             
             # get the burrow object from the contour of region
             burrow = self.get_burrow_from_mask(labels == label)
+            if burrow is None:
+                continue
 
             # add the unrefined burrow to the debug video
             if 'video' in self.debug:
@@ -1581,7 +1588,7 @@ class FirstPass(DataHandler):
                 burrow = self.refine_bulky_burrow(burrow)
             
             # add the burrow to our result list if it is valid
-            if burrow.is_valid:
+            if burrow is not None and burrow.is_valid:
                 # add the burrow to the current mask
                 cv2.fillPoly(burrows_mask, np.array([burrow.outline], np.int32), color=1)
                 
