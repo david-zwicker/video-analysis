@@ -875,12 +875,13 @@ class FirstPass(DataHandler):
             
             # fit the simple model to the line scan profile            
             x = optimize.fmin(snake_energy, [0], xtol=0.5, disp=False)
+            if snake_energy(x) < self.params['ground/snake_energy_max']:
 
-            p_x, p_y = p[0] + x[0]*dy, p[1] - x[0]*dx
-            # make sure that we have no overhanging ridges
-            if p_x >= x_previous:
-                corrected_points.append((int(p_x), int(p_y)))
-                x_previous = p_x
+                p_x, p_y = p[0] + x[0]*dy, p[1] - x[0]*dx
+                # make sure that we have no overhanging ridges
+                if p_x >= x_previous:
+                    corrected_points.append((int(p_x), int(p_y)))
+                    x_previous = p_x
 
         # extend the ground line toward the left edge of the cage
         edge_point = self._get_cage_boundary(corrected_points[0], 'left')

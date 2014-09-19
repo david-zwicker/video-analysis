@@ -121,6 +121,8 @@ PARAMETER_LIST = [
               'Relative strength of the curvature energy to the image energy '
               'in the snake model of the ground line. The energy factor has '
               'units of length, since the curvature has units one over length'),
+    Parameter('ground/snake_energy_max', 100, UNIT.FACTOR,
+              'Determines the maximal energy the snake is allowed to have.'),
     Parameter('ground/slope_max', 3, UNIT.FRACTION,
               'Maximal slope of the side ridges.'),
 #     Parameter('ground/flat_top_fraction', 0.2, UNIT.FRACTION,
