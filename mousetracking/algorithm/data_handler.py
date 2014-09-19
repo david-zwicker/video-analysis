@@ -179,7 +179,7 @@ class DataHandler(object):
             # get number of commits
             try:
                 commit_count = subprocess.check_output(['git', 'rev-list', 'HEAD', '--count'])
-            except OSError:
+            except (OSError, subprocess.CalledProcessError):
                 code_status['commit_count'] = None
             else:
                 code_status['commit_count'] = int(commit_count.strip())
@@ -187,7 +187,7 @@ class DataHandler(object):
             # get the current revision
             try:
                 revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'])
-            except OSError:
+            except (OSError, subprocess.CalledProcessError):
                 code_status['revision'] = None
             else:        
                 code_status['revision'] = revision.splitlines()[0]
@@ -195,7 +195,7 @@ class DataHandler(object):
             # get the date of the last change
             try:
                 last_change = subprocess.check_output(['git', 'show', '-s', r'--format=%ci'])
-            except OSError:
+            except (OSError, subprocess.CalledProcessError):
                 code_status['last_change'] = None
             else:
                 code_status['last_change'] = last_change.splitlines()[0]
