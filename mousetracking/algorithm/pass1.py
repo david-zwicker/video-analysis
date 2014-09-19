@@ -822,10 +822,6 @@ class FirstPass(DataHandler):
         p_min = spacing 
         y_max, x_max = frame.shape[0] - spacing, frame.shape[1] - spacing
 
-        # iterate through all points and correct profile
-        corrected_points = []
-        x_previous = spacing
-        
         # only consider the points away from the boundary
         points = [p for p in points
                   if (p[0] >= p_min and p[0] <= x_max and 
@@ -844,6 +840,8 @@ class FirstPass(DataHandler):
             snake_energy_max = np.inf
             energy_factor_last = 1
             
+        # iterate through all points and correct profile
+        corrected_points = []
         for k, p in enumerate(points[1:-1], 1):
             # calculate the deviation to the previous point
             p_p, p_n =  points[k-1], points[k+1]
@@ -899,10 +897,16 @@ class FirstPass(DataHandler):
             # use this point, if it is good enough            
             if energy_snake(x) < snake_energy_max:
                 p_x, p_y = p[0] + x[0]*dy, p[1] - x[0]*dx
-                # make sure that we have no overhanging ridges
-                if p_x >= x_previous:
+                if (len(corrected_points) == 0 or 
+                    p_x >= corrected_points[-1][0]):
+                    # no overhanging ridge => add the point
                     corrected_points.append((int(p_x), int(p_y)))
-                    x_previous = p_x
+                    
+                elif p_y < corrected_points[-1][1]:
+                    # current point is above previous point
+                    # => overwrite previous point
+                    corrected_points[-1] = (int(p_x), int(p_y))
+                # else: current point will be ignored
 
         # save the energy factor for the next iteration
         energy_factor_last /= np.mean(energies_image)
