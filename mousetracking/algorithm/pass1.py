@@ -46,7 +46,7 @@ class FirstPass(DataHandler):
     """
     logging_mode = 'create'    
     
-    def __init__(self, name='', parameters=None, debug_output=None, **kwargs):
+    def __init__(self, name='', parameters=None, **kwargs):
         """ initializes the whole mouse tracking and prepares the video filters """
         
         # initialize the data handler
@@ -65,7 +65,10 @@ class FirstPass(DataHandler):
         self.explored_area = None      # region the mouse has explored yet
         self.frame_id = None           # id of the current frame
         self.result['mouse/moved_first_in_frame'] = None
-        self.debug_output = [] if debug_output is None else debug_output
+        if self.params['debug/output'] is None:
+            self.debug_output = []
+        else:
+            self.debug_output = self.params['debug/output']
         self.log_event('Pass 1 - Initialized the first pass analysis.')
 
 

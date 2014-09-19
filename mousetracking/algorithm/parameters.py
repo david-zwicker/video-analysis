@@ -55,6 +55,8 @@ PARAMETER_LIST = [
               '[standard python logging levels]'),
             
     # Debug
+    Parameter('debug/output', [], None,
+              'List of identifiers determining what debug output is produced.'),
     Parameter('debug/folder', './debug/', UNIT.FOLDER,
               'Folder to which debug videos are written'),
     Parameter('debug/window_position', None, None,

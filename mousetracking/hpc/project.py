@@ -26,7 +26,7 @@ class HPCProjectBase(object):
     
     
     def __init__(self, video_file, result_folder, video_name=None,
-                 tracking_parameters=None):
+                 tracking_parameters=None, debug_output=None):
         """ initializes a project with all necessary information
         video_file is the filename of the video to scan
         result_folder is a general folder in which the results will be stored.
