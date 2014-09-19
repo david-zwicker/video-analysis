@@ -1262,8 +1262,9 @@ class FirstPass(DataHandler):
                                                            ret_rect=True)
         
         # extract the region of interest from the ground mask and the frame 
-        mask = ground_mask[slices]
-        img = frame[slices].astype(np.uint8)        
+        ground_mask = ground_mask[slices]
+        img = frame[slices].astype(np.uint8)
+        mask = np.zeros_like(ground_mask)        
         color_sand = self.result['colors/sand']
 
         # create a mask representing the current estimate of the burrow
@@ -1300,6 +1301,7 @@ class FirstPass(DataHandler):
 
         # calculate the mask of the foreground
         mask = np.where((mask == cv2.GC_FGD) + (mask == cv2.GC_PR_FGD), 255, 0)
+        mask[ground_mask == 0] = 0
         
         # find the burrow from the mask
         burrow = self.get_burrow_from_mask(mask.astype(np.uint8), offset=rect[:2])
