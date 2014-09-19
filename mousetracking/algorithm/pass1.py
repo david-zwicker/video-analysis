@@ -833,8 +833,18 @@ class FirstPass(DataHandler):
 
         # iterate over all but the boundary points
         curvature_energy_factor = self.params['ground/curvature_energy_factor']
-        for k, p in enumerate(points[1:-1], 1):
+        energies_image = []
+        if 'pass1/ground/energy_image_scale' in self.result:
+            # load the energy factor for the next iteration
+            snake_energy_max = self.params['ground/snake_energy_max']
+            energy_factor_last = self.result['pass1/ground/energy_factor_last']
+        else:
+            # initialize values such that the energy factor is calculated
+            # for the next iteration
+            snake_energy_max = np.inf
+            energy_factor_last = 1
             
+        for k, p in enumerate(points[1:-1], 1):
             # calculate the deviation to the previous point
             p_p, p_n =  points[k-1], points[k+1]
             dx, dy = p_n - p_p
@@ -851,15 +861,19 @@ class FirstPass(DataHandler):
             profile -= profile.mean()
             profile_std = profile.std()
             
-            def snake_energy(pos):
-                """ energy function of the part of the snake """
+            def energy_image(pos):
+                """ part of the energy related to the line scan """
                 # get image part
                 x = np.linspace(-profile_len - pos, profile_len - pos, len(profile))
                 model = np.tanh(-x/ground_width)
                 img_diff = profile - profile_std*model
-                energy_img = np.sum(img_diff**2)/len(img_diff)
+                scaled_diff = np.sum(img_diff**2)
+                return energy_factor_last*scaled_diff
                 # energy_img has units of color^2
-
+                
+                
+            def energy_curvature(pos):
+                """ part of the energy related to the curvature of the ground line """
                 # get curvature part: http://en.wikipedia.org/wiki/Menger_curvature
                 p_c = (p[0] + pos*dy, p[1] - pos*dx)
                 a = curves.point_distance(p_p, p_c)
@@ -869,19 +883,30 @@ class FirstPass(DataHandler):
                 A = regions.triangle_area(a, b, c)
                 curv = 4*A/(a*b*c)
                 # curv has units of 1/length
-                
-                energy_curv = curvature_energy_factor*curv
-                return energy_img + energy_curv
+                return curvature_energy_factor*curv
+
+            
+            def energy_snake(pos):
+                """ energy function of this part of the ground line """
+                return energy_image(pos) + energy_curvature(pos)
             
             # fit the simple model to the line scan profile            
-            x = optimize.fmin(snake_energy, [0], xtol=0.5, disp=False)
-            if snake_energy(x) < self.params['ground/snake_energy_max']:
+            x = optimize.fmin(energy_snake, [0], xtol=0.5, disp=False)
+            
+            # save for determining the energy scale later
+            energies_image.append(energy_image(x))
 
+            # use this point, if it is good enough            
+            if energy_snake(x) < snake_energy_max:
                 p_x, p_y = p[0] + x[0]*dy, p[1] - x[0]*dx
                 # make sure that we have no overhanging ridges
                 if p_x >= x_previous:
                     corrected_points.append((int(p_x), int(p_y)))
                     x_previous = p_x
+
+        # save the energy factor for the next iteration
+        energy_factor_last /= np.mean(energies_image)
+        self.result['pass1/ground/energy_factor_last'] = energy_factor_last
 
         # extend the ground line toward the left edge of the cage
         edge_point = self._get_cage_boundary(corrected_points[0], 'left')
