@@ -32,6 +32,13 @@ LOGGING_FILE_MODES = {'create': 'w', #< create new log file
                       'append': 'a'} #< append to old log file
 
 
+# find the file handle to /dev/null to dumb strings
+try:
+    from subprocess import DEVNULL # py3k
+except ImportError:
+    DEVNULL = open(os.devnull, 'wb')
+
+
 class LazyLoadError(RuntimeError): pass
 
 
@@ -178,7 +185,8 @@ class DataHandler(object):
         with change_directory(folder):
             # get number of commits
             try:
-                commit_count = subprocess.check_output(['git', 'rev-list', 'HEAD', '--count'])
+                commit_count = subprocess.check_output(['git', 'rev-list', 'HEAD', '--count'],
+                                                       stderr=DEVNULL)
             except (OSError, subprocess.CalledProcessError):
                 code_status['commit_count'] = None
             else:
@@ -186,7 +194,8 @@ class DataHandler(object):
     
             # get the current revision
             try:
-                revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'])
+                revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                                                   stderr=DEVNULL)
             except (OSError, subprocess.CalledProcessError):
                 code_status['revision'] = None
             else:        
@@ -194,7 +203,8 @@ class DataHandler(object):
             
             # get the date of the last change
             try:
-                last_change = subprocess.check_output(['git', 'show', '-s', r'--format=%ci'])
+                last_change = subprocess.check_output(['git', 'show', '-s', r'--format=%ci'],
+                                                      stderr=DEVNULL)
             except (OSError, subprocess.CalledProcessError):
                 code_status['last_change'] = None
             else:
