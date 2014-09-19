@@ -327,7 +327,7 @@ class BurrowTrack(object):
         idx = np.argmin(np.abs(np.asarray(self.times) - time))
         burrow = self.burrows[idx]
         if ret_next_change:
-            if idx == len(self.times):
+            if idx >= len(self.times) - 1:
                 return burrow, time + 1
             else:
                 return burrow, (self.times[idx] + self.times[idx + 1])/2
