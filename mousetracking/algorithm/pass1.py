@@ -42,7 +42,10 @@ import debug  # @UnusedImport
 
 class FirstPass(DataHandler):
     """
-    analyzes mouse movies
+    Analyzes mouse movies. Three objects are traced over time:
+        1) the mouse position
+        2) the ground line 
+        3) the burrows
     """
     logging_mode = 'create'    
     
