@@ -19,8 +19,6 @@ top to bottom. The origin is thus in the upper left corner.
 
 from __future__ import division
 
-import itertools
-
 import numpy as np
 import scipy.ndimage as ndimage
 from scipy import optimize, signal, spatial
@@ -357,7 +355,7 @@ class FirstPass(DataHandler):
             # fallback for old behavior of OpenCV, where an additional parameter
             # would be returned
             dist_transform = dist_transform[0]
-        _, sky_sure = cv2.threshold(dist_transform, 0.5*dist_transform.max(), 255, 0)
+        _, sky_sure = cv2.threshold(dist_transform, 0.25*dist_transform.max(), 255, 0)
 
         # find the sand by looking at the largest bright region
         sand_mask = regions.get_largest_region(binarized).astype(np.uint8, copy=False)*255
@@ -614,194 +612,11 @@ class FirstPass(DataHandler):
     #===========================================================================
     # FINDING THE GROUND PROFILE
     #===========================================================================
-
-
-    def estimate_ground_new(self):
-        """ determines an estimate of the ground profile from a single frame """
-        frame = self.background
-
-        # build the ground ridge template for matching 
-        width = self.params['ground/width']
-        dist_width = int(width + frame.shape[0]/10)
-        dist = np.arange(-dist_width, dist_width + 1)
-        color_sky = self.result['colors/sky']
-        color_sand = self.result['colors/sand']
-        model = (1 + np.tanh(dist/width))/2
-        model = color_sky + (color_sand - color_sky)*model
-        model = model.astype(np.uint8)
-        
-        # estimate for ground profile very roughly        
-        width, height = self.video.size
-        dx, dy = width//5, height//3
-        x = np.array([dy, 2*dy, dx, 2*dx, 3*dx, 4*dx])
-        y1, y2, x1, x2, x3, x4 = x
-        points = [[0.1*dx,     y1],
-                  [    x1,     y1],
-                  [    x2,     y2],
-                  [    x3,     y2],
-                  [    x4,     y1],
-                  [width-0.1*dx,     y1]]
-        
-        dx = int(self.params['ground/point_spacing']/2)
-        dy = 10*dx
-        points = curves.make_curve_equidistant(points, 2*dx)
-        
-        result = []
-        for p in points:
-            x, y = int(p[0]), int(p[1])
-            # get line scan
-            profile = frame[y-dy:y+dy+1, x-dx:x+dx+1].mean(axis=1)
-            
-            conv = cv2.matchTemplate(profile.astype(np.uint8),
-                                     model, cv2.cv.CV_TM_CCORR_NORMED)
-            # get the minimum, indicating the best match
-            pos_y = np.argmax(conv) + dist_width
-            # add point
-            result.append((x, pos_y))
-            
-#             import matplotlib.pyplot as plt
-#             plt.plot(profile)
-#             plt.show()
-#             exit()
         
         
-        debug.show_shape(geometry.LineString(points),
-                         geometry.LineString(result),
-                         background=self.background)
-        exit()
-        
-        
-        # refine ground profile along the estimated one
-
-        return GroundProfile(points)
-
-        
-        
-        def make_poly(data):
-            y1, y2, x1, x2, x3, x4 = data
-            points = [[    0,     y1],
-                      [   x1,     y1],
-                      [   x2,     y2],
-                      [   x3,     y2],
-                      [   x4,     y1],
-                      [width,     y1],
-                      [width, height],
-                      [    0, height]]
-            return geometry.LinearRing(points)
-                
-        
-        debug.show_shape(make_poly(x), background=self.background)
-        exit()
-
-        
-        for level in (6, 5, 4, 3, 2, 1):
-            
-            # create pyramid
-            frame = self.background.astype(np.uint8, copy=True)
-            for _ in xrange(level):
-                frame = cv2.pyrDown(frame)
-    
-            x /= 2**level
-                
-            # create model
-            model = np.empty_like(frame)
-            color_sky = self.result['colors/sky']
-            color_sand = self.result['colors/sand']
-            
-            def get_model(data):
-                model.fill(color_sky)
-                y1, y2, x1, x2, x3, x4 = data
-                points = [[    0,     y1],
-                          [   x1,     y1],
-                          [   x2,     y2],
-                          [   x3,     y2],
-                          [   x4,     y1],
-                          [width,     y1],
-                          [width, height],
-                          [    0, height]]
-                cv2.fillPoly(model, [np.asarray(points, np.int)], color=color_sand)
-                return model
-            
-            def residual(data):
-                res = np.ravel(frame - get_model(data))
-                return np.sum(res**2)
-                
-            x0 = x[:]
-            
-            min_res = residual(x)
-            res_changing = True
-            while res_changing:
-                res_changing = False 
-                for k in xrange(6):
-                    for d in (-2, -1, 1, 2):
-                        x[k] += d
-                        res = residual(x)
-                        if res < min_res:
-                            print res
-                            min_res = res
-                            res_changing = True 
-                        else:
-                            x[k] -= d #revert
-                        
-            debug.show_image(frame, get_model(x0), get_model(x), equalize_colors=True)   
-            
-            x *= 2**level     
-        
-        #debug.show_shape(make_poly(data), background=frame)
-        exit()
-        
-        
-    def estimate_ground_test(self):
-        
-        # get the image on which we want to work
-        frame = self.background.astype(np.uint8)
-        
-        # restrict to inner region
-#         frame = frame[30:-30, 30:-30]
-        
-        mask = np.zeros_like(frame)
-
-        
-        # get the colors
-        colors = self.result['colors']
-        color_background_sure = colors['sky'] - 2*colors['sky_std']
-        color_border = (colors['sand'] + colors['sky'])/2
-        color_sand_sure = colors['sand'] + 2*colors['sand_std']
-
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*width_min, 2*width_min))
-        mask[cv2.dilate(burrow_mask, kernel) == 255] = cv2.GC_PR_BGD #< probable background
-
-
-        
-        self.ground = self.estimate_ground_old()
-        ground_mask = self.get_ground_mask(255)
-        
-        mask.fill(cv2.GC_PR_BGD)
-        mask[frame > color_border] = cv2.GC_PR_FGD
-        mask[sky_sure > 0] = cv2.GC_BGD
-        mask[sand_sure > 0] = cv2.GC_FGD
-        
-        debug.show_image(frame, mask, wait_for_key=False)
-        
-        # run grabCut algorithm
-        # have to convert to color image, since grabCut only supports color
-        frame = cv2.cvtColor(frame, cv2.cv.CV_GRAY2RGB)
-        bgdmodel = np.zeros((1, 65), np.float64)
-        fgdmodel = np.zeros((1, 65), np.float64)
-        cv2.grabCut(frame, mask, (0, 0, 1, 1),
-                    bgdmodel, fgdmodel, 1, cv2.GC_INIT_WITH_MASK)
-
-        
-        debug.show_image(frame, mask)
-        exit()
-
-        # calculate the mask of the foreground
-        mask = np.where((mask == cv2.GC_FGD) + (mask == cv2.GC_PR_FGD), 255, 0)
-        
-
-    def estimate_ground(self):
-        """ determines an estimate of the ground profile from a single frame """
-        frame = self.background.astype(np.uint8)
+    def _get_ground_from_linescans(self, frame):
+        """ get a rough series of points on the ground line from vertical
+        line scans """
         
         # build the ground ridge template for matching 
         width = self.params['ground/width']
@@ -829,7 +644,55 @@ class FirstPass(DataHandler):
                 
                 # add point
                 points.append((pos_x, pos_y))
+                
+        return points
+    
+    
+    def _refine_ground_points_grabcut(self, frame, points):
+        """ refine the ground based on a previous estimate and the current
+        image using the GrabCut algorithm """
+                
+        mask = np.zeros_like(frame)
+        
+        # get the colors
+        colors = self.result['colors']
+        color_border = (colors['sand'] + colors['sky'])/2
 
+        ground_mask = self.get_ground_mask(255, GroundProfile(points))
+        
+        mask.fill(cv2.GC_PR_BGD)
+        mask[frame > color_border] = cv2.GC_PR_FGD
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (75, 75))
+        mask[cv2.erode(ground_mask, kernel) == 255] = cv2.GC_FGD
+
+        #kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (50, 50))
+        mask[cv2.dilate(ground_mask, kernel) == 0] = cv2.GC_BGD
+
+        # run grabCut algorithm
+        # have to convert to color image, since grabCut only supports color
+        frame_clr = cv2.cvtColor(frame, cv2.cv.CV_GRAY2RGB)
+        bgdmodel = np.zeros((1, 65), np.float64)
+        fgdmodel = np.zeros((1, 65), np.float64)
+        cv2.grabCut(frame_clr, mask, (0, 0, 1, 1),
+                    bgdmodel, fgdmodel, 1, cv2.GC_INIT_WITH_MASK)
+        
+        # calculate the mask of the foreground
+        mask = np.where((mask == cv2.GC_FGD) + (mask == cv2.GC_PR_FGD), 255, 0)
+        mask = regions.get_largest_region(mask)
+
+        # iterate through the mask and extract the ground profile
+        points = []
+        for x in xrange(100, frame.shape[1] - 100):
+            y = np.nonzero(mask[:, x])[0][0]
+            points.append((x, y))
+    
+        return points
+    
+    
+    def _revise_ground_points(self, frame, points):
+        """ modify ground points to extend to the edge of the cage """
+        
         # iterate through points and check slopes
         slope_max = self.params['ground/slope_max']
         k = 1
@@ -866,130 +729,22 @@ class FirstPass(DataHandler):
         points = curves.simplify_curve(points, epsilon=2)
         # make the curve equidistant
         points = curves.make_curve_equidistant(points, self.params['ground/point_spacing'])
-
-        return GroundProfile(points)
-   
-   
-    def refine_ground_snake(self, ground, try_many_distances=False):
-        """ adapts a points profile given as points to a given frame.
-        Here, we fit a ridge profile in the vicinity of every point of the curve.
-        The only fitting parameter is the distance by which a single points moves
-        in the direction perpendicular to the curve.
         
-        See http://en.wikipedia.org/wiki/Active_contour_model
-        """
-                
-        spacing = self.params['ground/point_spacing']
-        
-        # make sure the curve has equidistant points
-        points = curves.make_curve_equidistant(ground.line, spacing=spacing)
-        
-        points = np.array(np.round(points), np.int32)
-        
-        # make sure that points are not above each other
-        for k in xrange(1, len(points)):
-            if points[k-1][0] == points[k][0]:
-                points[k][0] += 1
-        
-        snake_stiffness = self.params['ground/snake_bending_energy']
-        snake_length = curves.curve_length(points)
-        alpha = snake_length*1e3
-        beta = snake_length*snake_stiffness
-        
-        # get the edges of the current background image
-        frame = self.background
-        sobel_x = cv2.Sobel(frame, cv2.CV_64F, 1, 0, ksize=11)
-        sobel_y = cv2.Sobel(frame, cv2.CV_64F, 0, 1, ksize=11)
-        grad = np.hypot(sobel_x, sobel_y)
-        
-        grad = cv2.GaussianBlur(grad, (0, 0), 5)
-        
-        frame_energy = cv2.cv.fromarray(-grad) #< convert to cvMat
-        
-        def get_snake_energy(ps):
-            # bending energy from second derivative
-            energy_len = 0
-            energy_curv = 0#abs(ps[0][1] - ps[1][1]) + abs(ps[-2][1] - ps[-1][1])
-            for k in xrange(1, len(ps) - 1):
-                curve_len = curves.curve_length(ps[k-1:k+2])
-                energy_len += curve_len
-
-                a, b, c = ps[k-1], ps[k], ps[k+1]
-                curv = ((b[1] - a[1])/(a[0] - b[0]) + (b[1] - c[1])/(b[0] - c[0]))/(c[0] - a[0])
-                #curv = np.sum((ps[k-1] - 2*ps[k] + ps[k+1])**2)
-                energy_curv += curv**2 * curve_len
-                
-            energy_len *= alpha
-            energy_curv *= beta
-#             print energy
-            
-            # image energy from integrating along the snake
-            energy_ext = 0
-            for p1, p2 in itertools.izip(ps[:-1], ps[1:]):
-                p1 = (int(p1[0]), int(p1[1]))
-                p2 = (int(p2[0]), int(p2[1]))
-#                 im = image.line_scan(-grad, p1, p2, 1).sum()
-#                 it = sum(cv2.cv.InitLineIterator(frame_energy, p1, p2))
-#                 print 'im', im, it
-#                 exit()
-#                 exit()
-                #energy += image.line_scan(-grad, p1, p2, 1).mean()
-                energy_ext += sum(cv2.cv.InitLineIterator(frame_energy, p1, p2))
-                
-            energy = energy_len + energy_curv + energy_ext
-                
-#             print energy, ps[:, 1].mean(), ps[:, 1].std()
-#             print 'second', energy
-#             print energy_len/1e7, energy_curv/1e7, energy_ext/1e7
-            return energy
-
-        def adapt_snake(ps_y):
-            ps = points.copy()
-            ps[:, 1] = ps_y
-            return get_snake_energy(ps)
-        
-        import scipy.optimize as so
-        
-        bounds = np.empty_like(points)
-        bounds[:, 0] = 0
-        bounds[:, 1] = frame.shape[1]
-        
-        #points[:, 1] = so.fmin(adapt_snake, points[:, 1], xtol=1)
-        #points[:, 1] = so.fmin_bfgs(adapt_snake, points[:, 1], epsilon=1)
-        
-#         points[:, 1] = so.fmin_tnc(adapt_snake, points[:, 1], epsilon=1,
-#                                    approx_grad=True, bounds=bounds)[0]
-        points[:, 1] = so.fmin_l_bfgs_b(adapt_snake, points[:, 1],
-                                        epsilon=1, approx_grad=True, bounds=bounds)[0]
         return points
-                
-        if try_many_distances:
-            ds = np.array((1, 2, 4, 8, 16, 32))
-            distances = np.concatenate((ds, -ds))
-        else:
-            distances = (-1, 1)
-                
-        # iterate through all points and correct profile
-        snake_energy = get_snake_energy(points)
-        energy_reduced = True
-        while energy_reduced:
-            energy_reduced = False
-            for k in xrange(len(points)):
-                for d in distances:
-                    points[k, 1] += d
-                    energy = get_snake_energy(points)
-                    if energy < snake_energy:
-                        snake_energy = energy
-                        energy_reduced = True
-                    else:
-                        points[k, 1] -= d
         
-#         debug.show_shape(geometry.LineString(points.astype(np.double)),
-#                          geometry.LineString(points.astype(np.double)),
-#                          background=-grad, mark_points=True, wait_for_key=False)
-            
+                
+    def estimate_ground(self):
+        """ estimates the ground profile from the current background image """ 
+        
+        # get the background image from which we extract the ground profile
+        frame = self.background.astype(np.uint8)
+        
+        points = self._get_ground_from_linescans(frame)
+        points = self._refine_ground_points_grabcut(frame, points)
+        points = self._revise_ground_points(frame, points)
+        
         return GroundProfile(points)
-    
+
     
     def _get_cage_boundary(self, ground_point, direction='left'):
         """ determines the cage boundary starting from a ground_point
@@ -1176,15 +931,18 @@ class FirstPass(DataHandler):
         return ground
         
     
-    def get_ground_mask(self, color=255):
+    def get_ground_mask(self, color=255, ground=None):
         """ returns a binary mask distinguishing the ground from the sky """
+        if ground is None:
+            ground = self.ground
+        
         # build a mask with potential burrows
         width, height = self.video.size
         ground_mask = np.zeros((height, width), np.uint8)
         
         # create a mask for the region below the current ground_mask profile
-        ground_points = np.empty((len(self.ground) + 4, 2), np.int32)
-        ground_points[:-4, :] = self.ground.line
+        ground_points = np.empty((len(ground) + 4, 2), np.int32)
+        ground_points[:-4, :] = ground.line
         ground_points[-4, :] = (width, ground_points[-5, 1])
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
