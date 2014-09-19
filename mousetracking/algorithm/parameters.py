@@ -99,6 +99,8 @@ PARAMETER_LIST = [
     # Colors               
     Parameter('colors/adaptation_interval', 1000, UNIT.TIME_FRAMES,
               'How often are the color estimates adapted'),
+    Parameter('colors/std_min', 4, None,
+              'Minimal standard deviation of sky and sand colors.'),
 
     # Background and explored area                             
     Parameter('background/adaptation_rate', 1e-2, UNIT.RATE_FRAMES,

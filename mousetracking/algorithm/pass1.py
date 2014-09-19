@@ -379,19 +379,21 @@ class FirstPass(DataHandler):
     def find_color_estimates(self, image):
         """ estimate the colors in the sky region and the sand region """
         
+        # get regions of sky and sand in the image
         sky_sure, sand_sure = self.estimate_sky_and_sand_regions(image)
         
         # determine the sky color
+        color_std_min = self.params['colors/std_min'] 
         sky_img = image[sky_sure.astype(np.bool, copy=False)]
         self.result['colors/sky'] = sky_img.mean()
-        self.result['colors/sky_std'] = sky_img.std()
+        self.result['colors/sky_std'] = max(sky_img.std(), color_std_min)
         self.logger.debug('The sky color was determined to be %d +- %d',
                           self.result['colors/sky'], self.result['colors/sky_std'])
         
         # determine the sand color
         sand_img = image[sand_sure.astype(np.bool, copy=False)]
         self.result['colors/sand'] = sand_img.mean()
-        self.result['colors/sand_std'] = sand_img.std()
+        self.result['colors/sand_std'] = max(sand_img.std(), color_std_min)
         self.logger.debug('The sand color was determined to be %d +- %d',
                           self.result['colors/sand'], self.result['colors/sand_std'])
         
@@ -1254,7 +1256,7 @@ class FirstPass(DataHandler):
         width_min = self.params['burrows/width_min']
 
         # get region of interest from expanded bounding rectangle
-        rect = burrow.get_bounding_rect(3*width_min)
+        rect = burrow.get_bounding_rect(5*width_min)
         # get respective slices for the image, respecting image borders 
         (_, slices), rect = regions.get_overlapping_slices(rect[:2],
                                                            (rect[3], rect[2]),
