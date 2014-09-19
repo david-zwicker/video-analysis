@@ -823,7 +823,6 @@ class FirstPass(DataHandler):
         y_max, x_max = frame.shape[0] - spacing, frame.shape[1] - spacing
 
         # iterate through all points and correct profile
-#         ground_model = self._cache['ground.model']
         corrected_points = []
         x_previous = spacing
         
@@ -833,10 +832,12 @@ class FirstPass(DataHandler):
                       p[1] >= p_min and p[1] <= y_max)]
 
         # iterate over all but the boundary points
+        curvature_energy_factor = self.params['ground/curvature_energy_factor']
         for k, p in enumerate(points[1:-1], 1):
             
             # calculate the deviation to the previous point
-            dx, dy = points[k+1] - points[k-1]
+            p_p, p_n =  points[k-1], points[k+1]
+            dx, dy = p_n - p_p
             dist = np.sqrt(dx*dx + dy*dy)
             dx /= dist; dy /= dist
 
@@ -850,34 +851,36 @@ class FirstPass(DataHandler):
             profile -= profile.mean()
             profile_std = profile.std()
             
-            def residual(pos):
+            def snake_energy(pos):
+                """ energy function of the part of the snake """
+                # get image part
                 x = np.linspace(-profile_len - pos, profile_len - pos, len(profile))
                 model = np.tanh(-x/ground_width)
+                img_diff = profile - profile_std*model
+                energy_img = np.sum(img_diff**2)/len(img_diff)
+                # energy_img has units of color^2
+
+                # get curvature part: http://en.wikipedia.org/wiki/Menger_curvature
+                p_c = (p[0] + pos*dy, p[1] - pos*dx)
+                a = curves.point_distance(p_p, p_c)
+                b = curves.point_distance(p_c, p_n)
+                c = curves.point_distance(p_n, p_p)
                 
-                return profile - profile_std*model
+                A = regions.triangle_area(a, b, c)
+                curv = 4*A/(a*b*c)
+                # curv has units of 1/length
+                
+                energy_curv = curvature_energy_factor*curv
+                return energy_img + energy_curv
             
             # fit the simple model to the line scan profile            
-            x, _, infodict, _, _ = optimize.leastsq(residual, [0],
-                                                    xtol=0.5, epsfcn=0.5, full_output=True)
-            
-            # calculate goodness of fit
-            ss_err = (infodict['fvec']**2).sum()
-            ss_tot = (profile**2).sum()
-            if ss_tot == 0:
-                rsquared = 0
-            else:
-                rsquared = 1 - ss_err/ss_tot
+            x = optimize.fmin(snake_energy, [0], xtol=0.5, disp=False)
 
-            # Note, that we never remove the first and the last point
-            if rsquared > 0 or k == 0 or k == len(points) - 1:
-                # we are rather confident that this point is better than it was
-                # before and thus add it to the result list
-                p_x = p[0] + x[0]*dy
-                p_y = p[1] - x[0]*dx
-                # make sure that we have no overhanging ridges
-                if p_x >= x_previous:
-                    corrected_points.append((int(p_x), int(p_y)))
-                    x_previous = p_x
+            p_x, p_y = p[0] + x[0]*dy, p[1] - x[0]*dx
+            # make sure that we have no overhanging ridges
+            if p_x >= x_previous:
+                corrected_points.append((int(p_x), int(p_y)))
+                x_previous = p_x
 
         # extend the ground line toward the left edge of the cage
         edge_point = self._get_cage_boundary(corrected_points[0], 'left')

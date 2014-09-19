@@ -264,3 +264,14 @@ def get_farthest_ray_intersection(point_anchor, angles, polygon, ray_length=1000
             angle_max = angle
     return point_max, dist_max, angle_max
 
+
+
+def triangle_area(a, b, c):
+    """ returns the area of a triangle with sides a, b, c """
+    # use Heron's formula
+    s = (a + b + c)/2
+    try:
+        return np.sqrt(s*(s - a)*(s - b)*(s - c))
+    except RuntimeWarning:
+        # sometimes rounding errors produce small negative quantities
+        return 0
