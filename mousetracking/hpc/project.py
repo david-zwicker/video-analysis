@@ -14,8 +14,7 @@ import pprint
 class HPCProjectBase(object):
     """ class that manages a high performance computing project """
     # general information about the setup 
-    machine_configuration = {'FOLDER_CODE': '~/Code/video-analysis',
-                             'USER_EMAIL': 'dzwicker@seas.harvard.edu',
+    machine_configuration = {'USER_EMAIL': 'dzwicker@seas.harvard.edu',
                              'PARTITION': 'general',
                              'PASS1_CORES': 2,
                              'PASS2_CORES': 2,
@@ -74,8 +73,13 @@ class HPCProjectBase(object):
     
     def setup(self):
         """ setup the project folder """
+        # extract folder of current file
+        this_folder, _ = os.path.split(__file__)
+        folder_code = os.path.abspath(os.path.join(this_folder, '../..'))
+        
         # setup information
         params = self.machine_configuration.copy()
+        params['FOLDER_CODE'] = folder_code
         params['JOB_DIRECTORY'] = self.folder
         params['NAME'] = self.name
         params['VIDEO_FILE'] = self.video_file

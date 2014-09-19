@@ -174,18 +174,31 @@ class DataHandler(object):
         
         # go to root of mousetracking project
         folder, _ = os.path.split(__file__)
-        with change_directory(os.path.join(folder, '..')):
+        folder = os.path.abspath(os.path.join(folder, '..'))
+        with change_directory(folder):
             # get number of commits
-            commit_count = subprocess.check_output(['git', 'rev-list', 'HEAD', '--count'])
-            code_status['commit_count'] = int(commit_count.strip())
+            try:
+                commit_count = subprocess.check_output(['git', 'rev-list', 'HEAD', '--count'])
+            except OSError:
+                code_status['commit_count'] = None
+            else:
+                code_status['commit_count'] = int(commit_count.strip())
     
             # get the current revision
-            revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'])        
-            code_status['revision'] = revision.splitlines()[0]
+            try:
+                revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'])
+            except OSError:
+                code_status['revision'] = None
+            else:        
+                code_status['revision'] = revision.splitlines()[0]
             
             # get the date of the last change
-            last_change = subprocess.check_output(['git', 'show', '-s', r'--format=%ci'])
-            code_status['last_change'] = last_change.splitlines()[0]
+            try:
+                last_change = subprocess.check_output(['git', 'show', '-s', r'--format=%ci'])
+            except OSError:
+                code_status['last_change'] = None
+            else:
+                code_status['last_change'] = last_change.splitlines()[0]
         
         return code_status
     
