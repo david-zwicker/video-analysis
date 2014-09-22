@@ -748,8 +748,12 @@ class FirstPass(DataHandler):
         points = []
         for col_id, column in enumerate(mask.T):
             x = col_id + frame_margin
-            y = np.nonzero(column)[0][0] + frame_margin
-            points.append((x, y))
+            try:
+                y = np.nonzero(column)[0][0] + frame_margin
+            except IndexError:
+                pass
+            finally:
+                points.append((x, y))
     
         return points
     
