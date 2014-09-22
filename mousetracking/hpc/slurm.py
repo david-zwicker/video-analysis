@@ -6,11 +6,10 @@ Created on Sep 18, 2014
 
 from __future__ import division
 
-import os
 import subprocess
 
-
 from .project import HPCProjectBase
+from ..algorithm.utils import change_directory
 
 
 class SlurmProject(HPCProjectBase):
@@ -21,19 +20,19 @@ class SlurmProject(HPCProjectBase):
         
     def submit(self):
         """ submit the tracking job using slurm """
-        # submit first job
-        os.chdir(self.folder)
-        res = subprocess.check_output(['sbatch', 'pass1_single_slurm.sh'])
-        pid_pass1 = int(res.split()[-1])
-        
-        # submit second job
-        res = subprocess.check_output(['sbatch',
-                                       '--dependency=afterok:%d' % pid_pass1,
-                                       'pass2_single_slurm.sh'])
-        pid_pass2 = int(res.split()[-1])
-        
-        self.pids = (pid_pass1, pid_pass2)
-        
-        self.logger.info('Job id of first pass: %d', pid_pass1)
-        self.logger.info('Job id of second pass: %d', pid_pass2)
+        with change_directory(self.folder):
+            # submit first job
+            res = subprocess.check_output(['sbatch', 'pass1_single_slurm.sh'])
+            pid_pass1 = int(res.split()[-1])
+            self.pids = [pid_pass1]
+            self.logger.info('Job id of first pass: %d', pid_pass1)
+            
+            # submit second job if requested
+            if self.passes >= 2:
+                res = subprocess.check_output(['sbatch',
+                                               '--dependency=afterok:%d' % pid_pass1,
+                                               'pass2_single_slurm.sh'])
+                pid_pass2 = int(res.split()[-1])
+                self.pids.append(pid_pass2)
+                self.logger.info('Job id of second pass: %d', pid_pass2)
         
