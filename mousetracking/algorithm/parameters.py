@@ -58,7 +58,7 @@ PARAMETER_LIST = [
             
     # Debug
     Parameter('debug/output', [], None,
-              'List of identifiers determining what debug output is produced.'),
+              'List of identifiers determining what debug output is produced'),
     Parameter('debug/folder', './debug/', UNIT.FOLDER,
               'Folder to which debug videos are written'), 
     Parameter('debug/output_period', 100, UNIT.TIME_FRAMES,
@@ -73,7 +73,7 @@ PARAMETER_LIST = [
               'Folder to which the result video is written'),
     Parameter('output/output_period', 1, UNIT.TIME_FRAMES,
               'How often are frames written to the output file or shown on the '
-              'screen.'),
+              'screen'),
     Parameter('output/video/extension', '.mov', None,
               'File extension used for debug videos'),
     Parameter('output/video/codec', 'libx264', None,
@@ -85,7 +85,7 @@ PARAMETER_LIST = [
     Parameter('cage/determine_boundaries', True, None,
               'Flag indicating whether the cropping rectangle should be determined '
               'automatically. If False, we assume that the original video is '
-              'already cropped.'),
+              'already cropped'),
     Parameter('cage/width_min', 650, UNIT.LENGTH_PIXEL,
               'Minimal width of the cage. This is only used to make a '
               'plausibility test of the results'),
@@ -107,7 +107,7 @@ PARAMETER_LIST = [
     Parameter('colors/adaptation_interval', 1000, UNIT.TIME_FRAMES,
               'How often are the color estimates adapted'),
     Parameter('colors/std_min', 5, UNIT.COLOR,
-              'Minimal standard deviation of sky and sand colors.'),
+              'Minimal standard deviation of sky and sand colors'),
 
     # Background and explored area                             
     Parameter('background/adaptation_rate', 1e-2, UNIT.RATE_FRAMES,
@@ -127,14 +127,17 @@ PARAMETER_LIST = [
               'in the snake model of the ground line. The energy factor has '
               'units of length, since the curvature has units one over length'),
     Parameter('ground/snake_energy_max', 5, UNIT.FACTOR,
-              'Determines the maximal energy the snake is allowed to have.'),
+              'Determines the maximal energy the snake is allowed to have'),
     Parameter('ground/slope_max', 3, UNIT.FRACTION,
-              'Maximal slope of the side ridges.'),
+              'Maximal slope of the side ridges'),
 #     Parameter('ground/flat_top_fraction', 0.2, UNIT.FRACTION,
 #               'Fraction of total width where the top of the ground is flat'),
+    Parameter('ground/frame_margin', 50, UNIT.LENGTH_PIXEL,
+              'Width of the margin to the frame in which the ground profile is '
+              'not determined'),
     Parameter('ground/grabcut_uncertainty_margin', 150, UNIT.LENGTH_PIXEL,
               'Width of the region around the estimated profile, in which '
-              'the GrabCut algorithm may optimize.'),
+              'the GrabCut algorithm may optimize'),
     Parameter('ground/adaptation_interval', 100, UNIT.TIME_FRAMES,
               'How often is the ground profile adapted'),
     Parameter('ground/width', 5, UNIT.LENGTH_PIXEL,
@@ -215,7 +218,7 @@ PARAMETER_LIST = [
               'length is allowed to change'),
                   
     Parameter('factor_length', 1, UNIT.FACTOR,
-              'A factor by which all length scales will be scaled.'),
+              'A factor by which all length scales will be scaled'),
 ]
 
 PARAMETERS = {p.key: p for p in PARAMETER_LIST}

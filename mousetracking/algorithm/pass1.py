@@ -677,27 +677,34 @@ class FirstPass(DataHandler):
     def _refine_ground_points_grabcut(self, frame, points):
         """ refine the ground based on a previous estimate and the current
         image using the GrabCut algorithm """
-                
+        # prepare the masks
+        ground_mask = self.get_ground_mask(255, GroundProfile(points))
+
+        # restrict to region of interest        
+        frame_margin = self.params['ground/frame_margin']
+        rect_frame = [0, 0, frame.shape[1], frame.shape[0]]
+        rect_roi = regions.expand_rectangle(rect_frame, amount=-frame_margin)
+        slices = regions.rect_to_slices(rect_roi)
+        frame = frame[slices]
+        ground_mask = ground_mask[slices]
         mask = np.zeros_like(frame)
         
-        # get the colors
-        colors = self.result['colors']
-        color_border = (colors['sand'] + colors['sky'])/2
+        # indicate the estimated border between sand and sky
+        color_border = (self.result['colors/sand'] + self.result['colors/sky'])/2
+        mask.fill(cv2.GC_PR_BGD) #< probable background
+        mask[frame > color_border] = cv2.GC_PR_FGD #< probable foreground
 
-        ground_mask = self.get_ground_mask(255, GroundProfile(points))
-        
-        mask.fill(cv2.GC_PR_BGD)
-        mask[frame > color_border] = cv2.GC_PR_FGD
-
-        margin = int(self.params['ground/grabcut_uncertainty_margin'])
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (margin, margin))
-        mask[cv2.erode(ground_mask, kernel) == 255] = cv2.GC_FGD
-
-        #kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (50, 50))
-        mask[cv2.dilate(ground_mask, kernel) == 0] = cv2.GC_BGD
+        # set the regions with certain sand and sky
+        uncertainty_margin = int(self.params['ground/grabcut_uncertainty_margin'])
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
+                                           (uncertainty_margin, uncertainty_margin))
+        sure_ground = (cv2.erode(ground_mask, kernel) == 255)
+        mask[sure_ground] = cv2.GC_FGD
+        sure_sky = (cv2.dilate(ground_mask, kernel) == 0)
+        mask[sure_sky] = cv2.GC_BGD
 
         # run grabCut algorithm
-        # have to convert to color image, since grabCut only supports color
+        # have to convert to color image, since cv2.grabCut only supports color, yet
         frame_clr = cv2.cvtColor(frame, cv2.cv.CV_GRAY2RGB)
         bgdmodel = np.zeros((1, 65), np.float64)
         fgdmodel = np.zeros((1, 65), np.float64)
@@ -710,8 +717,9 @@ class FirstPass(DataHandler):
 
         # iterate through the mask and extract the ground profile
         points = []
-        for x in xrange(margin, frame.shape[1] - margin):
-            y = np.nonzero(mask[:, x])[0][0]
+        for col_id, column in enumerate(mask.T):
+            x = col_id + frame_margin
+            y = np.nonzero(column)[0][0] + frame_margin
             points.append((x, y))
     
         return points
@@ -1588,12 +1596,12 @@ class FirstPass(DataHandler):
         if 'difference.video' in self.debug:
             diff = frame.astype(int, copy=False) - self.background + 128
             diff = np.clip(diff, 0, 255).astype(np.uint8, copy=False)
-            self.debug['difference.video'].write_frame(diff)
+            self.debug['difference.video'].set_frame(diff)
             self.debug['difference.video'].add_text(str(self.frame_id),
                                                     (20, 20), anchor='top')   
                 
         if 'background.video' in self.debug:
-            self.debug['background.video'].write_frame(self.background)
+            self.debug['background.video'].set_frame(self.background)
             self.debug['background.video'].add_text(str(self.frame_id),
                                                     (20, 20), anchor='top')   
 

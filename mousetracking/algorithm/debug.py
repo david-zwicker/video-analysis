@@ -12,7 +12,8 @@ import itertools
 
 import numpy as np
 
-__all__ = ['show_image', 'show_shape', 'print_filter_chain']
+import cv2
+
 
 
 def show_image(*images, **kwargs):
@@ -171,6 +172,19 @@ def show_tracking_graph(graph, path, **kwargs):
     if kwargs.get('wait_for_key', True):
         raw_input('Press enter to continue...')
 
+
+
+def get_grabcut_image(mask):
+    """ returns an image from a mask that was prepared for the grab cut
+    algorithm, where the foreground is bright and the background is dark """
+    image = np.zeros_like(mask, np.uint8)
+    c = 255//4
+    image[mask == cv2.GC_BGD   ] = 1*c 
+    image[mask == cv2.GC_PR_BGD] = 2*c
+    image[mask == cv2.GC_PR_FGD] = 3*c
+    image[mask == cv2.GC_FGD   ] = 4*c
+    return image
+     
 
     
 def print_filter_chain(video):
