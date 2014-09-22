@@ -752,7 +752,7 @@ class FirstPass(DataHandler):
                 y = np.nonzero(column)[0][0] + frame_margin
             except IndexError:
                 pass
-            finally:
+            else:
                 points.append((x, y))
     
         return points
@@ -931,12 +931,16 @@ class FirstPass(DataHandler):
             # scale profile to -1, 1
             profile -= profile.mean()
             profile /= profile.std()
-            
+
+            plen = len(profile)
+            xs = np.linspace(-plen/2 + 0.5,
+                              plen/2 - 0.5,
+                              plen)
+        
             def energy_image((pos, model_mean, model_std)):
                 """ part of the energy related to the line scan """
                 # get image part
-                x = np.linspace(-profile_len - pos, profile_len - pos, len(profile))
-                model = np.tanh(-x/ridge_width)
+                model = np.tanh(-(xs - pos)/ridge_width)
                 img_diff = profile - model_std*model - model_mean
                 scaled_diff = np.sum(img_diff**2)
                 return energy_factor_last*scaled_diff
@@ -957,23 +961,29 @@ class FirstPass(DataHandler):
 
             def energy_snake((pos, model_mean, model_std)):
                 """ energy function of this part of the ground line """
+                #print pos
                 return energy_image((pos, model_mean, model_std)) + energy_curvature(pos)
             
             # fit the simple model to the line scan profile            
-            res = optimize.fmin(energy_snake, [0, 0, model_std], xtol=0.5, disp=False)
+            res = optimize.fmin(energy_snake, [0, 0, model_std], disp=False)
             x, model_mean, model_std = res 
 
 #             if k == 20:
-#                 xs = np.linspace(-profile_len - x, profile_len - x, len(profile))
-#                 model = np.tanh(-xs/ridge_width)
+#                 print '-'*40
+#                 print energy_image((x, model_mean, model_std))
+#                 print energy_curvature(x)
+# 
+#             if k == 20:
+#                 #xs = np.linspace(-profile_len - x, profile_len - x, len(profile))
+#                 model = model_std*np.tanh(-(xs - x)/ridge_width) + model_mean
 #                 import matplotlib.pyplot as plt
 #                 plt.plot(profile, label='profile')
-#                 plt.plot(model_std*model, label='model')
+#                 plt.plot(model, label='model')
 #                 plt.legend(loc='best')
 #                 plt.show()
             
             # save for determining the energy scale later
-            energies_image.append(energy_image(res))
+            energies_image.append(energy_image((x, model_mean, model_std)))
 
             # use this point, if it is good enough            
             if energy_snake(res) < snake_energy_max:
