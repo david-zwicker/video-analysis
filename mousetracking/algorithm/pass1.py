@@ -19,6 +19,7 @@ top to bottom. The origin is thus in the upper left corner.
 
 from __future__ import division
 
+import math
 import time
 
 import numpy as np
@@ -208,19 +209,20 @@ class FirstPass(DataHandler):
     def _iterate_over_video(self, video):
         """ internal function doing the heavy lifting by iterating over the video """
 
-        sigma = self.params['video/blur_radius']
-        blur_kernel = cv2.getGaussianKernel(int(3*sigma), sigma=sigma)
+        blur_sigma = self.params['video/blur_radius']
+        blur_sigma_color = self.params['video/blur_sigma_color']
 
         # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video)):
+            # blur frame using a bilateral filter
+            frame_blurred = cv2.bilateralFilter(frame, d=int(2*blur_sigma),
+                                                sigmaColor=blur_sigma_color,
+                                                sigmaSpace=blur_sigma)
+            
             # copy frame to debug video
             if 'video' in self.debug:
                 self.debug['video'].set_frame(frame, copy=False)
                 
-            # blur frame - if the frame is contiguous in memory, we don't need to make a copy
-            frame_blurred = np.ascontiguousarray(frame)
-            cv2.sepFilter2D(frame_blurred, cv2.CV_8U,
-                            blur_kernel, blur_kernel, dst=frame_blurred)
             
             if self.frame_id == self.params['video/initial_adaptation_frames']:
                 # prepare the main analysis
@@ -251,7 +253,7 @@ class FirstPass(DataHandler):
                     self.find_burrows()
                     
             # update the background model
-            self.update_background_model(frame_blurred)
+            self.update_background_model(frame)
                 
             # store some information in the debug dictionary
             self.debug_process_frame(frame_blurred)
@@ -643,6 +645,13 @@ class FirstPass(DataHandler):
         """ get a rough series of points on the ground line from vertical
         line scans """
         
+        # get region of interest
+        frame_margin = int(self.params['ground/frame_margin'])
+        rect_frame = [0, 0, frame.shape[1], frame.shape[0]]
+        rect_roi = regions.expand_rectangle(rect_frame, amount=-frame_margin)
+        slices = regions.rect_to_slices(rect_roi)
+        frame = frame[slices]
+        
         # build the ground ridge template for matching 
         ridge_width = self.params['ground/ridge_width']
         model_width = int(ridge_width + frame.shape[0]/10)
@@ -656,31 +665,29 @@ class FirstPass(DataHandler):
         
         # do vertical line scans and determine ground position
         spacing = int(self.params['ground/point_spacing'])
-        frame_margin = self.params['ground/frame_margin'] + spacing/2
         points = []
         for k in xrange(frame.shape[1]//spacing):
-            pos_x = (k + 0.5)*spacing
-            if (frame_margin < pos_x < frame.shape[1] - frame_margin):
-                line_scan = frame[:, spacing*k:spacing*(k + 1)].mean(axis=1)
+            pos_x = (k + 0.5)*spacing + frame_margin
+            line_scan = frame[:, spacing*k:spacing*(k + 1)].mean(axis=1)
 #                 # get the cross-correlation between the profile and the template
 #                 conv = cv2.matchTemplate(line_scan.astype(np.uint8),
 #                                          model, cv2.cv.CV_TM_SQDIFF_NORMED)
 #                 # get the minimum, indicating the best match
 #                 pos_y = np.argmin(conv) + model_width
-                profile = ndimage.filters.gaussian_filter1d(line_scan, ridge_width)
-        
-                slopes = np.diff(profile)
-                pos_ys = np.nonzero(slopes > 0.4*slopes.max())[0]
-        
-                for pos_y in pos_ys:
-                    self.debug['video'].add_points([(pos_x, pos_y)], radius=3)
+            profile = ndimage.filters.gaussian_filter1d(line_scan, ridge_width)
+    
+            slopes = np.diff(profile)
+            pos_ys = np.nonzero(slopes > 0.4*slopes.max())[0] + frame_margin
+    
+            for pos_y in pos_ys:
+                self.debug['video'].add_points([(pos_x, pos_y)], radius=2)
 #                 i_max = np.argmax(np.diff(profile) > )
 #                 pos_y = image.get_steepest_point(line_scan, 1, smoothing=ridge_width)#spacing)
-                pos_y = pos_ys[0]
-                
-                # add point
-                points.append((pos_x, pos_y))
-                
+            pos_y = pos_ys[0]
+            
+            # add point
+            points.append((pos_x, pos_y))
+            
 #                 if k == 13:
 #                     import matplotlib.pyplot as plt
 #                     plt.plot(line_scan, label='line scan')
@@ -865,7 +872,7 @@ class FirstPass(DataHandler):
         frame = self.background
         spacing = int(self.params['ground/point_spacing'])
             
-        if (not 'ground.model' in self._cache or \
+        if (not 'ground.model' in self._cache or
             self._cache['ground.model'].size != spacing):
             
             self._cache['ground.model'] = \
@@ -886,7 +893,6 @@ class FirstPass(DataHandler):
 
         # iterate over all but the boundary points
         curvature_energy_factor = self.params['ground/curvature_energy_factor']
-        energies_image = []
         if 'pass1/ground/energy_factor_last' in self.result:
             # load the energy factor for the next iteration
             snake_energy_max = self.params['ground/snake_energy_max']
@@ -896,36 +902,41 @@ class FirstPass(DataHandler):
             # for the next iteration
             snake_energy_max = np.inf
             energy_factor_last = 1
+
+        # parameters of the line scan            
+        profile_len = int(self.params['ground/linescan_length']/2)
+        profile_width = self.params['ground/point_spacing']/2
+        ridge_width = self.params['ground/ridge_width']
+        len_ratio = profile_len/ridge_width
+        model_std = math.sqrt(1 - math.tanh(len_ratio)/len_ratio)
+        assert 0.5 < model_std < 1
             
         # iterate through all points and correct profile
-        corrected_points = []
+        corrected_points, energies_image = [], []
         for k, p in enumerate(points[1:-1], 1):
             # calculate the deviation to the previous point
             p_p, p_n =  points[k-1], points[k+1]
             dx, dy = p_n - p_p
-            dist = np.sqrt(dx*dx + dy*dy)
+            dist = math.hypot(dx, dy)
             dx /= dist; dy /= dist
 
             # do the line scan            
-            profile_len = int(self.params['ground/linescan_length']/2)
-            profile_width = self.params['ground/point_spacing']/2
-            ground_width = 5
             p_a = (p[0] - profile_len*dy, p[1] + profile_len*dx)
             p_b = (p[0] + profile_len*dy, p[1] - profile_len*dx)
             profile = image.line_scan(frame, p_a, p_b, width=profile_width)
+            # scale profile to -1, 1
             profile -= profile.mean()
-            profile_std = profile.std()
+            profile /= profile.std()
             
-            def energy_image(pos):
+            def energy_image((pos, model_mean, model_std)):
                 """ part of the energy related to the line scan """
                 # get image part
                 x = np.linspace(-profile_len - pos, profile_len - pos, len(profile))
-                model = np.tanh(-x/ground_width)
-                img_diff = profile - profile_std*model
+                model = np.tanh(-x/ridge_width)
+                img_diff = profile - model_std*model - model_mean
                 scaled_diff = np.sum(img_diff**2)
                 return energy_factor_last*scaled_diff
                 # energy_img has units of color^2
-                
                 
             def energy_curvature(pos):
                 """ part of the energy related to the curvature of the ground line """
@@ -940,20 +951,29 @@ class FirstPass(DataHandler):
                 # curv has units of 1/length
                 return curvature_energy_factor*curv
 
-            
-            def energy_snake(pos):
+            def energy_snake((pos, model_mean, model_std)):
                 """ energy function of this part of the ground line """
-                return energy_image(pos) + energy_curvature(pos)
+                return energy_image((pos, model_mean, model_std)) + energy_curvature(pos)
             
             # fit the simple model to the line scan profile            
-            x = optimize.fmin(energy_snake, [0], xtol=0.5, disp=False)
+            res = optimize.fmin(energy_snake, [0, 0, model_std], xtol=0.5, disp=False)
+            x, model_mean, model_std = res 
+
+#             if k == 20:
+#                 xs = np.linspace(-profile_len - x, profile_len - x, len(profile))
+#                 model = np.tanh(-xs/ridge_width)
+#                 import matplotlib.pyplot as plt
+#                 plt.plot(profile, label='profile')
+#                 plt.plot(model_std*model, label='model')
+#                 plt.legend(loc='best')
+#                 plt.show()
             
             # save for determining the energy scale later
-            energies_image.append(energy_image(x))
+            energies_image.append(energy_image(res))
 
             # use this point, if it is good enough            
-            if energy_snake(x) < snake_energy_max:
-                p_x, p_y = p[0] + x[0]*dy, p[1] - x[0]*dx
+            if energy_snake(res) < snake_energy_max:
+                p_x, p_y = p[0] + x*dy, p[1] - x*dx
                 if (len(corrected_points) == 0 or 
                     p_x >= corrected_points[-1][0]):
                     # no overhanging ridge => add the point

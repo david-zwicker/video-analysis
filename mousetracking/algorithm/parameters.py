@@ -38,6 +38,8 @@ PARAMETER_LIST = [
               'Number of initial frames to skip during analysis'),
     Parameter('video/blur_radius', 3, UNIT.LENGTH_PIXEL,
               'Radius of the blur filter to remove noise'),
+    Parameter('video/blur_sigma_color', 10, UNIT.COLOR,
+              'Standard deviation in color space of the bilateral filter'),
     Parameter('video/frames', None, None,
               'Frames of the video which are analyzed [start and end index should be given]'),
     Parameter('video/cropping_rect', None, None,
@@ -132,7 +134,7 @@ PARAMETER_LIST = [
               'Maximal slope of the side ridges'),
 #     Parameter('ground/flat_top_fraction', 0.2, UNIT.FRACTION,
 #               'Fraction of total width where the top of the ground is flat'),
-    Parameter('ground/frame_margin', 25, UNIT.LENGTH_PIXEL,
+    Parameter('ground/frame_margin', 100, UNIT.LENGTH_PIXEL,
               'Width of the margin to the frame in which the ground profile is '
               'not determined'),
     Parameter('ground/grabcut_uncertainty_margin', 100, UNIT.LENGTH_PIXEL,
