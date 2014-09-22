@@ -22,9 +22,8 @@ from __future__ import division
 import time
 
 import numpy as np
-import scipy.ndimage as ndimage
-from scipy import optimize, signal, spatial
-import shapely.geometry as geometry
+from scipy import ndimage, optimize, signal, spatial
+from shapely import geometry
 import cv2
 
 from video.io import ImageShow
@@ -645,31 +644,52 @@ class FirstPass(DataHandler):
         line scans """
         
         # build the ground ridge template for matching 
-        width = self.params['ground/width']
-        dist_width = int(width + frame.shape[0]/10)
-        dist = np.arange(-dist_width, dist_width + 1)
+        ridge_width = self.params['ground/ridge_width']
+        model_width = int(ridge_width + frame.shape[0]/10)
+        model_width = 3*ridge_width
+        ys = np.arange(-model_width, model_width + 1)
         color_sky = self.result['colors/sky']
         color_sand = self.result['colors/sand']
-        model = (1 + np.tanh(dist/width))/2
+        model = (1 + np.tanh(ys/ridge_width))/2
         model = color_sky + (color_sand - color_sky)*model
         model = model.astype(np.uint8)
         
         # do vertical line scans and determine ground position
         spacing = int(self.params['ground/point_spacing'])
-        border_width = frame.shape[1] - self.params['cage/width_min'] 
+        frame_margin = self.params['ground/frame_margin'] + spacing/2
         points = []
         for k in xrange(frame.shape[1]//spacing):
             pos_x = (k + 0.5)*spacing
-            if (border_width < pos_x < frame.shape[1] - border_width):
+            if (frame_margin < pos_x < frame.shape[1] - frame_margin):
                 line_scan = frame[:, spacing*k:spacing*(k + 1)].mean(axis=1)
-                # get the cross-correlation between the profile and the template
-                conv = cv2.matchTemplate(line_scan.astype(np.uint8),
-                                         model, cv2.cv.CV_TM_SQDIFF)
-                # get the minimum, indicating the best match
-                pos_y = np.argmin(conv) + dist_width
+#                 # get the cross-correlation between the profile and the template
+#                 conv = cv2.matchTemplate(line_scan.astype(np.uint8),
+#                                          model, cv2.cv.CV_TM_SQDIFF_NORMED)
+#                 # get the minimum, indicating the best match
+#                 pos_y = np.argmin(conv) + model_width
+                profile = ndimage.filters.gaussian_filter1d(line_scan, ridge_width)
+        
+                slopes = np.diff(profile)
+                pos_ys = np.nonzero(slopes > 0.4*slopes.max())[0]
+        
+                for pos_y in pos_ys:
+                    self.debug['video'].add_points([(pos_x, pos_y)], radius=3)
+#                 i_max = np.argmax(np.diff(profile) > )
+#                 pos_y = image.get_steepest_point(line_scan, 1, smoothing=ridge_width)#spacing)
+                pos_y = pos_ys[0]
                 
                 # add point
                 points.append((pos_x, pos_y))
+                
+#                 if k == 13:
+#                     import matplotlib.pyplot as plt
+#                     plt.plot(line_scan, label='line scan')
+#                     plt.axvline(pos_y)
+#                     plt.legend(loc='best')
+#                     plt.show()
+                
+#         debug.show_shape(geometry.LineString(points),
+#                          background=frame, mark_points=True)
                 
         return points
     
@@ -681,7 +701,7 @@ class FirstPass(DataHandler):
         ground_mask = self.get_ground_mask(255, GroundProfile(points))
 
         # restrict to region of interest        
-        frame_margin = self.params['ground/frame_margin']
+        frame_margin = int(self.params['ground/frame_margin'])
         rect_frame = [0, 0, frame.shape[1], frame.shape[0]]
         rect_roi = regions.expand_rectangle(rect_frame, amount=-frame_margin)
         slices = regions.rect_to_slices(rect_roi)
@@ -702,6 +722,8 @@ class FirstPass(DataHandler):
         mask[sure_ground] = cv2.GC_FGD
         sure_sky = (cv2.dilate(ground_mask, kernel) == 0)
         mask[sure_sky] = cv2.GC_BGD
+        
+#         debug.show_image(debug.get_grabcut_image(mask), frame)
 
         # run grabCut algorithm
         # have to convert to color image, since cv2.grabCut only supports color, yet
@@ -847,7 +869,7 @@ class FirstPass(DataHandler):
             self._cache['ground.model'].size != spacing):
             
             self._cache['ground.model'] = \
-                    RidgeProfile(spacing, self.params['ground/width'])
+                    RidgeProfile(spacing, self.params['ground/ridge_width'])
                 
         # make sure the curve has equidistant points
         points = curves.make_curve_equidistant(ground.line, spacing)

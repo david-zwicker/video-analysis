@@ -171,7 +171,7 @@ class VideoComposer(VideoFileWriter):
         
     
     @skip_if_no_output
-    def add_points(self, points, radius, color):
+    def add_points(self, points, radius=1, color='w'):
         """ adds a sequence of points to the frame """
         c = get_color(color)
         for p in points:
