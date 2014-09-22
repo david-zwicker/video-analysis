@@ -19,6 +19,8 @@ top to bottom. The origin is thus in the upper left corner.
 
 from __future__ import division
 
+import time
+
 import numpy as np
 import scipy.ndimage as ndimage
 from scipy import optimize, signal, spatial
@@ -112,7 +114,8 @@ class FirstPass(DataHandler):
 
         self.log_event('Pass 1 - Started iterating through the video with %d frames.' %
                        self.video.frame_count)
-        self.data['analysis-status'] = 'Initialized video analysis'            
+        self.data['analysis-status'] = 'Initialized video analysis'
+        start_time = time.time()            
         
         try:
             # skip the first frame, since it has already been analyzed
@@ -136,12 +139,20 @@ class FirstPass(DataHandler):
             # clean up
             self.video.close()
         
-        self.data['video/analyzed/frames_analyzed'] = self.frame_id + 1
+        self.add_processing_statistics(time.time() - start_time)        
                     
         # cleanup and write out of data
         self.debug_finalize()
         self.write_data()
         
+
+    def add_processing_statistics(self, time):
+        """ add some extra statistics to the results """
+        frames_analyzed = self.frame_id + 1
+        self.data['video/analyzed/frames_analyzed'] = frames_analyzed
+        self.result['statistics/processing_time'] = time
+        self.result['statistics/processing_fps'] = frames_analyzed/time
+
 
     def setup_processing(self):
         """ sets up the processing of the video by initializing caches etc """
@@ -1571,7 +1582,7 @@ class FirstPass(DataHandler):
                 debug_video.add_rectangle(rect, 'w', 10)
                 self.debug['video.mark.highlight'] = False
             
-            if 'video.show' in self.debug:
+            if 'video.show' in self.debug and debug_video.output_this_frame:
                 self.debug['video.show'].show(debug_video.frame)
                 
         if 'difference.video' in self.debug:
