@@ -7,8 +7,6 @@
 	- different logging behavior (log to file for release run!)
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
-* When fitting burrows, set currently moving parts to sky color in background model and do the fitting on this image
-* Simplify bulky burrows by trying to remove points and checking whether the area changes significantly
 * Determine absolute times by checking when the lights go on
 * Think about introducing a flag indicating whether we are sure we know where the mouse is (by considering its movement)
 	- this could be used to reject moving objects that are certainly not a mouse
@@ -22,6 +20,8 @@
 * Maybe we can get away with just using GrabCut for finding burrows?
 	- Think about redetermining centerlines of elongated burrows that have not been fitted in pass 2
 	- We definitely have to do something about stray objects which sometimes initiate wrong burrows
+	- When fitting burrows, set currently moving parts to sky color in background model and do the fitting on this image
+	- Simplify bulky burrows by trying to remove points and checking whether the area changes significantly
 
 
 Performance improvements:
@@ -43,6 +43,3 @@ Low priority enhancements:
 	- One idea is to just drop these frames and assume that not much happens during this time
 * There is a memory leak somewhere. If the FirstPass object is deleted not all memory is released.
 	- This should not pose any problems, since we usually only do one scan and then end the whole process
-* Ground fitting could use some "active snake" ideas (http://en.wikipedia.org/wiki/Active_contour_model)
-	- Alternatively, Speed up sand profile fitting by having a library of profiles with certain angles and just matching these
-	around the point of interest (move along perpendicular line, until overlap is maximal)

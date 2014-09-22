@@ -653,9 +653,9 @@ class FirstPass(DataHandler):
                 line_scan = frame[:, spacing*k:spacing*(k + 1)].mean(axis=1)
                 # get the cross-correlation between the profile and the template
                 conv = cv2.matchTemplate(line_scan.astype(np.uint8),
-                                         model, cv2.cv.CV_TM_CCORR_NORMED)
+                                         model, cv2.cv.CV_TM_SQDIFF)
                 # get the minimum, indicating the best match
-                pos_y = np.argmax(conv)  + dist_width
+                pos_y = np.argmin(conv) + dist_width
                 
                 # add point
                 points.append((pos_x, pos_y))
@@ -754,12 +754,20 @@ class FirstPass(DataHandler):
         
         # get the background image from which we extract the ground profile
         frame = self.background.astype(np.uint8)
+
+        # get the ground profile and refine it
+        points1 = self._get_ground_from_linescans(frame)
+        points2 = self._refine_ground_points_grabcut(frame, points1)
+        points3 = self._revise_ground_points(frame, points2)
+
+        # plot the ground profiles to the debug video
+        if 'video' in self.debug:
+            debug_video = self.debug['video']
+            debug_video.add_polygon(points1, is_closed=False,
+                                    mark_points=True, color='r')
+            debug_video.add_polygon(points2, is_closed=False, color='b')
         
-        points = self._get_ground_from_linescans(frame)
-        points = self._refine_ground_points_grabcut(frame, points)
-        points = self._revise_ground_points(frame, points)
-        
-        return GroundProfile(points)
+        return GroundProfile(points3)
 
     
     def _get_cage_boundary(self, ground_point, direction='left'):
