@@ -130,7 +130,10 @@ class VideoComposer(VideoFileWriter):
         thickness=-1 denotes a filled circle 
         """
         pos = (int(pos[0]), int(pos[1]))
-        cv2.circle(self.frame, pos, int(radius), get_color(color), thickness=int(thickness))
+        try:
+            cv2.circle(self.frame, pos, int(radius), get_color(color), thickness=int(thickness))
+        except OverflowError:
+            pass
         
     
     def add_points(self, points, radius, color):

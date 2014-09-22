@@ -127,7 +127,7 @@ PARAMETER_LIST = [
               'Maximal slope of the side ridges.'),
 #     Parameter('ground/flat_top_fraction', 0.2, UNIT.FRACTION,
 #               'Fraction of total width where the top of the ground is flat'),
-    Parameter('ground/grabcut_uncertainty_margin', 75, UNIT.LENGTH_PIXEL,
+    Parameter('ground/grabcut_uncertainty_margin', 150, UNIT.LENGTH_PIXEL,
               'Width of the region around the estimated profile, in which '
               'the GrabCut algorithm may optimize.'),
     Parameter('ground/adaptation_interval', 100, UNIT.TIME_FRAMES,
@@ -139,7 +139,7 @@ PARAMETER_LIST = [
     Parameter('ground/smoothing_sigma', 300, UNIT.TIME_FRAMES,
               'Standard deviation for Gaussian smoothing over time'),
     
-    # Mouse 
+    # Mouse and the associated tracking
     Parameter('mouse/intensity_threshold', 1, UNIT.FACTOR,
               'Determines how much brighter than the background (usually the '
               'sky) the mouse has to be. This value is measured in terms of '
@@ -154,14 +154,19 @@ PARAMETER_LIST = [
               'Maximal speed of the mouse'),
     Parameter('mouse/max_rel_area_change', 0.5, UNIT.FACTOR,
               'Maximal area change allowed between consecutive frames'),
+                  
     Parameter('tracking/weight', 0.5, UNIT.FACTOR,
               'Relative weight of distance vs. size of objects for matching them'),
     Parameter('tracking/moving_window', 20, UNIT.TIME_FRAMES,
               'Number of consecutive frames used for motion detection'),
     Parameter('tracking/moving_threshold', 15, UNIT.SPEED_PIXEL_FRAME,
               'Threshold speed above which an object is said to be moving'),
+    Parameter('tracking/object_count_max', 5, None,
+              'Maximal number of objects allowed in a single frame. If there are '
+              'more objects, the entire frame is discarded'),
     Parameter('tracking/time_scale', 10, UNIT.TIME_FRAMES,
-              'Time duration of not seeing the mouse after which we do not know where it is anymore'),
+              'Time duration of not seeing the mouse after which we do not ' 
+              'know where it is anymore'),
     Parameter('tracking/tolerated_overlap', 10, UNIT.TIME_FRAMES,
               'How much are two consecutive tracks allowed to overlap'),
     Parameter('tracking/initial_score_threshold', 1000, UNIT.FACTOR,

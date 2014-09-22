@@ -22,6 +22,7 @@
 * Maybe we can get away with just using GrabCut for finding burrows?
 	- Think about redetermining centerlines of elongated burrows that have not been fitted in pass 2
 	- We definitely have to do something about stray objects which sometimes initiate wrong burrows
+* Adjust output videos to have less frames
 
 
 Performance improvements:

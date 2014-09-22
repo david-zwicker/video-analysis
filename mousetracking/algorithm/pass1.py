@@ -68,6 +68,7 @@ class FirstPass(DataHandler):
         self.explored_area = None      # region the mouse has explored yet
         self.frame_id = None           # id of the current frame
         self.result['mouse/moved_first_in_frame'] = None
+        self.result['mouse/too_many_objects'] = 0
         if self.params['debug/output'] is None:
             self.debug_output = []
         else:
@@ -584,15 +585,22 @@ class FirstPass(DataHandler):
         self.debug['object_count'] = num_features
         
         if num_features == 0:
-            # end all current tracks if there are any
-            if len(self.tracks) > 0:
-                self.logger.debug('%d: Copy %d tracks to results', 
-                                  self.frame_id, len(self.tracks))
-                self.result['objects/tracks'].extend(self.tracks)
-                self.tracks = []
-
+            # no features found => end all current tracks
+            self.result['objects/tracks'].extend(self.tracks)
+            self.tracks = []
+            
+        elif num_features > self.params['tracking/object_count_max']:
+            # too many features found => end all current tracks
+            self.result['objects/tracks'].extend(self.tracks)
+            self.tracks = []
+            
+            self.result['mouse/too_many_objects'] += 1
+            self.logger.debug('Discarding object information from this frame, '
+                              'too many (%d) features were detected.'
+                              % num_features)
+            
         else:
-            # some moving features have been found in the video 
+            # some moving features have been found => handle these 
             self._handle_object_tracks(frame, moving_objects, num_features)
 
             # check whether objects moved and call them a mouse
@@ -830,7 +838,7 @@ class FirstPass(DataHandler):
         # iterate over all but the boundary points
         curvature_energy_factor = self.params['ground/curvature_energy_factor']
         energies_image = []
-        if 'pass1/ground/energy_image_scale' in self.result:
+        if 'pass1/ground/energy_factor_last' in self.result:
             # load the energy factor for the next iteration
             snake_energy_max = self.params['ground/snake_energy_max']
             energy_factor_last = self.result['pass1/ground/energy_factor_last']
@@ -911,6 +919,7 @@ class FirstPass(DataHandler):
         # save the energy factor for the next iteration
         energy_factor_last /= np.mean(energies_image)
         self.result['pass1/ground/energy_factor_last'] = energy_factor_last
+        print 'factor', energy_factor_last
 
         # extend the ground line toward the left edge of the cage
         edge_point = self._get_cage_boundary(corrected_points[0], 'left')
@@ -1251,7 +1260,7 @@ class FirstPass(DataHandler):
         ground_mask = self.get_ground_mask(255)
         frame = self.background
         width_min = self.params['burrows/width_min']
-
+        
         # get region of interest from expanded bounding rectangle
         rect = burrow.get_bounding_rect(5*width_min)
         # get respective slices for the image, respecting image borders 
@@ -1283,7 +1292,7 @@ class FirstPass(DataHandler):
 
         # prepare the input mask for the GrabCut algorithm by defining 
         # foreground and background regions  
-        img[mask == 0] = color_sand #< turn into background
+        img[ground_mask == 0] = color_sand #< turn into background
         mask[:] = cv2.GC_BGD #< surely background
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (int(2*width_min), int(2*width_min)))
         mask[cv2.dilate(burrow_mask, kernel) == 255] = cv2.GC_PR_BGD #< probable background
