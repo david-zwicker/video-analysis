@@ -124,7 +124,7 @@ PARAMETER_LIST = [
               'Spacing of the support points describing the ground profile'),
     Parameter('ground/linescan_length', 100, UNIT.LENGTH_PIXEL,
               'Length of the line scan used to determine the ground profile'),
-    Parameter('ground/curvature_energy_factor', 50, UNIT.LENGTH_PIXEL,
+    Parameter('ground/curvature_energy_factor', 20, UNIT.LENGTH_PIXEL,
               'Relative strength of the curvature energy to the image energy '
               'in the snake model of the ground line. The energy factor has '
               'units of length, since the curvature has units one over length'),

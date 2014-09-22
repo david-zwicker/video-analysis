@@ -45,22 +45,25 @@ def _show_image_from_pipe(pipe, image_array, title, position=None):
                 # update the image
                 cv2.imshow(title, image_array)
                 
-                # check whether the user wants to abort
-                while True:
-                    # waitKey also handles other GUI events and we thus call it
-                    # until everything is handled
-                    key = cv2.waitKey(1)
-                    if key & 0xFF in {27, ord('q')}:
-                        pipe.send('interrupt')
-                        show_image = False
-                    elif key == -1:
-                        break
-    
+            elif command == 'check_events':
+                pass
+                
             elif command == 'close':
                 break
                     
             else:
                 raise ValueError('Unknown command `%s`' % command)
+
+            # check whether the user wants to abort
+            while True:
+                # waitKey also handles other GUI events and we thus call it
+                # until everything is handled
+                key = cv2.waitKey(1)
+                if key & 0xFF in {27, ord('q')}:
+                    pipe.send('interrupt')
+                    show_image = False
+                elif key == -1:
+                    break
             
     except KeyboardInterrupt:
         pipe.send('interrupt')
@@ -132,12 +135,31 @@ class ImageShow(object):
             cv2.waitKey(1) 
        
        
-    def show(self, image):
+    def check_gui_events(self):
+        """ checks whether the GUI sent any events to the window.
+        The function raises a KeyboardInterrupt if the user wants to abort """  
+        if self._proc:
+            # check the viewer process for events
+            if self._pipe.poll() and self._pipe.recv() == 'interrupt':
+                raise KeyboardInterrupt
+        else:
+            # check the window for events
+            while True:
+                # waitKey also handles other GUI events and we thus call it
+                # until everything is handled
+                key = cv2.waitKey(1)
+                if key & 0xFF in {27, ord('q')}:
+                    raise KeyboardInterrupt
+                elif key == -1:
+                    break
+
+       
+    def show(self, image=None):
         """ show an image.
         May raise KeyboardInterrupt, if the user opted to exit
         """
         # check whether the current frame should be displayed 
-        if (self.this_frame % self.output_period) == 0:
+        if image is not None and (self.this_frame % self.output_period) == 0:
             if image.ndim > 2:
                 # reverse the color axis, to get BGR image required by OpenCV
                 image = image[:, :, ::-1]
@@ -145,26 +167,18 @@ class ImageShow(object):
             if self._proc:
                 # copy data to shared memory
                 self._data[:] = image
-                # tell the process to update window
+                # and tell the process to update window
                 self._pipe.send('update')
-                
-                # check whether the user wants to quit
-                if self._pipe.poll() and self._pipe.recv() == 'interrupt':
-                    raise KeyboardInterrupt
     
             else:
-                # update the image
+                # update the image in our window
                 cv2.imshow(self.title, image.astype(np.uint8))
-                
-                # check whether the user wants to abort
-                while True:
-                    # waitKey also handles other GUI events and we thus call it
-                    # until everything is handled
-                    key = cv2.waitKey(1)
-                    if key & 0xFF in {27, ord('q')}:
-                        raise KeyboardInterrupt
-                    elif key == -1:
-                        break
+                    
+        else:
+            # image is not shown => still poll for events
+            if self._proc:
+                self._pipe.send('check_events')
+        self.check_gui_events()
             
         # keep the internal frame count up to date 
         self.this_frame += 1

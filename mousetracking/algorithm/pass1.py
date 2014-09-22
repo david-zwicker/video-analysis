@@ -1646,8 +1646,11 @@ class FirstPass(DataHandler):
                 debug_video.add_rectangle(rect, 'w', 10)
                 self.debug['video.mark.highlight'] = False
             
-            if 'video.show' in self.debug and debug_video.output_this_frame:
-                self.debug['video.show'].show(debug_video.frame)
+            if 'video.show' in self.debug:
+                if debug_video.output_this_frame:
+                    self.debug['video.show'].show(debug_video.frame)
+                else:
+                    self.debug['video.show'].show()
                 
         if 'difference.video' in self.debug:
             diff = frame.astype(int, copy=False) - self.background + 128
