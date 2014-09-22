@@ -919,7 +919,6 @@ class FirstPass(DataHandler):
         # save the energy factor for the next iteration
         energy_factor_last /= np.mean(energies_image)
         self.result['pass1/ground/energy_factor_last'] = energy_factor_last
-        print 'factor', energy_factor_last
 
         # extend the ground line toward the left edge of the cage
         edge_point = self._get_cage_boundary(corrected_points[0], 'left')
@@ -1467,6 +1466,7 @@ class FirstPass(DataHandler):
         self.debug['video.mark.text2'] = ''
 
         # load parameters for video output        
+        video_output_period = int(self.params['debug/output_period'])
         video_extension = self.params['output/video/extension']
         video_codec = self.params['output/video/codec']
         video_bitrate = self.params['output/video/bitrate']
@@ -1477,13 +1477,14 @@ class FirstPass(DataHandler):
             debug_file = self.get_filename('debugvideo' + video_extension, 'debug')
             self.debug['video'] = VideoComposer(debug_file, size=self.video.size,
                                                 fps=self.video.fps, is_color=True,
+                                                output_period=video_output_period,
                                                 codec=video_codec, bitrate=video_bitrate)
             
             if 'video.show' in self.debug_output:
                 name = self.name if self.name else ''
                 position = self.params['debug/window_position']
                 self.debug['video.show'] = ImageShow(self.debug['video'].shape,
-                                                     'Debug video' + ' [%s]' % name,
+                                                     title='Debug video' + ' [%s]' % name,
                                                      position=position)
 
         # set up additional video writers
@@ -1493,8 +1494,8 @@ class FirstPass(DataHandler):
                 debug_file = self.get_filename(identifier + video_extension, 'debug')
                 # set up the video file writer
                 video_writer = VideoComposer(debug_file, self.video.size, self.video.fps,
-                                             is_color=False, codec=video_codec,
-                                             bitrate=video_bitrate)
+                                             is_color=False, output_period=video_output_period,
+                                             codec=video_codec, bitrate=video_bitrate)
                 self.debug[identifier + '.video'] = video_writer
         
 

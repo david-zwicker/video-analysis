@@ -60,7 +60,10 @@ PARAMETER_LIST = [
     Parameter('debug/output', [], None,
               'List of identifiers determining what debug output is produced.'),
     Parameter('debug/folder', './debug/', UNIT.FOLDER,
-              'Folder to which debug videos are written'),
+              'Folder to which debug videos are written'), 
+    Parameter('debug/output_period', 100, UNIT.TIME_FRAMES,
+              'How often are frames written to the output file or shown on the '
+              'screen.'),
     Parameter('debug/window_position', None, None,
               'Position (x, y) of the top-left corner of the debug window'),
             
