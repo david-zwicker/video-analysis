@@ -62,8 +62,7 @@ PARAMETER_LIST = [
     Parameter('debug/folder', './debug/', UNIT.FOLDER,
               'Folder to which debug videos are written'), 
     Parameter('debug/output_period', 100, UNIT.TIME_FRAMES,
-              'How often are frames written to the output file or shown on the '
-              'screen.'),
+              'How often are frames written to the output file'),
     Parameter('debug/window_position', None, None,
               'Position (x, y) of the top-left corner of the debug window'),
             
@@ -72,6 +71,9 @@ PARAMETER_LIST = [
               'Folder to which the YAML and HDF5 result files are written'),
     Parameter('output/video/folder', './results/', UNIT.FOLDER,
               'Folder to which the result video is written'),
+    Parameter('output/output_period', 1, UNIT.TIME_FRAMES,
+              'How often are frames written to the output file or shown on the '
+              'screen.'),
     Parameter('output/video/extension', '.mov', None,
               'File extension used for debug videos'),
     Parameter('output/video/codec', 'libx264', None,

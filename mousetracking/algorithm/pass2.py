@@ -352,8 +352,10 @@ class SecondPass(DataHandler):
             self.load_video()
         
         filename = self.get_filename('video' + video_extension, 'video')
-        video = VideoComposer(filename, size=self.video.size, fps=self.video.fps,
-                              is_color=True, codec=video_codec, bitrate=video_bitrate)
+        video = VideoComposer(filename, size=self.video.size,
+                              fps=self.video.fps, is_color=True,
+                              output_period=self.params['output/output_period'],
+                              codec=video_codec, bitrate=video_bitrate)
         
         mouse_track = self.data['pass2/mouse_trajectory']
         ground_profile = self.data['pass2/ground_profile']

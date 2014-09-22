@@ -77,8 +77,23 @@ def _show_image_from_pipe(pipe, image_array, title, position=None):
 class ImageShow(object):
     """ class that can show an image """
     
-    def __init__(self, size, title='', multiprocessing=None, position=None):
+    def __init__(self, size, title='', output_period=1,
+                 multiprocessing=None, position=None):
+        """ initializes the video shower.
+        size sets the width and the height of the image to be shown
+        title sets the title of the window. This should be unique if multiple
+            windows are used.
+        output_period determines if frames are skipped during display.
+            For instance, `output_period=10` only shows every tenth frame.
+        multiprocessing indicates whether a separate process is used for
+            displaying. If multiprocessing=None, multiprocessing is used
+            for all platforms, except MacOX
+        position determines the coordinates of the top left corner of the
+            window that displays the image
+        """
         self.title = title
+        self.output_period = output_period
+        self.this_frame = 0
         self._proc = None
         
         # multiprocessing does not work in current MacOS OpenCV
@@ -120,34 +135,39 @@ class ImageShow(object):
     def show(self, image):
         """ show an image.
         May raise KeyboardInterrupt, if the user opted to exit
-        """ 
-        if image.ndim > 2:
-            # reverse the color axis, to get BGR image required by OpenCV
-            image = image[:, :, ::-1]
-        
-        if self._proc:
-            # copy data to shared memory
-            self._data[:] = image
-            # tell the process to update window
-            self._pipe.send('update')
+        """
+        # check whether the current frame should be displayed 
+        if (self.this_frame % self.output_period) == 0:
+            if image.ndim > 2:
+                # reverse the color axis, to get BGR image required by OpenCV
+                image = image[:, :, ::-1]
             
-            # check whether the user wants to quit
-            if self._pipe.poll() and self._pipe.recv() == 'interrupt':
-                raise KeyboardInterrupt
-
-        else:
-            # update the image
-            cv2.imshow(self.title, image.astype(np.uint8))
-            
-            # check whether the user wants to abort
-            while True:
-                # waitKey also handles other GUI events and we thus call it
-                # until everything is handled
-                key = cv2.waitKey(1)
-                if key & 0xFF in {27, ord('q')}:
+            if self._proc:
+                # copy data to shared memory
+                self._data[:] = image
+                # tell the process to update window
+                self._pipe.send('update')
+                
+                # check whether the user wants to quit
+                if self._pipe.poll() and self._pipe.recv() == 'interrupt':
                     raise KeyboardInterrupt
-                elif key == -1:
-                    break
+    
+            else:
+                # update the image
+                cv2.imshow(self.title, image.astype(np.uint8))
+                
+                # check whether the user wants to abort
+                while True:
+                    # waitKey also handles other GUI events and we thus call it
+                    # until everything is handled
+                    key = cv2.waitKey(1)
+                    if key & 0xFF in {27, ord('q')}:
+                        raise KeyboardInterrupt
+                    elif key == -1:
+                        break
+            
+        # keep the internal frame count up to date 
+        self.this_frame += 1
         
         
     def close(self):
