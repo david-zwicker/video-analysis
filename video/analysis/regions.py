@@ -270,8 +270,9 @@ def triangle_area(a, b, c):
     """ returns the area of a triangle with sides a, b, c """
     # use Heron's formula
     s = (a + b + c)/2
-    try:
-        return np.sqrt(s*(s - a)*(s - b)*(s - c))
-    except RuntimeWarning:
+    radicand = s*(s - a)*(s - b)*(s - c)
+    if radicand > 0:
+        return np.sqrt(radicand)
+    else:
         # sometimes rounding errors produce small negative quantities
         return 0

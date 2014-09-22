@@ -214,8 +214,8 @@ class FirstPass(DataHandler):
 
         # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video)):
-            # blur frame using a bilateral filter
-            frame_blurred = cv2.bilateralFilter(frame, d=int(2*blur_sigma),
+            # remove noise using a bilateral filter
+            frame_blurred = cv2.bilateralFilter(frame, d=int(blur_sigma),
                                                 sigmaColor=blur_sigma_color,
                                                 sigmaSpace=blur_sigma)
             
@@ -654,14 +654,13 @@ class FirstPass(DataHandler):
         
         # build the ground ridge template for matching 
         ridge_width = self.params['ground/ridge_width']
-        model_width = int(ridge_width + frame.shape[0]/10)
-        model_width = 3*ridge_width
-        ys = np.arange(-model_width, model_width + 1)
-        color_sky = self.result['colors/sky']
-        color_sand = self.result['colors/sand']
-        model = (1 + np.tanh(ys/ridge_width))/2
-        model = color_sky + (color_sand - color_sky)*model
-        model = model.astype(np.uint8)
+#         model_width = 3*ridge_width
+#         ys = np.arange(-model_width, model_width + 1)
+#         color_sky = self.result['colors/sky']
+#         color_sand = self.result['colors/sand']
+#         model = (1 + np.tanh(ys/ridge_width))/2
+#         model = color_sky + (color_sand - color_sky)*model
+#         model = model.astype(np.uint8)
         
         # do vertical line scans and determine ground position
         spacing = int(self.params['ground/point_spacing'])
@@ -677,10 +676,12 @@ class FirstPass(DataHandler):
             profile = ndimage.filters.gaussian_filter1d(line_scan, ridge_width)
     
             slopes = np.diff(profile)
-            pos_ys = np.nonzero(slopes > 0.4*slopes.max())[0] + frame_margin
+            slope_threshold = self.params['ground/slope_detector_max_factor']*slopes.max()
+            pos_ys = np.nonzero(slopes > slope_threshold)[0] + frame_margin
     
-            for pos_y in pos_ys:
-                self.debug['video'].add_points([(pos_x, pos_y)], radius=2)
+            if 'video' in self.debug:
+                for pos_y in pos_ys:
+                    self.debug['video'].add_points([(pos_x, pos_y)], radius=2)
 #                 i_max = np.argmax(np.diff(profile) > )
 #                 pos_y = image.get_steepest_point(line_scan, 1, smoothing=ridge_width)#spacing)
             pos_y = pos_ys[0]
@@ -916,10 +917,12 @@ class FirstPass(DataHandler):
         assert 0.5 < model_std < 1
             
         # iterate through all points and correct profile
-        corrected_points, energies_image = [], []
-        for k, p in enumerate(points[1:-1], 1):
-            # calculate the deviation to the previous point
-            p_p, p_n =  points[k-1], points[k+1]
+        # we randomize the order in which we iterate
+        energies_image = []
+        corrected_points = [None for _ in xrange(len(points))]
+        for k in np.random.permutation(len(points) - 2):
+            # get local points and slopes
+            p_p, p, p_n =  points[k], points[k+1], points[k+2]
             dx, dy = p_n - p_p
             dist = math.hypot(dx, dy)
             dx /= dist; dy /= dist
@@ -955,8 +958,7 @@ class FirstPass(DataHandler):
                 c = curves.point_distance(p_n, p_p)
                 
                 A = regions.triangle_area(a, b, c)
-                curv = 4*A/(a*b*c)
-                # curv has units of 1/length
+                curv = 4*A/(a*b*c)*spacing
                 return curvature_energy_factor*curv
 
             def energy_snake((pos, model_mean, model_std)):
@@ -966,16 +968,18 @@ class FirstPass(DataHandler):
             
             # fit the simple model to the line scan profile            
             res = optimize.fmin(energy_snake, [0, 0, model_std], disp=False)
-            x, model_mean, model_std = res 
+            pos, model_mean, model_std = res 
+
+#             print '%.4f' % (energy_curvature(pos)/energy_image((pos, model_mean, model_std)))
 
 #             if k == 20:
 #                 print '-'*40
-#                 print energy_image((x, model_mean, model_std))
-#                 print energy_curvature(x)
+#                 print energy_image((pos, model_mean, model_std))
+#                 print energy_curvature(pos)
 # 
 #             if k == 20:
-#                 #xs = np.linspace(-profile_len - x, profile_len - x, len(profile))
-#                 model = model_std*np.tanh(-(xs - x)/ridge_width) + model_mean
+#                 #xs = np.linspace(-profile_len - pos, profile_len - pos, len(profile))
+#                 model = model_std*np.tanh(-(xs - pos)/ridge_width) + model_mean
 #                 import matplotlib.pyplot as plt
 #                 plt.plot(profile, label='profile')
 #                 plt.plot(model, label='model')
@@ -983,21 +987,18 @@ class FirstPass(DataHandler):
 #                 plt.show()
             
             # save for determining the energy scale later
-            energies_image.append(energy_image((x, model_mean, model_std)))
+            energies_image.append(energy_image((pos, model_mean, model_std)))
 
             # use this point, if it is good enough            
             if energy_snake(res) < snake_energy_max:
-                p_x, p_y = p[0] + x*dy, p[1] - x*dx
-                if (len(corrected_points) == 0 or 
-                    p_x >= corrected_points[-1][0]):
-                    # no overhanging ridge => add the point
-                    corrected_points.append((int(p_x), int(p_y)))
-                    
-                elif p_y < corrected_points[-1][1]:
-                    # current point is above previous point
-                    # => overwrite previous point
-                    corrected_points[-1] = (int(p_x), int(p_y))
-                # else: current point will be ignored
+                p_x, p_y = p[0] + pos*dy, p[1] - pos*dx
+                corrected_points[k] = (int(p_x), int(p_y))
+
+        # filter points, where the fit did not work
+        corrected_points = [p for p in corrected_points
+                            if p is not None]
+        
+        # TODO: check for overhanging ridges and remove the point with the lower y-value
 
         # save the energy factor for the next iteration
         energy_factor_last /= np.mean(energies_image)

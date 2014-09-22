@@ -124,7 +124,13 @@ PARAMETER_LIST = [
               'Spacing of the support points describing the ground profile'),
     Parameter('ground/linescan_length', 100, UNIT.LENGTH_PIXEL,
               'Length of the line scan used to determine the ground profile'),
-    Parameter('ground/curvature_energy_factor', 20, UNIT.LENGTH_PIXEL,
+    Parameter('ground/slope_detector_max_factor', 0.4, UNIT.FACTOR,
+              'Factor important in the ridge detection step, where the ridge '
+              'is roughly located by looking at vertical line scans and points '
+              'with large slopes are located. The smaller this factor, the more '
+              'such points are detected and the further up the profile is '
+              'estimated to be'),
+    Parameter('ground/curvature_energy_factor', 1, UNIT.LENGTH_PIXEL,
               'Relative strength of the curvature energy to the image energy '
               'in the snake model of the ground line. The energy factor has '
               'units of length, since the curvature has units one over length'),
@@ -132,8 +138,6 @@ PARAMETER_LIST = [
               'Determines the maximal energy the snake is allowed to have'),
     Parameter('ground/slope_max', 3, UNIT.FRACTION,
               'Maximal slope of the side ridges'),
-#     Parameter('ground/flat_top_fraction', 0.2, UNIT.FRACTION,
-#               'Fraction of total width where the top of the ground is flat'),
     Parameter('ground/frame_margin', 50, UNIT.LENGTH_PIXEL,
               'Width of the margin to the frame in which the ground profile is '
               'not determined'),
@@ -144,8 +148,6 @@ PARAMETER_LIST = [
               'How often is the ground profile adapted'),
     Parameter('ground/ridge_width', 5, UNIT.LENGTH_PIXEL,
               'Width of the ground profile ridge'),
-#     Parameter('ground/snake_bending_energy', 5e5, UNIT.FACTOR,
-#               'Determines the stiffness of the snake model of the ground profile'),
     Parameter('ground/smoothing_sigma', 300, UNIT.TIME_FRAMES,
               'Standard deviation for Gaussian smoothing over time'),
     

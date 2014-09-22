@@ -32,4 +32,8 @@ class Analyzer(DataHandler):
             results.append(data)
                   
         return results
+    
+    
+#     def get_mouse_state_transitions(self):
+#         """ returns the durations 
             

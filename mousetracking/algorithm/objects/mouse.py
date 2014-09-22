@@ -25,6 +25,8 @@ The location is encoded in the last two digits
     21 = mouse is in any burrow
 """
 
+VALID_STATES = (0, 10, 11, 12, 13, 20, 21)
+
 
 
 def state_to_int(state):
