@@ -130,10 +130,9 @@ PARAMETER_LIST = [
               'with large slopes are located. The smaller this factor, the more '
               'such points are detected and the further up the profile is '
               'estimated to be'),
-    Parameter('ground/curvature_energy_factor', 1, UNIT.LENGTH_PIXEL,
+    Parameter('ground/curvature_energy_factor', 1, UNIT.FACTOR,
               'Relative strength of the curvature energy to the image energy '
-              'in the snake model of the ground line. The energy factor has '
-              'units of length, since the curvature has units one over length'),
+              'in the snake model of the ground line'),
     Parameter('ground/snake_energy_max', 5, UNIT.FACTOR,
               'Determines the maximal energy the snake is allowed to have'),
     Parameter('ground/slope_max', 3, UNIT.FRACTION,

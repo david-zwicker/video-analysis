@@ -891,10 +891,11 @@ class FirstPass(DataHandler):
         p_min = spacing 
         y_max, x_max = frame.shape[0] - spacing, frame.shape[1] - spacing
 
-        # only consider the points away from the boundary
+        # only consider valid points away from the boundary
         points = [p for p in points
                   if (p[0] >= p_min and p[0] <= x_max and 
-                      p[1] >= p_min and p[1] <= y_max)]
+                      p[1] >= p_min and p[1] <= y_max and
+                      np.isfinite(p[0]) and np.isfinite(p[1]))]
 
         # iterate over all but the boundary points
         curvature_energy_factor = self.params['ground/curvature_energy_factor']
@@ -925,6 +926,8 @@ class FirstPass(DataHandler):
             p_p, p, p_n =  points[k], points[k+1], points[k+2]
             dx, dy = p_n - p_p
             dist = math.hypot(dx, dy)
+            if dist == 0: #< something went wrong 
+                continue #< skip this point
             dx /= dist; dy /= dist
 
             # do the line scan            
@@ -956,9 +959,13 @@ class FirstPass(DataHandler):
                 a = curves.point_distance(p_p, p_c)
                 b = curves.point_distance(p_c, p_n)
                 c = curves.point_distance(p_n, p_p)
+                if not all(a, b, c): #< all must be positive
+                    raise RuntimeError
                 
                 A = regions.triangle_area(a, b, c)
                 curv = 4*A/(a*b*c)*spacing
+                # TODO: think about scaling with (a + b) instead of spacing
+                # This would also require to divide curvature_energy_factor by 2
                 return curvature_energy_factor*curv
 
             def energy_snake((pos, model_mean, model_std)):
@@ -966,8 +973,11 @@ class FirstPass(DataHandler):
                 #print pos
                 return energy_image((pos, model_mean, model_std)) + energy_curvature(pos)
             
-            # fit the simple model to the line scan profile            
-            res = optimize.fmin(energy_snake, [0, 0, model_std], disp=False)
+            # fit the simple model to the line scan profile
+            try:      
+                res = optimize.fmin(energy_snake, [0, 0, model_std], disp=False)
+            except RuntimeError:
+                continue #< skip this point
             pos, model_mean, model_std = res 
 
 #             print '%.4f' % (energy_curvature(pos)/energy_image((pos, model_mean, model_std)))

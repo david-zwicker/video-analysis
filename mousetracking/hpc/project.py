@@ -17,11 +17,11 @@ class HPCProjectBase(object):
     machine_configuration = {'USER_EMAIL': 'dzwicker@seas.harvard.edu',
                              'PARTITION': 'general',
                              'PASS1_CORES': 4,
-                             'PASS1_TIME': 10*60,
-                             'PASS1_MEMORY': 1000,
+                             'PASS1_TIME': 20*60,
+                             'PASS1_MEMORY': 2000,
                              'PASS2_CORES': 4,
-                             'PASS2_TIME': 5*60,
-                             'PASS2_MEMORY': 8000,}
+                             'PASS2_TIME': 20*60,
+                             'PASS2_MEMORY': 10000,}
     job_files = [] #< files that need to be set up for the project
     
     
