@@ -1021,6 +1021,10 @@ class FirstPass(DataHandler):
         energy_factor_last /= np.mean(energies_image)
         self.result['ground/energy_factor_last'] = energy_factor_last
 
+        if len(points) < 2:
+            # refinement failed => return original ground
+            return ground
+
         # extend the ground line toward the left edge of the cage
         edge_point = self._get_cage_boundary(points[0], 'left')
         if edge_point is not None:
