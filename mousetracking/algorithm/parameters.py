@@ -172,7 +172,7 @@ PARAMETER_LIST = [
               'Number of consecutive frames used for motion detection'),
     Parameter('tracking/moving_threshold', 15, UNIT.SPEED_PIXEL_FRAME,
               'Threshold speed above which an object is said to be moving'),
-    Parameter('tracking/object_count_max', 5, None,
+    Parameter('tracking/object_count_max', 7, None,
               'Maximal number of objects allowed in a single frame. If there are '
               'more objects, the entire frame is discarded'),
     Parameter('tracking/time_scale', 10, UNIT.TIME_FRAMES,

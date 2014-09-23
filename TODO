@@ -22,6 +22,7 @@
 	- We definitely have to do something about stray objects which sometimes initiate wrong burrows
 	- When fitting burrows, set currently moving parts to sky color in background model and do the fitting on this image
 	- Simplify bulky burrows by trying to remove points and checking whether the area changes significantly
+* Add mechanism for conveniently defining parameters for single runs 
 
 
 Performance improvements:

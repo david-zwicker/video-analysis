@@ -69,8 +69,8 @@ class FirstPass(DataHandler):
         self._mouse_pos_estimate = []  # list of estimated mouse positions
         self.explored_area = None      # region the mouse has explored yet
         self.frame_id = None           # id of the current frame
-        self.result['mouse/moved_first_in_frame'] = None
-        self.result['mouse/too_many_objects'] = 0
+        self.result['objects/moved_first_in_frame'] = None
+        self.result['objects/too_many_objects'] = 0
         if self.params['debug/output'] is None:
             self.debug_output = []
         else:
@@ -605,7 +605,7 @@ class FirstPass(DataHandler):
             self.result['objects/tracks'].extend(self.tracks)
             self.tracks = []
             
-            self.result['mouse/too_many_objects'] += 1
+            self.result['objects/too_many_objects'] += 1
             self.logger.debug('Discarding object information from this frame, '
                               'too many (%d) features were detected.'
                               % num_features)
@@ -617,8 +617,8 @@ class FirstPass(DataHandler):
             # check whether objects moved and call them a mouse
             obj_moving = [obj.is_moving() for obj in self.tracks]
             if any(obj_moving):
-                if self.result['mouse/moved_first_in_frame'] is None:
-                    self.result['mouse/moved_first_in_frame'] = self.frame_id
+                if self.result['objects/moved_first_in_frame'] is None:
+                    self.result['objects/moved_first_in_frame'] = self.frame_id
                 # remove the tracks that didn't move
                 # this essentially assumes that there is only one mouse
                 for k, obj in enumerate(self.tracks):
@@ -898,10 +898,10 @@ class FirstPass(DataHandler):
 
         # iterate over all but the boundary points
         curvature_energy_factor = self.params['ground/curvature_energy_factor']
-        if 'pass1/ground/energy_factor_last' in self.result:
+        if 'ground/energy_factor_last' in self.result:
             # load the energy factor for the next iteration
             snake_energy_max = self.params['ground/snake_energy_max']
-            energy_factor_last = self.result['pass1/ground/energy_factor_last']
+            energy_factor_last = self.result['ground/energy_factor_last']
         else:
             # initialize values such that the energy factor is calculated
             # for the next iteration
@@ -1019,7 +1019,7 @@ class FirstPass(DataHandler):
                 
         # save the energy factor for the next iteration
         energy_factor_last /= np.mean(energies_image)
-        self.result['pass1/ground/energy_factor_last'] = energy_factor_last
+        self.result['ground/energy_factor_last'] = energy_factor_last
 
         # extend the ground line toward the left edge of the cage
         edge_point = self._get_cage_boundary(points[0], 'left')
@@ -1635,7 +1635,7 @@ class FirstPass(DataHandler):
             # indicate the mouse position
             if len(self.tracks) > 0:
                 for obj in self.tracks:
-                    if self.result['mouse/moved_first_in_frame'] is None:
+                    if self.result['objects/moved_first_in_frame'] is None:
                         obj_color = 'r'
                     elif obj.is_moving():
                         obj_color = 'w'
