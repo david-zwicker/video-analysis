@@ -1136,12 +1136,15 @@ class FirstPass(DataHandler):
     
             # remove potential invalid structures from contour
             contour = regions.regularize_contour(contour)
-            
-            if offset is not None:
-                contour = regions.translate_points(contour,
-                                                   xoff=offset[0],
-                                                   yoff=offset[1])
-            burrow =  Burrow(contour)
+            if contour:
+                if offset is not None:
+                    contour = regions.translate_points(contour,
+                                                       xoff=offset[0],
+                                                       yoff=offset[1])
+                burrow =  Burrow(contour)
+                
+            else:
+                burrow = None           
         
         return burrow
     
@@ -1286,7 +1289,7 @@ class FirstPass(DataHandler):
         # points at the burrow end
         if len(centerline_new) < 2:
             self.logger.warn('Refining shortened burrows too much.')
-            return burrow
+            return None
         
         p1, p2 = centerline_new[-1], centerline_new[-2]
         angle = np.arctan2(p1[1] - p2[1], p1[0] - p2[0])
@@ -1349,6 +1352,9 @@ class FirstPass(DataHandler):
 
         # make sure that shape is a valid polygon
         outline_new = regions.regularize_contour(outline_new)
+        if not outline_new:
+            self.logger.warn('Refined, long burrow is not a valid polygon anymore.')
+            return None
 
         return Burrow(outline_new, centerline=centerline_new, refined=True)
     
@@ -1462,8 +1468,11 @@ class FirstPass(DataHandler):
             outline_new.append(p)
 
         outline_new = regions.regularize_contour(outline_new)
-        burrow.outline = outline_new
-        return burrow
+        if outline_new:
+            burrow.outline = outline_new
+            return burrow
+        else:
+            return None
     
     
     def find_burrows(self):

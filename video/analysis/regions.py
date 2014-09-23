@@ -177,7 +177,7 @@ def get_enclosing_outline(polygon):
     
     
 def regularize_polygon(polygon):
-    """ regularizes a shapely polygon using polygon.buffer(0) """
+    """ regularize a shapely polygon using polygon.buffer(0) """
     # regularize polygon
     polygon = polygon.buffer(0)
     # retrieve the result with the largest area
@@ -187,12 +187,15 @@ def regularize_polygon(polygon):
 
 
 def regularize_contour(contour):
-    """ regularizes a list of points defining a contour """
+    """ regularize a list of points defining a contour """
     if len(contour) >= 3:
         polygon = geometry.Polygon(contour)
         regular_polygon = regularize_polygon(polygon)
         if polygon is not regular_polygon:
-            contour = regular_polygon.exterior.coords
+            if regular_polygon.is_empty:
+                return [] #< empty polygon
+            else:
+                contour = regular_polygon.exterior.coords
     return contour
 
     
