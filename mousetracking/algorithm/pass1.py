@@ -134,16 +134,15 @@ class FirstPass(DataHandler):
             self.data['analysis-status'] = 'Finished first pass'
             
         finally:
-            # add the currently active tracks to the result
+            # cleanup in all cases 
+            
             self.result['objects/tracks'].extend(self.tracks)
-            # clean up
+            self.add_processing_statistics(time.time() - start_time)        
+                        
+            # cleanup and write out of data
             self.video.close()
-        
-        self.add_processing_statistics(time.time() - start_time)        
-                    
-        # cleanup and write out of data
-        self.debug_finalize()
-        self.write_data()
+            self.debug_finalize()
+            self.write_data()
         
 
     def add_processing_statistics(self, time):
@@ -920,7 +919,7 @@ class FirstPass(DataHandler):
         # iterate through all points and correct profile
         # we randomize the order in which we iterate
         energies_image = []
-        corrected_points = [None for _ in xrange(len(points))]
+        candidate_points = [None for _ in xrange(len(points))]
         for k in np.random.permutation(len(points) - 2):
             # get local points and slopes
             p_p, p, p_n =  points[k], points[k+1], points[k+2]
@@ -959,7 +958,7 @@ class FirstPass(DataHandler):
                 a = curves.point_distance(p_p, p_c)
                 b = curves.point_distance(p_c, p_n)
                 c = curves.point_distance(p_n, p_p)
-                if not all(a, b, c): #< all must be positive
+                if not all((a, b, c)): #< all must be positive
                     raise RuntimeError
                 
                 A = regions.triangle_area(a, b, c)
@@ -1002,29 +1001,37 @@ class FirstPass(DataHandler):
             # use this point, if it is good enough            
             if energy_snake(res) < snake_energy_max:
                 p_x, p_y = p[0] + pos*dy, p[1] - pos*dx
-                corrected_points[k] = (int(p_x), int(p_y))
+                candidate_points[k] = (int(p_x), int(p_y))
 
         # filter points, where the fit did not work
-        corrected_points = [p for p in corrected_points
-                            if p is not None]
-        
-        # TODO: check for overhanging ridges and remove the point with the lower y-value
-
+        points = []
+        for p in candidate_points:
+            if p is None:
+                continue
+            
+            # check for overhanging ridge
+            if len(points) == 0 or p[0] > points[-1][0]:
+                points.append(p)
+            else: #< there is an overhanging part
+                if p[1] < points[-1][0]: #< current point is above previous point 
+                    points[-1] = p # replace the older point
+                # else: don't add the current point
+                
         # save the energy factor for the next iteration
         energy_factor_last /= np.mean(energies_image)
         self.result['pass1/ground/energy_factor_last'] = energy_factor_last
 
         # extend the ground line toward the left edge of the cage
-        edge_point = self._get_cage_boundary(corrected_points[0], 'left')
+        edge_point = self._get_cage_boundary(points[0], 'left')
         if edge_point is not None:
-            corrected_points.insert(0, edge_point)
+            points.insert(0, edge_point)
             
         # extend the ground line toward the right edge of the cage
-        edge_point = self._get_cage_boundary(corrected_points[-1], 'right')
+        edge_point = self._get_cage_boundary(points[-1], 'right')
         if edge_point is not None:
-            corrected_points.append(edge_point)
+            points.append(edge_point)
             
-        return GroundProfile(corrected_points)
+        return GroundProfile(points)
             
 
     def find_initial_ground(self):
