@@ -975,7 +975,7 @@ class FirstPass(DataHandler):
             
             # fit the simple model to the line scan profile
             try:      
-                res = optimize.fmin(energy_snake, [0, 0, model_std], xtol=0.1, disp=False)
+                res = optimize.fmin(energy_snake, [0, 0, model_std], xtol=1e-3, disp=False)
             except RuntimeError:
                 continue #< skip this point
             pos, model_mean, model_std = res 
