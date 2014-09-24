@@ -10,30 +10,24 @@ import logging
 import os
 import pprint
 
+from ..algorithm.parameters import PARAMETERS_DEFAULT
+from ..algorithm.data_handler import DataDict
+
 
 class HPCProjectBase(object):
     """ class that manages a high performance computing project """
-    # general information about the setup 
-    machine_configuration = {'USER_EMAIL': 'dzwicker@seas.harvard.edu',
-                             'PARTITION': 'general',
-                             'PASS1_CORES': 4,
-                             'PASS1_TIME': 20*60,
-                             'PASS1_MEMORY': 1000,
-                             'PASS2_CORES': 2,
-                             'PASS2_TIME': 20*60,
-                             'PASS2_MEMORY': 10000,}
     job_files = [] #< files that need to be set up for the project
     
     
     def __init__(self, video_file, result_folder, video_name=None,
-                 tracking_parameters=None, debug_output=None, passes=2):
+                 parameters=None, debug_output=None, passes=2):
         """ initializes a project with all necessary information
         video_file is the filename of the video to scan
         result_folder is a general folder in which the results will be stored.
             Note that a subfolder will be used for all results
         video_name denotes a name associated with this video, which will be used
             to name folders and such. If no name is given, the filename is used.
-        tracking_parameters is a dictionary that sets the parameters that are
+        parameters is a dictionary that sets the parameters that are
             used for tracking.
         """
         
@@ -42,10 +36,9 @@ class HPCProjectBase(object):
         self.passes = passes
 
         # save tracking parameters
-        if tracking_parameters is None:
-            self.tracking_parameters = {}
-        else:
-            self.tracking_parameters = tracking_parameters
+        self.parameters = DataDict(PARAMETERS_DEFAULT)
+        if parameters is not None:
+            self.parameters.from_dict(parameters)
         
         # determine the name of the video
         if video_name is None:
@@ -78,13 +71,18 @@ class HPCProjectBase(object):
         this_folder, _ = os.path.split(__file__)
         folder_code = os.path.abspath(os.path.join(this_folder, '../..'))
         
-        # setup information
-        params = self.machine_configuration.copy()
-        params['FOLDER_CODE'] = folder_code
-        params['JOB_DIRECTORY'] = self.folder
-        params['NAME'] = self.name
-        params['VIDEO_FILE'] = self.video_file
-        params['TRACKING_PARAMETERS'] = pprint.pformat(self.tracking_parameters)
+        # setup general information
+        tracking_parameters = self.parameters.to_dict(flatten=True)
+        params = {'FOLDER_CODE': folder_code,
+                  'JOB_DIRECTORY': self.folder,
+                  'NAME': self.name,
+                  'VIDEO_FILE': self.video_file,
+                  'TRACKING_PARAMETERS': pprint.pformat(tracking_parameters)}
+        
+        # setup job resources
+        resource_iter = self.parameters['resources'].iteritems(flatten=True)
+        for key, value in resource_iter:
+            params[key.upper()] = value
         
         # ensure that the result folder exists
         try:

@@ -435,9 +435,20 @@ class DataDict(collections.MutableMapping):
     def items(self): return self.data.items()
     def iterkeys(self): return self.data.iterkeys()
     def itervalues(self): return self.data.itervalues()
-    def iteritems(self): return self.data.iteritems()
     def clear(self): self.data.clear()
-           
+
+    def iteritems(self, flatten=False):
+        """ an iterator over the (key, value) items
+        If flatten is true, iteration is recursive """
+        for key, value in self.data.iteritems():
+            if flatten and isinstance(value, DataDict):
+                # recurse into sub dictionary
+                prefix = key + self.sep
+                for k, v in value.iteritems(flatten=True):
+                    yield prefix + k, v
+            else:
+                yield key, value 
+
             
     def __repr__(self):
         return 'DataDict(' + repr(self.data) + ')'

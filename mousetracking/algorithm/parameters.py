@@ -193,9 +193,9 @@ PARAMETER_LIST = [
     Parameter('burrows/cage_margin', 30, UNIT.LENGTH_PIXEL,
               'Margin of a potential burrow to the cage boundary'),
     Parameter('burrows/width', 20, UNIT.LENGTH_PIXEL,
-              'What is a typical width of a burrow'),
+              'Typical width of a burrow'),
     Parameter('burrows/width_min', 10, UNIT.LENGTH_PIXEL,
-              'What is a minimal width of a burrow'),
+              'Minimal width of a burrow'),
     Parameter('burrows/area_min', 1000, UNIT.AREA_PIXEL,
               'Minimal area a burrow cross section has to have'),
     Parameter('burrows/ground_point_distance', 10, UNIT.LENGTH_PIXEL,
@@ -219,9 +219,24 @@ PARAMETER_LIST = [
               'Determines how much the burrow outline might be simplified. '
               'The quantity determines by what fraction the total outline '
               'length is allowed to change'),
+    Parameter('burrows/simplification_threshold_area', 50, UNIT.AREA_PIXEL,
+              'Burrow outline points are removed when the resulting effective '
+              'change is below this threshold'),
                   
     Parameter('factor_length', 1, UNIT.FACTOR,
               'A factor by which all length scales will be scaled'),
+                  
+    # Computation resources
+    Parameter('resources/notification_email', 'dzwicker@seas.harvard.edu', None,
+              'Email address of the user to be notified in case of problems.'),
+    Parameter('resources/slurm_partition', 'general', None,
+              'Name of the slurm partition to use for submitting jobs'),              
+    Parameter('resources/pass1/cores', 4, None, 'Number of cores for pass 1'),
+    Parameter('resources/pass1/time', 20*60, None, 'Maximal computation minutes for pass 1'),
+    Parameter('resources/pass1/memory', 1000, None, 'Maximal RAM for pass 1 [in MB]'),
+    Parameter('resources/pass2/cores', 2, None, 'Number of cores for pass 2'),
+    Parameter('resources/pass2/time', 20*60, None, 'Maximal computation minutes for pass 2'),
+    Parameter('resources/pass2/memory', 10000, None, 'Maximal RAM for pass 2 [in MB]'),
 ]
 
 PARAMETERS = {p.key: p for p in PARAMETER_LIST}

@@ -124,7 +124,6 @@ class FirstPass(DataHandler):
         except (KeyboardInterrupt, SystemExit):
             # abort the video analysis
             self.video.abort_iteration()
-            self.logger.info('Pass 1 - Tracking has been interrupted by user.')
             self.log_event('Pass 1 - Analysis run has been interrupted.')
             self.data['analysis-status'] = 'Partly finished first pass'
             
@@ -1140,6 +1139,19 @@ class FirstPass(DataHandler):
                             *curves.curve_length(contour)
             contour = curves.simplify_curve(contour, tolerance).tolist()
     
+            # move points close to the ground line onto the ground line
+            ground_point_dist = self.params['burrows/ground_point_distance']
+            ground_line = self.ground.linestring
+            for k, p in enumerate(contour):
+                point = geometry.Point(p)
+                if ground_line.distance(point) < ground_point_dist:
+                    print point, curves.get_projection_point(ground_line, point)
+                    contour[k] = curves.get_projection_point(ground_line, point)
+            
+            # simplify contour while keeping the area roughly constant
+            threshold = self.params['burrows/simplification_threshold_area']
+            contour = regions.simplify_contour(contour, threshold)
+            
             # remove potential invalid structures from contour
             contour = regions.regularize_contour(contour)
             if contour:
@@ -1430,58 +1442,6 @@ class FirstPass(DataHandler):
         # find the burrow from the mask
         burrow = self.get_burrow_from_mask(mask.astype(np.uint8), offset=rect[:2])
         return burrow
-    
-    
-    def refine_bulky_burrow_old(self, burrow):
-        """ refines the outline of a bulky burrow """
-        # get ground line
-        ground_line = self.ground.linestring
-        scan_length = int(self.params['burrows/width'])
-        
-        # wrap around outline points on the edge
-        outline = np.vstack((burrow.outline[-1],
-                             burrow.outline,
-                             burrow.outline[0]))
-        
-        # iterate through all outline points
-        outline_new = []
-        for k, p in enumerate(outline[1:-1], 1):
-            # refine points away from the ground line
-            dist = ground_line.distance(geometry.Point(p))
-            if dist > self.params['burrows/ground_point_distance']:
-                # find local slope of the outline
-                dx = outline[k+1][0] - outline[k-1][0]
-                dy = outline[k+1][1] - outline[k-1][1]
-                dist = np.hypot(dx, dy)
-                dx /= dist; dy /= dist
-    
-                p_a = (p[0] + scan_length*dy, p[1] - scan_length*dx)
-                p_b = (p[0] - scan_length*dy, p[1] + scan_length*dx)
-                
-#                 import matplotlib.pyplot as plt
-#                 plt.imshow(self.background)
-#                 plt.plot(outline[:, 0], outline[:, 1], color='w')
-#                 plt.plot(p_a[0], p_a[1], 'or')
-#                 plt.plot(p_b[0], p_b[1], 'og')
-#                 plt.show()
-                
-                # find the transition points by considering slopes
-                background = self.background.astype(np.uint8, copy=False)
-                profile = image.line_scan(background, p_a, p_b, 3)
-                k = self.find_burrow_edge(profile, direction='up')
-
-                if k is not None:
-                    d = scan_length - k
-                    p = (p[0] + d*dy, p[1] - d*dx)
-            
-            outline_new.append(p)
-
-        outline_new = regions.regularize_contour(outline_new)
-        if outline_new:
-            burrow.outline = outline_new
-            return burrow
-        else:
-            return None
     
     
     def find_burrows(self):

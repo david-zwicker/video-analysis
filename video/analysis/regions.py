@@ -13,7 +13,7 @@ import scipy.ndimage as ndimage
 import shapely.geometry as geometry
 
 import curves
-
+from lib import simplify_polygon_visvalingam as simple_poly 
 
 def corners_to_rect(p1, p2):
     """ creates a rectangle from two corner points.
@@ -197,6 +197,24 @@ def regularize_contour(contour):
             else:
                 contour = regular_polygon.exterior.coords
     return contour
+
+
+def simplify_contour(contour, threshold):
+    """ simplifies a contour based on its area.
+    Single points are removed if the area change of the resulting polygon
+    is smaller than `threshold`. 
+    """
+    if isinstance(contour, geometry.LineString):
+        return simple_poly.simplify_line(contour, threshold)
+    elif isinstance(contour, geometry.LinearRing):
+        return simple_poly.simplify_ring(contour, threshold)
+    elif isinstance(contour, geometry.Polygon):
+        return simple_poly.simplify_polygon(contour, threshold)
+    else:
+        # assume contour are coordinates of a linear ring
+        ring = geometry.LinearRing(contour)
+        ring = simple_poly.simplify_ring(ring, threshold)
+        return None if ring is None else ring.coords[:-1]
 
     
 def get_ray_hitpoint(point_anchor, point_far, line_string, ret_dist=False):
