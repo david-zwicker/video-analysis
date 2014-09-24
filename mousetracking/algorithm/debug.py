@@ -15,6 +15,11 @@ import numpy as np
 import cv2
 
 
+# define exported functions such that loaded modules are not leaked into 
+# the importing space
+__all__ = ['show_image', 'show_shape', 'show_tracking_graph',
+           'get_grabcut_image', 'print_filter_chain', 'save_frame_from_video']
+
 
 def show_image(*images, **kwargs):
     """ shows a collection of images using matplotlib and waits for the user to continue """

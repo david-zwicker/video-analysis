@@ -208,7 +208,7 @@ PARAMETER_LIST = [
     Parameter('burrows/fitting_length_threshold', 100, UNIT.LENGTH_PIXEL,
               'Length above which burrows are refined by fitting'),
     Parameter('burrows/fitting_width_threshold', 30, UNIT.LENGTH_PIXEL,
-              'Length below which burrows are refined by fitting'),
+              'Width below which burrows are refined by fitting'),
     Parameter('burrows/fitting_edge_width', 3, UNIT.LENGTH_PIXEL,
               'Width of the burrow edge used in the template for fitting'),
     Parameter('burrows/fitting_edge_R2min', -10, UNIT.FACTOR,

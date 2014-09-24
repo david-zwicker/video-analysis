@@ -964,13 +964,13 @@ class FirstPass(DataHandler):
                 
                 A = regions.triangle_area(a, b, c)
                 curv = 4*A/(a*b*c)*spacing
-                # TODO: think about scaling with (a + b) instead of spacing
-                # This would also require to divide curvature_energy_factor by 2
+                # We don't scale by with the arc length a + b, because this 
+                # would increase the curvature weight in situations where
+                # fitting is complicated (close to burrow entries)
                 return curvature_energy_factor*curv
 
             def energy_snake((pos, model_mean, model_std)):
                 """ energy function of this part of the ground line """
-                #print pos
                 return energy_image((pos, model_mean, model_std)) + energy_curvature(pos)
             
             # fit the simple model to the line scan profile

@@ -9,8 +9,8 @@ from __future__ import division
 import operator
 
 import numpy as np
-import scipy.ndimage as ndimage
-import shapely.geometry as geometry
+from scipy import ndimage
+from shapely import geometry, geos
 
 import curves
 from lib import simplify_polygon_visvalingam as simple_poly 
@@ -223,19 +223,25 @@ def get_ray_hitpoint(point_anchor, point_far, line_string, ret_dist=False):
     point beyond the polygon.
     If ret_dist is True, the distance to the hit point is also returned.
     """
-    
+    # define the ray
     ray = geometry.LineString((point_anchor, point_far))
+    
     # find the intersections between the ray and the burrow outline
-    inter = line_string.intersection(ray)
+    try:
+        inter = line_string.intersection(ray)
+    except geos.TopologicalError:
+        inter = None
+    
+    # process the result    
     if isinstance(inter, geometry.Point):
-        # check whether this points is farther away than the last match
         if ret_dist:
+            # also return the distance
             dist = curves.point_distance(inter.coords[0], point_anchor)
             return inter.coords[0], dist
         else:
             return inter.coords[0]
 
-    elif not inter.is_empty:
+    elif inter is not None and not inter.is_empty:
         # find closest intersection if there are many points
         dists = [curves.point_distance(p.coords[0], point_anchor) for p in inter]
         k_min = np.argmin(dists)
@@ -245,6 +251,7 @@ def get_ray_hitpoint(point_anchor, point_far, line_string, ret_dist=False):
             return inter[k_min].coords[0]
         
     else:
+        # return empty result
         if ret_dist:
             return None, np.nan
         else:

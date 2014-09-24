@@ -18,9 +18,11 @@
 	- Get the height by doing a whole width line scan and determine the edge
 * Define units for frames and pixel using pint (for proper output)
 * Maybe we can get away with just using GrabCut for finding burrows?
+	- Change explored area to never decay but just accumulate pixels at every frame
+	- We can then get an idea of the explored area by requiring that a pixel has to be visited > 100 times
+		This allows us to remove noise
+	- Explored area can then be used in the GrabCut algorithm as potential foreground		
 	- Think about redetermining centerlines of elongated burrows that have not been fitted in pass 2
-	- We definitely have to do something about stray objects which sometimes initiate wrong burrows
-	- When fitting burrows, set currently moving parts to sky color in background model and do the fitting on this image
 * Add mechanism for conveniently defining parameters for single runs 
 
 
