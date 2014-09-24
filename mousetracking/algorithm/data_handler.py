@@ -341,10 +341,10 @@ class DataDict(collections.MutableMapping):
     d['a/b']
     >>>> 1
     
-    d['c/d'] = 2
+    d['a/c'] = 2
     
     d
-    >>>> {'a': {'b': 1}, 'c': {'d': 2}}
+    >>>> {'a': {'b': 1, 'c': 2}}
     """
     
     sep = '/'
@@ -357,6 +357,8 @@ class DataDict(collections.MutableMapping):
 
 
     def get_item(self, key, load_data=True):
+        """ returns the item identified by `key`.
+        If load_data is True, a potential LazyHDFValue gets loaded """
         try:
             if self.sep in key:
                 # sub-data is accessed
@@ -390,6 +392,7 @@ class DataDict(collections.MutableMapping):
         
         
     def __setitem__(self, key, value):
+        """ writes the item into the dictionary """
         if self.sep in key:
             # sub-data is written
             child, grandchildren = key.split(self.sep, 1)
@@ -406,6 +409,7 @@ class DataDict(collections.MutableMapping):
     
     
     def __delitem__(self, key):
+        """ deletes the item identified by key """
         try:
             if self.sep in key:
                 # sub-data is deleted
@@ -419,6 +423,7 @@ class DataDict(collections.MutableMapping):
 
 
     def __contains__(self, key):
+        """ returns True if the item identified by key is contained in the data """
         if self.sep in key:
             child, grandchildren = key.split(self.sep, 1)
             return child in self.data and grandchildren in self.data[child]
@@ -433,9 +438,37 @@ class DataDict(collections.MutableMapping):
     def keys(self): return self.data.keys()
     def values(self): return self.data.values()
     def items(self): return self.data.items()
-    def iterkeys(self): return self.data.iterkeys()
-    def itervalues(self): return self.data.itervalues()
     def clear(self): self.data.clear()
+
+
+    def itervalues(self, flatten=False):
+        """ an iterator over the values of the dictionary
+        If flatten is true, iteration is recursive """
+        for value in self.data.itervalues():
+            if flatten and isinstance(value, DataDict):
+                # recurse into sub dictionary
+                for v in value.itervalues(flatten=True):
+                    yield v
+            else:
+                yield value 
+                
+                
+    def iterkeys(self, flatten=False):
+        """ an iterator over the keys of the dictionary
+        If flatten is true, iteration is recursive """
+        if flatten:
+            for key, value in self.data.iteritems():
+                if isinstance(value, DataDict):
+                    # recurse into sub dictionary
+                    prefix = key + self.sep
+                    for k in value.iterkeys(flatten=True):
+                        yield prefix + k
+                else:
+                    yield key
+        else:
+            for key in self.iterkeys():
+                yield key
+
 
     def iteritems(self, flatten=False):
         """ an iterator over the (key, value) items

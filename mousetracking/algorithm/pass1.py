@@ -975,7 +975,7 @@ class FirstPass(DataHandler):
             
             # fit the simple model to the line scan profile
             try:      
-                res = optimize.fmin(energy_snake, [0, 0, model_std], disp=False)
+                res = optimize.fmin(energy_snake, [0, 0, model_std], xtol=0.1, disp=False)
             except RuntimeError:
                 continue #< skip this point
             pos, model_mean, model_std = res 
@@ -1145,7 +1145,6 @@ class FirstPass(DataHandler):
             for k, p in enumerate(contour):
                 point = geometry.Point(p)
                 if ground_line.distance(point) < ground_point_dist:
-                    print point, curves.get_projection_point(ground_line, point)
                     contour[k] = curves.get_projection_point(ground_line, point)
             
             # simplify contour while keeping the area roughly constant
@@ -1496,22 +1495,12 @@ class FirstPass(DataHandler):
             
             # add the burrow to our result list if it is valid
             if burrow is not None and burrow.is_valid:
-                # add the burrow to the current mask
                 cv2.fillPoly(burrows_mask, np.array([burrow.outline], np.int32), color=1)
                 
                 if track_id is not None:
+                    # add the burrow to the current mask
                     self.result['burrows/tracks'][track_id].append(self.frame_id, burrow)
                 else:
-#                 # see whether this burrow can be appended to an active track
-#                 adaptation_interval = self.params['burrows/adaptation_interval']
-#                 for burrow_track in self.result['burrows/tracks']:
-#                     if (burrow_track.track_end >= self.frame_id - adaptation_interval
-#                         and burrow_track.last.intersects(burrow.polygon)):
-#                         
-#                         burrow_track.append(self.frame_id, burrow)
-#                         break
-#                     
-#                 else:
                     # otherwise, start a new burrow track
                     burrow_track = BurrowTrack(self.frame_id, burrow)
                     self.result['burrows/tracks'].append(burrow_track)
