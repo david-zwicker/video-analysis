@@ -229,7 +229,7 @@ class FirstPass(DataHandler):
                 self.find_color_estimates(frame_blurred)
                 
                 # estimate initial ground profile
-                self.logger.debug('Find the initial ground profile.')
+                self.logger.debug('%d: Find the initial ground profile.', self.frame_id)
                 self.ground = self.find_initial_ground()
                 self.result['ground/profile'].append(self.frame_id, self.ground)
         
@@ -399,15 +399,17 @@ class FirstPass(DataHandler):
         sky_img = image[sky_sure.astype(np.bool, copy=False)]
         self.result['colors/sky'] = sky_img.mean()
         self.result['colors/sky_std'] = max(sky_img.std(), color_std_min)
-        self.logger.debug('The sky color was determined to be %d +- %d',
-                          self.result['colors/sky'], self.result['colors/sky_std'])
+        self.logger.debug('%d: The sky color was determined to be %d +- %d',
+                          self.frame_id, self.result['colors/sky'],
+                          self.result['colors/sky_std'])
         
         # determine the sand color
         sand_img = image[sand_sure.astype(np.bool, copy=False)]
         self.result['colors/sand'] = sand_img.mean()
         self.result['colors/sand_std'] = max(sand_img.std(), color_std_min)
-        self.logger.debug('The sand color was determined to be %d +- %d',
-                          self.result['colors/sand'], self.result['colors/sand_std'])
+        self.logger.debug('%d: The sand color was determined to be %d +- %d',
+                          self.frame_id, self.result['colors/sand'],
+                          self.result['colors/sand_std'])
         
                 
     def update_background_model(self, frame):
@@ -606,9 +608,9 @@ class FirstPass(DataHandler):
             self.tracks = []
             
             self.result['objects/too_many_objects'] += 1
-            self.logger.debug('Discarding object information from this frame, '
-                              'too many (%d) features were detected.'
-                              % num_features)
+            self.logger.debug('%d: Discarding object information from this frame, '
+                              'too many (%d) features were detected.',
+                              self.frame_id, num_features)
             
         else:
             # some moving features have been found => handle these 
@@ -1228,7 +1230,8 @@ class FirstPass(DataHandler):
         outline = geometry.LinearRing(burrow.outline)
         centerline = burrow.get_centerline(self.ground)
         if len(centerline) < 3:
-            self.logger.warn('Refining of very short burrows is not supported.')
+            self.logger.warn('%d: Refining of very short burrows is not supported.',
+                             self.frame_id)
             return burrow
         
         segment_length = self.params['burrows/centerline_segment_length']
@@ -1292,7 +1295,8 @@ class FirstPass(DataHandler):
         # HANDLE BURROW END POINT
         # points at the burrow end
         if len(centerline_new) < 2:
-            self.logger.warn('Refining shortened burrows too much.')
+            self.logger.warn('%d: Refining shortened burrows too much.',
+                             self.frame_id)
             return None
         
         p1, p2 = centerline_new[-1], centerline_new[-2]
@@ -1357,7 +1361,8 @@ class FirstPass(DataHandler):
         # make sure that shape is a valid polygon
         outline_new = regions.regularize_contour(outline_new)
         if not outline_new:
-            self.logger.warn('Refined, long burrow is not a valid polygon anymore.')
+            self.logger.warn('%d: Refined, long burrow is not a valid polygon anymore.',
+                             self.frame_id)
             return None
 
         return Burrow(outline_new, centerline=centerline_new, refined=True)

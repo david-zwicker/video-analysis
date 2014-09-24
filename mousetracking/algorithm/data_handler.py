@@ -94,7 +94,7 @@ class DataHandler(object):
         
         # add default logger to stderr
         handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s ' + self.name + '%(levelname)7s: %(message)s',
+        formatter = logging.Formatter('%(asctime)s ' + self.name + '%(levelname)8s: %(message)s',
                                       datefmt='%Y-%m-%d %H:%M:%S')
         handler.setFormatter(formatter)
         level = get_loglevel_from_name(self.data['parameters/logging/level_stderr'])

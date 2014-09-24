@@ -18,8 +18,8 @@ class HPCProjectBase(object):
                              'PARTITION': 'general',
                              'PASS1_CORES': 4,
                              'PASS1_TIME': 20*60,
-                             'PASS1_MEMORY': 2000,
-                             'PASS2_CORES': 4,
+                             'PASS1_MEMORY': 1000,
+                             'PASS2_CORES': 2,
                              'PASS2_TIME': 20*60,
                              'PASS2_MEMORY': 10000,}
     job_files = [] #< files that need to be set up for the project
