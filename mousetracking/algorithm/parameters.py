@@ -219,7 +219,7 @@ PARAMETER_LIST = [
               'Determines how much the burrow outline might be simplified. '
               'The quantity determines by what fraction the total outline '
               'length is allowed to change'),
-    Parameter('burrows/simplification_threshold_area', 50, UNIT.AREA_PIXEL,
+    Parameter('burrows/simplification_threshold_area', 10, UNIT.AREA_PIXEL,
               'Burrow outline points are removed when the resulting effective '
               'change is below this threshold'),
                   
