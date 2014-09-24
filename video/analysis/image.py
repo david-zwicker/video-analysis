@@ -10,7 +10,7 @@ contains functions that are useful for image analysis
 from __future__ import division
 
 import numpy as np
-import scipy.ndimage as ndimage
+from scipy import ndimage
 
 import cv2
 

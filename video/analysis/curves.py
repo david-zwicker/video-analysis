@@ -12,7 +12,7 @@ import itertools
 import math
 import numpy as np
 
-import shapely.geometry as geometry
+from shapely import geometry
 
 # make simplify_curve available under current scope 
 from lib.simplify_polygon_rdp import rdp as simplify_curve # @UnusedImport

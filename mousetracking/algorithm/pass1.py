@@ -1431,8 +1431,14 @@ class FirstPass(DataHandler):
         bgdmodel = np.zeros((1, 65), np.float64)
         fgdmodel = np.zeros((1, 65), np.float64)
         # run GrabCut algorithm
-        cv2.grabCut(img, mask, (0, 0, 1, 1),
-                    bgdmodel, fgdmodel, 2, cv2.GC_INIT_WITH_MASK)
+        try:
+            cv2.grabCut(img, mask, (0, 0, 1, 1),
+                        bgdmodel, fgdmodel, 2, cv2.GC_INIT_WITH_MASK)
+        except:
+            # any error in the GrabCut algorithm makes the whole function useless
+            self.logger.warn('%d: GrabCut algorithm failed on burrow at %s',
+                             self.frame_id, burrow.polygon.representative_point())
+            return burrow
 
         # calculate the mask of the foreground
         mask = np.where((mask == cv2.GC_FGD) + (mask == cv2.GC_PR_FGD), 255, 0)

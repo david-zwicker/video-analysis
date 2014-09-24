@@ -13,7 +13,7 @@ import itertools
 import numpy as np
 import cv2
 import shapely
-import shapely.geometry as geometry
+from shapely import geometry
 
 from .utils import LazyHDFCollection, rtrim_nan
 from video.analysis import curves, regions

@@ -6,7 +6,6 @@ Created on Aug 14, 2014
 
 from __future__ import division
 
-import sys
 import multiprocessing as mp
 import logging
 
@@ -81,7 +80,7 @@ class ImageShow(object):
     """ class that can show an image """
     
     def __init__(self, size, title='', output_period=1,
-                 multiprocessing=None, position=None):
+                 multiprocessing=True, position=None):
         """ initializes the video shower.
         size sets the width and the height of the image to be shown
         title sets the title of the window. This should be unique if multiple
@@ -99,9 +98,9 @@ class ImageShow(object):
         self.this_frame = 0
         self._proc = None
         
-        # multiprocessing does not work in current MacOS OpenCV
-        if multiprocessing is None:
-            multiprocessing = (sys.platform != "darwin")
+#         # multiprocessing does not work in current MacOS OpenCV
+#         if multiprocessing is None:
+#             multiprocessing = (sys.platform != "darwin")
         
         if multiprocessing:
             # open 
