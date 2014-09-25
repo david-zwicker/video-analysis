@@ -14,6 +14,7 @@ normal pipes, while frames are transported using the sharedmem package.
 
 from __future__ import division
 
+import os
 import logging
 import multiprocessing as mp
 import time
@@ -22,14 +23,14 @@ import numpy as np
 import sharedmem
 
 from .base import VideoBase, VideoFilterBase, SynchronizationError
-
+from .file import VideoFile
 
 logger = logging.getLogger('video.io')
 
 
 class VideoPipeError(RuntimeError): pass
 
-
+START_TIME = time.time()
 
 class VideoPipeReceiver(VideoBase):
     """ class that receives frames from a VideoPipe.
@@ -37,8 +38,13 @@ class VideoPipeReceiver(VideoBase):
     video_pipe.receiver
     """
     
-    def __init__(self, pipe, frame_buffer, video_format, name=''):
+    def __init__(self, pipe=None, frame_buffer=None, video_format=None, name=''):
+        # initialize the VideoBase
+        if video_format is None:
+            video_format = {}
         super(VideoPipeReceiver, self).__init__(**video_format)
+        
+        # set extra arguments of the video receiver
         self.pipe = pipe
         self.frame_buffer = frame_buffer
         self.name = name
@@ -70,7 +76,7 @@ class VideoPipeReceiver(VideoBase):
         else:
             self.pipe.send('next_frame')
             reply = self.pipe.recv()
-            
+                            
         # handle the reply
         if reply == 'frame_ready':
             # set the internal pointer to the next frame
@@ -122,10 +128,17 @@ class VideoPipeReceiver(VideoBase):
         
         
 
-class VideoPipe(VideoFilterBase):
+class VideoPipeSender(VideoFilterBase):
     """ class that can be used to transport video frames between processes.
     Internally, the class uses sharedmem to share memory among different
-    processes.
+    processes. This class has an event loop which handles commands entering
+    via a normal pipe from the VideoPipeReceiver. This construct can be used
+    to read a video in the current process and work on it in a different
+    process.
+    
+    If read_ahead is True, the next frame is already read before it is
+    requested.
+    
     The typical use case is
     
     def worker_process(self, video):
@@ -143,21 +156,41 @@ class VideoPipe(VideoFilterBase):
         proc.start()    
     """
     
-    def __init__(self, video, name=None):
-        super(VideoPipe, self).__init__(video)
-        self.pipe, pipe_receiver = mp.Pipe(duplex=True)
-        self.frame_buffer = sharedmem.empty(video.shape[1:], np.uint8)
+    poll_frequency = 1000 #< Frequency of polling pipe in Hz 
+    
+    def __init__(self, video, pipe, frame_buffer, name=None, read_ahead=False):
+        super(VideoPipeSender, self).__init__(video)
+        self.pipe = pipe
+        self.frame_next = None
         self.name = name
+        self.read_ahead = read_ahead
         self.running = True
         self._waiting_for_frame = False
+        self._waiting_for_read_ahead = False
+        self.frame_buffer = frame_buffer
         
-        self.receiver = VideoPipeReceiver(pipe_receiver, self.frame_buffer,
-                                      self.video_format, self.name)
 
+    def try_reading_ahead(self):
+        """ tries to retrieve a frame from the video and copy it to the shared
+        frame_buffer """
+        try:
+            # get the next frame
+            self.frame_next = self.get_next_frame()
+            
+        except SynchronizationError:
+            self._waiting_for_read_ahead = True
+            
+        except StopIteration:
+            # we reached the end of the video and the iteration should stop
+            self.frame_next = StopIteration
+            
+        else:
+            self._waiting_for_read_ahead = False
+            
 
     def try_getting_frame(self, index=None):
         """ tries to retrieve a frame from the video and copy it to the shared
-        buffer """
+        frame_buffer """
         try:
             # get the next frame
             if index is None or index == self.get_frame_pos():
@@ -175,23 +208,59 @@ class VideoPipe(VideoFilterBase):
             self.pipe.send(StopIteration)
             
         else:
-            # frame is ready and was copied to the shared buffer
+            # frame is ready and was copied to the shared frame_buffer
             self._waiting_for_frame = False
+            # notify the receiver that the frame is ready
             self.pipe.send('frame_ready')
+            if self.read_ahead and index is None:
+                self.try_reading_ahead()
 
 
     def abort_iteration(self):
+        """ abort the iteration and notify the receiver """
         if not self.pipe.closed:
             self.pipe.send('abort_iteration')
         self.running = False
-        super(VideoPipe, self).abort_iteration()
+        super(VideoPipeSender, self).abort_iteration()
+
+
+    def load_next_frame(self):
+        """ tries loading the next frame, either directly from the video
+        or from the buffer that has been filled by a read-ahead process """
+        if self.read_ahead:
+            if self._waiting_for_frame:
+                # this should not happen, since the event loop only finishes
+                # when the frame was successfully read
+                raise VideoPipeError('Frame was not properly read in advance.')
+
+            elif self.frame_next is None:
+                # frame is not buffered
+                # => read it directly and notify receiver
+                self.try_getting_frame()
+                
+            elif self.frame_next is StopIteration:
+                # we reached the end of the iteration
+                self.pipe.send(StopIteration)
+                
+            else:
+                # copy frame to the right buffer
+                self.frame_buffer[:] = self.frame_next
+                self.frame_next = None
+                # tell receiver that the frame is ready
+                self.pipe.send('frame_ready')
+                # try getting the next frame, which flags self._waiting_for_frame
+                # and thus starts the event loop
+                self._waiting_for_read_ahead = True
+            
+        else:
+            self.try_getting_frame()
 
 
     def handle_command(self, command):
-        """ handles commands received from the VideoPipeReceiver """ 
+        """ handles commands received from the VideoPipeReceiver """
         if command == 'next_frame':
             # receiver requests the next frame
-            self.try_getting_frame()
+            self.load_next_frame()
             
         elif command == 'abort_iteration':
             # receiver reached the end of the iteration
@@ -201,7 +270,7 @@ class VideoPipe(VideoFilterBase):
             # receiver requests a specific frame
             frame_id = self.pipe.recv()
             logger.debug('Specific frame %d was requested from sender.', frame_id)
-            self.try_getting_frame(frame_id)
+            self.try_getting_frame(index=frame_id)
             
         elif command == 'finished':
             # the receiver wants to terminate the video pipe
@@ -222,6 +291,9 @@ class VideoPipe(VideoFilterBase):
         if self._waiting_for_frame:
             self.try_getting_frame()
             
+        if self._waiting_for_read_ahead:
+            self.try_reading_ahead()
+            
         # otherwise check the pipe for new commands
         if not self.pipe.closed and self.pipe.poll():
             command = self.pipe.recv()
@@ -235,15 +307,77 @@ class VideoPipe(VideoFilterBase):
         is finished """
         try:
             while self.running and not self.pipe.closed:
-                # wait for a command of the receiver
+                # wait for a command of the receiver            
                 command = self.pipe.recv()
                 self.handle_command(command)
                 
-                # don't proceed before we got the next frame
-                while self._waiting_for_frame:
-                    self.try_getting_frame()
-                    time.sleep(0.001)
+                # wait for frames to be retrieved
+                while self.running and (self._waiting_for_frame or self._waiting_for_read_ahead):
+                    time.sleep(1/self.poll_frequency)
+                    if self._waiting_for_frame:
+                        self.try_getting_frame()
+                        
+                    if self._waiting_for_read_ahead:
+                        self.try_reading_ahead()
 
         except (KeyboardInterrupt, SystemExit):
             self.abort_iteration()
             
+            
+
+def create_video_pipe(video, name=None, read_ahead=False):
+    # create the pipe used for communication
+    pipe_sender, pipe_receiver = mp.Pipe(duplex=True)
+    # create the buffer in memory that is used for passing frames
+    frame_buffer = sharedmem.empty(video.shape[1:], np.uint8)
+    
+    # create the two ends of the video pipe
+    sender = VideoPipeSender(video, pipe_sender, frame_buffer,
+                             name, read_ahead)
+    receiver = VideoPipeReceiver(pipe_receiver, frame_buffer,
+                                 video.video_format, name)
+    
+    return sender, receiver
+
+            
+            
+class VideoReaderProcess(mp.Process):
+    """ Process that reads a video and returns it using a video pipe """
+    def __init__(self, filename, video_class=VideoFile):
+        super(VideoReaderProcess, self).__init__()
+        self.daemon = True
+        self.running = False
+        self.filename = filename
+        self.video_class = video_class
+        
+        # create the pipe used for communication
+        self.pipe_sender, pipe_receiver = mp.Pipe(duplex=True)
+        
+        video = self.video_class(self.filename)
+        # create the buffer in memory that is used for passing frames
+        self.frame_buffer = sharedmem.empty(video.shape[1:], np.uint8)
+        self.receiver =  VideoPipeReceiver(pipe_receiver, self.frame_buffer, video.video_format)
+        video.close()
+
+        
+    def run(self):
+        logger.debug('Started process %d to read video' % self.pid)
+        video = self.video_class(self.filename)
+        video_sender = VideoPipeSender(video, self.pipe_sender, self.frame_buffer)
+        self.running = True
+        video_sender.start()
+
+    def terminate(self):
+        self.video_pipe.abort_iteration()
+        
+        
+
+def video_reader_process(filename, video_class=VideoFile):
+    """ reads the given filename in a separate process.
+    The given video_class is used to open the file. """
+    proc = VideoReaderProcess(filename, video_class)
+    proc.start()
+    return proc.receiver
+
+  
+    

@@ -479,7 +479,7 @@ class VideoFork(VideoFilterBase):
         if self.state == 'aborting':
             raise SystemExit('Another client of the VideoFork requested to '
                              'abort the iteration.')
-        
+
         if index == self._frame_index:
             # increase the counter and return the cached frame
             self._retrieve_count += 1
@@ -529,6 +529,11 @@ class VideoFork(VideoFilterBase):
                     'signal to clients.')
         self.state = 'aborting'
         super(VideoFork, self).abort_iteration()
+
+
+    def __iter__(self):
+        raise RuntimeError('Cannot iterate over a VideoFork. Use the '
+                           'get_client() method to get an iterable client.')
 
 
     def get_client(self):

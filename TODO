@@ -24,8 +24,7 @@
 	- Explored area can then be used in the GrabCut algorithm as potential foreground		
 	- Think about redetermining centerlines of elongated burrows that have not been fitted in pass 2
 * Add mechanism for conveniently defining parameters for single runs
-* Restrict burrows to areas where the mouse has been (to resolve problem in UL video)
-	- remove areas from grabcut result, where this is not the case 
+* Only use previous burrow as estimate for GrabCut algorithm
 
 
 Performance improvements:
@@ -38,10 +37,8 @@ Performance improvements:
 	http://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
 	http://stefaanlippens.net/python-asynchronous-subprocess-pipe-reading
 	http://code.activestate.com/recipes/576759-subprocess-with-async-io-pipes-class/
-* Create Thread on SO asking about efficient memory passing between processes/threads
-	- one process for reading video
-	- one process for processing frame
-	- one process for writing video
+* Think about using Locks instead of pipes for faster communication
+	- pipes seem to be slow and will only be read every 10ms or such
 
 
 Low priority enhancements:

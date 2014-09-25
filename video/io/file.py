@@ -72,6 +72,9 @@ class VideoFileStack(VideoBase):
         video_file_class determines the class with which videos are loaded
         """
         
+        
+        print 'read file in process ', os.getpid()
+        
         # initialize the list containing all the files
         self._videos = []
         # register at what frame_count the video start
