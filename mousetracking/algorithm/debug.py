@@ -92,8 +92,12 @@ def show_shape(*shapes, **kwargs):
             from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport
             divider = make_axes_locatable(ax)
             cax = divider.append_axes("right", size="5%", pad=0.05)
-            plt.colorbar(axim, cax=cax)
-    
+            try:
+                plt.colorbar(axim, cax=cax)
+            except DeprecationWarning:
+                # we don't care about these in the debug module
+                pass
+
     # iterate through all shapes and plot them
     for shape in shapes:
         color = kwargs.get('color', colors.next())

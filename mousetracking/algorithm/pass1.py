@@ -24,7 +24,7 @@ import time
 
 import numpy as np
 from scipy import ndimage, optimize, signal, spatial
-from shapely import geometry
+from shapely import affinity, geometry
 import cv2
 
 from video.io import ImageShow
@@ -1120,7 +1120,9 @@ class FirstPass(DataHandler):
         If offset=(xoffs, yoffs) is given, all the points are translate.
         May return None if no burrow was found 
         """
-    
+        if offset is None:
+            offset = (0, 0)
+
         # find the contour of the mask    
         contours, _ = cv2.findContours(mask.astype(np.uint8, copy=False),
                                        cv2.RETR_EXTERNAL,
@@ -1145,7 +1147,9 @@ class FirstPass(DataHandler):
 
         # move points close to the ground line onto the ground line
         ground_point_dist = self.params['burrows/ground_point_distance']
-        ground_line = self.ground.linestring
+        ground_line = affinity.translate(self.ground.linestring,
+                                         xoff=-offset[0],
+                                         yoff=-offset[1]) 
         for k, p in enumerate(contour):
             point = geometry.Point(p)
             if ground_line.distance(point) < ground_point_dist:
@@ -1158,12 +1162,15 @@ class FirstPass(DataHandler):
         # remove potential invalid structures from contour
         contour = regions.regularize_contour(contour)
         
+        if offset[0]:
+            debug.show_shape(geometry.LinearRing(contour),
+                             background=mask, wait_for_key=False)
+        
         # create the burrow based on the contour
         if contour:
-            if offset is not None:
-                contour = curves.translate_points(contour,
-                                                  xoff=offset[0],
-                                                  yoff=offset[1])
+            contour = curves.translate_points(contour,
+                                              xoff=offset[0],
+                                              yoff=offset[1])
             return Burrow(contour)
             
         else:
@@ -1400,11 +1407,10 @@ class FirstPass(DataHandler):
                                                            anchor='upper left',
                                                            ret_rect=True)
         
-        # extract the region of interest from the ground mask and the frame
-        ground_mask = ground_mask[slices]
+        # extract the region of interest from the frame and the mask
         img = frame[slices].astype(np.uint8)
+        ground_mask = ground_mask[slices]
         mask = np.zeros_like(ground_mask)        
-        color_sand = self.result['colors/sand']
 
         # create a mask representing the current estimate of the burrow
         burrow_mask = np.zeros_like(mask)
@@ -1414,15 +1420,15 @@ class FirstPass(DataHandler):
         cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
 
         # add to this mask the previous burrow
-#         if burrow_prev:
-#             outline = curves.translate_points(burrow_prev.outline,
-#                                               xoff=-rect[0],
-#                                               yoff=-rect[1])
-#             cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
+        if burrow_prev:
+            outline = curves.translate_points(burrow_prev.outline,
+                                              xoff=-rect[0],
+                                              yoff=-rect[1])
+            cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
 
         # prepare the input mask for the GrabCut algorithm by defining 
         # foreground and background regions  
-        img[ground_mask == 0] = color_sand #< turn into background
+        img[ground_mask == 0] = self.result['colors/sand'] #< turn into background
         mask[:] = cv2.GC_BGD #< surely background
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (int(2*width_min), int(2*width_min)))
         mask[cv2.dilate(burrow_mask, kernel) == 255] = cv2.GC_PR_BGD #< probable background
@@ -1458,8 +1464,12 @@ class FirstPass(DataHandler):
                              self.frame_id, burrow.polygon.representative_point())
             return burrow
 
+#         debug.show_image(burrow_mask, ground_mask, img, 
+#                          debug.get_grabcut_image(mask),
+#                          wait_for_key=False)
+
         # calculate the mask of the foreground
-        mask = np.where((mask == cv2.GC_FGD) + (mask == cv2.GC_PR_FGD), 255, 0)
+        mask = np.where((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0)
         mask[ground_mask == 0] = 0
         
         # find the burrow from the mask
@@ -1497,26 +1507,29 @@ class FirstPass(DataHandler):
                 if (burrow_track.track_end >= self.frame_id - adaptation_interval
                     and burrow_track.last.intersects(burrow.polygon)):
                     
+                    # this burrow is active and overlaps with the current one
                     break
             else:
                 track_id = None
 
-            # refine the burrows by fitting
+            # refine the burrow based on its shape
             burrow_length = burrow.get_length(self.ground)
             burrow_width = burrow.area/burrow_length if burrow_length > 0 else 0
             min_length = self.params['burrows/fitting_length_threshold']
             max_width = self.params['burrows/fitting_width_threshold']
             if (burrow_length > min_length and burrow_width < max_width):
-                # fit the current burrow
+                # it's a long burrow => fit the current burrow
                 burrow = self.refine_long_burrow(burrow)
                 
             elif track_id is not None:
-                # refine burrow taken any previous burrows into account
+                # it's a bulky burrow with a known previous burrow
+                # => refine burrow taken any previous burrows into account
                 burrow_prev = self.result['burrows/tracks'][track_id].last
                 burrow = self.refine_bulky_burrow(burrow, burrow_prev)
                 
             else:
-                # refine burrow taken any previous burrows into account
+                # it's a bulky burrow without a known previous burrow
+                # => just refine this burrow
                 burrow = self.refine_bulky_burrow(burrow)
             
             # add the burrow to our result list if it is valid
