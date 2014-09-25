@@ -155,11 +155,6 @@ def get_largest_region(mask):
     return labels == label_max
 
 
-def translate_points(points, xoff, yoff):
-    """ translate points by a certain offset """
-    return [(p[0] + xoff, p[1] + yoff) for p in points]
-
-
 def get_enclosing_outline(polygon):
     """ gets the enclosing outline of a (possibly complex) polygon """
     # get the outline

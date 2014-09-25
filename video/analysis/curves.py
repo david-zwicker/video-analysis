@@ -23,6 +23,11 @@ def point_distance(p1, p2):
     return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
 
 
+def translate_points(points, xoff, yoff):
+    """ translate points by a certain offset """
+    return [(p[0] + xoff, p[1] + yoff) for p in points]
+
+
 def curve_length(points):
     """ returns the total arc length of a curve defined by a number of points """
     if len(points) < 2:

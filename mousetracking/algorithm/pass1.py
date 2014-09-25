@@ -1157,11 +1157,13 @@ class FirstPass(DataHandler):
         
         # remove potential invalid structures from contour
         contour = regions.regularize_contour(contour)
+        
+        # create the burrow based on the contour
         if contour:
             if offset is not None:
-                contour = regions.translate_points(contour,
-                                                   xoff=offset[0],
-                                                   yoff=offset[1])
+                contour = curves.translate_points(contour,
+                                                  xoff=offset[0],
+                                                  yoff=offset[1])
             return Burrow(contour)
             
         else:
@@ -1406,17 +1408,17 @@ class FirstPass(DataHandler):
 
         # create a mask representing the current estimate of the burrow
         burrow_mask = np.zeros_like(mask)
-        outline = regions.translate_points(burrow.outline,
-                                           xoff=-rect[0],
-                                           yoff=-rect[1])
+        outline = curves.translate_points(burrow.outline,
+                                          xoff=-rect[0],
+                                          yoff=-rect[1])
         cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
 
         # add to this mask the previous burrow
-        if burrow_prev:
-            outline = regions.translate_points(burrow_prev.outline,
-                                               xoff=-rect[0],
-                                               yoff=-rect[1])
-            cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
+#         if burrow_prev:
+#             outline = curves.translate_points(burrow_prev.outline,
+#                                               xoff=-rect[0],
+#                                               yoff=-rect[1])
+#             cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
 
         # prepare the input mask for the GrabCut algorithm by defining 
         # foreground and background regions  
@@ -1507,10 +1509,12 @@ class FirstPass(DataHandler):
             if (burrow_length > min_length and burrow_width < max_width):
                 # fit the current burrow
                 burrow = self.refine_long_burrow(burrow)
+                
             elif track_id is not None:
                 # refine burrow taken any previous burrows into account
                 burrow_prev = self.result['burrows/tracks'][track_id].last
                 burrow = self.refine_bulky_burrow(burrow, burrow_prev)
+                
             else:
                 # refine burrow taken any previous burrows into account
                 burrow = self.refine_bulky_burrow(burrow)
