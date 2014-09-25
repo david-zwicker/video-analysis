@@ -44,7 +44,8 @@ class LazyLoadError(RuntimeError): pass
 
 class DataHandler(object):
     """ class that handles the data and parameters of mouse tracking """
-    logging_mode = 'append'    
+    logging_mode = 'append'
+    report_unknown_parameters = True
 
     # dictionary of data items that are stored in a separated HDF file
     # and will be loaded only on access
@@ -72,11 +73,21 @@ class DataHandler(object):
 
         if read_data:
             self.read_data()
+
+
+    def check_parameters(self, parameters):
+        """ checks whether the parameters given in the input do actually exist
+        in this version of the code """
+        for key in parameters:
+            if key not in PARAMETERS_DEFAULT:
+                raise ValueError('Parameter `%s` is not understood.' % key)
         
 
     def initialize_parameters(self, parameters=None):
         """ initialize parameters """
         if parameters is not None:
+            if self.report_unknown_parameters:
+                self.check_parameters(parameters)
             self.data['parameters'].from_dict(parameters)
             
         # scale parameters, if requested
