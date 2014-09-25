@@ -78,9 +78,11 @@ class DataHandler(object):
     def check_parameters(self, parameters):
         """ checks whether the parameters given in the input do actually exist
         in this version of the code """
-        for key in parameters:
-            if key not in PARAMETERS_DEFAULT:
-                raise ValueError('Parameter `%s` is not understood.' % key)
+        unknown_keys = [key
+                        for key in parameters
+                        if key not in PARAMETERS_DEFAULT]
+        if unknown_keys:
+            raise ValueError('Parameters %s are not understood.' % unknown_keys)
         
 
     def initialize_parameters(self, parameters=None):
