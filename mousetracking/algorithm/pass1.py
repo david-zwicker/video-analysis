@@ -1083,7 +1083,7 @@ class FirstPass(DataHandler):
         mask_ground = self.get_ground_mask()
 
         # get potential burrows by looking at explored area
-        explored_area = 255*(self.explored_area > 0).astype(np.uint8, copy=False)
+        explored_area = 255*(self.explored_area > 0).astype(np.uint8)
         
         # remove accidental burrows at borders
         margin = int(self.params['burrows/cage_margin'])
@@ -1398,7 +1398,7 @@ class FirstPass(DataHandler):
                                                            anchor='upper left',
                                                            ret_rect=True)
         
-        # extract the region of interest from the ground mask and the frame 
+        # extract the region of interest from the ground mask and the frame
         ground_mask = ground_mask[slices]
         img = frame[slices].astype(np.uint8)
         mask = np.zeros_like(ground_mask)        
@@ -1425,8 +1425,22 @@ class FirstPass(DataHandler):
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (int(2*width_min), int(2*width_min)))
         mask[cv2.dilate(burrow_mask, kernel) == 255] = cv2.GC_PR_BGD #< probable background
         mask[burrow_mask == 255] = cv2.GC_PR_FGD #< probable foreground
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (int(width_min/2), int(width_min/2)))
-        mask[cv2.erode(burrow_mask, kernel) == 255] = cv2.GC_FGD #< surely foreground 
+        
+        # find sure foreground
+        kernel_size = int(2*width_min)
+        while kernel_size > 1:
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+            burrow_sure = (cv2.erode(burrow_mask, kernel) == 255)
+            if burrow_sure.sum() >= 10:
+                # the burrow was large enough that erosion left a good foreground
+                mask[burrow_sure] = cv2.GC_FGD #< surely foreground
+                break
+            else:
+                kernel_size //= 2 #< try smaller kernel
+        
+#         debug.show_image(burrow_mask, ground_mask, img, 
+#                          debug.get_grabcut_image(mask),
+#                          wait_for_key=False)
         
         # have to convert to color image, since grabCut only supports color
         img = cv2.cvtColor(img, cv2.cv.CV_GRAY2RGB)

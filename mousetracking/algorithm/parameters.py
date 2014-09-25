@@ -116,7 +116,7 @@ PARAMETER_LIST = [
               'Rate at which the background is adapted'),
     Parameter('explored_area/adaptation_rate_outside', 1e-3, UNIT.RATE_FRAMES,
               'Rate at which the explored area is adapted outside of burrows'),
-    Parameter('explored_area/adaptation_rate_burrows', 1e-5, UNIT.RATE_FRAMES,
+    Parameter('explored_area/adaptation_rate_burrows', 1e-6, UNIT.RATE_FRAMES,
               'Rate at which the explored area is adapted inside burrows'),
     
     # Ground

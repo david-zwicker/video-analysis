@@ -6,6 +6,7 @@ Created on Aug 14, 2014
 
 from __future__ import division
 
+import sys
 import multiprocessing as mp
 import logging
 
@@ -98,9 +99,9 @@ class ImageShow(object):
         self.this_frame = 0
         self._proc = None
         
-#         # multiprocessing does not work in current MacOS OpenCV
-#         if multiprocessing is None:
-#             multiprocessing = (sys.platform != "darwin")
+        # multiprocessing does not work in current MacOS OpenCV
+        if multiprocessing is None:
+            multiprocessing = (sys.platform != "darwin")
         
         if multiprocessing:
             # open 

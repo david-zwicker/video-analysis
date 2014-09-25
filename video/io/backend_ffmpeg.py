@@ -326,7 +326,7 @@ class VideoWriterFFmpeg(object):
                      "writing file %s:\n\n" % self.filename +
                      FFmpeg_error)
 
-            if "Unknown encoder" in FFmpeg_error:                
+            if "Unknown encoder" in FFmpeg_error:
                 error = error + ("\n\nThe video export "
                   "failed because FFmpeg didn't find the specified "
                   "codec for video encoding (%s). Please install "
@@ -341,7 +341,7 @@ class VideoWriterFFmpeg(object):
                   "or 'mpeg4' for mp4, 'libtheora' for ogv, 'libvpx' "
                   "for webm.") % (self.codec, self.ext)
 
-            elif  "encoder setup failed":
+            elif  "encoder setup failed" in FFmpeg_error:
                 error = error + ("\n\nThe video export "
                   "failed, possibly because the bitrate you specified "
                   "was too high or too low for the video codec.")
@@ -352,14 +352,8 @@ class VideoWriterFFmpeg(object):
     def close(self):
         """ finishes the process, which should also make the video available """
         if self.proc is not None:
-            if self.proc.stdin is not None:
-                self.proc.stdin.close()
-            if self.proc.stderr is not None:
-                self.proc.stderr.close()
-            self.proc.wait()
-        
+            self.proc.communicate()
             logger.info('Wrote video to file `%s`', self.filename)
-            
             self.proc = None
     
     

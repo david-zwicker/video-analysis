@@ -55,7 +55,11 @@ def show_image(*images, **kwargs):
             from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport
             divider = make_axes_locatable(plt.gca())
             cax = divider.append_axes("right", size="5%", pad=0.05)
-            plt.colorbar(cax=cax)
+            try:
+                plt.colorbar(cax=cax)
+            except DeprecationWarning:
+                # we don't care about these in the debug module
+                pass
         
     # show the images and wait for user input
     plt.show()
