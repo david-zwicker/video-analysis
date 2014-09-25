@@ -1162,9 +1162,9 @@ class FirstPass(DataHandler):
         # remove potential invalid structures from contour
         contour = regions.regularize_contour(contour)
         
-        if offset[0]:
-            debug.show_shape(geometry.LinearRing(contour),
-                             background=mask, wait_for_key=False)
+#         if offset[0]:
+#             debug.show_shape(geometry.LinearRing(contour),
+#                              background=mask, wait_for_key=False)
         
         # create the burrow based on the contour
         if contour:
