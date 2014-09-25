@@ -14,13 +14,18 @@ import os
 
 
 
-def get_loglevel_from_name(name):
+def get_loglevel_from_name(name_or_int):
     """ converts a logging level name to the numeric representation """
-    level = logging.getLevelName(name.upper())
+    # see whether it is already an integer
+    if isinstance(name_or_int, int):
+        return name_or_int
+    
+    # convert it from the name
+    level = logging.getLevelName(name_or_int.upper())
     if isinstance(level, int):
         return level
     else:
-        raise ValueError('`%s` is not a valid logging level.' % name)
+        raise ValueError('`%s` is not a valid logging level.' % name_or_int)
 
 
 

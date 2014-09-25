@@ -22,6 +22,7 @@ import objects
 from .objects.utils import LazyHDFValue, prepare_data_for_yaml
 from .utils import get_loglevel_from_name, change_directory
 from video.io import VideoFile, VideoFileStack
+from video.io.pipe import video_reader_process
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists
 
@@ -40,6 +41,7 @@ except ImportError:
 
 
 class LazyLoadError(RuntimeError): pass
+
 
 
 class DataHandler(object):
@@ -122,6 +124,9 @@ class DataHandler(object):
             level = get_loglevel_from_name(self.data['parameters/logging/level_file'])
             handler.setLevel(level)
             self.logger.addHandler(handler)
+            
+        if self.data['parameters/debug/use_multiprocessing']:
+            self.logger.debug('Analysis runs in process %d' % os.getpid())
             
         # setup mouse parameters as class variables
         # => the code is not thread-safe if different values for these parameters are used in the same process
@@ -233,10 +238,16 @@ class DataHandler(object):
             video_filename_pattern = os.path.join(self.data['parameters/video/filename_pattern'])
             if any(c in video_filename_pattern for c in r'*?%'):
                 # contains placeholder => load multiple videos
-                self.video = VideoFileStack(video_filename_pattern)
+                video_class = VideoFileStack
             else:
                 # no placeholder => load single video
-                self.video = VideoFile(video_filename_pattern)
+                video_class = VideoFile
+
+            if self.params['debug/use_multiprocessing']:
+                self.video = video_reader_process(video_filename_pattern, video_class)
+            else:
+                self.video = video_class(video_filename_pattern)
+                
         else:
             self.video = video
 

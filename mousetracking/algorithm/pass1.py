@@ -27,7 +27,7 @@ from scipy import ndimage, optimize, signal, spatial
 from shapely import affinity, geometry
 import cv2
 
-from video.io import ImageShow
+from video.io import ImageWindow
 from video.filters import FilterCrop
 from video.analysis import regions, curves, image
 from video.utils import display_progress
@@ -706,7 +706,7 @@ class FirstPass(DataHandler):
         """ refine the ground based on a previous estimate and the current
         image using the GrabCut algorithm """
         # prepare the masks
-        ground_mask = self.get_ground_mask(255, GroundProfile(points))
+        mask_ground = self.get_ground_mask(255, GroundProfile(points))
 
         # restrict to region of interest        
         frame_margin = int(self.params['ground/frame_margin'])
@@ -714,7 +714,7 @@ class FirstPass(DataHandler):
         rect_roi = regions.expand_rectangle(rect_frame, amount=-frame_margin)
         slices = regions.rect_to_slices(rect_roi)
         frame = frame[slices]
-        ground_mask = ground_mask[slices]
+        mask_ground = mask_ground[slices]
         mask = np.zeros_like(frame)
         
         # indicate the estimated border between sand and sky
@@ -726,9 +726,9 @@ class FirstPass(DataHandler):
         uncertainty_margin = int(self.params['ground/grabcut_uncertainty_margin'])
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
                                            (uncertainty_margin, uncertainty_margin))
-        sure_ground = (cv2.erode(ground_mask, kernel) == 255)
+        sure_ground = (cv2.erode(mask_ground, kernel) == 255)
         mask[sure_ground] = cv2.GC_FGD
-        sure_sky = (cv2.dilate(ground_mask, kernel) == 0)
+        sure_sky = (cv2.dilate(mask_ground, kernel) == 0)
         mask[sure_sky] = cv2.GC_BGD
         
 #         debug.show_image(debug.get_grabcut_image(mask), frame)
@@ -975,27 +975,11 @@ class FirstPass(DataHandler):
             
             # fit the simple model to the line scan profile
             try:      
-                res = optimize.fmin(energy_snake, [0, 0, model_std], disp=False)
+                res = optimize.fmin_powell(energy_snake, [0, 0, model_std], disp=False)
             except RuntimeError:
                 continue #< skip this point
             pos, model_mean, model_std = res 
 
-#             print '%.4f' % (energy_curvature(pos)/energy_image((pos, model_mean, model_std)))
-
-#             if k == 20:
-#                 print '-'*40
-#                 print energy_image((pos, model_mean, model_std))
-#                 print energy_curvature(pos)
-# 
-#             if k == 20:
-#                 #xs = np.linspace(-profile_len - pos, profile_len - pos, len(profile))
-#                 model = model_std*np.tanh(-(xs - pos)/ridge_width) + model_mean
-#                 import matplotlib.pyplot as plt
-#                 plt.plot(profile, label='profile')
-#                 plt.plot(model, label='model')
-#                 plt.legend(loc='best')
-#                 plt.show()
-            
             # save for determining the energy scale later
             energies_image.append(energy_image((pos, model_mean, model_std)))
 
@@ -1057,18 +1041,18 @@ class FirstPass(DataHandler):
         
         # build a mask with potential burrows
         width, height = self.video.size
-        ground_mask = np.zeros((height, width), np.uint8)
+        mask_ground = np.zeros((height, width), np.uint8)
         
-        # create a mask for the region below the current ground_mask profile
+        # create a mask for the region below the current mask_ground profile
         ground_points = np.empty((len(ground) + 4, 2), np.int32)
         ground_points[:-4, :] = ground.line
         ground_points[-4, :] = (width, ground_points[-5, 1])
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
         ground_points[-1, :] = (0, ground_points[0, 1])
-        cv2.fillPoly(ground_mask, np.array([ground_points], np.int32), color=color)
+        cv2.fillPoly(mask_ground, np.array([ground_points], np.int32), color=color)
 
-        return ground_mask
+        return mask_ground
     
             
     #===========================================================================
@@ -1394,7 +1378,7 @@ class FirstPass(DataHandler):
         """ refine burrow by thresholding background image using the GrabCut
         algorithm """
         # TODO: add caching for the masks
-        ground_mask = self.get_ground_mask(255)
+        mask_ground = self.get_ground_mask(255)
         frame = self.background
         width_min = self.params['burrows/width_min']
         
@@ -1409,36 +1393,37 @@ class FirstPass(DataHandler):
         
         # extract the region of interest from the frame and the mask
         img = frame[slices].astype(np.uint8)
-        ground_mask = ground_mask[slices]
-        mask = np.zeros_like(ground_mask)        
+        mask_ground = mask_ground[slices]
+        mask_unexplored = (self.explored_area[slices] <= 0)
+        mask = np.zeros_like(mask_ground)        
 
         # create a mask representing the current estimate of the burrow
-        burrow_mask = np.zeros_like(mask)
+        mask_burrow = np.zeros_like(mask)
         outline = curves.translate_points(burrow.outline,
                                           xoff=-rect[0],
                                           yoff=-rect[1])
-        cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
+        cv2.fillPoly(mask_burrow, [np.asarray(outline, np.int)], 255)
 
         # add to this mask the previous burrow
         if burrow_prev:
             outline = curves.translate_points(burrow_prev.outline,
                                               xoff=-rect[0],
                                               yoff=-rect[1])
-            cv2.fillPoly(burrow_mask, [np.asarray(outline, np.int)], 255)
+            cv2.fillPoly(mask_burrow, [np.asarray(outline, np.int)], 255)
 
         # prepare the input mask for the GrabCut algorithm by defining 
         # foreground and background regions  
-        img[ground_mask == 0] = self.result['colors/sand'] #< turn into background
+        img[mask_ground == 0] = self.result['colors/sand'] #< turn into background
         mask[:] = cv2.GC_BGD #< surely background
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (int(2*width_min), int(2*width_min)))
-        mask[cv2.dilate(burrow_mask, kernel) == 255] = cv2.GC_PR_BGD #< probable background
-        mask[burrow_mask == 255] = cv2.GC_PR_FGD #< probable foreground
+        mask[cv2.dilate(mask_burrow, kernel) == 255] = cv2.GC_PR_BGD #< probable background
+        mask[mask_burrow == 255] = cv2.GC_PR_FGD #< probable foreground
         
         # find sure foreground
         kernel_size = int(2*width_min)
         while kernel_size > 1:
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-            burrow_sure = (cv2.erode(burrow_mask, kernel) == 255)
+            burrow_sure = (cv2.erode(mask_burrow, kernel) == 255)
             if burrow_sure.sum() >= 10:
                 # the burrow was large enough that erosion left a good foreground
                 mask[burrow_sure] = cv2.GC_FGD #< surely foreground
@@ -1446,7 +1431,7 @@ class FirstPass(DataHandler):
             else:
                 kernel_size //= 2 #< try smaller kernel
         
-#         debug.show_image(burrow_mask, ground_mask, img, 
+#         debug.show_image(mask_burrow, mask_ground, img, 
 #                          debug.get_grabcut_image(mask),
 #                          wait_for_key=False)
         
@@ -1470,7 +1455,12 @@ class FirstPass(DataHandler):
 
         # calculate the mask of the foreground
         mask = np.where((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0)
-        mask[ground_mask == 0] = 0
+        
+        # make sure that the burrow has been explored by the mouse
+        mask[mask_unexplored] = 0
+        
+        # make sure that the burrow is under ground
+        mask[mask_ground == 0] = 0
         
         # find the burrow from the mask
         burrow = self.get_burrow_from_mask(mask.astype(np.uint8), offset=rect[:2])
@@ -1478,7 +1468,7 @@ class FirstPass(DataHandler):
     
     
     def find_burrows(self):
-        """ locates burrows by combining the information of the ground_mask
+        """ locates burrows by combining the information of the mask_ground
         profile and the explored area """
 
         # reset the current burrow model
@@ -1590,9 +1580,11 @@ class FirstPass(DataHandler):
             if 'video.show' in self.debug_output:
                 name = self.name if self.name else ''
                 position = self.params['debug/window_position']
-                self.debug['video.show'] = ImageShow(self.debug['video'].shape,
-                                                     title='Debug video' + ' [%s]' % name,
-                                                     position=position)
+                image_window = ImageWindow(self.debug['video'].shape,
+                                           title='Debug video' + ' [%s]' % name,
+                                           multiprocessing=self.params['debug/use_multiprocessing'],
+                                           position=position)
+                self.debug['video.show'] = image_window
 
         # set up additional video writers
         for identifier in ('difference', 'background', 'explored_area'):

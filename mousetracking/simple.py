@@ -55,7 +55,7 @@ def scan_video_in_folder(folder, name, parameters=None, **kwargs):
     """ scans a single video from a folder """
     
     # create parameter dictionary
-    params = PARAMETERS_DEFAULT.copy()  # @UndefinedVariable
+    params = PARAMETERS_DEFAULT.copy()
     params.update(parameters)
     
     # set the folder in the respective parameters

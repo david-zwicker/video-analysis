@@ -23,7 +23,9 @@
 		This allows us to remove noise
 	- Explored area can then be used in the GrabCut algorithm as potential foreground		
 	- Think about redetermining centerlines of elongated burrows that have not been fitted in pass 2
-* Add mechanism for conveniently defining parameters for single runs 
+* Add mechanism for conveniently defining parameters for single runs
+* Restrict burrows to areas where the mouse has been (to resolve problem in UL video)
+	- remove areas from grabcut result, where this is not the case 
 
 
 Performance improvements:

@@ -77,7 +77,7 @@ def _show_image_from_pipe(pipe, image_array, title, position=None):
 
 
         
-class ImageShow(object):
+class ImageWindow(object):
     """ class that can show an image """
     
     def __init__(self, size, title='', output_period=1,
@@ -117,7 +117,7 @@ class ImageShow(object):
                                                   title, position))
                     self._proc.daemon = True
                     self._proc.start()
-                    logger.debug('Started background process for displaying images')
+                    logger.debug('Started process %d for displaying images' % self._proc.pid)
                     
                 except AssertionError:
                     logger.warn('Could not start a separate process to display images. '

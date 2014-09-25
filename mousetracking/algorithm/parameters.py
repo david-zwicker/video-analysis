@@ -62,6 +62,9 @@ PARAMETER_LIST = [
     # Debug
     Parameter('debug/output', [], None,
               'List of identifiers determining what debug output is produced'),
+    Parameter('debug/use_multiprocessing', True, UNIT.BOOLEAN,
+              'Flag indicating whether multiprocessing should be used to read '
+              'and display videos'),
     Parameter('debug/folder', './debug/', UNIT.FOLDER,
               'Folder to which debug videos are written'), 
     Parameter('debug/output_period', 100, UNIT.TIME_FRAMES,
