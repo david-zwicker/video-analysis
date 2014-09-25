@@ -24,7 +24,8 @@ try:
     # do the second pass scan
     results = load_results("{NAME}", parameters, cls=SecondPass)
     results.process_data()
-    results.produce_video()
+    if results.data['parameters/output/video/enabled']:
+        results.produce_video()
 finally:
     # remove temporary file
     os.remove('_running_pass2')

@@ -20,6 +20,7 @@ class UNIT(object):
     FRACTION = 2
     FOLDER = 3
     COLOR = 4
+    BOOLEAN = 5
     LENGTH_PIXEL = 11
     AREA_PIXEL = 12
     TIME_FRAMES = 20
@@ -48,7 +49,7 @@ PARAMETER_LIST = [
               "'upper left', 'lower right', etc."),
           
     # Logging
-    Parameter('logging/enabled',  True, None,
+    Parameter('logging/enabled',  True, UNIT.BOOLEAN,
               'Flag indicating whether logging is enabled'),
     Parameter('logging/folder', './logging/', UNIT.FOLDER,
               'Folder to which the log file is written'),
@@ -76,6 +77,8 @@ PARAMETER_LIST = [
     Parameter('output/output_period', 1, UNIT.TIME_FRAMES,
               'How often are frames written to the output file or shown on the '
               'screen'),
+    Parameter('output/video/enabled', True, UNIT.BOOLEAN,
+              'Flag determining whether the final video should be produced'),
     Parameter('output/video/extension', '.mov', None,
               'File extension used for debug videos'),
     Parameter('output/video/codec', 'libx264', None,
@@ -84,7 +87,7 @@ PARAMETER_LIST = [
               'Bitrate used for debug videos'),
     
     # Cage
-    Parameter('cage/determine_boundaries', True, None,
+    Parameter('cage/determine_boundaries', True, UNIT.BOOLEAN,
               'Flag indicating whether the cropping rectangle should be determined '
               'automatically. If False, we assume that the original video is '
               'already cropped'),
