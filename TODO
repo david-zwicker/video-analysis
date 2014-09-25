@@ -36,6 +36,10 @@ Performance improvements:
 	http://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
 	http://stefaanlippens.net/python-asynchronous-subprocess-pipe-reading
 	http://code.activestate.com/recipes/576759-subprocess-with-async-io-pipes-class/
+* Create Thread on SO asking about efficient memory passing between processes/threads
+	- one process for reading video
+	- one process for processing frame
+	- one process for writing video
 
 
 Low priority enhancements:

@@ -1117,12 +1117,17 @@ class FirstPass(DataHandler):
         
     def get_burrow_from_mask(self, mask, offset=None):
         """ creates a burrow object given a contour outline.
-        If offset=(xoffs, yoffs) is given, all the points are translate. """
+        If offset=(xoffs, yoffs) is given, all the points are translate.
+        May return None if no burrow was found 
+        """
     
         # find the contour of the mask    
         contours, _ = cv2.findContours(mask.astype(np.uint8, copy=False),
                                        cv2.RETR_EXTERNAL,
                                        cv2.CHAIN_APPROX_SIMPLE)
+        
+        if not contours:
+            return None
         
         # find the contour with the largest area, in case there are multiple
         contour_areas = [cv2.contourArea(cnt) for cnt in contours]
@@ -1130,40 +1135,37 @@ class FirstPass(DataHandler):
         
         if contour_areas[contour_id] < self.params['burrows/area_min']:
             # disregard small burrows
-            burrow = None
+            return None
+            
+        # simplify the contour
+        contour = np.squeeze(np.asarray(contours[contour_id], np.double))
+        tolerance = self.params['burrows/outline_simplification_threshold'] \
+                        *curves.curve_length(contour)
+        contour = curves.simplify_curve(contour, tolerance).tolist()
+
+        # move points close to the ground line onto the ground line
+        ground_point_dist = self.params['burrows/ground_point_distance']
+        ground_line = self.ground.linestring
+        for k, p in enumerate(contour):
+            point = geometry.Point(p)
+            if ground_line.distance(point) < ground_point_dist:
+                contour[k] = curves.get_projection_point(ground_line, point)
+        
+        # simplify contour while keeping the area roughly constant
+        threshold = self.params['burrows/simplification_threshold_area']
+        contour = regions.simplify_contour(contour, threshold)
+        
+        # remove potential invalid structures from contour
+        contour = regions.regularize_contour(contour)
+        if contour:
+            if offset is not None:
+                contour = regions.translate_points(contour,
+                                                   xoff=offset[0],
+                                                   yoff=offset[1])
+            return Burrow(contour)
             
         else:
-            # simplify the contour
-            contour = np.squeeze(np.asarray(contours[contour_id], np.double))
-            tolerance = self.params['burrows/outline_simplification_threshold'] \
-                            *curves.curve_length(contour)
-            contour = curves.simplify_curve(contour, tolerance).tolist()
-    
-            # move points close to the ground line onto the ground line
-            ground_point_dist = self.params['burrows/ground_point_distance']
-            ground_line = self.ground.linestring
-            for k, p in enumerate(contour):
-                point = geometry.Point(p)
-                if ground_line.distance(point) < ground_point_dist:
-                    contour[k] = curves.get_projection_point(ground_line, point)
-            
-            # simplify contour while keeping the area roughly constant
-            threshold = self.params['burrows/simplification_threshold_area']
-            contour = regions.simplify_contour(contour, threshold)
-            
-            # remove potential invalid structures from contour
-            contour = regions.regularize_contour(contour)
-            if contour:
-                if offset is not None:
-                    contour = regions.translate_points(contour,
-                                                       xoff=offset[0],
-                                                       yoff=offset[1])
-                burrow =  Burrow(contour)
-                
-            else:
-                burrow = None           
-        
-        return burrow
+            return None
     
     
     def find_burrow_edge(self, profile, direction='up'):
