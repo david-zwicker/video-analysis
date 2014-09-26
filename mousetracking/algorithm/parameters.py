@@ -88,6 +88,9 @@ PARAMETER_LIST = [
               'ffmpeg video codec used for debug videos'),
     Parameter('output/video/bitrate', '2000k', None,
               'Bitrate used for debug videos'),
+    Parameter('output/hdf5_compression', 'gzip', None,
+              'Compression algorithm to be used for the HDF5 data. Possible '
+              'options might be None, "gzip", "lzf", and "szip".'),
     
     # Cage
     Parameter('cage/determine_boundaries', True, UNIT.BOOLEAN,

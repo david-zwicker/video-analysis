@@ -42,7 +42,7 @@ class MovingObject(object):
 
 class ObjectTrack(object):
     """ represents a time course of moving objects """
-    array_columns = ('Time', 'Position X', 'Position Y', 'Object Area')
+    column_names = ('Time', 'Position X', 'Position Y', 'Object Area')
     mouse_area_mean = 700
     
     moving_window = 20
@@ -173,7 +173,6 @@ class ObjectTrack(object):
         if key in hdf_file:
             del hdf_file[key]
         hdf_file.create_dataset(key, data=self.to_array(), track_times=True)
-        hdf_file[key].attrs['column_names'] = self.array_columns
 
 
     @classmethod
@@ -187,6 +186,7 @@ class ObjectTrackList(list):
     """ organizes a list of ObjectTrack instances """
     item_class = ObjectTrack
     storage_class = LazyHDFCollection
+    hdf_attributes = {'column_names': ObjectTrack.column_names}
     
     duration_min = 2 #< minimal duration of a track to be considered
     

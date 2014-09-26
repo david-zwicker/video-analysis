@@ -220,7 +220,6 @@ class FirstPass(DataHandler):
             # copy frame to debug video
             if 'video' in self.debug:
                 self.debug['video'].set_frame(frame, copy=False)
-                
             
             if self.frame_id == self.params['video/initial_adaptation_frames']:
                 # prepare the main analysis
@@ -983,16 +982,16 @@ class FirstPass(DataHandler):
 
         # filter points, where the fit did not work
         points = []
-        for p in candidate_points:
-            if p is None:
+        for candidate in candidate_points:
+            if candidate is None:
                 continue
             
             # check for overhanging ridge
-            if len(points) == 0 or p[0] > points[-1][0]:
-                points.append(p)
+            if len(points) == 0 or candidate[0] > points[-1][0]:
+                points.append(candidate)
             else: #< there is an overhanging part
-                if p[1] < points[-1][0]: #< current point is above previous point 
-                    points[-1] = p # replace the previous point
+                if candidate[1] < points[-1][0]: #< current point is above previous point 
+                    points[-1] = candidate # replace the previous point
                 # else: don't add the current point
                 
         # save the energy factor for the next iteration

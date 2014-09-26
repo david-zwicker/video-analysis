@@ -148,6 +148,9 @@ class DataHandler(object):
         ground_point_distance = self.data.get('parameters/burrows/ground_point_distance', None)
         if ground_point_distance:
             objects.Burrow.ground_point_distance = ground_point_distance
+        hdf5_compression = self.data.get('parameters/output/hdf5_compression', None)
+        if hdf5_compression:
+            LazyHDFValue.compression = hdf5_compression
             
 
     def get_folder(self, folder):

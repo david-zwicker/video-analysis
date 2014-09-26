@@ -290,7 +290,7 @@ class Burrow(object):
 class BurrowTrack(object):
     """ class that stores the evolution of a single burrow over time.
     """
-    array_columns = ('Time',) + Burrow.array_columns
+    column_names = ('Time',) + Burrow.array_columns
     
     def __init__(self, time=None, burrow=None):
         self.times = [] if time is None else [time]
@@ -386,14 +386,6 @@ class BurrowTrack(object):
         if key in hdf_file:
             del hdf_file[key]
         hdf_file.create_dataset(key, data=self.to_array(), track_times=True)
-        hdf_file[key].attrs['column_names'] = self.array_columns
-        hdf_file[key].attrs['remark'] = (
-            'Each burrow is represented by its outline saved as a list of points '
-            'of the format (Time, X, Y, a, b), where all points with the same '
-            'Time belong to the same burrow. The last two values (a, b) contain '
-            'additional data, e.g. the burrow length and the coordinates of the '
-            'centerline.'
-        ) 
 
 
     @classmethod
@@ -407,6 +399,15 @@ class BurrowTrackList(list):
     """ class that stores instances of BurrowTrack in a list """
     item_class = BurrowTrack
     storage_class = LazyHDFCollection
+    hdf_attributes = {'column_names': BurrowTrack.column_names,
+                      'remark':
+                        'Each burrow is represented by its outline saved as a '
+                        'list of points of the format (Time, X, Y, a, b), '
+                        'where all points with the same Time belong to the same '
+                        'burrow. The last two values (a, b) contain additional '
+                        'data, e.g. the burrow length and the coordinates of '
+                        'the centerline.'} 
+
 
     def get_burrows(self, frame_id, ret_next_change=False):
         """ returns a list of all burrows active in a given frame.

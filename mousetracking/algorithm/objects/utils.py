@@ -7,6 +7,7 @@ Created on Sep 5, 2014
 from __future__ import division
 
 import collections
+import datetime
 import os
 import warnings
 
@@ -41,8 +42,23 @@ class Interpolate_1D_Extrapolated(interp1d):
             
             
 
+def get_chunk_size(shape, num_elements):
+    """ tries to determine an optimal chunk size by chunking the longest
+    axes first """
+    chunks = list(shape)
+    while np.prod(chunks) > num_elements:
+        dim_long = np.argmax(chunks)
+        chunks[dim_long] = 1
+        chunks[dim_long] = max(1, num_elements // np.prod(chunks))
+    return tuple(chunks)
+    
+
+
 class LazyHDFValue(object):
     """ class that represents a value that is only loaded when it is accessed """
+    chunk_elements = 10000
+    compression = None
+    
 
     def __init__(self, data_cls, key, hdf_filename):
         self.data_cls = data_cls
@@ -90,9 +106,22 @@ class LazyHDFValue(object):
         """ store the data in a HDF file and return the storage object """
         data_cls = data.__class__
         with h5py.File(hdf_filename, 'a') as hdf_file:
+            # delete possible previous key to have a clean storage
             if key in hdf_file:
                 del hdf_file[key]
-            hdf_file.create_dataset(key, data=data.to_array(), track_times=True)
+                
+            # save actual data as an array
+            data_array = data.to_array()
+            if cls.compression is None:
+                hdf_file.create_dataset(key, data=data_array, track_times=True)
+            else:
+                chunks = get_chunk_size(data_array.shape, cls.chunk_elements)
+                print 'Compression', cls.compression, chunks
+                hdf_file.create_dataset(key, data=data_array, track_times=True,
+                                        chunks=chunks, compression=cls.compression)
+                
+            # add attributes to describe data 
+            hdf_file[key].attrs['written_on'] = str(datetime.datetime.now())
             if hasattr(data_cls, 'hdf_attributes'):        
                 for attr_key, attr_value in data_cls.hdf_attributes.iteritems():
                     hdf_file[key].attrs[attr_key] = attr_value
@@ -134,6 +163,7 @@ class LazyHDFCollection(LazyHDFValue):
             for index, obj in enumerate(data):
                 obj.save_to_hdf5(hdf_file, key_format % index)
     
+            hdf_file[key].attrs['written_on'] = str(datetime.datetime.now())
             if hasattr(data_cls, 'hdf_attributes'):        
                 for attr_key, attr_value in data_cls.hdf_attributes.iteritems():
                     hdf_file[key].attrs[attr_key] = attr_value
