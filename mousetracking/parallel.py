@@ -13,7 +13,7 @@ import time
 
 from .simple import scan_video
 from video.io.base import VideoFork
-from video.io.pipe import VideoPipe
+from video.io.pipe import create_video_pipe
 from video.filters import FilterCrop
 
 
@@ -58,7 +58,7 @@ def scan_video_quadrants(video, parameters=None, **kwargs):
     # create a fork, such that the data can be analyzed by multiple consumers
     video_fork = VideoFork(video, synchronized=True, client_count=len(QUADRANTS))
     
-    pipes = []
+    senders = []
     for name, crop in QUADRANTS.iteritems():
         # save the cropping rectangle for further analysis later
         parameters['video/cropping_rect'] = crop
@@ -68,29 +68,28 @@ def scan_video_quadrants(video, parameters=None, **kwargs):
         # crop the video to the right region
         video_crop = FilterCrop(video_fork.get_client(), region=crop,
                                 color_channel=1)
-        # construct the video sender 
-        video_pipe = VideoPipe(video_crop, name=name)
+        # construct the video sender
+        sender, receiver = create_video_pipe(video_crop, name=name)
         # launch a new process, where the receiver is going to live 
-        proc = mp.Process(target=scan_video,
-                          args=(video_pipe.name, video_pipe.receiver),
+        proc = mp.Process(target=scan_video, args=(name, receiver),
                           kwargs=kwargs)
 
         proc.start()
-        pipes.append(video_pipe)
+        senders.append(sender)
     
     try:
         # start the main loop where we check all senders periodically
-        while any(video_pipe.running for video_pipe in pipes):
+        while any(sender.running for sender in senders):
             # check if any senders are running
-            for video_pipe in pipes:
-                video_pipe.check()
+            for sender in senders:
+                sender.check()
     
             # let the CPU rest a little
             time.sleep(0.001)
         
     except (KeyboardInterrupt, SystemExit):
         # try to interrupt the system cleanly
-        for video_pipe in pipes:
-            video_pipe.abort_iteration()
+        for sender in senders:
+            sender.abort_iteration()
         
     
