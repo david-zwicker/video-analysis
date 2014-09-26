@@ -14,7 +14,6 @@ normal pipes, while frames are transported using the sharedmem package.
 
 from __future__ import division
 
-import os
 import logging
 import multiprocessing as mp
 import time
@@ -38,7 +37,7 @@ class VideoPipeReceiver(VideoBase):
     video_pipe.receiver
     """
     
-    def __init__(self, pipe=None, frame_buffer=None, video_format=None, name=''):
+    def __init__(self, pipe, frame_buffer, video_format=None, name=''):
         # initialize the VideoBase
         if video_format is None:
             video_format = {}
@@ -66,17 +65,23 @@ class VideoPipeReceiver(VideoBase):
         self.send_command('abort_iteration', wait_for_reply=False)
         super(VideoPipeReceiver, self).abort_iteration()
                     
-        
-    def get_next_frame(self):
-        """ request the next frame from the sender """
-        # send the request and wait for a reply
+                    
+    def wait_for_frame(self, index=None):
+        """ request a frame from the sender """
+        # abort iteration if the pipe has been closed
         if self.pipe.closed:
-            # abort iteration if the pipe has been closed
-            reply = 'abort_iteration'
-        else:
+            self.abort_iteration()
+            raise SystemExit
+        
+        # send the request
+        if index is None:
             self.pipe.send('next_frame')
-            reply = self.pipe.recv()
-                            
+        else:
+            self.pipe.send('specific_frame')
+            self.pipe.send(index)
+        # wait for reply
+        reply = self.pipe.recv()
+        
         # handle the reply
         if reply == 'frame_ready':
             # set the internal pointer to the next frame
@@ -96,29 +101,15 @@ class VideoPipeReceiver(VideoBase):
         else:
             raise VideoPipeError('Unknown reply `%s`', reply)
 
+        
+    def get_next_frame(self):
+        """ request the next frame from the sender """
+        return self.wait_for_frame()
+
 
     def get_frame(self, index):
         """ request a specific frame from the sender """
-        # send the request and wait for a reply
-        if self.pipe.closed:
-            # abort iteration if the pipe has been closed
-            reply = 'abort_iteration'
-        else:
-            self.pipe.send('specific_frame')
-            self.pipe.send(index)
-            reply = self.pipe.recv()
-            
-        if reply == 'frame_ready':
-            # return the frame
-            return self.frame_buffer
-
-        elif reply == 'abort_iteration':
-            # signal that the iteration was aborted
-            self.abort_iteration()
-            raise SystemExit
-        
-        else:
-            raise VideoPipeError('Unknown reply `%s`', reply)
+        return self.wait_for_frame(index)
 
         
     def close(self):
@@ -138,25 +129,9 @@ class VideoPipeSender(VideoFilterBase):
     
     If read_ahead is True, the next frame is already read before it is
     requested.
-    
-    The typical use case is
-    
-    def worker_process(self, video):
-        ''' worker process processing a video '''
-        expensive_function(video)
-        
-    if __name__ == '__main__':
-        # load a video file
-        video = VideoFile('test.mov')
-        # create the video pipe
-        video_pipe = VideoPipe(video)
-        # create the worker process
-        proc = multiprocessing.Process(target=worker_process,
-                                       args=(video_pipe.receiver,))
-        proc.start()    
     """
     
-    poll_frequency = 1000 #< Frequency of polling pipe in Hz 
+    poll_frequency = 200 #< Frequency of polling pipe in Hz 
     
     def __init__(self, video, pipe, frame_buffer, name=None, read_ahead=False):
         super(VideoPipeSender, self).__init__(video)
@@ -269,7 +244,8 @@ class VideoPipeSender(VideoFilterBase):
         elif command == 'specific_frame':
             # receiver requests a specific frame
             frame_id = self.pipe.recv()
-            logger.debug('Specific frame %d was requested from sender.', frame_id)
+            logger.debug('Specific frame %d was requested from sender.',
+                         frame_id)
             self.try_getting_frame(index=frame_id)
             
         elif command == 'finished':
@@ -312,7 +288,9 @@ class VideoPipeSender(VideoFilterBase):
                 self.handle_command(command)
                 
                 # wait for frames to be retrieved
-                while self.running and (self._waiting_for_frame or self._waiting_for_read_ahead):
+                while self.running and (self._waiting_for_frame 
+                                        or self._waiting_for_read_ahead):
+                    
                     time.sleep(1/self.poll_frequency)
                     if self._waiting_for_frame:
                         self.try_getting_frame()
@@ -326,6 +304,26 @@ class VideoPipeSender(VideoFilterBase):
             
 
 def create_video_pipe(video, name=None, read_ahead=False):
+    """ creates the two ends of a video pipe.
+    
+    The typical use case is
+    
+    def worker_process(self, video):
+        ''' worker process processing a video '''
+        expensive_function(video)
+        
+    if __name__ == '__main__':
+        # load a video file
+        video = VideoFile('test.mov')
+        # create the video pipe
+        sender, receiver = create_video_pipe(video)
+        # create the worker process
+        proc = multiprocessing.Process(target=worker_process,
+                                       args=(receiver,))
+        proc.start()
+        sender.start()   
+    
+    """
     # create the pipe used for communication
     pipe_sender, pipe_receiver = mp.Pipe(duplex=True)
     # create the buffer in memory that is used for passing frames
@@ -366,6 +364,7 @@ class VideoReaderProcess(mp.Process):
         video_sender = VideoPipeSender(video, self.pipe_sender, self.frame_buffer)
         self.running = True
         video_sender.start()
+
 
     def terminate(self):
         self.video_pipe.abort_iteration()

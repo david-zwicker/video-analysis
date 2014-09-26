@@ -202,7 +202,7 @@ PARAMETER_LIST = [
               'Typical width of a burrow'),
     Parameter('burrows/width_min', 10, UNIT.LENGTH_PIXEL,
               'Minimal width of a burrow'),
-    Parameter('burrows/area_min', 1000, UNIT.AREA_PIXEL,
+    Parameter('burrows/area_min', 500, UNIT.AREA_PIXEL,
               'Minimal area a burrow cross section has to have'),
     Parameter('burrows/ground_point_distance', 10, UNIT.LENGTH_PIXEL,
               'Maximal distance of ground profile to outline points that are '
@@ -239,7 +239,7 @@ PARAMETER_LIST = [
               'Name of the slurm partition to use for submitting jobs'),              
     Parameter('resources/pass1/cores', 4, None, 'Number of cores for pass 1'),
     Parameter('resources/pass1/time', 20*60, None, 'Maximal computation minutes for pass 1'),
-    Parameter('resources/pass1/memory', 1000, None, 'Maximal RAM per core for pass 1 [in MB]'),
+    Parameter('resources/pass1/memory', 2000, None, 'Maximal RAM per core for pass 1 [in MB]'),
     Parameter('resources/pass2/cores', 2, None, 'Number of cores for pass 2'),
     Parameter('resources/pass2/time', 20*60, None, 'Maximal computation minutes for pass 2'),
     Parameter('resources/pass2/memory', 5000, None, 'Maximal RAM per core for pass 2 [in MB]'),

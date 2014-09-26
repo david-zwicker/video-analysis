@@ -37,8 +37,7 @@ Performance improvements:
 	http://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
 	http://stefaanlippens.net/python-asynchronous-subprocess-pipe-reading
 	http://code.activestate.com/recipes/576759-subprocess-with-async-io-pipes-class/
-* Think about using Locks instead of pipes for faster communication
-	- pipes seem to be slow and will only be read every 10ms or such
+* Performance is limited by reading the video using ffmpeg (which is capped at about 50 fps)
 
 
 Low priority enhancements:
