@@ -49,7 +49,7 @@ class Burrow(object):
         self.centerline = centerline
         self.refined = refined
 
-        if (length is None or not np.isfinite(length) 
+        if ((length is None or not np.isfinite(length)) 
             and centerline is not None):
             # calculate length from centerline
             length = curves.curve_length(centerline)
