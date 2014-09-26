@@ -43,12 +43,12 @@ class Interpolate_1D_Extrapolated(interp1d):
             
 
 def get_chunk_size(shape, num_elements):
-    """ tries to determine an optimal chunk size by chunking the longest
-    axes first """
+    """ tries to determine an optimal chunk size for an array with a given 
+    shape by chunking the longest axes first """
     chunks = list(shape)
     while np.prod(chunks) > num_elements:
-        dim_long = np.argmax(chunks)
-        chunks[dim_long] = 1
+        dim_long = np.argmax(chunks) #< get longest dimension
+        chunks[dim_long] = 1 #< temporary set to one for np.prod 
         chunks[dim_long] = max(1, num_elements // np.prod(chunks))
     return tuple(chunks)
     
