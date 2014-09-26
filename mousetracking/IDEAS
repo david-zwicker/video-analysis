@@ -1,9 +1,0 @@
-Mouse tracking
---------------
-* Look into time smoothing (Gaussian smoothing across several frames)
-* Connect several tracks to a single mouse trajectory
-
-Burrow tracking
----------------
-* We could use a post-process run to extrapolate the predug size (considering the first frame should be sufficient here)
-* This fitting should happen only every ~1000 frames and be done in a separate thread (such that we have about 40s per burrow)

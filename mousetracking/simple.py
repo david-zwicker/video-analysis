@@ -8,6 +8,7 @@ This module contains convenience functions for scanning mouse videos.
 
 from __future__ import division
 
+import os
 import warnings
 
 from .algorithm.parameters import PARAMETERS_DEFAULT, set_base_folder
@@ -67,7 +68,24 @@ def scan_video_in_folder(folder, name, parameters=None, **kwargs):
 
 
 def load_results(name, parameters=None, cls=Analyzer, **kwargs):
-    """ loads the results of a previously scanned video """
+    """ loads the results of a previously scanned video based on the
+    provided name and the folder given in parameters """
     # set up the result structure
     return cls(name, parameters=parameters, read_data=True, **kwargs)
 
+
+
+def load_result_file(result_file, parameters=None, **kwargs):
+    """ loads the results of a simulation based on the result file """
+    # read folder and name from result_file
+    result_file = os.path.abspath(result_file)
+    folder, filename = os.path.split(result_file)
+    name = os.path.splitext(filename)[0]
+    name = '_'.join(name.split('_')[:-1])
+
+    # set parameters and load results    
+    if parameters is None:
+        parameters = {}
+    parameters['output/folder'] = folder
+    return load_results(name, parameters, **kwargs)
+    

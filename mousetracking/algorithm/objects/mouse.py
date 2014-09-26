@@ -25,7 +25,12 @@ The location is encoded in the last two digits
     21 = mouse is in any burrow
 """
 
-VALID_STATES = (0, 10, 11, 12, 13, 20, 21)
+STATES = { 0:'unknown',
+          11:'air',
+          12:'hill',
+          13:'valley',
+          20:'sand',
+          21:'burrow'}
 
 
 
@@ -112,7 +117,7 @@ class MouseTrack(object):
     def __init__(self, trajectory, states=None):
         self.pos = trajectory
         if states is not None:
-            self.states = states
+            self.states = np.asarray(states, np.int)
         else:
             self.states = np.zeros(len(trajectory), np.int)
     

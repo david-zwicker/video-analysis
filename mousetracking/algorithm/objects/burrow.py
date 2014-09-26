@@ -45,13 +45,15 @@ class Burrow(object):
     
     def __init__(self, outline, centerline=None, length=None, refined=False):
         """ initialize the structure using line on its outline """
-        if centerline is not None and length is None:
-            length = curves.curve_length(centerline)
-
         self.outline = outline
         self.centerline = centerline
-        self.length = length
         self.refined = refined
+
+        if (length is None or not np.isfinite(length) 
+            and centerline is not None):
+            # calculate length from centerline
+            length = curves.curve_length(centerline)
+        self.length = length
 
 
     def copy(self):
@@ -244,15 +246,20 @@ class Burrow(object):
                 centerline.append(point_max)
                 break
                     
-        # save results                    
+        # save results
         self.centerline = centerline
+        self.length = curves.curve_length(centerline)
         return centerline
             
         
-    def get_length(self, ground):
+    def get_length(self, ground=None):
         """ calculates the centerline and returns its length """
         if self.length is None:
-            centerline = self.get_centerline(ground)
+            try:
+                centerline = self.get_centerline(ground)
+            except AttributeError:
+                raise ValueError('Ground line must be provided if length of a '
+                                 'burrow without a centerline should be determined')
             self.length = curves.curve_length(centerline)
         return self.length
             

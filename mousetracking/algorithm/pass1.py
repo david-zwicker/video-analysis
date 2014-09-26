@@ -1502,11 +1502,11 @@ class FirstPass(DataHandler):
                 track_id = None
 
             # refine the burrow based on its shape
-            burrow_length = burrow.get_length(self.ground)
-            burrow_width = burrow.area/burrow_length if burrow_length > 0 else 0
+            burrow.get_centerline(self.ground) #< also calculates the length
+            burrow_width = burrow.area/burrow.length if burrow.length > 0 else 0
             min_length = self.params['burrows/fitting_length_threshold']
             max_width = self.params['burrows/fitting_width_threshold']
-            if (burrow_length > min_length and burrow_width < max_width):
+            if (burrow.length > min_length and burrow_width < max_width):
                 # it's a long burrow => fit the current burrow
                 burrow = self.refine_long_burrow(burrow)
                 
