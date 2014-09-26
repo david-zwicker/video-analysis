@@ -35,7 +35,7 @@ from video.composer import VideoComposer
 
 from .data_handler import DataHandler
 from .objects.moving import MovingObject, ObjectTrack, ObjectTrackList
-from .objects.ground import GroundProfile, GroundProfileList, RidgeProfile
+from .objects.ground import GroundProfile, GroundProfileList
 from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
 
 import debug  # @UnusedImport
@@ -877,25 +877,19 @@ class FirstPass(DataHandler):
         frame = self.background
         spacing = int(self.params['ground/point_spacing'])
             
-        if (not 'ground.model' in self._cache or
-            self._cache['ground.model'].size != spacing):
-            
-            self._cache['ground.model'] = \
-                    RidgeProfile(spacing, self.params['ground/ridge_width'])
-                
         # make sure the curve has equidistant points
         points = curves.make_curve_equidistant(ground.line, spacing)
         points = np.array(np.round(points),  np.int32)
         
         # calculate the bounds for the points
-        p_min = spacing 
+        dist_min = spacing 
         y_max, x_max = frame.shape[0] - spacing, frame.shape[1] - spacing
 
-        # only consider valid points away from the boundary
+        # only consider valid points, which are away from the boundary
         points = [p for p in points
-                  if (p[0] >= p_min and p[0] <= x_max and 
-                      p[1] >= p_min and p[1] <= y_max and
-                      np.isfinite(p[0]) and np.isfinite(p[1]))]
+                  if (p[0] >= dist_min and p[0] <= x_max and 
+                      p[1] >= dist_min and p[1] <= y_max and
+                      np.all(np.isfinite(p)))]
 
         # iterate over all but the boundary points
         curvature_energy_factor = self.params['ground/curvature_energy_factor']
@@ -917,11 +911,11 @@ class FirstPass(DataHandler):
         model_std = math.sqrt(1 - math.tanh(len_ratio)/len_ratio)
         assert 0.5 < model_std < 1
             
-        # iterate through all points and correct profile
-        # we randomize the order in which we iterate
+        # iterate through all points in random order and correct profile
         energies_image = []
-        candidate_points = [None for _ in xrange(len(points))]
-        for k in np.random.permutation(len(points) - 2):
+        num_points = len(points) - 2 #< disregard the boundary points
+        candidate_points = [None]*num_points
+        for k in np.random.permutation(num_points):
             # get local points and slopes
             p_p, p, p_n =  points[k], points[k+1], points[k+2]
             dx, dy = p_n - p_p
@@ -930,7 +924,7 @@ class FirstPass(DataHandler):
                 continue #< skip this point
             dx /= dist; dy /= dist
 
-            # do the line scan            
+            # do the line scan perpendicular to the ground line         
             p_a = (p[0] - profile_len*dy, p[1] + profile_len*dx)
             p_b = (p[0] + profile_len*dy, p[1] - profile_len*dx)
             profile = image.line_scan(frame, p_a, p_b, width=profile_width)
@@ -959,9 +953,8 @@ class FirstPass(DataHandler):
                 a = curves.point_distance(p_p, p_c)
                 b = curves.point_distance(p_c, p_n)
                 c = curves.point_distance(p_n, p_p)
-                if not all((a, b, c)): #< all must be positive
-                    raise RuntimeError
                 
+                # determine curvature of circle through the three points
                 A = regions.triangle_area(a, b, c)
                 curv = 4*A/(a*b*c)*spacing
                 # We don't scale by with the arc length a + b, because this 
@@ -980,7 +973,7 @@ class FirstPass(DataHandler):
                 continue #< skip this point
             pos, model_mean, model_std = res 
 
-            # save for determining the energy scale later
+            # save final energy for determining the energy scale later
             energies_image.append(energy_image((pos, model_mean, model_std)))
 
             # use this point, if it is good enough            
@@ -999,7 +992,7 @@ class FirstPass(DataHandler):
                 points.append(p)
             else: #< there is an overhanging part
                 if p[1] < points[-1][0]: #< current point is above previous point 
-                    points[-1] = p # replace the older point
+                    points[-1] = p # replace the previous point
                 # else: don't add the current point
                 
         # save the energy factor for the next iteration
@@ -1008,6 +1001,8 @@ class FirstPass(DataHandler):
 
         if len(points) < 2:
             # refinement failed => return original ground
+            self.logger.debug('%d: Ground profile shortened too much.',
+                              self.frame_id)
             return ground
 
         # extend the ground line toward the left edge of the cage
@@ -1235,9 +1230,9 @@ class FirstPass(DataHandler):
         # replace the remaining points by fitting perpendicular to the center line
         outline = geometry.LinearRing(burrow.outline)
         centerline = burrow.get_centerline(self.ground)
-        if len(centerline) < 3:
-            self.logger.warn('%d: Refining of very short burrows is not supported.',
-                             self.frame_id)
+        if len(centerline) < 4:
+            self.logger.warn('%d: Refining the very short burrows at %s is not '
+                             'supported.', self.frame_id, burrow.position)
             return burrow
         
         segment_length = self.params['burrows/centerline_segment_length']
@@ -1277,7 +1272,7 @@ class FirstPass(DataHandler):
             if k_l is not None and k_r is not None:
                 d_l, d_r = scan_length - k_l, scan_length - k_r
                 # d_l and d_r are the distance from p
-                # d_l > 0 and d_r < 0 accounting for direction
+                # Here, d_l > 0 and d_r < 0 accounting for direction
 
                 # ensure a minimal burrow width
                 width = d_l - d_r
@@ -1301,8 +1296,8 @@ class FirstPass(DataHandler):
         # HANDLE BURROW END POINT
         # points at the burrow end
         if len(centerline_new) < 2:
-            self.logger.warn('%d: Refining shortened burrows too much.',
-                             self.frame_id)
+            self.logger.warn('%d: Refining shortened burrow at %s too much.',
+                             self.frame_id, burrow.position)
             return None
         
         p1, p2 = centerline_new[-1], centerline_new[-2]
@@ -1367,8 +1362,8 @@ class FirstPass(DataHandler):
         # make sure that shape is a valid polygon
         outline_new = regions.regularize_contour(outline_new)
         if not outline_new:
-            self.logger.warn('%d: Refined, long burrow is not a valid polygon anymore.',
-                             self.frame_id)
+            self.logger.warn('%d: Refined, long burrow at %s is not a valid '
+                             'polygon anymore.', self.frame_id, burrow.position)
             return None
 
         return Burrow(outline_new, centerline=centerline_new, refined=True)
@@ -1446,7 +1441,7 @@ class FirstPass(DataHandler):
         except:
             # any error in the GrabCut algorithm makes the whole function useless
             self.logger.warn('%d: GrabCut algorithm failed on burrow at %s',
-                             self.frame_id, burrow.polygon.representative_point())
+                             self.frame_id, burrow.position)
             return burrow
 
 #         debug.show_image(burrow_mask, ground_mask, img, 
@@ -1464,6 +1459,11 @@ class FirstPass(DataHandler):
         
         # find the burrow from the mask
         burrow = self.get_burrow_from_mask(mask.astype(np.uint8), offset=rect[:2])
+        
+        if burrow is None:
+            self.logger.debug('%d: Burrow outline resulting from GrabCut '
+                              'algorithm was not valid anymore', self.frame_id)
+        
         return burrow
     
     

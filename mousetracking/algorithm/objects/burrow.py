@@ -93,6 +93,11 @@ class Burrow(object):
     
     
     @cached_property
+    def position(self):
+        return self.polygon.representative_point()
+    
+    
+    @cached_property
     def area(self):
         """ return the area of the burrow shape """
         return self.polygon.area

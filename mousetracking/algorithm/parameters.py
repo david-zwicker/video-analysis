@@ -202,7 +202,7 @@ PARAMETER_LIST = [
               'Typical width of a burrow'),
     Parameter('burrows/width_min', 10, UNIT.LENGTH_PIXEL,
               'Minimal width of a burrow'),
-    Parameter('burrows/area_min', 500, UNIT.AREA_PIXEL,
+    Parameter('burrows/area_min', 400, UNIT.AREA_PIXEL,
               'Minimal area a burrow cross section has to have'),
     Parameter('burrows/ground_point_distance', 10, UNIT.LENGTH_PIXEL,
               'Maximal distance of ground profile to outline points that are '
