@@ -868,7 +868,7 @@ class FirstPass(DataHandler):
         return (pos_edge, ground_point[1])
     
         
-    def refine_ground(self, ground, **kwargs):
+    def refine_ground(self, ground):
         """ adapts a points profile given as points to a given frame.
         Here, we fit a ridge profile in the vicinity of every point of the curve.
         The only fitting parameter is the distance by which a single points moves
@@ -1020,7 +1020,7 @@ class FirstPass(DataHandler):
     def find_initial_ground(self):
         """ finds the ground profile given an image of an antfarm """
         ground = self.estimate_ground()
-        ground = self.refine_ground(ground, try_many_distances=True)
+        ground = self.refine_ground(ground)
         
         self.logger.info('Pass 1 - We found a ground profile of length %g',
                          ground.length)
@@ -1223,11 +1223,11 @@ class FirstPass(DataHandler):
         ground_line = self.ground.linestring
         distance_threshold = self.params['burrows/ground_point_distance']
         outline_new = sorted([p.coords[0]
-                              for p in geometry.MultiPoint(burrow.outline)
+                              for p in geometry.asMultiPoint(burrow.outline)
                               if p.distance(ground_line) < distance_threshold])
 
         # replace the remaining points by fitting perpendicular to the center line
-        outline = geometry.LinearRing(burrow.outline)
+        outline = burrow.outline_ring
         centerline = burrow.get_centerline(self.ground)
         if len(centerline) < 4:
             self.logger.warn('%d: Refining the very short burrows at %s is not '

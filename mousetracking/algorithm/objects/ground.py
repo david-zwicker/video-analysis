@@ -23,7 +23,7 @@ class GroundProfile(object):
     """ class representing a single ground profile """
     
     def __init__(self, line):
-        self._line = np.asarray(line)
+        self.line = line
         
         
     @property
@@ -33,7 +33,7 @@ class GroundProfile(object):
     
     @line.setter
     def line(self, value):
-        self._line = np.asarray(value)
+        self._line = np.asarray(value, np.double)
         
         
     def __repr__(self):
@@ -53,7 +53,7 @@ class GroundProfile(object):
     @cached_property
     def linestring(self):
         """ returns a shapely line string corresponding to the ground """
-        return geometry.LineString(np.array(self.line, np.double))
+        return geometry.asLineString(self.line)
     
     
     def make_equidistant(self, **kwargs):

@@ -85,11 +85,17 @@ class Burrow(object):
         self.refined = False
         self._cache = {}
         
+
+    @cached_property
+    def outline_ring(self):
+        """ return the linear ring of the burrow outline """
+        return geometry.asLinearRing(self.outline)
+    
         
     @cached_property
     def polygon(self):
         """ return the polygon of the burrow outline """
-        return geometry.Polygon(np.asarray(self.outline, np.double))
+        return geometry.Polygon(self.outline)
     
     
     @cached_property
@@ -139,10 +145,10 @@ class Burrow(object):
     
     def simplify_outline(self, tolerance=0.1):
         """ simplifies the outline """
-        outline = geometry.LineString(self.outline)
+        outline = geometry.asLineString(self.outline)
         tolerance = tolerance*outline.length
         outline = outline.simplify(tolerance, preserve_topology=True)
-        self.outline = np.array(outline.coords, np.double)
+        self.outline = outline.coords
     
     
     def get_bounding_rect(self, margin=0):
@@ -182,7 +188,8 @@ class Burrow(object):
         outline = np.asarray(outline, np.double)
 
         # calculate the distance of each outline point to the ground
-        dist = np.array([ground_line.distance(geometry.Point(p)) for p in outline])
+        dist = np.array([ground_line.distance(geometry.Point(p))
+                         for p in outline])
         
         # get points at the burrow exit (close to the ground profile)
         indices = (dist < self.ground_point_distance)
@@ -205,7 +212,7 @@ class Burrow(object):
         # send out rays perpendicular to the ground profile
         angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0]) + np.pi/2
         point_anchor = (p_exit[0] + 5*np.cos(angle), p_exit[1] + 5*np.sin(angle))
-        outline_poly = geometry.LinearRing(self.outline)
+        outline_poly = self.outline_ring
         
         # calculate the angle each segment is allowed to deviate from the 
         # previous one based on the maximal radius of curvature
