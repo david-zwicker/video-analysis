@@ -66,7 +66,6 @@ class FirstPass(DataHandler):
         self.background = None         # current background model
         self.ground = None             # current model of the ground profile
         self.tracks = []               # list of plausible mouse models in current frame
-        self._mouse_pos_estimate = []  # list of estimated mouse positions
         self.explored_area = None      # region the mouse has explored yet
         self.frame_id = None           # id of the current frame
         self.result['objects/moved_first_in_frame'] = None
@@ -416,16 +415,17 @@ class FirstPass(DataHandler):
         if self.background is None:
             self.background = frame.astype(np.double, copy=True)
         
-        if self._mouse_pos_estimate:
+        # check whether there are currently objects tracked 
+        if self.tracks:
             # load some values from the cache
             adaptation_rate = self._cache['image_double']
             template = self._cache['mouse.template']
             adaptation_rate.fill(self.params['background/adaptation_rate'])
             
-            # cut out holes from the adaptation_rate for each mouse estimate
-            for mouse_pos in self._mouse_pos_estimate:
+            # cut out holes from the adaptation_rate for each object estimate
+            for obj in self.tracks:
                 # get the slices required for comparing the template to the image
-                t_s, i_s = regions.get_overlapping_slices(mouse_pos, template.shape,
+                t_s, i_s = regions.get_overlapping_slices(obj.last.pos, template.shape,
                                                           frame.shape)
                 adaptation_rate[i_s[0], i_s[1]] *= 1 - template[t_s[0], t_s[1]]
                 
@@ -490,7 +490,11 @@ class FirstPass(DataHandler):
             # get the coordinates of the center of mass
             pos = (moments['m10']/area, moments['m01']/area)
             
-            # check whether this object could be a mouse
+            # check whether this object is too large
+            if area > self.params['mouse/area_max']:
+                continue
+            
+            # check whether this object could be large enough to be a mouse
             if area > self.params['mouse/area_min']:
                 objects.append(MovingObject(pos, size=area, label=label))
                 
@@ -503,7 +507,10 @@ class FirstPass(DataHandler):
             # which is the object with the largest area
             objects.append(largest_obj)
         
-        return objects
+        if largest_obj.size == 0:
+            return None
+        else:
+            return objects
 
 
     def _handle_object_tracks(self, frame, labels, num_features):
@@ -511,13 +518,17 @@ class FirstPass(DataHandler):
         previous tracks """
         # get potential objects
         objects_found = self._find_objects_in_binary_image(labels, num_features)
+        
+        if objects_found is None:
+            # if there are no useful objects, end all current tracks
+            self.result['objects/tracks'].extend(self.tracks)
+            return #< there is nothing to do anymore
 
         # check if there are previous tracks        
         if len(self.tracks) == 0:
             self.tracks = [ObjectTrack([self.frame_id], [obj])
                            for obj in objects_found]
-            
-            return # there is nothing to do anymore
+            return #< there is nothing to do anymore
             
         # calculate the distance between new and old objects
         dist = spatial.distance.cdist([obj.pos for obj in objects_found],
@@ -628,13 +639,11 @@ class FirstPass(DataHandler):
                     else:
                         self.result['objects/tracks'].append(obj)
 
-            self._mouse_pos_estimate = [obj.last.pos for obj in self.tracks]
-        
             # add new information to explored area
             for track in self.tracks:
                 self.explored_area[moving_objects == track.last.label] = 1
-                
-                
+
+        
     #===========================================================================
     # FINDING THE GROUND PROFILE
     #===========================================================================
@@ -981,6 +990,7 @@ class FirstPass(DataHandler):
                 candidate_points[k] = (int(p_x), int(p_y))
 
         # filter points, where the fit did not work
+        # FIXME: fix overhanging ridge detection (changed sign of comparison recently)
         points = []
         for candidate in candidate_points:
             if candidate is None:
@@ -990,7 +1000,7 @@ class FirstPass(DataHandler):
             if len(points) == 0 or candidate[0] > points[-1][0]:
                 points.append(candidate)
             else: #< there is an overhanging part
-                if candidate[1] < points[-1][0]: #< current point is above previous point 
+                if candidate[1] > points[-1][0]: #< current point is above previous point 
                     points[-1] = candidate # replace the previous point
                 # else: don't add the current point
                 
@@ -1415,10 +1425,11 @@ class FirstPass(DataHandler):
         
         # find sure foreground
         kernel_size = int(2*width_min)
+        burrow_core_area_min = self.params['burrows/grabcut_burrow_core_area_min']
         while kernel_size > 1:
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
             burrow_sure = (cv2.erode(mask_burrow, kernel) == 255)
-            if burrow_sure.sum() >= 10:
+            if burrow_sure.sum() >= burrow_core_area_min:
                 # the burrow was large enough that erosion left a good foreground
                 mask[burrow_sure] = cv2.GC_FGD #< surely foreground
                 break
@@ -1538,16 +1549,18 @@ class FirstPass(DataHandler):
         # degrade information about the mouse position inside burrows
         rate = self.params['explored_area/adaptation_rate_burrows']* \
                 self.params['burrows/adaptation_interval']
-        cv2.subtract(self.explored_area, rate,
-                     dst=self.explored_area,
-                     mask=(0 != burrows_mask).astype(np.uint8))
+        if rate != 0:
+            cv2.subtract(self.explored_area, rate,
+                         dst=self.explored_area,
+                         mask=(0 != burrows_mask).astype(np.uint8))
  
         # degrade information about the mouse position outside burrows
         rate = self.params['explored_area/adaptation_rate_outside']* \
                 self.params['burrows/adaptation_interval']
-        cv2.subtract(self.explored_area, rate,
-                     dst=self.explored_area,
-                     mask=(0 == burrows_mask).astype(np.uint8))
+        if rate != 0:
+            cv2.subtract(self.explored_area, rate,
+                         dst=self.explored_area,
+                         mask=(0 == burrows_mask).astype(np.uint8))
         
 
     #===========================================================================
@@ -1637,12 +1650,6 @@ class FirstPass(DataHandler):
                                            self.params['mouse/model_radius'],
                                            obj_color, thickness=1)
                 
-            else: # there are no current tracks
-                for mouse_pos in self._mouse_pos_estimate:
-                    debug_video.add_circle(mouse_pos,
-                                           self.params['mouse/model_radius'],
-                                           'k', thickness=1)
-            
             # add additional debug information
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
             debug_video.add_text('#objects:%d' % self.debug['object_count'],

@@ -125,7 +125,7 @@ PARAMETER_LIST = [
               'Rate at which the background is adapted'),
     Parameter('explored_area/adaptation_rate_outside', 1e-3, UNIT.RATE_FRAMES,
               'Rate at which the explored area is adapted outside of burrows'),
-    Parameter('explored_area/adaptation_rate_burrows', 1e-6, UNIT.RATE_FRAMES,
+    Parameter('explored_area/adaptation_rate_burrows', 0, UNIT.RATE_FRAMES,
               'Rate at which the explored area is adapted inside burrows'),
     
     # Ground
@@ -166,6 +166,8 @@ PARAMETER_LIST = [
               'standard deviations of the sky color'),
     Parameter('mouse/model_radius', 25, UNIT.LENGTH_PIXEL,
               'Radius of the mouse model'),
+    Parameter('mouse/area_max', 5000, UNIT.AREA_PIXEL,
+              'Maximal area of a feature to be considered in tracking'),
     Parameter('mouse/area_min', 100, UNIT.AREA_PIXEL,
               'Minimal area of a feature to be considered in tracking'),
     Parameter('mouse/area_mean', 700, UNIT.AREA_PIXEL,
@@ -214,6 +216,9 @@ PARAMETER_LIST = [
               'Length of a segment of the center line of a burrow'),
     Parameter('burrows/curvature_radius_max', 50, UNIT.LENGTH_PIXEL,
               'Maximal radius of curvature the centerline is allowed to have'),
+    Parameter('burrows/grabcut_burrow_core_area_min', 100, UNIT.AREA_PIXEL,
+              'Minimal area the sure region of the mask for the grab cut '
+              'algorithm is supposed to have'),
     Parameter('burrows/fitting_length_threshold', 100, UNIT.LENGTH_PIXEL,
               'Length above which burrows are refined by fitting'),
     Parameter('burrows/fitting_width_threshold', 30, UNIT.LENGTH_PIXEL,
@@ -241,11 +246,11 @@ PARAMETER_LIST = [
     Parameter('resources/slurm_partition', 'general', None,
               'Name of the slurm partition to use for submitting jobs'),              
     Parameter('resources/pass1/cores', 4, None, 'Number of cores for pass 1'),
-    Parameter('resources/pass1/time', 20*60, None, 'Maximal computation minutes for pass 1'),
+    Parameter('resources/pass1/time', 30*60, None, 'Maximal computation minutes for pass 1'),
     Parameter('resources/pass1/memory', 2000, None, 'Maximal RAM per core for pass 1 [in MB]'),
     Parameter('resources/pass2/cores', 2, None, 'Number of cores for pass 2'),
     Parameter('resources/pass2/time', 20*60, None, 'Maximal computation minutes for pass 2'),
-    Parameter('resources/pass2/memory', 5000, None, 'Maximal RAM per core for pass 2 [in MB]'),
+    Parameter('resources/pass2/memory', 8000, None, 'Maximal RAM per core for pass 2 [in MB]'),
 ]
 
 PARAMETERS = {p.key: p for p in PARAMETER_LIST}

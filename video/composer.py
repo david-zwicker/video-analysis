@@ -175,7 +175,11 @@ class VideoComposer(VideoFileWriter):
         """ adds a sequence of points to the frame """
         c = get_color(color)
         for p in points:
-            cv2.circle(self.frame, (int(p[0]), int(p[1])), radius, c, thickness=-1)
+            try:
+                cv2.circle(self.frame, (int(p[0]), int(p[1])), radius, c, thickness=-1)
+            except OverflowError:
+                # happens with negative coordinates 
+                pass
         
     
     @skip_if_no_output
