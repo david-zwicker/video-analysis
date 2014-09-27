@@ -246,10 +246,10 @@ class DataHandler(object):
                 # no placeholder => load single video
                 video_class = VideoFile
 
-            if self.params['debug/use_multiprocessing']:
-                self.video = video_reader_process(video_filename_pattern, video_class)
-            else:
-                self.video = video_class(video_filename_pattern)
+#             if self.params['debug/use_multiprocessing']:
+#                 self.video = video_reader_process(video_filename_pattern, video_class)
+#             else:
+            self.video = video_class(video_filename_pattern)
                 
         else:
             self.video = video
