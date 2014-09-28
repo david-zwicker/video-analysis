@@ -22,7 +22,6 @@ import objects
 from .objects.utils import LazyHDFValue, prepare_data_for_yaml
 from .utils import get_loglevel_from_name, change_directory
 from video.io import VideoFile, VideoFileStack
-from video.io.pipe import video_reader_process
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists
 
@@ -246,9 +245,6 @@ class DataHandler(object):
                 # no placeholder => load single video
                 video_class = VideoFile
 
-#             if self.params['debug/use_multiprocessing']:
-#                 self.video = video_reader_process(video_filename_pattern, video_class)
-#             else:
             self.video = video_class(video_filename_pattern)
                 
         else:

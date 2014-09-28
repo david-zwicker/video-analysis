@@ -999,10 +999,17 @@ class FirstPass(DataHandler):
             # check for overhanging ridge
             if len(points) == 0 or candidate[0] > points[-1][0]:
                 points.append(candidate)
-            else: #< there is an overhanging part
-                if candidate[1] > points[-1][0]: #< current point is above previous point 
-                    points[-1] = candidate # replace the previous point
-                # else: don't add the current point
+                
+            # there is an overhanging part
+            elif candidate[1] < points[-1][0]:
+                # current point is above previous point
+                # => replace the previous candidate point
+                points[-1] = candidate 
+                
+            else:
+                # current point is below previous point
+                # => do not add the current candidate point
+                pass
                 
         # save the energy factor for the next iteration
         energy_factor_last /= np.mean(energies_image)
