@@ -210,6 +210,7 @@ class FirstPass(DataHandler):
         blur_sigma_color = self.params['video/blur_sigma_color']
 
         # iterate over the video and analyze it
+        did_first_analysis = False
         for self.frame_id, frame in enumerate(display_progress(video)):
             # remove noise using a bilateral filter
             frame_blurred = cv2.bilateralFilter(frame, d=int(blur_sigma),
@@ -220,33 +221,30 @@ class FirstPass(DataHandler):
             if 'video' in self.debug:
                 self.debug['video'].set_frame(frame, copy=False)
             
-            if self.frame_id == self.params['video/initial_adaptation_frames']:
-                # prepare the main analysis
-                # estimate colors of sand and sky
-                self.find_color_estimates(frame_blurred)
-                
-                # estimate initial ground profile
-                self.logger.debug('%d: Find the initial ground profile.', self.frame_id)
-                self.ground = self.find_initial_ground()
-                self.result['ground/profile'].append(self.frame_id, self.ground)
-        
-            elif self.frame_id > self.params['video/initial_adaptation_frames']:
+            if self.frame_id >= self.params['video/initial_adaptation_frames']:
                 # do the main analysis after an initial wait period
                 
                 # update the color estimates
-                if self.frame_id % self.params['colors/adaptation_interval'] == 0:
+                if (not did_first_analysis
+                    or self.frame_id % self.params['colors/adaptation_interval'] == 0):
+                    
                     self.find_color_estimates(frame_blurred)
 
                 # identify moving objects by comparing current frame to background
                 self.find_objects(frame_blurred)
                 
                 # use the background to find the current ground profile and burrows
-                if self.frame_id % self.params['ground/adaptation_interval'] == 0:
-                    self.ground = self.refine_ground(self.ground)
-                    self.result['ground/profile'].append(self.frame_id, self.ground)
+                if (not did_first_analysis
+                    or self.frame_id % self.params['ground/adaptation_interval'] == 0):
+                    
+                    self.ground = self.get_ground(self.ground)
         
-                if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
+                if (not did_first_analysis
+                    or self.frame_id % self.params['burrows/adaptation_interval'] == 0):
+                    
                     self.find_burrows()
+                    
+                did_first_analysis = True
                     
             # update the background model
             self.update_background_model(frame)
@@ -1042,13 +1040,28 @@ class FirstPass(DataHandler):
         return GroundProfile(points)
             
 
-    def find_initial_ground(self):
-        """ finds the ground profile given an image of an antfarm """
-        ground = self.estimate_ground()
-        ground = self.refine_ground(ground)
+    def get_ground(self, ground_estimate=None):
+        """ finds the ground profile given an image of an antfarm. """
         
-        self.logger.info('Pass 1 - We found a ground profile of length %g',
-                         ground.length)
+        if ground_estimate is None:
+            ground_estimate = self.estimate_ground()
+            
+        if ground_estimate.length > self.params['ground/length_max']:
+            # reject excessively long ground profiles
+            self.logger.warn('%d: The ground profile was rejected because it '
+                             'was too long (%g > %g)', self.frame_id,
+                             ground_estimate.length, self.params['ground/length_max'])
+            ground = None
+        
+        else:
+            # refine estimated ground
+            ground = self.refine_ground(ground_estimate)
+        
+            self.logger.debug('%d: Found ground profile of length %g',
+                              self.frame_id, ground.length)
+        
+            # add the ground to the result list
+            self.result['ground/profile'].append(self.frame_id, ground)
         
         return ground
         

@@ -139,6 +139,8 @@ PARAMETER_LIST = [
               'with large slopes are located. The smaller this factor, the more '
               'such points are detected and the further up the profile is '
               'estimated to be'),
+    Parameter('ground/length_max', 1500, UNIT.LENGTH_PIXEL,
+              'Maximal length of the ground profile above which it is rejected'),
     Parameter('ground/curvature_energy_factor', 1, UNIT.FACTOR,
               'Relative strength of the curvature energy to the image energy '
               'in the snake model of the ground line'),
