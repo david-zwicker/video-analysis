@@ -84,8 +84,16 @@ class SlurmProject(HPCProjectBase):
                 res = sp.check_output(['sacct', '-j', pid, '-P',
                                        '-o', 'state,MaxRSS,Elapsed,cputime'])
                 chunks = res.splitlines()[1].split('|')
-                status['state'] = chunks[0].strip()
+                status['state'] = chunks[0].strip().lower()
                 status['elapsed'] = chunks[2].strip()
+
+                if status['state'].startswith('cancelled'):
+                    # check output for error
+                    log = sp.check_output['tail', '-n', '5',
+                                          'log_pass%d_%s.txt' % (pass_id, pid)]
+                    for line in log.splitlines():
+                        if 'exceeded memory limit' in line:
+                            status['state'] = 'memory-exceeded'
 
             else:
                 # unknown error
