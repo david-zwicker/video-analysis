@@ -26,7 +26,6 @@ from .analysis.regions import rect_to_slices
 from .utils import get_color_range
 
 logger = logging.getLogger('video')
-  
 
 # translation dictionary for color channels
 COLOR_CHANNELS = {'blue':  0, 'b': 0, 0: 0,

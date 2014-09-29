@@ -9,3 +9,8 @@ generators in  python language). This should make it easy to run the code in
 parallel. Different backends are supported, such that videos from different
 sources can accessed transparently.   
 """
+
+import logging
+
+# suppress the warning about logging handlers not being configured
+logging.raiseExceptions = False

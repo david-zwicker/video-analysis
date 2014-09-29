@@ -75,7 +75,7 @@ class SlurmProject(HPCProjectBase):
         status['job-id'] = int(pid)
         try:
             res = sp.check_output(['squeue', '-j', pid,
-                                   '-o', '"%T|%M"'], #< output format
+                                   '-o', '%T|%M'], #< output format
                                   stderr=sp.STDOUT)
             
         except sp.CalledProcessError as err:
@@ -103,8 +103,8 @@ class SlurmProject(HPCProjectBase):
         else:
             # jobs seems to be currently running
             chunks = res.splitlines()[1].split('|')
-            status['state'] = chunks[0].strip()
-            status['elapsed'] = chunks[1].strip()
+            status['state'] = chunks[0].strip().lower()
+            status['elapsed'] = chunks[1].strip().lower()
 
         return status
 
