@@ -33,10 +33,10 @@ def parse_time(text):
 
 class SlurmProject(HPCProjectBase):
     """ HPC project based on the slurm scheduler """
-    
+
     job_files = {'pass1_single.py', 'pass1_single_slurm.sh',
                  'pass2_single.py', 'pass2_single_slurm.sh'}
-        
+
     def submit(self):
         """ submit the tracking job using slurm """
         with change_directory(self.folder):
@@ -45,7 +45,7 @@ class SlurmProject(HPCProjectBase):
             pid_pass1 = int(res.split()[-1])
             self.pids = [pid_pass1]
             self.logger.info('Job id of first pass: %d', pid_pass1)
-            
+
             # submit second job if requested
             if self.passes >= 2:
                 res = sp.check_output(['sbatch',
@@ -54,48 +54,51 @@ class SlurmProject(HPCProjectBase):
                 pid_pass2 = int(res.split()[-1])
                 self.pids.append(pid_pass2)
                 self.logger.info('Job id of second pass: %d', pid_pass2)
-        
-        
+
+
     def check_pass_status(self, pass_id):
         """ check the status of a single pass """
         status = {}
-        
+
         # check whether slurm job has been initialized
         pid_file = os.path.join(self.folder, 'pass%d_job_id.txt' % pass_id)
         try:
             pids = open(pid_file).readlines()
         except IOError:
-            status['general'] = 'not-started'
+            status['state'] = 'not-started'
             return status
         else:
-            status['general'] = 'started'
+            status['state'] = 'started'
 
         # check the status of the job
         pid = pids[-1].strip()
+        status['job-id'] = int(pid)
         try:
             res = sp.check_output(['squeue', '-j', pid,
-                                   '-o', '"%T|%M"']) #< output format
+                                   '-o', '"%T|%M"'], #< output format
+                                  stderr=sp.STDOUT)
+            
         except sp.CalledProcessError as err:
             if 'Invalid job id specified' in err.output:
                 # job seems to have finished already
                 res = sp.check_output(['sacct', '-j', pid, '-P',
                                        '-o', 'state,MaxRSS,Elapsed,cputime'])
-                chunks = res.split('|')
+                chunks = res.splitlines()[1].split('|')
                 status['state'] = chunks[0].strip()
                 status['elapsed'] = chunks[2].strip()
-                
+
             else:
                 # unknown error
-                print err.output
-            
+                self.logger.warn(err.output)
+
         else:
             # jobs seems to be currently running
-            chunks = res.split('|')
+            chunks = res.splitlines()[1].split('|')
             status['state'] = chunks[0].strip()
             status['elapsed'] = chunks[1].strip()
-            
+
         return status
-        
+
 
     def get_status(self):
         """ check the status of the project """
@@ -103,11 +106,10 @@ class SlurmProject(HPCProjectBase):
         if os.path.isdir(self.folder):
             # project is initialized
             status['project'] = 'initialized'
-            
+
             status['pass1'] = self.check_pass_status(1)
             status['pass2'] = self.check_pass_status(2)
-            
+
         else:
             status['project'] = 'not-initialized'
         return status
-            
