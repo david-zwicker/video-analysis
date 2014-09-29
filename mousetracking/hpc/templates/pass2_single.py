@@ -17,15 +17,8 @@ logging.basicConfig()
 parameters = {{'logging/folder': "{JOB_DIRECTORY}",
                'output/folder': "{JOB_DIRECTORY}",}}
 
-# create file structure
-open('_running_pass2', 'a').close()
-
-try:
-    # do the second pass scan
-    results = load_results("{NAME}", parameters, cls=SecondPass)
-    results.process_data()
-    if results.data['parameters/output/video/enabled']:
-        results.produce_video()
-finally:
-    # remove temporary file
-    os.remove('_running_pass2')
+# do the second pass scan
+results = load_results("{NAME}", parameters, cls=SecondPass)
+results.process_data()
+if results.data['parameters/output/video/enabled']:
+    results.produce_video()

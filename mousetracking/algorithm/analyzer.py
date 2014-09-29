@@ -107,7 +107,7 @@ class Analyzer(DataHandler):
         pos = {'unknown': (2, 2),
                'air': (1.5, 3),
                'hill': (0, 2),
-               'valley': (1, 1.5),
+               'valley': (1.2, 1.5),
                'sand': (1.5, 0),
                'burrow': (0, 0)}
 
@@ -120,30 +120,43 @@ class Analyzer(DataHandler):
         nx.draw_networkx_nodes(graph, pos, node_size=node_sizes)
         
         # plot the edges
+        ax = plt.gca()
         edges = graph.edges(data=True)
         max_rate = max(edge[2]['rate'] for edge in edges)
         max_count = max(edge[2]['count'] for edge in edges)
-        curve_bend = 0.05
+        curve_bend = 0.08
         for u, v, data in edges:
             # calculate edge properties
             width = log_scale(data['count'],
                               range_from=[10, max_count],
                               range_to=[1, 5])
             width = np.clip(width, 0, 5)
+            color = str(0.3 + 0.7*data['rate']/max_rate)
             
             # get points
-            p1, p2 = pos[u], pos[v]
+            p1, p2 = np.array(pos[u]), np.array(pos[v])
             dx, dy = p2[0] - p1[0], p2[1] - p1[1]
-            pm = (p1[0] + dx/2 - curve_bend*dy,
-                  p1[1] + dy/2 + curve_bend*dx)
+            pm = np.array((p1[0] + dx/2 - curve_bend*dy,
+                           p1[1] + dy/2 + curve_bend*dx))
         
             # plot Bezier curve
             codes = [Path.MOVETO, Path.CURVE3, Path.CURVE3]
             path = Path((p1, pm, p2), codes)
             patch = patches.PathPatch(path, facecolor='none',
-                                      edgecolor=str(0.3 + 0.7*data['rate']/max_rate),
-                                      lw=width)
-            plt.gca().add_patch(patch)
+                                      edgecolor=color, lw=width)
+            ax.add_patch(patch)
+            
+            # add arrow head
+            if width > 1:
+                pm = np.array((p1[0] + dx/2 - 0.75*curve_bend*dy,
+                               p1[1] + dy/2 + 0.75*curve_bend*dx))
+                dp = p2 - pm
+                dp /= np.linalg.norm(dp)
+                pc_diff = 0.1*dp
+                pc2 = p2 - 0.6*dp
+                plt.arrow(pc2[0], pc2[1], pc_diff[0], pc_diff[1],
+                          head_width=0.1,
+                          edgecolor='none', facecolor=color)
 
         # plot the labels manually, since nx.draw_networkx_labels seems to be broken on mac
         for label, (x, y) in pos.iteritems(): 

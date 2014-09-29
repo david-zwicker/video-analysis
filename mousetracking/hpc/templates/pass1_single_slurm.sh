@@ -10,6 +10,7 @@
 #SBATCH --mail-user={NOTIFICATION_EMAIL}
 
 echo "Start job with id $SLURM_JOB_ID"
+echo $SLURM_JOB_ID >> pass1_job_id.txt
 
 # load python environment
 source ~/.profile

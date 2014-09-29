@@ -24,12 +24,5 @@ parameters.update({{
     'output/video/folder': "{JOB_DIRECTORY}",
 }})
 
-# create file structure
-open('_running_pass1', 'a').close()
-
-try:
-    # do the first pass scan
-    scan_video("{NAME}", parameters=parameters, passes=1)
-finally:
-    # remove temporary file
-    os.remove('_running_pass1')
+# do the first pass scan
+scan_video("{NAME}", parameters=parameters, passes=1)
