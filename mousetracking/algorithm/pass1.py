@@ -487,12 +487,13 @@ class FirstPass(DataHandler):
             # calculate the image moments
             moments = cv2.moments((labels == label).astype(np.uint8, copy=False))
             area = moments['m00']
-            # get the coordinates of the center of mass
-            pos = (moments['m10']/area, moments['m01']/area)
-            
+
             # check whether this object is too large
             if area > self.params['mouse/area_max']:
                 continue
+
+            # get the coordinates of the center of mass
+            pos = (moments['m10']/area, moments['m01']/area)
             
             # check whether this object could be large enough to be a mouse
             if area > self.params['mouse/area_min']:
@@ -503,12 +504,13 @@ class FirstPass(DataHandler):
                 largest_obj = MovingObject(pos, size=area, label=label)
         
         if len(objects) == 0:
-            # if we haven't found anything yet, we just take the best guess,
-            # which is the object with the largest area
-            objects.append(largest_obj)
-        
-        if largest_obj.size == 0:
-            return None
+            if largest_obj.size == 0:
+                # there is not a single object
+                return None
+            else:
+                # if we have found some small objects and we just take the 
+                # best guess, which is the object with the largest area
+                return [largest_obj]
         else:
             return objects
 
