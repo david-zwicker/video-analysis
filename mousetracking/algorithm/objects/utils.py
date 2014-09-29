@@ -112,11 +112,10 @@ class LazyHDFValue(object):
                 
             # save actual data as an array
             data_array = data.to_array()
-            if cls.compression is None:
+            if cls.compression is None or data_array.size < cls.chunk_elements:
                 hdf_file.create_dataset(key, data=data_array, track_times=True)
             else:
                 chunks = get_chunk_size(data_array.shape, cls.chunk_elements)
-                print 'Compression', cls.compression, chunks
                 hdf_file.create_dataset(key, data=data_array, track_times=True,
                                         chunks=chunks, compression=cls.compression)
                 

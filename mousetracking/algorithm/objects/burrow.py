@@ -186,7 +186,8 @@ class Burrow(object):
         ground_line = ground.linestring
         
         # reparameterize the burrow outline to locate the burrow exit reliably
-        outline = curves.make_curve_equidistant(self.outline, 10)
+        outline = curves.make_curve_equidistant(self.outline,
+                                                self.ground_point_distance)
         outline = np.asarray(outline, np.double)
 
         # calculate the distance of each outline point to the ground

@@ -25,6 +25,7 @@
 	- Think about redetermining centerlines of elongated burrows that have not been fitted in pass 2
 * Add mechanism for conveniently defining parameters for single runs
 * Restrict adaptation of ground line to +- 2 pixel or so
+* Add script to check which runs have failed (and add some heuristic of why they failed)
 
 
 Performance improvements:

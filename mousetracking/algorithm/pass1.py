@@ -134,7 +134,7 @@ class FirstPass(DataHandler):
         finally:
             # cleanup in all cases 
             
-            self.result['objects/tracks'].extend(self.tracks)
+            self._end_current_tracks()
             self.add_processing_statistics(time.time() - start_time)        
                         
             # cleanup and write out of data
@@ -513,6 +513,12 @@ class FirstPass(DataHandler):
             return objects
 
 
+    def _end_current_tracks(self):
+        """ ends all current tracks and copies them to the results """
+        self.result['objects/tracks'].extend(self.tracks)
+        self.tracks = []
+
+
     def _handle_object_tracks(self, frame, labels, num_features):
         """ analyzes objects in a single frame and tries to add them to
         previous tracks """
@@ -521,7 +527,7 @@ class FirstPass(DataHandler):
         
         if objects_found is None:
             # if there are no useful objects, end all current tracks
-            self.result['objects/tracks'].extend(self.tracks)
+            self._end_current_tracks()
             return #< there is nothing to do anymore
 
         # check if there are previous tracks        
@@ -608,13 +614,11 @@ class FirstPass(DataHandler):
         
         if num_features == 0:
             # no features found => end all current tracks
-            self.result['objects/tracks'].extend(self.tracks)
-            self.tracks = []
+            self._end_current_tracks()
             
         elif num_features > self.params['tracking/object_count_max']:
             # too many features found => end all current tracks
-            self.result['objects/tracks'].extend(self.tracks)
-            self.tracks = []
+            self._end_current_tracks()
             
             self.result['objects/too_many_objects'] += 1
             self.logger.debug('%d: Discarding object information from this frame, '
@@ -628,8 +632,10 @@ class FirstPass(DataHandler):
             # check whether objects moved and call them a mouse
             obj_moving = [obj.is_moving() for obj in self.tracks]
             if any(obj_moving):
+                # store when the first object moved
                 if self.result['objects/moved_first_in_frame'] is None:
                     self.result['objects/moved_first_in_frame'] = self.frame_id
+                    
                 # remove the tracks that didn't move
                 # this essentially assumes that there is only one mouse
                 for k, obj in enumerate(self.tracks):
@@ -950,8 +956,8 @@ class FirstPass(DataHandler):
                 # get image part
                 model = np.tanh(-(xs - pos)/ridge_width)
                 img_diff = profile - model_std*model - model_mean
-                scaled_diff = np.sum(img_diff**2)
-                return energy_factor_last*scaled_diff
+                squared_diff = np.sum(img_diff**2)
+                return energy_factor_last*squared_diff
                 # energy_img has units of color^2
                 
             def energy_curvature(pos):
@@ -964,28 +970,28 @@ class FirstPass(DataHandler):
                 
                 # determine curvature of circle through the three points
                 A = regions.triangle_area(a, b, c)
-                curv = 4*A/(a*b*c)*spacing
+                curvature = 4*A/(a*b*c)*spacing
                 # We don't scale by with the arc length a + b, because this 
                 # would increase the curvature weight in situations where
                 # fitting is complicated (close to burrow entries)
-                return curvature_energy_factor*curv
+                return curvature_energy_factor*curvature
 
-            def energy_snake((pos, model_mean, model_std)):
+            def energy_snake(data):
                 """ energy function of this part of the ground line """
-                return energy_image((pos, model_mean, model_std)) + energy_curvature(pos)
+                return energy_image(data) + energy_curvature(data[0])
             
             # fit the simple model to the line scan profile
             try:      
                 res = optimize.fmin_powell(energy_snake, [0, 0, model_std], disp=False)
             except RuntimeError:
                 continue #< skip this point
-            pos, model_mean, model_std = res 
-
-            # save final energy for determining the energy scale later
-            energies_image.append(energy_image((pos, model_mean, model_std)))
 
             # use this point, if it is good enough            
             if energy_snake(res) < snake_energy_max:
+                # save final energy for determining the energy scale later
+                energies_image.append(energy_image(res))
+
+                pos, _, model_std = res 
                 p_x, p_y = p[0] + pos*dy, p[1] - pos*dx
                 candidate_points[k] = (int(p_x), int(p_y))
 
