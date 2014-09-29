@@ -56,7 +56,7 @@ class SlurmProject(HPCProjectBase):
                 self.logger.info('Job id of second pass: %d', pid_pass2)
         
         
-    def check_pass_status(self, pass_id, status):
+    def check_pass_status(self, pass_id):
         """ check the status of a single pass """
         status = {}
         
