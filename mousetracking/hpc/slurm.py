@@ -89,8 +89,9 @@ class SlurmProject(HPCProjectBase):
 
                 if status['state'].startswith('cancelled'):
                     # check output for error
-                    log = sp.check_output(['tail', '-n', '5',
-                                           'log_pass%d_%s.txt' % (pass_id, pid)])
+                    log_file = os.path.join(self.folder,
+                                            'log_pass%d_%s.txt' % (pass_id, pid))
+                    log = sp.check_output(['tail', '-n', '5', log_file])
                     for line in log.splitlines():
                         if 'exceeded memory limit' in line:
                             status['state'] = 'memory-exceeded'
