@@ -186,7 +186,7 @@ class GroundProfileTrack(object):
                                                           mode='nearest')
 
 
-    def get_ground(self, frame_id):
+    def get_ground_profile(self, frame_id):
         """ returns the ground object for a certain frame """
         # for simplicity, find the index which is closest to the data we have
         idx = np.argmin(np.abs(self.times - frame_id))

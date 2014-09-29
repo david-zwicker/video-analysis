@@ -237,7 +237,7 @@ class FirstPass(DataHandler):
                 if (not did_first_analysis
                     or self.frame_id % self.params['ground/adaptation_interval'] == 0):
                     
-                    self.ground = self.get_ground(self.ground)
+                    self.ground = self.get_ground_profile(self.ground)
         
                 if (not did_first_analysis
                     or self.frame_id % self.params['burrows/adaptation_interval'] == 0):
@@ -816,7 +816,7 @@ class FirstPass(DataHandler):
         return points
         
                 
-    def estimate_ground(self):
+    def estimate_ground_profile(self):
         """ estimates the ground profile from the current background image """ 
         
         # get the background image from which we extract the ground profile
@@ -1040,11 +1040,11 @@ class FirstPass(DataHandler):
         return GroundProfile(points)
             
 
-    def get_ground(self, ground_estimate=None):
+    def get_ground_profile(self, ground_estimate=None):
         """ finds the ground profile given an image of an antfarm. """
         
         if ground_estimate is None:
-            ground_estimate = self.estimate_ground()
+            ground_estimate = self.estimate_ground_profile()
             
         if ground_estimate.length > self.params['ground/length_max']:
             # reject excessively long ground profiles
@@ -1070,6 +1070,8 @@ class FirstPass(DataHandler):
         """ returns a binary mask distinguishing the ground from the sky """
         if ground is None:
             ground = self.ground
+            if ground is None:
+                return None
         
         # build a mask with potential burrows
         width, height = self.video.size
@@ -1097,6 +1099,8 @@ class FirstPass(DataHandler):
         the mouse explored """
 
         mask_ground = self.get_ground_mask()
+        if mask_ground is None:
+            return None
 
         # get potential burrows by looking at explored area
         explored_area = 255*(self.explored_area > 0).astype(np.uint8)
@@ -1513,9 +1517,12 @@ class FirstPass(DataHandler):
         burrows_mask = self._cache['image_uint8']
         burrows_mask.fill(0)
 
-        # estimate the new burrow mask
+        # estimate the burrow mask
         potential_burrows = self.get_potential_burrows_mask()
-        labels, num_features = ndimage.measurements.label(potential_burrows)
+        if potential_burrows is None:
+            labels, num_features = potential_burrows, 0
+        else:
+            labels, num_features = ndimage.measurements.label(potential_burrows)
             
         # iterate through all features that have been found
         for label in xrange(1, num_features + 1):
@@ -1741,11 +1748,5 @@ class FirstPass(DataHandler):
                     self.debug[i].close()
                 except IOError:
                     self.logger.exception('Error while writing out the debug video') 
-
-        # remove all windows that may have been opened
-        try:
-            cv2.destroyAllWindows()
-        except cv2.error:
-            pass #< some builds of openCV do not implement destroyAllWindows()
             
     

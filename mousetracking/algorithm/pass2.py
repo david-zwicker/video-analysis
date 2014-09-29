@@ -303,7 +303,7 @@ class SecondPass(DataHandler):
             state = {}
                     
             # check the mouse position
-            ground = ground_profile.get_ground(frame_id)
+            ground = ground_profile.get_ground_profile(frame_id)
             if ground is not None:
                 # compare y value of mouse and ground
                 # Note that the y-axis points down
