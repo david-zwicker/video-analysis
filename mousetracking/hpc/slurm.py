@@ -71,7 +71,7 @@ class SlurmProject(HPCProjectBase):
             status['general'] = 'started'
 
         # check the status of the job
-        pid = pids[-1]
+        pid = pids[-1].strip()
         try:
             res = sp.check_output(['squeue', '-j', pid,
                                    '-o', '"%T|%M"']) #< output format
@@ -81,18 +81,18 @@ class SlurmProject(HPCProjectBase):
                 res = sp.check_output(['sacct', '-j', pid, '-P',
                                        '-o', 'state,MaxRSS,Elapsed,cputime'])
                 chunks = res.split('|')
-                status['state'] = chunks[0]
-                status['elapsed'] = chunks[2]
+                status['state'] = chunks[0].strip()
+                status['elapsed'] = chunks[2].strip()
                 
             else:
                 # unknown error
-                raise
+                print err.output
             
         else:
             # jobs seems to be currently running
             chunks = res.split('|')
-            status['state'] = chunks[0]
-            status['elapsed'] = chunks[1]
+            status['state'] = chunks[0].strip()
+            status['elapsed'] = chunks[1].strip()
             
         return status
         
