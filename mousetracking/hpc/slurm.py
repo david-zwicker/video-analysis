@@ -6,7 +6,7 @@ Created on Sep 18, 2014
 
 from __future__ import division
 
-import subprocess
+import subprocess as sp
 import os
 
 from .project import HPCProjectBase
@@ -41,16 +41,16 @@ class SlurmProject(HPCProjectBase):
         """ submit the tracking job using slurm """
         with change_directory(self.folder):
             # submit first job
-            res = subprocess.check_output(['sbatch', 'pass1_single_slurm.sh'])
+            res = sp.check_output(['sbatch', 'pass1_single_slurm.sh'])
             pid_pass1 = int(res.split()[-1])
             self.pids = [pid_pass1]
             self.logger.info('Job id of first pass: %d', pid_pass1)
             
             # submit second job if requested
             if self.passes >= 2:
-                res = subprocess.check_output(['sbatch',
-                                               '--dependency=afterok:%d' % pid_pass1,
-                                               'pass2_single_slurm.sh'])
+                res = sp.check_output(['sbatch',
+                                       '--dependency=afterok:%d' % pid_pass1,
+                                       'pass2_single_slurm.sh'])
                 pid_pass2 = int(res.split()[-1])
                 self.pids.append(pid_pass2)
                 self.logger.info('Job id of second pass: %d', pid_pass2)
@@ -72,15 +72,21 @@ class SlurmProject(HPCProjectBase):
 
         # check the status of the job
         pid = pids[-1]
-        res = subprocess.check_output(['squeue', '-j', pid,
-                                       '-o', '"%T|%M"']) #< output format
-        if 'Invalid job id specified' in res:
-            # job seems to have finished already
-            res = subprocess.check_output(['sacct', '-j', pid, '-P',
-                                           '-o', 'state,MaxRSS,Elapsed,cputime'])
-            chunks = res.split('|')
-            status['state'] = chunks[0]
-            status['elapsed'] = chunks[2]
+        try:
+            res = sp.check_output(['squeue', '-j', pid,
+                                   '-o', '"%T|%M"']) #< output format
+        except sp.CalledProcessError as err:
+            if 'Invalid job id specified' in err.output:
+                # job seems to have finished already
+                res = sp.check_output(['sacct', '-j', pid, '-P',
+                                       '-o', 'state,MaxRSS,Elapsed,cputime'])
+                chunks = res.split('|')
+                status['state'] = chunks[0]
+                status['elapsed'] = chunks[2]
+                
+            else:
+                # unknown error
+                raise
             
         else:
             # jobs seems to be currently running
