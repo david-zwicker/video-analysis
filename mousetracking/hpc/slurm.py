@@ -64,14 +64,14 @@ class SlurmProject(HPCProjectBase):
         pid_file = os.path.join(self.folder, 'pass%d_job_id.txt' % pass_id)
         try:
             pids = open(pid_file).readlines()
-        except OSError:
+        except IOError:
             status['general'] = 'not-started'
             return status
         else:
             status['general'] = 'started'
 
         # check the status of the job
-        pid = int(pids[-1])
+        pid = pids[-1]
         res = subprocess.check_output(['squeue', '-j', pid,
                                        '-o', '"%T|%M"']) #< output format
         if 'Invalid job id specified' in res:
