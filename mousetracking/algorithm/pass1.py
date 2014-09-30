@@ -1361,7 +1361,7 @@ class FirstPass(DataHandler):
                 (1 - self.explored_area[int(p2[1]), int(p2[0])])
                 /self.params['explored_area/adaptation_rate_burrows']
             )
-            frames_threshold = 10/self.params['background/adaptation_rate']
+            frames_threshold = 3/self.params['background/adaptation_rate']
             mouse_absent = (frames_absent > frames_threshold)
             
         else:

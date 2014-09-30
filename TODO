@@ -24,8 +24,8 @@
 	- Explored area can then be used in the GrabCut algorithm as potential foreground		
 	- Think about redetermining centerlines of elongated burrows that have not been fitted in pass 2
 * Add mechanism for conveniently defining parameters for single runs
-* Restrict adaptation of ground line to +- 2 pixel or so
 * Gather more statistics about why certain parts of the algorithm failed
+* Handle burrows with two entrances (e.g. video 14)
 
 
 Performance improvements:

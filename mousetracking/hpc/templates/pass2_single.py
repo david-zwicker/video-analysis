@@ -14,8 +14,9 @@ from mousetracking.algorithm import SecondPass
 logging.basicConfig()
 
 # set job parameters
-parameters = {{'logging/folder': "{JOB_DIRECTORY}",
-               'output/folder': "{JOB_DIRECTORY}",}}
+parameters = {{'base_folder': "{JOB_DIRECTORY}",
+               'logging/folder': ".",
+               'output/folder': ".",}}
 
 # do the second pass scan
 results = load_results("{NAME}", parameters, cls=SecondPass)

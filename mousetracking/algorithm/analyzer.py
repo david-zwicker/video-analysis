@@ -39,30 +39,34 @@ class Analyzer(DataHandler):
         return results
     
     
-    def get_mouse_state_transitions(self):
+    def get_mouse_state_transitions(self, states=None):
         """ returns the durations the mouse spends in each state before 
         transitioning to another state """
         try:
             mouse_state = self.data['pass2/mouse_trajectory'].states
         except KeyError:
-            self.logger('The mouse trajectory has to be determined before '
-                        'the transitions can be analyzed.')
+            raise RuntimeError('The mouse trajectory has to be determined before '
+                               'the transitions can be analyzed.')
+            
+        if states is None:
+            states = mouse.STATES.keys()
             
         # get transitions
         transitions = collections.defaultdict(list)
         last_trans = 0
         for k in np.nonzero(np.diff(mouse_state) != 0)[0]:
             trans = (mouse_state[k], mouse_state[k + 1])
-            transitions[trans].append(k - last_trans)
+            if trans[0] in states and trans[1] in states:
+                transitions[trans].append(k - last_trans)
             last_trans = k
             
         return transitions
             
     
-    def get_mouse_transition_graph(self):
+    def get_mouse_transition_graph(self, states=None):
         """ calculate the graph representing the transitions between
         different states of the mouse """ 
-        transitions = self.get_mouse_state_transitions()
+        transitions = self.get_mouse_state_transitions(states)
 
         graph = nx.MultiDiGraph()
         nodes = collections.defaultdict(int)
@@ -85,15 +89,20 @@ class Analyzer(DataHandler):
         return graph
     
     
-    def show_mouse_transition_graph(self):
+    def plot_mouse_transition_graph(self, states=None, ax=None):
         """ show the graph representing the transitions between
-        different states of the mouse """
+        different states of the mouse.
+        
+        Node size relates to the average duration the mouse spend there
+        Line widths are related to the number of times the link was used
+        Line colors relate to the transition rate between different states
+        """
         import matplotlib.pyplot as plt
         from matplotlib.path import Path
-        from matplotlib import patches
+        from matplotlib import patches, cm, colors, colorbar
         
         # get the transition graph
-        graph = self.get_mouse_transition_graph()
+        graph = self.get_mouse_transition_graph(states)
         
         def log_scale(values, range_from, range_to):
             """ scale values logarithmically, where the interval range_from is
@@ -111,27 +120,32 @@ class Analyzer(DataHandler):
                'sand': (1.5, 0),
                'burrow': (0, 0)}
 
+        # prepare the plot
+        if ax is None:
+            ax = plt.gca()
+        ax.axis('off')
+
         # plot nodes
         nodes = graph.nodes(data=True)
         max_duration = max(node[1]['duration'] for node in nodes)
         node_sizes = log_scale([node[1]['duration'] for node in nodes],
                                range_from=(1, max_duration),
                                range_to=(10, 5000))
-        nx.draw_networkx_nodes(graph, pos, node_size=node_sizes)
+        nx.draw_networkx_nodes(graph, pos, node_size=node_sizes, ax=ax)
         
-        # plot the edges
-        ax = plt.gca()
+        # plot the edges manually because of directed graph
         edges = graph.edges(data=True)
         max_rate = max(edge[2]['rate'] for edge in edges)
         max_count = max(edge[2]['count'] for edge in edges)
-        curve_bend = 0.08
+        curve_bend = 0.08 #< determines the distance of the two edges between nodes
+        colormap = cm.autumn
         for u, v, data in edges:
             # calculate edge properties
             width = log_scale(data['count'],
                               range_from=[10, max_count],
                               range_to=[1, 5])
-            width = np.clip(width, 0, 5)
-            color = str(0.3 + 0.7*data['rate']/max_rate)
+            width = np.clip(width, 0, 10)
+            color = colormap(data['rate']/max_rate)
             
             # get points
             p1, p2 = np.array(pos[u]), np.array(pos[v])
@@ -154,20 +168,25 @@ class Analyzer(DataHandler):
                 dp /= np.linalg.norm(dp)
                 pc_diff = 0.1*dp
                 pc2 = p2 - 0.6*dp
-                plt.arrow(pc2[0], pc2[1], pc_diff[0], pc_diff[1],
-                          head_width=0.1,
-                          edgecolor='none', facecolor=color)
+                ax.arrow(pc2[0], pc2[1], pc_diff[0], pc_diff[1],
+                         head_width=0.1,
+                         edgecolor='none', facecolor=color)
+                
+        # add a colorbar explaining the colorscheme
+        cax = ax.figure.add_axes([0.9, 0.1, 0.05, 0.8])
+        norm = colors.Normalize(vmin=0, vmax=1)
+        colorbar.ColorbarBase(cax, cmap=colormap, norm=norm,
+                              orientation='vertical', ticks=[])
 
         # plot the labels manually, since nx.draw_networkx_labels seems to be broken on mac
-        for label, (x, y) in pos.iteritems(): 
-            plt.text(x, y, label,
-                     horizontalalignment='center',
-                     verticalalignment='center'
-                     )
+        for node in graph.nodes():
+            x, y = pos[node]
+            ax.text(x, y, node,
+                    horizontalalignment='center',
+                    verticalalignment='center')
         
-        # tweak display
-        plt.axis('off')
-        plt.show()
+        plt.sca(ax)
+        return ax
                     
                 
                     

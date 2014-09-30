@@ -18,10 +18,11 @@ parameters = {TRACKING_PARAMETERS}  # @UndefinedVariable
 # set job parameters
 parameters.update({{
     'video/filename_pattern': "{VIDEO_FILE}",
-    'logging/folder': "{JOB_DIRECTORY}",
-    'debug/folder': "{JOB_DIRECTORY}",
-    'output/folder': "{JOB_DIRECTORY}",
-    'output/video/folder': "{JOB_DIRECTORY}",
+    'base_folder': "{JOB_DIRECTORY}",
+    'logging/folder': ".",
+    'debug/folder': ".",
+    'output/folder': ".",
+    'output/video/folder': ".",
 }})
 
 # do the first pass scan

@@ -154,17 +154,19 @@ class DataHandler(object):
 
     def get_folder(self, folder):
         """ makes sure that a folder exists and returns its path """
+        base_folder = self.data['parameters/base_folder']
         if folder == 'results':
-            folder = os.path.abspath(self.data['parameters/output/folder'])
+            folder = os.path.join(base_folder, self.data['parameters/output/folder'])
         elif folder == 'video':
-            folder = os.path.abspath(self.data['parameters/output/video/folder'])
+            folder = os.path.join(base_folder, self.data['parameters/output/video/folder'])
         elif folder == 'logging':
-            folder = os.path.abspath(self.data['parameters/logging/folder'])
+            folder = os.path.join(base_folder, self.data['parameters/logging/folder'])
         elif folder == 'debug':
-            folder = os.path.abspath(self.data['parameters/debug/folder'])
+            folder = os.path.join(base_folder, self.data['parameters/debug/folder'])
         else:
             self.logger.warn('Requested unknown folder `%s`.' % folder)
             
+        folder = os.path.abspath(folder)
         ensure_directory_exists(folder)
         return folder
 
@@ -237,7 +239,8 @@ class DataHandler(object):
         """ loads the video and applies a monochrome and cropping filter """
         # initialize the video
         if video is None:
-            video_filename_pattern = os.path.join(self.data['parameters/video/filename_pattern'])
+            video_filename_pattern = os.path.join(self.data['parameters/base_folder'],
+                                                  self.data['parameters/video/filename_pattern'])
             if any(c in video_filename_pattern for c in r'*?%'):
                 # contains placeholder => load multiple videos
                 video_class = VideoFileStack

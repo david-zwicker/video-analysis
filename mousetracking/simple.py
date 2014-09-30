@@ -56,11 +56,11 @@ def scan_video_in_folder(folder, name, parameters=None, **kwargs):
     """ scans a single video from a folder """
     
     # create parameter dictionary
-    params = PARAMETERS_DEFAULT.copy()
+    params = dict(PARAMETERS_DEFAULT).copy()
     params.update(parameters)
     
     # set the folder in the respective parameters
-    params = set_base_folder(params, folder)
+    params['base_folder'] = folder
         
     # scan the video
     return scan_video(name, parameters=params, **kwargs)
@@ -86,6 +86,6 @@ def load_result_file(result_file, parameters=None, **kwargs):
     # set parameters and load results    
     if parameters is None:
         parameters = {}
-    parameters['output/folder'] = folder
+    parameters = set_base_folder(parameters, folder, include_default=True)
     return load_results(name, parameters, **kwargs)
     

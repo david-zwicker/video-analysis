@@ -10,8 +10,8 @@ parameters.
 
 from __future__ import division
 
-import os
 from collections import namedtuple
+import warnings
 
 
 # enum of different units that we use
@@ -19,8 +19,9 @@ class UNIT(object):
     FACTOR = 1
     FRACTION = 2
     FOLDER = 3
-    COLOR = 4
-    BOOLEAN = 5
+    SUBFOLDER = 4
+    COLOR = 5
+    BOOLEAN = 6
     LENGTH_PIXEL = 11
     AREA_PIXEL = 12
     TIME_FRAMES = 20
@@ -32,8 +33,11 @@ Parameter = namedtuple('Parameter', ['key', 'default_value', 'unit', 'descriptio
 
 
 PARAMETER_LIST = [
+    Parameter('base_folder', '.', UNIT.FOLDER,
+              'Base folder in which all files are kept'),
+                  
     # Video input
-    Parameter('video/filename_pattern', 'raw_video/*.MTS', UNIT.FOLDER,
+    Parameter('video/filename_pattern', './raw_video/*.MTS', UNIT.SUBFOLDER,
               'Filename pattern used to look for videos'),
     Parameter('video/initial_adaptation_frames', 100, UNIT.TIME_FRAMES,
               'Number of initial frames to skip during analysis'),
@@ -51,7 +55,7 @@ PARAMETER_LIST = [
     # Logging
     Parameter('logging/enabled',  True, UNIT.BOOLEAN,
               'Flag indicating whether logging is enabled'),
-    Parameter('logging/folder', './logging/', UNIT.FOLDER,
+    Parameter('logging/folder', './logging/', UNIT.SUBFOLDER,
               'Folder to which the log file is written'),
     Parameter('logging/level_stderr', 'WARN', None,
               'Level of messages to log to stderr [standard python logging levels]'),
@@ -65,7 +69,7 @@ PARAMETER_LIST = [
     Parameter('debug/use_multiprocessing', True, UNIT.BOOLEAN,
               'Flag indicating whether multiprocessing should be used to read '
               'and display videos'),
-    Parameter('debug/folder', './debug/', UNIT.FOLDER,
+    Parameter('debug/folder', './debug/', UNIT.SUBFOLDER,
               'Folder to which debug videos are written'), 
     Parameter('debug/output_period', 100, UNIT.TIME_FRAMES,
               'How often are frames written to the output file'),
@@ -73,9 +77,9 @@ PARAMETER_LIST = [
               'Position (x, y) of the top-left corner of the debug window'),
             
     # Output
-    Parameter('output/folder', './results/', UNIT.FOLDER,
+    Parameter('output/folder', './results/', UNIT.SUBFOLDER,
               'Folder to which the YAML and HDF5 result files are written'),
-    Parameter('output/video/folder', './results/', UNIT.FOLDER,
+    Parameter('output/video/folder', './results/', UNIT.SUBFOLDER,
               'Folder to which the result video is written'),
     Parameter('output/output_period', 1, UNIT.TIME_FRAMES,
               'How often are frames written to the output file or shown on the '
@@ -264,25 +268,23 @@ def set_base_folder(parameters, folder, include_default=False):
     """ changes the base folder of all folders given in the parameter
     dictionary.
     include_default is a flag indicating whether the default parameters
-    should also be included and their folders should be changed. """
+    describing folders should also be included. """
+    
+    warnings.warn("Base folder is a parameter now.", DeprecationWarning)
+    
     # convert to plain dictionary if it is anything else
     parameters_type = type(parameters)
     if parameters_type != dict:
         parameters = parameters.to_dict(flatten=True)
-        
+    
+    # add all default folders, which will be changed later
     if include_default:
-        p_copy = PARAMETERS_DEFAULT.copy()
-        p_copy.update(parameters)
-        parameters = p_copy
-        
-    # adjust the folders
-    for key, value in parameters.iteritems():
-        try:
-            unit = PARAMETERS[key].unit
-        except KeyError:
-            unit = None  
-        if unit == UNIT.FOLDER:
-            parameters[key] = os.path.join(folder, value)
+        for p in PARAMETER_LIST:
+            if p.unit == UNIT.SUBFOLDER and p.key not in parameters:
+                parameters[p.key] = p.default_value
+
+    # set the base folder    
+    parameters['base_folder'] = folder
             
     # return the result as the original type 
     return parameters_type(parameters)
