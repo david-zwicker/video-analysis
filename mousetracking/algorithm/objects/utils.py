@@ -111,7 +111,7 @@ class LazyHDFValue(object):
                 del hdf_file[key]
                 
             # save actual data as an array
-            data_array = data.to_array()
+            data_array = np.asarray(data.to_array())
             if cls.compression is None or data_array.size < cls.chunk_elements:
                 hdf_file.create_dataset(key, data=data_array, track_times=True)
             else:

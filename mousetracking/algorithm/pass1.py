@@ -885,20 +885,22 @@ class FirstPass(DataHandler):
         in the direction perpendicular to the curve. """
         frame = self.background
         spacing = int(self.params['ground/point_spacing'])
-            
+
         # make sure the curve has equidistant points
-        points = curves.make_curve_equidistant(ground.line, spacing)
+        ground.make_equidistant(spacing=spacing)
+
+        # consider all points that are far away from the borders        
+        frame_margin = int(self.params['ground/frame_margin'])
+        x_max = frame.shape[1] - frame_margin
+        points = [point for point in ground.line
+                  if frame_margin < point[0] < x_max]
         points = np.array(np.round(points),  np.int32)
         
-        # calculate the bounds for the points
-        dist_min = spacing 
-        y_max, x_max = frame.shape[0] - spacing, frame.shape[1] - spacing
-
-        # only consider valid points, which are away from the boundary
-        points = [p for p in points
-                  if (p[0] >= dist_min and p[0] <= x_max and 
-                      p[1] >= dist_min and p[1] <= y_max and
-                      np.all(np.isfinite(p)))]
+#         # only consider valid points, which are away from the boundary
+#         y_max, x_max = frame.shape[0] - spacing, frame.shape[1] - spacing
+#         points = [p for p in points
+#                   if (spacing <= p[0] <= x_max and 
+#                       spacing <= p[1] <= y_max)]
 
         # iterate over all but the boundary points
         curvature_energy_factor = self.params['ground/curvature_energy_factor']
@@ -906,6 +908,7 @@ class FirstPass(DataHandler):
             # load the energy factor for the next iteration
             snake_energy_max = self.params['ground/snake_energy_max']
             energy_factor_last = self.result['ground/energy_factor_last']
+            
         else:
             # initialize values such that the energy factor is calculated
             # for the next iteration
@@ -976,13 +979,18 @@ class FirstPass(DataHandler):
                 return energy_image(data) + energy_curvature(data[0])
             
             # fit the simple model to the line scan profile
+            fit_bounds = ((-spacing, spacing), (None, None), (None, None))
             try:      
-                res = optimize.fmin_powell(energy_snake, [0, 0, model_std], disp=False)
+                #res = optimize.fmin_powell(energy_snake, [0, 0, model_std], disp=False)
+                res, snake_energy, _ = \
+                    optimize.fmin_l_bfgs_b(energy_snake, approx_grad=True,
+                                           x0=np.array([0, 0, model_std]),
+                                           bounds=fit_bounds)
             except RuntimeError:
                 continue #< skip this point
 
             # use this point, if it is good enough            
-            if energy_snake(res) < snake_energy_max:
+            if snake_energy < snake_energy_max:
                 # save final energy for determining the energy scale later
                 energies_image.append(energy_image(res))
 
@@ -1041,6 +1049,9 @@ class FirstPass(DataHandler):
         if ground_estimate is None:
             ground_estimate = self.estimate_ground_profile()
             
+            self.logger.debug('%d: Estimated ground profile of length %g',
+                              self.frame_id, ground_estimate.length)
+            
         if ground_estimate.length > self.params['ground/length_max']:
             # reject excessively long ground profiles
             self.logger.warn('%d: Ground profile was too long (%g > %g)',
@@ -1051,9 +1062,6 @@ class FirstPass(DataHandler):
         else:
             # refine estimated ground
             ground = self.refine_ground(ground_estimate)
-        
-            self.logger.debug('%d: Found ground profile of length %g',
-                              self.frame_id, ground.length)
         
             # add the ground to the result list
             self.result['ground/profile'].append(self.frame_id, ground)
