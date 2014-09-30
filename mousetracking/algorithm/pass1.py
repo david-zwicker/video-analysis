@@ -394,17 +394,16 @@ class FirstPass(DataHandler):
         sky_img = image[sky_sure.astype(np.bool, copy=False)]
         self.result['colors/sky'] = sky_img.mean()
         self.result['colors/sky_std'] = max(sky_img.std(), color_std_min)
-        self.logger.debug('%d: The sky color was determined to be %d +- %d',
-                          self.frame_id, self.result['colors/sky'],
-                          self.result['colors/sky_std'])
         
         # determine the sand color
         sand_img = image[sand_sure.astype(np.bool, copy=False)]
         self.result['colors/sand'] = sand_img.mean()
         self.result['colors/sand_std'] = max(sand_img.std(), color_std_min)
-        self.logger.debug('%d: The sand color was determined to be %d +- %d',
-                          self.frame_id, self.result['colors/sand'],
-                          self.result['colors/sand_std'])
+        
+        # debug output
+        self.logger.debug('%d: Colors: Sand %d+-%d, Sky %d+-%d', self.frame_id,
+                          self.result['colors/sand'], self.result['colors/sand_std'],
+                          self.result['colors/sky'], self.result['colors/sky_std'])
         
                 
     def update_background_model(self, frame):
@@ -584,16 +583,12 @@ class FirstPass(DataHandler):
                 
         # end tracks that had no match in current frame 
         for i_e in reversed(idx_e): #< have to go backwards, since we delete items
-            self.logger.debug('%d: Copy mouse track of length %d to results',
-                              self.frame_id, len(self.tracks[i_e]))
             # copy track to result dictionary
             self.result['objects/tracks'].append(self.tracks[i_e])
             del self.tracks[i_e]
         
         # start new tracks for objects that had no previous match
         for i_f in idx_f:
-            self.logger.debug('%d: New mouse track at %s',
-                              self.frame_id, objects_found[i_f].pos)
             # start new track
             track = ObjectTrack([self.frame_id], [objects_found[i_f]])
             self.tracks.append(track)
@@ -1048,9 +1043,9 @@ class FirstPass(DataHandler):
             
         if ground_estimate.length > self.params['ground/length_max']:
             # reject excessively long ground profiles
-            self.logger.warn('%d: The ground profile was rejected because it '
-                             'was too long (%g > %g)', self.frame_id,
-                             ground_estimate.length, self.params['ground/length_max'])
+            self.logger.warn('%d: Ground profile was too long (%g > %g)',
+                             self.frame_id, ground_estimate.length,
+                             self.params['ground/length_max'])
             ground = None
         
         else:
@@ -1149,7 +1144,7 @@ class FirstPass(DataHandler):
                                        cv2.CHAIN_APPROX_SIMPLE)
         
         if not contours:
-            return None
+            raise RuntimeError('Could not find any contour')
         
         # find the contour with the largest area, in case there are multiple
         contour_areas = [cv2.contourArea(cnt) for cnt in contours]
@@ -1157,7 +1152,7 @@ class FirstPass(DataHandler):
         
         if contour_areas[contour_id] < self.params['burrows/area_min']:
             # disregard small burrows
-            return None
+            raise RuntimeError('Burrow is too small')
             
         # simplify the contour
         contour = np.squeeze(np.asarray(contours[contour_id], np.double))
@@ -1194,7 +1189,7 @@ class FirstPass(DataHandler):
             return Burrow(contour)
             
         else:
-            return None
+            raise RuntimeError('Contour is not a simple polygon')
     
     
     def find_burrow_edge(self, profile, direction='up'):
@@ -1350,16 +1345,30 @@ class FirstPass(DataHandler):
         # filter unsuccessful points
         points = (p for p in points if p is not None)
         
-        # determine the number of frames the mouse has been absent from the end
-        frames_absent = (
-            (1 - self.explored_area[int(p2[1]), int(p2[0])])
-            /self.params['explored_area/adaptation_rate_burrows']
-        )
+        # determine whether the mouse is at the front of the burrow or not
+        adaptation_rate = self.params['explored_area/adaptation_rate_burrows']
+        if adaptation_rate != 0:
+            # check whether the mouse has been away from the burrow long enough
+            frames_absent = (
+                (1 - self.explored_area[int(p2[1]), int(p2[0])])
+                /self.params['explored_area/adaptation_rate_burrows']
+            )
+            frames_threshold = 10/self.params['background/adaptation_rate']
+            mouse_absent = (frames_absent > frames_threshold)
+            
+        else:
+            mouse_absent = True
+            distance_threshold = 3*self.params['burrows/width']
+            for track in self.tracks:
+                pos = geometry.Point(track.last.pos)
+                if outline.distance(pos) <  distance_threshold:
+                    mouse_absent = False
+                    break
         
         point_max, dist_max = None, 0
         point_anchor = centerline_new[-1]
         for point in points:
-            if frames_absent > 10/self.params['background/adaptation_rate']:
+            if mouse_absent:
                 # mouse has been away for a long time
                 # => refine point using a line scan along the centerline
 
@@ -1458,7 +1467,7 @@ class FirstPass(DataHandler):
         # find sure foreground
         kernel_size = int(2*width_min)
         burrow_core_area_min = self.params['burrows/grabcut_burrow_core_area_min']
-        while kernel_size > 1:
+        while kernel_size >= 1:
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
             burrow_sure = (cv2.erode(mask_burrow, kernel) == 255)
             if burrow_sure.sum() >= burrow_core_area_min:
@@ -1500,11 +1509,12 @@ class FirstPass(DataHandler):
         mask[mask_ground == 0] = 0
         
         # find the burrow from the mask
-        burrow = self.get_burrow_from_mask(mask.astype(np.uint8), offset=rect[:2])
-        
-        if burrow is None:
-            self.logger.debug('%d: Burrow outline resulting from GrabCut '
-                              'algorithm was not valid anymore', self.frame_id)
+        try:
+            burrow = self.get_burrow_from_mask(mask.astype(np.uint8), offset=rect[:2])
+        except RuntimeError as err:
+            burrow = None
+            self.logger.debug('%d: Invalid burrow from GrabCut: %s',
+                              self.frame_id, err.message)
         
         return burrow
     
@@ -1527,8 +1537,9 @@ class FirstPass(DataHandler):
         # iterate through all features that have been found
         for label in xrange(1, num_features + 1):
             # get the burrow object from the contour of region
-            burrow = self.get_burrow_from_mask(labels == label)
-            if burrow is None:
+            try:
+                burrow = self.get_burrow_from_mask(labels == label)
+            except RuntimeError:
                 continue
 
             # add the unrefined burrow to the debug video

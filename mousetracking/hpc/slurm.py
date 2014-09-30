@@ -94,7 +94,7 @@ class SlurmProject(HPCProjectBase):
                     log = sp.check_output(['tail', '-n', '5', log_file])
                     for line in log.splitlines():
                         if 'exceeded memory limit' in line:
-                            status['state'] = 'memory-exceeded'
+                            status['state'] = 'exceeded-memory'
 
             else:
                 # unknown error

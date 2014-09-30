@@ -131,7 +131,7 @@ PARAMETER_LIST = [
     # Ground
     Parameter('ground/point_spacing', 20, UNIT.LENGTH_PIXEL,
               'Spacing of the support points describing the ground profile'),
-    Parameter('ground/linescan_length', 100, UNIT.LENGTH_PIXEL,
+    Parameter('ground/linescan_length', 50, UNIT.LENGTH_PIXEL,
               'Length of the line scan used to determine the ground profile'),
     Parameter('ground/slope_detector_max_factor', 0.4, UNIT.FACTOR,
               'Factor important in the ridge detection step, where the ridge '
@@ -218,7 +218,7 @@ PARAMETER_LIST = [
               'Length of a segment of the center line of a burrow'),
     Parameter('burrows/curvature_radius_max', 50, UNIT.LENGTH_PIXEL,
               'Maximal radius of curvature the centerline is allowed to have'),
-    Parameter('burrows/grabcut_burrow_core_area_min', 100, UNIT.AREA_PIXEL,
+    Parameter('burrows/grabcut_burrow_core_area_min', 500, UNIT.AREA_PIXEL,
               'Minimal area the sure region of the mask for the grab cut '
               'algorithm is supposed to have'),
     Parameter('burrows/fitting_length_threshold', 100, UNIT.LENGTH_PIXEL,

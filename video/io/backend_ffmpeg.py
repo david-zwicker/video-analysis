@@ -268,6 +268,10 @@ class VideoWriterFFmpeg(object):
             raise ValueError('Both dimensions of the video must be even for '
                              'the video codec to work properly')
 
+        #FIXME: consider adding the flags
+        # "-f ismv"  "-movflags frag_keyframe"
+        # to avoid corrupted mov files, if movie writing is interrupted
+
         # build the FFmpeg command
         cmd = (
             [FFMPEG_BINARY, '-y',
