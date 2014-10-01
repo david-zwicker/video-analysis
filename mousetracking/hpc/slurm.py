@@ -34,6 +34,7 @@ def parse_time(text):
 class ProjectSingleSlurm(HPCProjectBase):
     """ HPC project based on the slurm scheduler """
 
+    # the order of these files matters!
     job_files = ('pass1_slurm.sh', 'pass1_single.py', 
                  'pass2_slurm.sh', 'pass2_single.py')
     
@@ -42,7 +43,7 @@ class ProjectSingleSlurm(HPCProjectBase):
         """ submit the tracking job using slurm """
         with change_directory(self.folder):
             # submit first job
-            res = sp.check_output(['sbatch', 'pass1_single_slurm.sh'])
+            res = sp.check_output(['sbatch', self.job_files[0]])
             pid_pass1 = int(res.split()[-1])
             self.pids = [pid_pass1]
             self.logger.info('Job id of first pass: %d', pid_pass1)
@@ -51,7 +52,7 @@ class ProjectSingleSlurm(HPCProjectBase):
             if self.passes >= 2:
                 res = sp.check_output(['sbatch',
                                        '--dependency=afterok:%d' % pid_pass1,
-                                       'pass2_single_slurm.sh'])
+                                       self.job_files[2]])
                 pid_pass2 = int(res.split()[-1])
                 self.pids.append(pid_pass2)
                 self.logger.info('Job id of second pass: %d', pid_pass2)
@@ -145,11 +146,3 @@ class ProjectSingleSlurm(HPCProjectBase):
         else:
             status['project'] = 'not-initialized'
         return status
-
-
-
-class ProjectQuadrantsSlurm(ProjectSingleSlurm):
-    """ project that analyzed four quadrants at once """
-    job_files = {'pass1_slurm.sh', 'pass1_quadrants.py', 
-                 'pass2_slurm.sh', 'pass2_single.py'}
-

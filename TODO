@@ -25,6 +25,7 @@
 * Change parameters of output ffmpeg to produce useable videos, even when process was killed
 * Distinguish mouse position at burrow apex from positions at other points in burrow
 	- Analyze excavated burrow space (after mouse has been active)
+* Write out images equidistantly, which can be checked more easily than videos
 
 
 Performance improvements:
