@@ -63,13 +63,12 @@ class ProjectSingleSlurm(HPCProjectBase):
         returns a string indicating the error or None """
         uri = os.path.join(self.folder, log_file)
         log = sp.check_output(['tail', '-n', '10', uri])
-        for line in log.splitlines():
-            if 'exceeded memory limit' in line:
-                return 'exceeded-memory'
-            elif 'FFmpeg encountered the following error' in line:
-                return 'ffmpeg-error'
-            elif 'Error' in line:
-                return 'error'
+        if 'exceeded memory limit' in log:
+            return 'exceeded-memory'
+        elif 'FFmpeg encountered the following error' in log:
+            return 'ffmpeg-error'
+        elif 'Error' in log:
+            return 'error'
             
         return None
 
@@ -126,7 +125,7 @@ class ProjectSingleSlurm(HPCProjectBase):
                 chunks = res.splitlines()[1].split('|')
             except IndexError:
                 self.logger.warn(res)
-                chunks = ['unknown', 'nan']
+                chunks = ['starting', 'nan']
             status['state'] = chunks[0].strip().lower()
             status['elapsed'] = chunks[1].strip().lower()
             
