@@ -56,6 +56,20 @@ class SlurmProject(HPCProjectBase):
                 self.logger.info('Job id of second pass: %d', pid_pass2)
 
 
+    def check_log_for_error(self, log_file):
+        """ scans a log file for errors.
+        returns a string indicating the error or None """
+        uri = os.path.join(self.folder, log_file)
+        log = sp.check_output(['tail', '-n', '10', uri])
+        for line in log.splitlines():
+            if 'exceeded memory limit' in line:
+                return 'exceeded-memory'
+            if 'FFmpeg encountered the following error' in line:
+                return 'ffmpeg-error'
+            
+        return None
+
+
     def check_pass_status(self, pass_id):
         """ check the status of a single pass """
         status = {}
@@ -87,14 +101,11 @@ class SlurmProject(HPCProjectBase):
                 status['state'] = chunks[0].strip().lower()
                 status['elapsed'] = chunks[2].strip()
 
-                if status['state'].startswith('cancelled'):
-                    # check output for error
-                    log_file = os.path.join(self.folder,
-                                            'log_pass%d_%s.txt' % (pass_id, pid))
-                    log = sp.check_output(['tail', '-n', '5', log_file])
-                    for line in log.splitlines():
-                        if 'exceeded memory limit' in line:
-                            status['state'] = 'exceeded-memory'
+                # check output for error
+                log_file = 'log_pass%d_%s.txt' % (pass_id, pid)
+                log_error = self.check_log_for_error(log_file)
+                if log_error is not None:
+                    status['state'] = log_error
 
             else:
                 # unknown error
@@ -105,7 +116,7 @@ class SlurmProject(HPCProjectBase):
             chunks = res.splitlines()[1].split('|')
             status['state'] = chunks[0].strip().lower()
             status['elapsed'] = chunks[1].strip().lower()
-
+            
         return status
 
 
