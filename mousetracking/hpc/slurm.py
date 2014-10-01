@@ -103,8 +103,8 @@ class SlurmProject(HPCProjectBase):
                 try:
                     chunks = res.splitlines()[1].split('|')
                 except IndexError:
-                    print res
-                    chunks = ['starting', 'nan', 'nan', 'nan']
+                    self.logger.warn(res)
+                    chunks = ['unknown', 'nan', 'nan', 'nan']
                 status['state'] = chunks[0].strip().lower()
                 status['elapsed'] = chunks[2].strip()
 
@@ -120,7 +120,11 @@ class SlurmProject(HPCProjectBase):
 
         else:
             # jobs seems to be currently running
-            chunks = res.splitlines()[1].split('|')
+            try:
+                chunks = res.splitlines()[1].split('|')
+            except IndexError:
+                self.logger.warn(res)
+                chunks = ['unknown', 'nan']
             status['state'] = chunks[0].strip().lower()
             status['elapsed'] = chunks[1].strip().lower()
             
