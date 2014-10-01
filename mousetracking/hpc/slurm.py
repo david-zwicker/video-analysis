@@ -124,7 +124,7 @@ class ProjectSingleSlurm(HPCProjectBase):
             try:
                 chunks = res.splitlines()[1].split('|')
             except IndexError:
-                self.logger.warn(res)
+                # squeue does not have information yet, but the process started
                 chunks = ['starting', 'nan']
             status['state'] = chunks[0].strip().lower()
             status['elapsed'] = chunks[1].strip().lower()

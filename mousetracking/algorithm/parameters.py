@@ -23,7 +23,8 @@ class UNIT(object):
     COLOR = 5
     BOOLEAN = 6
     LENGTH_PIXEL = 11
-    AREA_PIXEL = 12
+    LENGTH_CM = 12
+    AREA_PIXEL = 15
     TIME_FRAMES = 20
     RATE_FRAMES = 21
     SPEED_PIXEL_FRAME = 30
@@ -97,6 +98,9 @@ PARAMETER_LIST = [
               'options might be None, "gzip", "lzf", and "szip".'),
     
     # Cage
+    Parameter('cage/width_real', 85.5, UNIT.LENGTH_CM,
+              'Measured width of the cages/antfarms. The width is measured '
+              'inside the cage, not including the frame.'),
     Parameter('cage/determine_boundaries', True, UNIT.BOOLEAN,
               'Flag indicating whether the cropping rectangle should be determined '
               'automatically. If False, we assume that the original video is '

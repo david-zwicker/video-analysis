@@ -256,8 +256,9 @@ class SecondPass(DataHandler):
         for ground in profile_list.grounds:
             x_min = min(x_min, ground.line[ 0, 0])
             x_max = max(x_max, ground.line[-1, 0])
-        
+            
         # extend all ground profiles that do not reach to these limits
+        cage_width = []
         for ground in profile_list.grounds:
             line = ground.line.tolist()
             if line[0][0] > x_min:
@@ -265,6 +266,7 @@ class SecondPass(DataHandler):
             if line[-1][0] < x_max:
                 line.append((x_max, line[-1][1]))
             ground.line = line
+            cage_width.append(line[-1][0] - line[0][0])
         
         # create a ground profile track from the list
         profile = GroundProfileTrack.create_from_ground_profile_list(profile_list)
@@ -275,6 +277,8 @@ class SecondPass(DataHandler):
          
         # store the result
         self.data['pass2/ground_profile'] = profile
+        self.data['pass2/cage/width_mean'] = np.mean(cage_width)
+        self.data['pass2/cage/width_std'] = np.std(cage_width)
         
         
     #===========================================================================
