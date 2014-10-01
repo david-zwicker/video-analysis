@@ -111,23 +111,39 @@ def query_state(states, query):
 class MouseTrack(object):
     """ class that describes the mouse track """
     
-    hdf_attributes = {'column_names': ('Position X', 'Position Y', 'Status')}
+    hdf_attributes = {'column_names': ('Position X', 'Position Y', 'Status',
+                                       'Index of closest ground point',
+                                       'Distance from ground')}
     storage_class = LazyHDFValue
     
-    def __init__(self, trajectory, states=None):
+    def __init__(self, trajectory, states=None, ground_idx=None, ground_dist=None):
         self.pos = trajectory
+        # initialize arrays
         if states is not None:
             self.states = np.asarray(states, np.int)
         else:
             self.states = np.zeros(len(trajectory), np.int)
+        if ground_idx is not None:
+            self.ground_idx = np.asarray(ground_idx, np.double)
+        else:
+            self.ground_idx = np.zeros(len(trajectory), np.double)
+        if ground_dist is not None:
+            self.ground_dist = np.asarray(ground_dist, np.double)
+        else:
+            self.ground_dist = np.zeros(len(trajectory), np.double)
     
         
     def __repr__(self):
         return '%s(frames=%d)' % (self.__class__.__name__, len(self.pos))
     
     
-    def set_state(self, frame_id, state):
-        self.states[frame_id] = state_to_int(state)
+    def set_state(self, frame_id, state=None, ground_idx=None, ground_dist=None):
+        if state is not None:
+            self.states[frame_id] = state_to_int(state)
+        if ground_idx is not None:
+            self.ground_idx[frame_id] = ground_idx
+        if ground_dist is not None:
+            self.ground_dist[frame_id] = ground_dist
     
     
     def query_state(self, query):
@@ -135,12 +151,16 @@ class MouseTrack(object):
     
     
     def to_array(self):
-        return np.c_[self.pos, self.states]
+        return np.c_[self.pos, self.states, self.ground_idx, self.ground_dist]
     
     
     @classmethod
     def create_from_array(cls, data):
-        return cls(data[:, :2], data[:, 2])
+        data_len = data.shape[1]
+        states = data[:, 2] if data_len >= 2 else None
+        ground_idx = data[:, 3] if data_len >= 3 else None
+        ground_dist = data[:, 4] if data_len >= 4 else None
+        return cls(data[:, :2], states, ground_idx, ground_dist)
 
 
 

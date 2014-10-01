@@ -21,19 +21,29 @@ __all__ = ['show_image', 'show_shape', 'show_tracking_graph',
            'get_grabcut_image', 'print_filter_chain', 'save_frame_from_video']
 
 
-def show_image(*images, **kwargs):
-    """ shows a collection of images using matplotlib and waits for the user to continue """
-    import matplotlib.pyplot as plt
 
-    # determine the number of rows and columns to show
-    num_plots = len(images)
+def get_subplot_shape(num_plots=1):
+    """ calculates an optimal subplot shape for a given number of images """
     if num_plots <= 2:
         num_rows = 1
     elif num_plots <= 6:
         num_rows = 2
-    else:
+    elif num_plots <= 12:
         num_rows = 3
+    else:
+        num_rows = 4    
     num_cols = int(np.ceil(num_plots/num_rows))
+    return num_rows, num_cols
+
+
+
+def show_image(*images, **kwargs):
+    """ shows a collection of images using matplotlib and waits for the user
+    to continue """
+    import matplotlib.pyplot as plt
+
+    # determine the number of rows and columns to show
+    num_rows, num_cols = get_subplot_shape(len(images))
     
     # get the color scale
     if kwargs.pop('equalize_colors', False):

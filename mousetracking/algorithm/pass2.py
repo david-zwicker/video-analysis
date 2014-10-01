@@ -292,8 +292,10 @@ class SecondPass(DataHandler):
         burrow_tracks = self.data['pass1/burrows/tracks']
         
         # load some variables
-        mouse_radius = self.data['parameters/mouse/model_radius']
+        mouse_radius = self.params['mouse/model_radius']
+        trail_spacing = self.params['burrows/centerline_segment_length']
         burrow_next_change = 0
+        mouse_trail = None
         for frame_id, mouse_pos in enumerate(mouse_track.pos):
             if not np.all(np.isfinite(mouse_pos)):
                 # the mouse position is invalid
@@ -307,16 +309,7 @@ class SecondPass(DataHandler):
             if ground is not None:
                 # compare y value of mouse and ground
                 # Note that the y-axis points down
-                if mouse_pos[1] < ground.get_y(mouse_pos[0]):
-                    state['underground'] = False
-                    if mouse_pos[1] + mouse_radius < ground.get_y(mouse_pos[0]):
-                        state['location'] = 'air'
-                    elif mouse_pos[1] < ground.midline:
-                        state['location'] = 'hill'
-                    else:
-                        state['location'] = 'valley'
-                    
-                else: 
+                if mouse_pos[1] > ground.get_y(mouse_pos[0]):
                     state['underground'] = True
                     # check the burrow structure
                     if frame_id >= burrow_next_change:
@@ -329,9 +322,55 @@ class SecondPass(DataHandler):
                         if burrow.polygon.contains(mouse_point):
                             state['location'] = 'burrow'
                             break
-            
+
+                    # keep the ground index from last time
+                    ground_idx = mouse_track.ground_idx[frame_id - 1]
+
+                    # handle mouse trail
+                    if mouse_trail is None:
+                        # start a new mouse trail and initialize it with the                         
+                        # ground point closest to the mouse       
+                        mouse_prev = mouse_track.pos[frame_id - 1]              
+                        ground_point = curves.get_projection_point(ground.linestring, mouse_prev)
+                        mouse_trail = [ground_point, mouse_pos]
+
+                    else:
+                        # work with an existing mouse trail
+                        p_trail = mouse_trail[-2]
+                        
+                        if curves.point_distance(p_trail, mouse_pos) < trail_spacing:
+                            # old trail should be modified
+                            if len(mouse_trail) > 2:
+                                # check whether the trail has to be shortened
+                                p_trail = mouse_trail[-3]
+                                if curves.point_distance(p_trail, mouse_pos) < trail_spacing:
+                                    del mouse_trail[-1] #< shorten trail
+                                
+                            mouse_trail[-1] = mouse_pos
+                        else:
+                            # old trail must be extended
+                            mouse_trail.append(mouse_pos)
+                        
+                    ground_dist = curves.curve_length(mouse_trail)
+                        
+                else: 
+                    state['underground'] = False
+                    if mouse_pos[1] + mouse_radius < ground.get_y(mouse_pos[0]):
+                        state['location'] = 'air'
+                    elif mouse_pos[1] < ground.midline:
+                        state['location'] = 'hill'
+                    else:
+                        state['location'] = 'valley'
+
+                    mouse_trail = None
+                    # get index of the ground line
+                    dist = np.linalg.norm(ground.line - mouse_pos[None, :], axis=1)
+                    ground_idx = np.argmin(dist)
+                    # get distance from ground line
+                    ground_dist = ground.linestring.distance(geometry.Point(mouse_pos))
+                    
             # set the mouse state
-            mouse_track.set_state(frame_id, state)
+            mouse_track.set_state(frame_id, state, ground_idx, ground_dist)
         
         self.log_event('Pass 2 - Finished classifying the mouse.')
 

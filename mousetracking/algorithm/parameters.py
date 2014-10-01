@@ -253,7 +253,7 @@ PARAMETER_LIST = [
               'Name of the slurm partition to use for submitting jobs'),              
     Parameter('resources/pass1/cores', 4, None, 'Number of cores for pass 1'),
     Parameter('resources/pass1/time', 30*60, None, 'Maximal computation minutes for pass 1'),
-    Parameter('resources/pass1/memory', 2000, None, 'Maximal RAM per core for pass 1 [in MB]'),
+    Parameter('resources/pass1/memory', 1000, None, 'Maximal RAM per core for pass 1 [in MB]'),
     Parameter('resources/pass2/cores', 2, None, 'Number of cores for pass 2'),
     Parameter('resources/pass2/time', 20*60, None, 'Maximal computation minutes for pass 2'),
     Parameter('resources/pass2/memory', 8000, None, 'Maximal RAM per core for pass 2 [in MB]'),
