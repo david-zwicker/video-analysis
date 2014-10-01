@@ -64,8 +64,10 @@ class SlurmProject(HPCProjectBase):
         for line in log.splitlines():
             if 'exceeded memory limit' in line:
                 return 'exceeded-memory'
-            if 'FFmpeg encountered the following error' in line:
+            elif 'FFmpeg encountered the following error' in line:
                 return 'ffmpeg-error'
+            elif 'Error' in line:
+                return 'error'
             
         return None
 
@@ -97,7 +99,12 @@ class SlurmProject(HPCProjectBase):
                 # job seems to have finished already
                 res = sp.check_output(['sacct', '-j', pid, '-P',
                                        '-o', 'state,MaxRSS,Elapsed,cputime'])
-                chunks = res.splitlines()[1].split('|')
+                
+                try:
+                    chunks = res.splitlines()[1].split('|')
+                except IndexError:
+                    print res
+                    chunks = ['starting', 'nan', 'nan', 'nan']
                 status['state'] = chunks[0].strip().lower()
                 status['elapsed'] = chunks[2].strip()
 
