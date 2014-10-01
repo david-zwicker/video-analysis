@@ -276,6 +276,7 @@ class VideoWriterFFmpeg(object):
         cmd = (
             [FFMPEG_BINARY, '-y',
              '-loglevel', 'error', #"info" if verbose() else "error",
+             '-threads', 1, #< single threaded encoding for safety
              '-f', 'rawvideo',
              '-vcodec','rawvideo',
              '-s', "%dx%d" % tuple(size),
