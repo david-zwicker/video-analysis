@@ -23,7 +23,7 @@ class Analyzer(DataHandler):
     def __init__(self, *args, **kwargs):
         super(Analyzer, self).__init__(*args, **kwargs)
         
-        self.time_scale = self.data['video/analyzed/fps']
+        self.time_scale = 1/self.data['video/analyzed/fps']
         
     
     def get_burrow_lengths(self):
@@ -31,7 +31,7 @@ class Analyzer(DataHandler):
         burrow_tracks = self.data['pass1/burrows/tracks']
         results = []
         for burrow_track in burrow_tracks:
-            times = np.asarray(burrow_track.times)/self.time_scale
+            times = np.asarray(burrow_track.times)*self.time_scale
             lenghts = [burrow.length for burrow in burrow_track.burrows]
             data = np.c_[times, lenghts]
             results.append(data)
@@ -39,9 +39,14 @@ class Analyzer(DataHandler):
         return results
     
     
-    def get_mouse_state_transitions(self, states=None):
+    def get_mouse_state_transitions(self, states=None, len_threshold=0):
         """ returns the durations the mouse spends in each state before 
-        transitioning to another state """
+        transitioning to another state
+        
+        If states is given only, these states are included in the result.
+        Transitions with a duration [in seconds] below len_threshold will
+        not be included in the results.
+        """
         try:
             mouse_state = self.data['pass2/mouse_trajectory'].states
         except KeyError:
@@ -56,17 +61,20 @@ class Analyzer(DataHandler):
         last_trans = 0
         for k in np.nonzero(np.diff(mouse_state) != 0)[0]:
             trans = (mouse_state[k], mouse_state[k + 1])
-            if trans[0] in states and trans[1] in states:
-                transitions[trans].append(k - last_trans)
+            duration = (k - last_trans)*self.time_scale
+            if (trans[0] in states and trans[1] in states
+                and duration > len_threshold):
+                
+                transitions[trans].append(duration)
             last_trans = k
             
         return transitions
             
     
-    def get_mouse_transition_graph(self, states=None):
+    def get_mouse_transition_graph(self, **kwargs):
         """ calculate the graph representing the transitions between
         different states of the mouse """ 
-        transitions = self.get_mouse_state_transitions(states)
+        transitions = self.get_mouse_state_transitions(**kwargs)
 
         graph = nx.MultiDiGraph()
         nodes = collections.defaultdict(int)
@@ -89,7 +97,7 @@ class Analyzer(DataHandler):
         return graph
     
     
-    def plot_mouse_transition_graph(self, states=None, ax=None):
+    def plot_mouse_transition_graph(self, ax=None, **kwargs):
         """ show the graph representing the transitions between
         different states of the mouse.
         
@@ -102,7 +110,7 @@ class Analyzer(DataHandler):
         from matplotlib import patches, cm, colors, colorbar
         
         # get the transition graph
-        graph = self.get_mouse_transition_graph(states)
+        graph = self.get_mouse_transition_graph(**kwargs)
         
         def log_scale(values, range_from, range_to):
             """ scale values logarithmically, where the interval range_from is
@@ -173,10 +181,12 @@ class Analyzer(DataHandler):
                          edgecolor='none', facecolor=color)
                 
         # add a colorbar explaining the colorscheme
-        cax = ax.figure.add_axes([0.9, 0.1, 0.05, 0.8])
+        cax = ax.figure.add_axes([0.87, 0.1, 0.03, 0.8])
         norm = colors.Normalize(vmin=0, vmax=1)
-        colorbar.ColorbarBase(cax, cmap=colormap, norm=norm,
-                              orientation='vertical', ticks=[])
+        cb = colorbar.ColorbarBase(cax, cmap=colormap, norm=norm,
+                                   orientation='vertical', ticks=[0, 1])
+        cb.set_label('Transition rate')
+        cax.set_yticklabels(('lo', 'hi'))
 
         # plot the labels manually, since nx.draw_networkx_labels seems to be broken on mac
         for node in graph.nodes():

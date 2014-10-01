@@ -367,7 +367,7 @@ class SecondPass(DataHandler):
                     dist = np.linalg.norm(ground.line - mouse_pos[None, :], axis=1)
                     ground_idx = np.argmin(dist)
                     # get distance from ground line
-                    ground_dist = ground.linestring.distance(geometry.Point(mouse_pos))
+                    ground_dist = -ground.linestring.distance(geometry.Point(mouse_pos))
                     
             # set the mouse state
             mouse_track.set_state(frame_id, state, ground_idx, ground_dist)
