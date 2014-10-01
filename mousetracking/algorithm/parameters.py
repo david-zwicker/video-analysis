@@ -101,7 +101,7 @@ PARAMETER_LIST = [
               'Flag indicating whether the cropping rectangle should be determined '
               'automatically. If False, we assume that the original video is '
               'already cropped'),
-    Parameter('cage/boundary_detection_thresholds', [0.3, 0.1, 0.3, 0.9], None,
+    Parameter('cage/boundary_detection_thresholds', [0.1, 0.1, 0.1, 0.9], None,
               'Thresholds for the boundary detection algorithm. The four values '
               'are the fraction of bright pixels necessary to define the '
               'boundary for [left, top, right, bottom], respectively.'),
