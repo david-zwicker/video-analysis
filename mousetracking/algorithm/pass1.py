@@ -1202,7 +1202,8 @@ class FirstPass(DataHandler):
         contour = regions.simplify_contour(contour, threshold)
         
         # remove potential invalid structures from contour
-        contour = regions.regularize_contour(contour)
+        if contour:
+            contour = regions.regularize_contour(contour)
         
 #         if offset[0]:
 #             debug.show_shape(geometry.LinearRing(contour),

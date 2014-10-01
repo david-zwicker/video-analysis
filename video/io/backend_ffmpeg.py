@@ -275,12 +275,12 @@ class VideoWriterFFmpeg(object):
         # build the FFmpeg command
         cmd = (
             [FFMPEG_BINARY, '-y',
-             "-loglevel", "error", #"info" if verbose() else "error",
-             "-f", 'rawvideo',
-             "-vcodec","rawvideo",
+             '-loglevel', 'error', #"info" if verbose() else "error",
+             '-f', 'rawvideo',
+             '-vcodec','rawvideo',
              '-s', "%dx%d" % tuple(size),
-             '-pix_fmt', "rgb24" if is_color else "gray",
-             '-r', "%.02f" % fps,
+             '-pix_fmt', 'rgb24' if is_color else 'gray',
+             '-r', '%.02f' % fps,
              '-i', '-',
              '-an'] # no audio
             + ([] if (codec is None) else ['-vcodec', codec])
@@ -296,7 +296,7 @@ class VideoWriterFFmpeg(object):
 
             + ['-r', "%d" % fps, filename]
         )
-
+        
         # start FFmpeg, which should wait for input
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                                      stdout=DEVNULL, stderr=subprocess.PIPE)
