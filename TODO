@@ -1,6 +1,4 @@
 * Write a manual of assumption we make about the videos in order to track everything
-* Build collection of extracts from movies which are hard to analyze (use this for semi-automatic testing)
-	- Write script to be able to easily extract problematic parts of the video and save them in a separate file 
 * Distinguish between debug/develop/release runs:
 	- different default level of output
 	- debug doesn't use multiprocessing to keep error messages clean
@@ -8,8 +6,6 @@
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
 * Determine absolute times by checking when the lights go on
-* Think about introducing a flag indicating whether we are sure we know where the mouse is (by considering its movement)
-	- this could be used to reject moving objects that are certainly not a mouse
 * Get precise cage dimensions:
 	- Do line scans at border in all directions and determine cage edge
 	- Calculate length scale from cage dimension
@@ -26,6 +22,7 @@
 * Add mechanism for conveniently defining parameters for single runs
 * Gather more statistics about why certain parts of the algorithm failed
 * Handle burrows with two entrances (e.g. video 14)
+* Change parameters of output ffmpeg to produce useable videos, even when process was killed
 
 
 Performance improvements:
@@ -33,11 +30,6 @@ Performance improvements:
 * Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)
 	- Do operations in place as often as possible
 * Generally cache all kernels for morphological operations, since these are costly to make
-* Calculate the Jacobian for the fitting explicitly (feasible for the sand profile)
-* Threaded reading of videos (get next frame in separate thread and store it for access)
-	http://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
-	http://stefaanlippens.net/python-asynchronous-subprocess-pipe-reading
-	http://code.activestate.com/recipes/576759-subprocess-with-async-io-pipes-class/
 * Performance is limited by reading the video using ffmpeg (which is capped at about 50 fps)
 
 
@@ -46,5 +38,4 @@ Low priority enhancements:
 * Apparently, sometimes the light flickers and a frame becomes unusably bright.
 	- Get an example video to see how we could circumvent this problem in our code
 	- One idea is to just drop these frames and assume that not much happens during this time
-* There is a memory leak somewhere. If the FirstPass object is deleted not all memory is released.
-	- This should not pose any problems, since we usually only do one scan and then end the whole process
+	- it seems we circumvent these problems by having a maximum for the number of moving objects  

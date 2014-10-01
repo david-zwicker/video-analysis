@@ -1430,7 +1430,6 @@ class FirstPass(DataHandler):
     def refine_bulky_burrow(self, burrow, burrow_prev=None):
         """ refine burrow by thresholding background image using the GrabCut
         algorithm """
-        # TODO: add caching for the masks
         mask_ground = self.get_ground_mask(255)
         frame = self.background
         width_min = self.params['burrows/width_min']
@@ -1706,7 +1705,7 @@ class FirstPass(DataHandler):
                 
             # add additional debug information
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
-            debug_video.add_text('#objects:%d' % self.debug['object_count'],
+            debug_video.add_text('#obj:%d' % self.debug['object_count'],
                                  (120, 20), anchor='top')
             debug_video.add_text(self.debug['video.mark.text1'],
                                  (300, 20), anchor='top')

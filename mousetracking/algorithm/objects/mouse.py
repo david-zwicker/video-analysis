@@ -138,6 +138,7 @@ class MouseTrack(object):
     
     
     def set_state(self, frame_id, state=None, ground_idx=None, ground_dist=None):
+        """ sets the state of the mouse in frame frame_id """
         if state is not None:
             self.states[frame_id] = state_to_int(state)
         if ground_idx is not None:
