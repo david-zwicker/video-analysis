@@ -101,13 +101,17 @@ PARAMETER_LIST = [
               'Flag indicating whether the cropping rectangle should be determined '
               'automatically. If False, we assume that the original video is '
               'already cropped'),
-    Parameter('cage/width_min', 650, UNIT.LENGTH_PIXEL,
+    Parameter('cage/boundary_detection_thresholds', [0.3, 0.1, 0.3, 0.9], None,
+              'Thresholds for the boundary detection algorithm. The four values '
+              'are the fraction of bright pixels necessary to define the '
+              'boundary for [left, top, right, bottom], respectively.'),
+    Parameter('cage/width_min', 600, UNIT.LENGTH_PIXEL,
               'Minimal width of the cage. This is only used to make a '
               'plausibility test of the results'),
     Parameter('cage/width_max', 800, UNIT.LENGTH_PIXEL,
               'Maximal width of the cage. This is only used to make a '
               'plausibility test of the results'),
-    Parameter('cage/height_min', 400, UNIT.LENGTH_PIXEL,
+    Parameter('cage/height_min', 350, UNIT.LENGTH_PIXEL,
               'Minimal height of the cage. This is only used to make a '
               'plausibility test of the results'),
     Parameter('cage/height_max', 500, UNIT.LENGTH_PIXEL,
@@ -155,7 +159,7 @@ PARAMETER_LIST = [
     Parameter('ground/frame_margin', 100, UNIT.LENGTH_PIXEL,
               'Width of the margin to the frame in which the ground profile is '
               'not determined'),
-    Parameter('ground/grabcut_uncertainty_margin', 100, UNIT.LENGTH_PIXEL,
+    Parameter('ground/grabcut_uncertainty_margin', 50, UNIT.LENGTH_PIXEL,
               'Width of the region around the estimated profile, in which '
               'the GrabCut algorithm may optimize'),
     Parameter('ground/adaptation_interval', 100, UNIT.TIME_FRAMES,

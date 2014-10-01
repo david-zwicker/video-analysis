@@ -275,9 +275,10 @@ class FirstPass(DataHandler):
         frame = frame[regions.rect_to_slices(rect_large)]
 
         # initialize the rect coordinates
-        top = 0 # start on first row
-        bottom = frame.shape[0] - 1 # start on last row
-        width = frame.shape[1]
+        left, top = 0, 0 # start in top right corner
+        height, width = frame.shape
+        bottom = height - 1
+        right = width - 1
 
         # threshold again, because large distractions outside of cages are now
         # definitely removed. Still, bright objects close to the cage, e.g. the
@@ -286,23 +287,41 @@ class FirstPass(DataHandler):
         _, binarized = cv2.threshold(frame, 0, 255,
                                      cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
+        # move left line to right until we hit the cage boundary
+        # We move until more then 30% of the pixel of a vertical line are bright
+        brightness = binarized[:, left].sum()
+        threshold = self.params['cage/boundary_detection_thresholds'][0]
+        while brightness < threshold*255*width: 
+            left += 1
+            brightness = binarized[:, left].sum()
+            
         # move top line down until we hit the cage boundary.
         # We move until more than 10% of the pixel on a horizontal line are bright
         brightness = binarized[top, :].sum()
-        while brightness < 0.1*255*width: 
+        threshold = self.params['cage/boundary_detection_thresholds'][1]
+        while brightness < threshold*255*width: 
             top += 1
             brightness = binarized[top, :].sum()
+            
+        # move right line to left until we hit the cage boundary
+        # We move until more then 30% of the pixel of a vertical line are bright
+        brightness = binarized[:, right].sum()
+        threshold = self.params['cage/boundary_detection_thresholds'][2]
+        while brightness < threshold*255*width: 
+            right -= 1
+            brightness = binarized[:, right].sum()
         
         # move bottom line up until we hit the cage boundary
         # We move until more then 90% of the pixel of a horizontal line are bright
         brightness = binarized[bottom, :].sum()
-        while brightness < 0.9*255*width: 
+        threshold = self.params['cage/boundary_detection_thresholds'][3]
+        while brightness < threshold*255*width: 
             bottom -= 1
             brightness = binarized[bottom, :].sum()
 
         # return the rectangle defined by two corner points
-        p1 = (rect_large[0], rect_large[1] + top)
-        p2 = (rect_large[0] + width - 1, rect_large[1] + bottom)
+        p1 = (rect_large[0] + left,  rect_large[1] + top)
+        p2 = (rect_large[0] + right, rect_large[1] + bottom)
         return regions.corners_to_rect(p1, p2)
 
 
