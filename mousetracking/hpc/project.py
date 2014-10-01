@@ -88,6 +88,12 @@ class HPCProjectBase(object):
             script = script.format(**params)
             open(os.path.join(project.folder, filename), 'w').write(script)
             
+        # create symbolic link if requested
+        symlink_folder = project.parameters['project/symlink_folder']
+        if symlink_folder:
+            dst = os.path.join(symlink_folder, project.name)
+            os.symlink(project.folder, dst)
+            
         project.logger.info('Prepared project in folder %s', project.folder)
         return project
         

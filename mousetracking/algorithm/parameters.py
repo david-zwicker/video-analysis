@@ -251,6 +251,9 @@ PARAMETER_LIST = [
               'A factor by which all length scales will be scaled'),
                   
     # Computation resources
+    Parameter('project/symlink_folder', None, None,
+              'If set, a symlink pointing to the base_folder will be created '
+              'in this directory when a project is created.'),
     Parameter('resources/notification_email', 'dzwicker@seas.harvard.edu', None,
               'Email address of the user to be notified in case of problems.'),
     Parameter('resources/slurm_partition', 'general', None,
