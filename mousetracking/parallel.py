@@ -7,11 +7,12 @@ This module contains convenience functions for scanning multiple
 mouse videos in parallel.
 '''
 
-
+import os
 import multiprocessing as mp
 import time
 
 from .simple import scan_video
+from .algorithm.data_handler import load_any_video
 from video.io.base import VideoFork
 from video.io.pipe import create_video_pipe
 from video.filters import FilterCrop
@@ -40,8 +41,7 @@ def get_window_pos(location, video_size):
         raise ValueError('Unknown location `%s`' % location)
 
 
-
-def scan_video_quadrants(video, parameters=None, **kwargs):
+def scan_video_quadrants(video=None, parameters=None, **kwargs):
     """ Takes a video and scans all four quadrants in parallel.
     Here, the video is read in one process, split into four video streams
     and analyzed in four separate processes
@@ -50,6 +50,12 @@ def scan_video_quadrants(video, parameters=None, **kwargs):
     
     if parameters is None:
         parameters = {}
+        
+    # load video if it is not supplied
+    if video is None:
+        video_filename_pattern = os.path.join(parameters['base_folder'],
+                                              parameters['video/filename_pattern'])
+        video = load_any_video(video_filename_pattern)
     
     # make sure that scan_video does not crop the video, since we already do
     # it in this process (see below)

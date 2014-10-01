@@ -31,11 +31,12 @@ def parse_time(text):
 
 
 
-class SlurmProject(HPCProjectBase):
+class ProjectSingleSlurm(HPCProjectBase):
     """ HPC project based on the slurm scheduler """
 
-    job_files = {'pass1_single.py', 'pass1_single_slurm.sh',
-                 'pass2_single.py', 'pass2_single_slurm.sh'}
+    job_files = ('pass1_slurm.sh', 'pass1_single.py', 
+                 'pass2_slurm.sh', 'pass2_single.py')
+    
 
     def submit(self):
         """ submit the tracking job using slurm """
@@ -144,3 +145,11 @@ class SlurmProject(HPCProjectBase):
         else:
             status['project'] = 'not-initialized'
         return status
+
+
+
+class ProjectQuadrantsSlurm(ProjectSingleSlurm):
+    """ project that analyzed four quadrants at once """
+    job_files = {'pass1_slurm.sh', 'pass1_quadrants.py', 
+                 'pass2_slurm.sh', 'pass2_single.py'}
+

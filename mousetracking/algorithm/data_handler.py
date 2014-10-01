@@ -43,6 +43,18 @@ class LazyLoadError(RuntimeError): pass
 
 
 
+def load_any_video(video_filename_pattern):
+    """ loads either a video file or a video file stack, depending
+    on the video_filename_pattern supplied """
+    if any(c in video_filename_pattern for c in r'*?%'):
+        # contains placeholder => load multiple videos
+        return VideoFileStack(video_filename_pattern)
+    else:
+        # no placeholder => load single video
+        return VideoFile(video_filename_pattern)
+
+
+
 class DataHandler(object):
     """ class that handles the data and parameters of mouse tracking """
     logging_mode = 'append'
@@ -241,14 +253,7 @@ class DataHandler(object):
         if video is None:
             video_filename_pattern = os.path.join(self.data['parameters/base_folder'],
                                                   self.data['parameters/video/filename_pattern'])
-            if any(c in video_filename_pattern for c in r'*?%'):
-                # contains placeholder => load multiple videos
-                video_class = VideoFileStack
-            else:
-                # no placeholder => load single video
-                video_class = VideoFile
-
-            self.video = video_class(video_filename_pattern)
+            self.video = load_any_video(video_filename_pattern)
                 
         else:
             self.video = video

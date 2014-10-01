@@ -71,6 +71,10 @@ class HPCProjectBase(object):
                   'VIDEO_FILE': video_file,
                   'TRACKING_PARAMETERS': pprint.pformat(tracking_parameters)}
         
+        # add job files to parameters
+        for k, filename in enumerate(cls.job_files):
+            params['JOB_FILE_%d' % k] = filename
+        
         # setup job resources
         resource_iter = project.parameters['resources'].iteritems(flatten=True)
         for key, value in resource_iter:
@@ -92,7 +96,12 @@ class HPCProjectBase(object):
         symlink_folder = project.parameters['project/symlink_folder']
         if symlink_folder:
             dst = os.path.join(symlink_folder, project.name)
-            os.symlink(project.folder, dst)
+            if os.path.exists(dst):
+                os.remove(dst)
+            try:
+                os.symlink(project.folder, dst)
+            except OSError as err:
+                project.logger.warn('Symlink creation failed: %s', err)
             
         project.logger.info('Prepared project in folder %s', project.folder)
         return project
@@ -115,3 +124,4 @@ class HPCProjectBase(object):
     def submit(self):
         """ submit the job to the cluster """
         raise NotImplementedError
+
