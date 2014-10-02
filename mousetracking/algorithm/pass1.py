@@ -291,7 +291,7 @@ class FirstPass(DataHandler):
         # We move until more then 30% of the pixel of a vertical line are bright
         brightness = binarized[:, left].sum()
         threshold = self.params['cage/boundary_detection_thresholds'][0]
-        while brightness < threshold*255*width: 
+        while brightness < threshold*255*width and left < width//2: 
             left += 1
             brightness = binarized[:, left].sum()
             
@@ -299,7 +299,7 @@ class FirstPass(DataHandler):
         # We move until more than 10% of the pixel on a horizontal line are bright
         brightness = binarized[top, :].sum()
         threshold = self.params['cage/boundary_detection_thresholds'][1]
-        while brightness < threshold*255*width: 
+        while brightness < threshold*255*width and top < height//2: 
             top += 1
             brightness = binarized[top, :].sum()
             
@@ -307,7 +307,7 @@ class FirstPass(DataHandler):
         # We move until more then 30% of the pixel of a vertical line are bright
         brightness = binarized[:, right].sum()
         threshold = self.params['cage/boundary_detection_thresholds'][2]
-        while brightness < threshold*255*width: 
+        while brightness < threshold*255*width and right > width//2: 
             right -= 1
             brightness = binarized[:, right].sum()
         
@@ -315,7 +315,7 @@ class FirstPass(DataHandler):
         # We move until more then 90% of the pixel of a horizontal line are bright
         brightness = binarized[bottom, :].sum()
         threshold = self.params['cage/boundary_detection_thresholds'][3]
-        while brightness < threshold*255*width: 
+        while brightness < threshold*255*width and bottom > height//2: 
             bottom -= 1
             brightness = binarized[bottom, :].sum()
 
