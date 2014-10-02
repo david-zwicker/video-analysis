@@ -83,12 +83,12 @@ class DataHandler(object):
         # folders must be initialized before the data is read
         if initialize_parameters:
             self.initialize_parameters(parameters)
-            self.data['analysis-state'] = 'Initialized parameters'
+            self.data['analysis-status'] = 'Initialized parameters'
 
         if read_data:
             # read_data internally initializes the parameters 
             self.read_data()
-            self.data['analysis-state'] = 'Data from previous run has been read'
+            self.data['analysis-status'] = 'Data from previous run has been read'
 
 
     def check_parameters(self, parameters):

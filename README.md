@@ -1,6 +1,6 @@
 video-analysis
 ==============
-contains several modules and packages for doing video analysis with OpenCV and python.
+This python package contains several modules and packages for doing video analysis with OpenCV and python.
 The package is organized in multiple sub-packages:
 
 video
@@ -27,7 +27,7 @@ Small package that collects modules copied from other authors.
 
 
 The MIT License (MIT) [OSI Approved License]
-============================================
+--------------------------------------------
 
 Copyright (c) 2014 Zulko
 

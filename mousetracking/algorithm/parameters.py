@@ -38,7 +38,7 @@ PARAMETER_LIST = [
               'Base folder in which all files are kept'),
                   
     # Video input
-    Parameter('video/filename_pattern', './raw_video/*.MTS', UNIT.SUBFOLDER,
+    Parameter('video/filename_pattern', 'raw_video/*.MTS', UNIT.SUBFOLDER,
               'Filename pattern used to look for videos'),
     Parameter('video/initial_adaptation_frames', 100, UNIT.TIME_FRAMES,
               'Number of initial frames to skip during analysis'),
@@ -56,7 +56,7 @@ PARAMETER_LIST = [
     # Logging
     Parameter('logging/enabled',  True, UNIT.BOOLEAN,
               'Flag indicating whether logging is enabled'),
-    Parameter('logging/folder', './logging/', UNIT.SUBFOLDER,
+    Parameter('logging/folder', 'logging/', UNIT.SUBFOLDER,
               'Folder to which the log file is written'),
     Parameter('logging/level_stderr', 'WARN', None,
               'Level of messages to log to stderr [standard python logging levels]'),
@@ -70,15 +70,15 @@ PARAMETER_LIST = [
     Parameter('debug/use_multiprocessing', True, UNIT.BOOLEAN,
               'Flag indicating whether multiprocessing should be used to read '
               'and display videos'),
-    Parameter('debug/folder', './debug/', UNIT.SUBFOLDER,
+    Parameter('debug/folder', 'debug/', UNIT.SUBFOLDER,
               'Folder to which debug videos are written'), 
     Parameter('debug/window_position', None, None,
               'Position (x, y) of the top-left corner of the debug window'),
             
     # Output
-    Parameter('output/folder', './results/', UNIT.SUBFOLDER,
+    Parameter('output/folder', 'results/', UNIT.SUBFOLDER,
               'Folder to which the YAML and HDF5 result files are written'),
-    Parameter('output/video/folder', './results/', UNIT.SUBFOLDER,
+    Parameter('output/video/folder', 'results/', UNIT.SUBFOLDER,
               'Folder to which the result video is written'),
     Parameter('output/output_period', 1, UNIT.TIME_FRAMES,
               'How often are frames written to the output file or shown on the '
@@ -94,7 +94,7 @@ PARAMETER_LIST = [
     Parameter('output/hdf5_compression', 'gzip', None,
               'Compression algorithm to be used for the HDF5 data. Possible '
               'options might be None, "gzip", "lzf", and "szip".'),
-                  
+    # Output video
     Parameter('output/video/period', 100, UNIT.TIME_FRAMES,
               'How often are frames written to the output file'),
     Parameter('output/video/mouse_trail_length', 1000, UNIT.TIME_FRAMES,

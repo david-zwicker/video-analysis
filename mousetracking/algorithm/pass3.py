@@ -2,13 +2,14 @@
 Created on Oct 2, 2014
 
 @author: David Zwicker <dzwicker@seas.harvard.edu>
+
+Module that contains the class responsible for the third pass of the algorithm
 '''
 
 from __future__ import division
 
 import time
 
-import cv2
 import numpy as np
 from shapely import geometry
 
@@ -104,7 +105,7 @@ class ThirdPass(DataHandler):
     def add_processing_statistics(self, time):
         """ add some extra statistics to the results """
         frames_analyzed = self.frame_id + 1
-        self.data['video/analyzed/frames_analyzed'] = frames_analyzed
+        self.data['pass3/video/frames_analyzed'] = frames_analyzed
         self.result['statistics/processing_time'] = time
         self.result['statistics/processing_fps'] = frames_analyzed/time
 
@@ -113,7 +114,10 @@ class ThirdPass(DataHandler):
         """ sets up the processing of the video by initializing caches etc """
         # load the video
         cropping_rect = self.data['pass1/video/cropping_rect'] 
-        self.load_video(cropping_rect=cropping_rect)
+        video_info = self.load_video(cropping_rect=cropping_rect)
+        
+        self.data.create_child('pass3/video', video_info)
+        del self.data['pass3/video/filecount']
         
         cropping_cage = self.data['pass1/video/cropping_cage']
         if cropping_cage is not None:
@@ -123,8 +127,18 @@ class ThirdPass(DataHandler):
         if frames is not None:
             self.video = self.video[frames[0]:frames[1]]
         
+        video_info = self.data['pass3/video']
+        video_info['cropping_cage'] = cropping_cage
+        video_info['frame_count'] = self.video.frame_count
+        video_info['frames'] = frames
+        video_info['size'] = '%d x %d' % tuple(self.video.size),
+        
+        # get first frame, which will not be used in the iteration
+        first_frame = self.video.get_next_frame()
+        
         # initialize data structures
         self.frame_id = -1
+        self.background = first_frame.astype(np.double)
         self.ground_idx = None  #< index of the ground point where the mouse entered the burrow
         self.mouse_trail = None #< line from this point to the mouse (along the burrow)
         
@@ -132,31 +146,27 @@ class ThirdPass(DataHandler):
     def _iterate_over_video(self, video):
         """ internal function doing the heavy lifting by iterating over the video """
         
-        blur_sigma = self.params['video/blur_radius']
-        blur_sigma_color = self.params['video/blur_sigma_color']
-        
         # load data from previous passes
         mouse_track = self.data['pass2/mouse_trajectory']
         ground_profile = self.data['pass2/ground_profile']
 
         # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video)):
-            # remove noise using a bilateral filter
-            frame_blurred = cv2.bilateralFilter(frame, d=int(blur_sigma),
-                                                sigmaColor=blur_sigma_color,
-                                                sigmaSpace=blur_sigma)
+            
+            # adapt the background to current frame 
+            adaptation_rate = self.params['background/adaptation_rate']
+            self.background += adaptation_rate*(frame - self.background)
             
             # copy frame to debug video
             if 'video' in self.debug:
                 self.debug['video'].set_frame(frame, copy=False)
             
-            # load data
+            # load data for current frame
             self.mouse_pos = mouse_track.pos[self.frame_id, :]
             self.ground = ground_profile.get_ground_profile(self.frame_id)
 
             # do the actual work            
             self.classify_mouse_state(mouse_track)
-            
             # TODO: use the current mouse tracks to know where the burrows are
             #self.locate_burrows()
 
