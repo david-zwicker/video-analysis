@@ -72,8 +72,6 @@ PARAMETER_LIST = [
               'and display videos'),
     Parameter('debug/folder', './debug/', UNIT.SUBFOLDER,
               'Folder to which debug videos are written'), 
-    Parameter('debug/output_period', 100, UNIT.TIME_FRAMES,
-              'How often are frames written to the output file'),
     Parameter('debug/window_position', None, None,
               'Position (x, y) of the top-left corner of the debug window'),
             
@@ -96,6 +94,11 @@ PARAMETER_LIST = [
     Parameter('output/hdf5_compression', 'gzip', None,
               'Compression algorithm to be used for the HDF5 data. Possible '
               'options might be None, "gzip", "lzf", and "szip".'),
+                  
+    Parameter('output/video/period', 100, UNIT.TIME_FRAMES,
+              'How often are frames written to the output file'),
+    Parameter('output/video/mouse_trail_length', 1000, UNIT.TIME_FRAMES,
+              'How long is the trail indicating the mouse position in the past'),
     
     # Cage
     Parameter('cage/width_cm', 85.5, UNIT.LENGTH_CM,

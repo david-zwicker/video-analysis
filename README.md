@@ -1,25 +1,33 @@
 video-analysis
 ==============
-collect several modules and packages for doing video analysis with OpenCV and python.
+contains several modules and packages for doing video analysis with OpenCV and python.
+The package is organized in multiple sub-packages:
 
+video
+-----
+This package contains code, which can be used to process videos using python.
+Special attention has been paid to develop video classes that can be easily
+used in iterating over video frames, also with multiprocessing support.
+The sub-package `analysis` contains several modules that contain miscellaneous
+functions that might be useful for general image or video analysis
 
 Part of the modules have been modified from code from moviepy, which
 is released under the MIT license at github. The license is included
 at the end of this file.
 
-This package builds on the following python packages
-matplotlib
-numpy
-scipy
-cv2 - the OpenCV python bindings
+mousetracking
+-------------
+This package contains the actual video analysis code of the project within
+which this package was developed.
 
-Optionally, sharedmem can be used to display images in a separate process
+lib
+---
+Small package that collects modules copied from other authors.
 
 
-The MIT License (MIT)
-[OSI Approved License]
 
-The MIT License (MIT)
+The MIT License (MIT) [OSI Approved License]
+============================================
 
 Copyright (c) 2014 Zulko
 

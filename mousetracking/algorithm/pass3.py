@@ -118,6 +118,10 @@ class ThirdPass(DataHandler):
         cropping_cage = self.data['pass1/video/cropping_cage']
         if cropping_cage is not None:
             self.video = FilterCrop(self.video, rect=cropping_cage)
+            
+        frames = self.data['pass1/video/frames']
+        if frames is not None:
+            self.video = self.video[frames[0]:frames[1]]
         
         # initialize data structures
         self.frame_id = -1
@@ -243,7 +247,7 @@ class ThirdPass(DataHandler):
         self.debug['video.mark.text2'] = ''
 
         # load parameters for video output        
-        video_output_period = int(self.params['debug/output_period'])
+        video_output_period = int(self.params['output/video/period'])
         video_extension = self.params['output/video/extension']
         video_codec = self.params['output/video/codec']
         video_bitrate = self.params['output/video/bitrate']
@@ -281,7 +285,8 @@ class ThirdPass(DataHandler):
         
             # indicate the mouse position
             track = self.data['pass2/mouse_trajectory'].pos
-            time_start = max(0, self.frame_id - 1000)
+            trail_length = self.params['output/video/mouse_trail_length']
+            time_start = max(0, self.frame_id - trail_length)
             track = track[time_start:self.frame_id, :]
             if len(track) > 0:
                 debug_video.add_polygon(track, '0.5', is_closed=False)

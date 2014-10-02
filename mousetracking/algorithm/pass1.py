@@ -1654,7 +1654,7 @@ class FirstPass(DataHandler):
         self.debug['video.mark.text2'] = ''
 
         # load parameters for video output        
-        video_output_period = int(self.params['debug/output_period'])
+        video_output_period = int(self.params['output/video/period'])
         video_extension = self.params['output/video/extension']
         video_codec = self.params['output/video/codec']
         video_bitrate = self.params['output/video/bitrate']
@@ -1724,8 +1724,9 @@ class FirstPass(DataHandler):
                     else:
                         obj_color = 'b'
                     track = obj.get_track()
-                    if len(track) > 1000:
-                        track = track[-1000:]
+                    trail_length = self.params['output/video/mouse_trail_length']
+                    if len(track) > trail_length:
+                        track = track[-trail_length:]
                     debug_video.add_polygon(track, '0.5', is_closed=False)
                     debug_video.add_circle(obj.last.pos,
                                            self.params['mouse/model_radius'],
