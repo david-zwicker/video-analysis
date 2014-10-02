@@ -163,6 +163,12 @@ class DataHandler(object):
         if hdf5_compression:
             LazyHDFValue.compression = hdf5_compression
             
+            
+    @property
+    def debug_run(self):
+        """ return True if this is a debug run """
+        return self.logger.isEnabledFor(logging.DEBUG)
+            
 
     def get_folder(self, folder):
         """ makes sure that a folder exists and returns its path """

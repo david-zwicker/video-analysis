@@ -1660,7 +1660,8 @@ class FirstPass(DataHandler):
             self.debug['video'] = VideoComposer(debug_file, size=self.video.size,
                                                 fps=self.video.fps, is_color=True,
                                                 output_period=video_output_period,
-                                                codec=video_codec, bitrate=video_bitrate)
+                                                codec=video_codec, bitrate=video_bitrate,
+                                                debug=self.debug_run)
             
             if 'video.show' in self.debug_output:
                 name = self.name if self.name else ''
@@ -1679,7 +1680,8 @@ class FirstPass(DataHandler):
                 # set up the video file writer
                 video_writer = VideoComposer(debug_file, self.video.size, self.video.fps,
                                              is_color=False, output_period=video_output_period,
-                                             codec=video_codec, bitrate=video_bitrate)
+                                             codec=video_codec, bitrate=video_bitrate,
+                                             debug=self.debug_run)
                 self.debug[identifier + '.video'] = video_writer
         
 

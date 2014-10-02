@@ -256,7 +256,7 @@ class VideoWriterFFmpeg(object):
     """
         
     def __init__(self, filename, size, fps, is_color=True, codec="libx264",
-                 bitrate=None):
+                 bitrate=None, debug=False):
 
         self.filename = filename
         self.codec = codec
@@ -275,7 +275,7 @@ class VideoWriterFFmpeg(object):
         # build the FFmpeg command
         cmd = (
             [FFMPEG_BINARY, '-y',
-             '-loglevel', 'error', #"info" if verbose() else "error",
+             '-loglevel', 'verbose' if debug else 'error',
              '-threads', '1', #< single threaded encoding for safety
              '-f', 'rawvideo',
              '-vcodec','rawvideo',
@@ -326,6 +326,7 @@ class VideoWriterFFmpeg(object):
             self.proc.stdin.write(img_array.tostring())
         except IOError as err:
             FFmpeg_error = self.proc.stderr.read()
+            
             error = (str(err) +
                      "\n\nFFmpeg encountered the following error while "
                      "writing file %s:\n\n" % self.filename +
@@ -352,6 +353,15 @@ class VideoWriterFFmpeg(object):
                   "was too high or too low for the video codec.")
             
             raise IOError(error)
+        
+        # check for extra output in debug mode
+        if self.debug:
+            stderr_read = os.read(self.proc.stderr.fileno(), 1024)
+            FFmpeg_output = stderr_read 
+            while len(stderr_read) == 1024:
+                stderr_read = os.read(self.proc.stderr.fileno(), 1024)
+                FFmpeg_output += stderr_read
+            logger.info(FFmpeg_output)
         
         
     def close(self):
