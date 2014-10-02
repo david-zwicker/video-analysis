@@ -16,7 +16,8 @@ from ..algorithm.data_handler import DataDict
 
 class HPCProjectBase(object):
     """ class that manages a high performance computing project """
-    job_files = [] #< files that need to be set up for the project
+    files_job = tuple()      #< files that need to be set up for the project
+    files_cleanup = tuple()  #< files that need to be deleted to clean the work folder
     
     
     def __init__(self, folder, name=None, parameters=None, passes=2):
@@ -32,8 +33,17 @@ class HPCProjectBase(object):
         self.parameters = DataDict(PARAMETERS_DEFAULT)
         if parameters is not None:
             self.parameters.from_dict(parameters)
+            
         
-    
+    def clean_workfolder(self):
+        """ clears the project folder """
+        for filename in (self.files_job + self.files_cleanup):
+            try:
+                os.remove(os.path.join(self.folder, filename))
+            except OSError:
+                pass
+
+
     @classmethod
     def create(cls, video_file, result_folder, video_name=None,
                parameters=None, passes=2):
@@ -58,6 +68,7 @@ class HPCProjectBase(object):
         result_folder = os.path.abspath(os.path.expanduser(result_folder))
         folder = os.path.join(result_folder, video_name)
         project =  cls(folder, video_name, parameters, passes)
+        project.clean_workfolder()
         
         # extract folder of current file
         this_folder, _ = os.path.split(__file__)
@@ -72,7 +83,7 @@ class HPCProjectBase(object):
                   'TRACKING_PARAMETERS': pprint.pformat(tracking_parameters)}
         
         # add job files to parameters
-        for k, filename in enumerate(cls.job_files):
+        for k, filename in enumerate(cls.files_job):
             params['JOB_FILE_%d' % k] = filename
         
         # setup job resources
@@ -87,7 +98,7 @@ class HPCProjectBase(object):
             pass
         
         # set up job scripts
-        for filename in cls.job_files:
+        for filename in cls.files_job:
             script = project.get_template(filename)
             script = script.format(**params)
             open(os.path.join(project.folder, filename), 'w').write(script)

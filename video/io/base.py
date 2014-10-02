@@ -63,12 +63,18 @@ class VideoBase(object):
         self._frame_pos = 0
     
     
+    def get_property_list(self):
+        """ returns a list of properties in a way which is useful for printing """
+        return ('size=(%d, %d)' % self.size,
+                'frame_count=%s' % self.frame_count,
+                'fps=%s' % self.fps,
+                'is_color=%s' % self.is_color)
+        
+    
     def __str__(self):
         """ returns a string representation with important properties of the video """
-        result = "%s(size=%s, frame_count=%s, fps=%s, is_color=%s)" % (
-                    self.__class__.__name__, self.size, self.frame_count,
-                    self.fps, self.is_color
-                )
+        result = "%s(%s)" % (self.__class__.__name__,
+                             ', '.join(self.get_property_list()))
         if len(self._listeners) == 1:
             result += '[1 listener]'
         elif len(self._listeners) > 0:

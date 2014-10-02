@@ -73,6 +73,15 @@ class VideoOpenCV(VideoBase):
                      filename, frame_count)
     
         
+    @property
+    def closed(self):
+        return self._movie is None
+        
+        
+    def open(self):
+        self._movie = cv2.VideoCapture(self.filename)
+        
+        
     def get_frame_pos(self):
         """ returns the 0-based index of the next frame """
         return int(self._movie.get(cv.CV_CAP_PROP_POS_FRAMES))
@@ -132,6 +141,7 @@ class VideoOpenCV(VideoBase):
                     
     def close(self):
         self._movie.release()
+        self._movie = None
                     
                     
     def __del__(self):

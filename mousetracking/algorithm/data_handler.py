@@ -48,7 +48,7 @@ def load_any_video(video_filename_pattern):
     on the video_filename_pattern supplied """
     if any(c in video_filename_pattern for c in r'*?%'):
         # contains placeholder => load multiple videos
-        return VideoFileStack(video_filename_pattern)
+        return VideoFileStack(video_filename_pattern, keep_files_open=False)
     else:
         # no placeholder => load single video
         return VideoFile(video_filename_pattern)

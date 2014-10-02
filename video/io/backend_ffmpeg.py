@@ -86,7 +86,8 @@ class VideoFFmpeg(VideoBase):
             bufsize = self.depth * w * h + 100
 
         self.bufsize = bufsize
-        self.initialize()
+        self.proc = None
+        self.open()
 
         self.lastread = None
         
@@ -99,12 +100,17 @@ class VideoFFmpeg(VideoBase):
 
 
     def print_infos(self):
+        """ print information about the video file """
         ffmpeg_parse_infos(self.filename, print_infos=True)
 
 
-    def initialize(self, index=0):
+    @property
+    def closed(self):
+        return self.proc is None
+
+
+    def open(self, index=0):
         """ Opens the file, creates the pipe. """
-        
         self.close() # close if anything was opened
         
         if index != 0:
@@ -138,7 +144,7 @@ class VideoFFmpeg(VideoBase):
         """ sets the video to position index """
         if index != self._frame_pos:
             if (index < self._frame_pos) or (index > self._frame_pos + 100):
-                self.initialize(index)
+                self.open(index)
             else:
                 skip_frames = index - self._frame_pos
                 w, h = self.size
@@ -203,11 +209,12 @@ class VideoFFmpeg(VideoBase):
 
     
     def close(self):
-        if hasattr(self, 'proc'):
+        """ close the process reading the video """
+        if self.proc is not None:
             self.proc.terminate()
             self.proc.stdout.close()
             self.proc.stderr.close()
-            del self.proc
+            self.proc = None
     
     
     def __del__(self):
@@ -262,7 +269,8 @@ class VideoWriterFFmpeg(object):
         self.codec = codec
         self.ext = self.filename.split(".")[-1]
         self.size = size
-        self.is_color = is_color        
+        self.is_color = is_color
+        self.debug = debug        
 
         if size[0]%2 != 0 or size[1]%2 != 0:
             raise ValueError('Both dimensions of the video must be even for '

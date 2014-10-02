@@ -58,7 +58,8 @@ class VideoFileStack(VideoBase):
     The filenames must contain consecutive numbers
     """ 
     
-    def __init__(self, filename_scheme='%d', index_start=1, index_end=None, video_file_class=VideoFile):
+    def __init__(self, filename_scheme='%d', index_start=1, index_end=None,
+                 video_file_class=VideoFile, keep_files_open=True):
         """
         initialize the VideoFileStack.
         
@@ -70,10 +71,12 @@ class VideoFileStack(VideoBase):
         be determined using index_start and index_end.
         
         video_file_class determines the class with which videos are loaded
+        keep_files_open determines whether all files are kept open at all times.
+            Otherwise only the file that is currently needed is opened. This
+            can result in severe performance penalties if frames are accessed
+            randomly. Conversely, keeping only one file open at a time can
+            increase robustness.
         """
-        
-        
-        print 'read file in process ', os.getpid()
         
         # initialize the list containing all the files
         self._videos = []
@@ -81,6 +84,8 @@ class VideoFileStack(VideoBase):
         self._offsets = []
         # internal pointer to the current video from which to take a frame
         self._video_pos = 0
+        
+        self.keep_files_open = keep_files_open
         
         # find all files that have to be considered
         if '*' in filename_scheme or '?' in filename_scheme:
@@ -142,6 +147,9 @@ class VideoFileStack(VideoBase):
             self._videos.append(video)
             
             logger.info('Found video `%s`', video.filename)
+
+            if not self.keep_files_open:
+                video.close()
                         
         if not self._videos:
             raise RuntimeError('Could not load any videos')
@@ -155,6 +163,11 @@ class VideoFileStack(VideoBase):
         return len(self._videos)
     
 
+    def get_property_list(self):
+        return super(VideoFileStack, self).get_property_list() \
+               + ('filecount=%s' % self.filecount,)
+
+
     def get_video_index(self, frame_index):
         """ returns the video and local frame_index to which a certain frame belongs """
         
@@ -162,23 +175,31 @@ class VideoFileStack(VideoBase):
             if frame_index < video_start:
                 video_index -= 1
                 break
-
+        
         return video_index, frame_index - self._offsets[video_index] 
     
 
     def set_frame_pos(self, index):
-        """ sets the 0-based index of the next frame """
+        """ sets the 0-based index of the next frame.
+        This opens a potentially closed video and keeps it open afterwards.
+        This also rewinds all successive open videos.
+        """
         # set the frame position 
         super(VideoFileStack, self).set_frame_pos(index)
         
         # identify the video that frame belongs to
         self._video_pos, frame_index = self.get_video_index(index)
-        self._videos[self._video_pos].set_frame_pos(frame_index)
         
+        video = self._videos[self._video_pos]
+        if video.closed:
+            video.open()
+        video.set_frame_pos(frame_index)
+
         # rewind all subsequent _videos, because we cannot start iterating 
         # from the current position of the video
-        for m in self._videos[self._video_pos + 1:]:
-            m.set_frame_pos(0)
+        for video in self._videos[self._video_pos + 1:]:
+            if not video.closed:
+                video.set_frame_pos(0)
 
             
     def get_next_frame(self):
@@ -188,11 +209,16 @@ class VideoFileStack(VideoBase):
         while True:
             try:
                 # return next frame
-                frame = self._videos[self._video_pos].get_next_frame()
+                video = self._videos[self._video_pos]
+                if video.closed:
+                    video.open()
+                frame = video.get_next_frame()
                 break
             
             except StopIteration:
                 # if video is exhausted, step to next video
+                if not self.keep_files_open:    
+                    self._videos[self._video_pos].close()
                 self._video_pos += 1
                 
             except IndexError:
@@ -206,9 +232,14 @@ class VideoFileStack(VideoBase):
 
     def get_frame(self, index):
         """ returns a specific frame identified by its index """
-        
         video_index, frame_index = self.get_video_index(index)
-        return self._videos[video_index].get_frame(frame_index)
+        video = self._videos[video_index]
+        if video.closed:
+            video.open()
+        frame = video.get_frame(frame_index)
+        if not self.keep_files_open:
+            video.close()
+        return frame
             
 
     def close(self):
