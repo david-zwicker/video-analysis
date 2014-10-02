@@ -26,7 +26,6 @@
 * Distinguish mouse position at burrow apex from positions at other points in burrow
 	- Analyze excavated burrow space (after mouse has been active)
 * Write out images equidistantly, which can be checked more easily than videos
-* Add option to clean job directories before a new job is submitted
 
 
 Performance improvements:

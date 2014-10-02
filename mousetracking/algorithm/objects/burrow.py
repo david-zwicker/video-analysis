@@ -45,6 +45,9 @@ class Burrow(object):
     
     def __init__(self, outline, centerline=None, length=None, refined=False):
         """ initialize the structure using line on its outline """
+        if len(outline) < 3:
+            raise ValueError("Burrow outline must be defined by at least "
+                             "three points.")
         self.outline = outline
         self.centerline = centerline
         self.refined = refined

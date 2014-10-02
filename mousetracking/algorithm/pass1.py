@@ -1214,7 +1214,10 @@ class FirstPass(DataHandler):
             contour = curves.translate_points(contour,
                                               xoff=offset[0],
                                               yoff=offset[1])
-            return Burrow(contour)
+            try:
+                return Burrow(contour)
+            except ValueError as err:
+                raise RuntimeError(err.message)
             
         else:
             raise RuntimeError('Contour is not a simple polygon')
@@ -1444,7 +1447,11 @@ class FirstPass(DataHandler):
                              'polygon anymore.', self.frame_id, burrow.position)
             return None
 
-        return Burrow(outline_new, centerline=centerline_new, refined=True)
+        try:
+            return Burrow(outline_new, centerline=centerline_new, refined=True)
+        except ValueError:
+            # the burrow is not a valid burrow
+            return None
     
     
     def refine_bulky_burrow(self, burrow, burrow_prev=None):
