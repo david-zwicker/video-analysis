@@ -16,9 +16,10 @@ from ..algorithm.data_handler import DataDict
 
 class HPCProjectBase(object):
     """ class that manages a high performance computing project """
+    
     files_job = tuple()      #< files that need to be set up for the project
     files_cleanup = tuple()  #< files that need to be deleted to clean the work folder
-    
+
     
     def __init__(self, folder, name=None, parameters=None, passes=2):
         """ initializes a project with all necessary information """
@@ -35,18 +36,27 @@ class HPCProjectBase(object):
             self.parameters.from_dict(parameters)
             
         
-    def clean_workfolder(self):
+    def clean_workfolder(self, purge=False):
         """ clears the project folder """
-        for filename in (self.files_job + self.files_cleanup):
-            try:
-                os.remove(os.path.join(self.folder, filename))
-            except OSError:
-                pass
+        # determine which files to delete
+        if purge:
+            files_to_delete = os.listdir(self.folder)
+        else:
+            files_to_delete = self.files_job + self.files_cleanup
+            
+        # iteratively delete these files
+        for filename in files_to_delete:
+            file_path = os.path.join(self.folder, filename)
+            if os.path.isfile(file_path):
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass
 
 
     @classmethod
     def create(cls, video_file, result_folder, video_name=None,
-               parameters=None, passes=2):
+               parameters=None, passes=2, prepare_workfolder='clean' ):
         """ creates a new project from data
         video_file is the filename of the video to scan
         result_folder is a general folder in which the results will be stored.
@@ -55,6 +65,11 @@ class HPCProjectBase(object):
             to name folders and such. If no name is given, the filename is used.
         parameters is a dictionary that sets the parameters that are
             used for tracking.
+        passes is an integer which is 1 or 2, indicating whether only the first
+            tracking pass or also the second one should be initialized
+        prepare_workfolder can be 'none', 'clean', or 'purge', which indicates
+            increasing amounts of files that will be deleted before creaing
+            the project
         """
         video_file = os.path.abspath(video_file)
 
@@ -68,7 +83,11 @@ class HPCProjectBase(object):
         result_folder = os.path.abspath(os.path.expanduser(result_folder))
         folder = os.path.join(result_folder, video_name)
         project =  cls(folder, video_name, parameters, passes)
-        project.clean_workfolder()
+        
+        if 'clean' in prepare_workfolder:
+            project.clean_workfolder()
+        elif 'purge' in prepare_workfolder:
+            project.clean_workfolder(purge=True)
         
         # extract folder of current file
         this_folder, _ = os.path.split(__file__)

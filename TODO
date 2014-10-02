@@ -9,7 +9,6 @@
 * Get precise cage dimensions:
 	- Do line scans at border in all directions and determine cage edge
 	- Think about getting a more precise estimate of the cage
-* Define units for frames and pixel using pint (for proper output)
 * Maybe we can get away with just using GrabCut for finding burrows?
 	- Change explored area to never decay but just accumulate pixels at every frame
 	- We can then get an idea of the explored area by requiring that a pixel has to be visited > 100 times
