@@ -85,16 +85,14 @@ class FirstPass(DataHandler):
         """
         
         # load the video if it is not already loaded 
-        super(FirstPass, self).load_video(video, crop_video=crop_video)
-                
-        self.data.create_child('video/input', {'frame_count': self.video.frame_count,
-                                               'size': '%d x %d' % tuple(self.video.size),
-                                               'fps': self.video.fps})
+        video_info = super(FirstPass, self).load_video(video, crop_video=crop_video)
+        self.data.create_child('pass1/video', video_info)
+        del self.data['pass1/video/filecount']
         
         self.data['analysis-status'] = 'Loaded video'            
 
     
-    def process_video(self):
+    def process(self):
         """ processes the entire video """
         self.log_event('Pass 1 - Started initializing the video analysis.')
         
@@ -103,11 +101,12 @@ class FirstPass(DataHandler):
             self.video, cropping_rect = self.crop_video_to_cage(self.video)
         else:
             cropping_rect = None
-        self.data.create_child('video/analyzed', {'frame_count': self.video.frame_count,
-                                                  'region_cage': cropping_rect,
-                                                  'size': '%d x %d' % tuple(self.video.size),
-                                                  'fps': self.video.fps})
-        
+            
+        video_info = self.data['pass1/video']
+        video_info['cropping_cage'] = cropping_rect
+        video_info['frame_count'] = self.video.frame_count
+        video_info['size'] = '%d x %d' % tuple(self.video.size),
+            
         self.debug_setup()
         self.setup_processing()
 
@@ -146,7 +145,7 @@ class FirstPass(DataHandler):
     def add_processing_statistics(self, time):
         """ add some extra statistics to the results """
         frames_analyzed = self.frame_id + 1
-        self.data['video/analyzed/frames_analyzed'] = frames_analyzed
+        self.data['pass1/video/frames_analyzed'] = frames_analyzed
         self.result['statistics/processing_time'] = time
         self.result['statistics/processing_fps'] = frames_analyzed/time
 
@@ -250,7 +249,7 @@ class FirstPass(DataHandler):
             self.update_background_model(frame)
                 
             # store some information in the debug dictionary
-            self.debug_process_frame(frame_blurred)
+            self.debug_process_frame(frame)
                          
                     
     #===========================================================================
@@ -354,7 +353,7 @@ class FirstPass(DataHandler):
         rect_cage = (rect_cage[0], rect_cage[1], width, height)
         
         self.logger.debug('The cage was determined to lie in the rectangle %s', rect_cage)
-
+        
         # crop the video to the cage region
         return FilterCrop(video, rect_cage), rect_cage
             
@@ -1663,7 +1662,7 @@ class FirstPass(DataHandler):
         # set up the general video output, if requested
         if 'video' in self.debug_output or 'video.show' in self.debug_output:
             # initialize the writer for the debug video
-            debug_file = self.get_filename('debugvideo' + video_extension, 'debug')
+            debug_file = self.get_filename('pass1' + video_extension, 'debug')
             self.debug['video'] = VideoComposer(debug_file, size=self.video.size,
                                                 fps=self.video.fps, is_color=True,
                                                 output_period=video_output_period,
@@ -1674,7 +1673,7 @@ class FirstPass(DataHandler):
                 name = self.name if self.name else ''
                 position = self.params['debug/window_position']
                 image_window = ImageWindow(self.debug['video'].shape,
-                                           title='Debug video' + ' [%s]' % name,
+                                           title='Debug video pass 1 [%s]' % name,
                                            multiprocessing=self.params['debug/use_multiprocessing'],
                                            position=position)
                 self.debug['video.show'] = image_window
@@ -1789,11 +1788,12 @@ class FirstPass(DataHandler):
             self.debug['video.show'].close()
         
         # close the open video streams
-        for i in ('video', 'difference.video', 'background.video', 'explored_area.video'):
-            if i in self.debug:
+        for video in ('video', 'difference.video', 'background.video', 'explored_area.video'):
+            if video in self.debug:
                 try:
-                    self.debug[i].close()
+                    self.debug[video].close()
                 except IOError:
-                    self.logger.exception('Error while writing out the debug video') 
+                    self.logger.exception('Error while writing out the debug '
+                                          'video `%s`' % video) 
             
     

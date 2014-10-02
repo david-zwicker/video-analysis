@@ -68,7 +68,7 @@ class HPCProjectBase(object):
         passes is an integer which is 1 or 2, indicating whether only the first
             tracking pass or also the second one should be initialized
         prepare_workfolder can be 'none', 'clean', or 'purge', which indicates
-            increasing amounts of files that will be deleted before creaing
+            increasing amounts of files that will be deleted before creating
             the project
         """
         video_file = os.path.abspath(video_file)

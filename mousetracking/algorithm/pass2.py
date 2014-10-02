@@ -54,13 +54,13 @@ class SecondPass(DataHandler):
         return obj
     
 
-    def process_data(self):
+    def process(self):
         """ do the second pass of the analysis """
         
         self.find_mouse_track()
         self.smooth_ground_profile()
         #self.smooth_burrows() # this should be 'morphing'
-        self.classify_mouse_track()
+        #self.classify_mouse_track()
         
         self.data['analysis-status'] = 'Finished second pass'
         self.log_event('Pass 2 - Finished second pass.')
@@ -218,7 +218,7 @@ class SecondPass(DataHandler):
         path = self.get_best_track(tracks)
         
         # build a single trajectory out of this
-        trajectory = np.empty((self.data['video/input/frame_count'], 2))
+        trajectory = np.empty((self.data['pass1/video/frames_analyzed'], 2))
         trajectory.fill(np.nan)
         
         time, obj = None, None        

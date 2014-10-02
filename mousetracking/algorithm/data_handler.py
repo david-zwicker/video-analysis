@@ -78,16 +78,17 @@ class DataHandler(object):
         self.data = DataDict()
         self.data.create_child('parameters')
         self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
-        self.user_parameters = parameters
+        self.parameters_user = parameters #< parameters with higher priority
+
+        # folders must be initialized before the data is read
+        if initialize_parameters:
+            self.initialize_parameters(parameters)
+            self.data['analysis-state'] = 'Initialized parameters'
 
         if read_data:
             # read_data internally initializes the parameters 
             self.read_data()
             self.data['analysis-state'] = 'Data from previous run has been read'
-
-        elif initialize_parameters:
-            self.initialize_parameters(parameters)
-            self.data['analysis-state'] = 'Initialized parameters'
 
 
     def check_parameters(self, parameters):
@@ -185,7 +186,7 @@ class DataHandler(object):
             folder = os.path.join(base_folder, self.data['parameters/debug/folder'])
         else:
             self.logger.warn('Requested unknown folder `%s`.' % folder)
-            
+
         folder = os.path.abspath(folder)
         ensure_directory_exists(folder)
         return folder
@@ -255,7 +256,7 @@ class DataHandler(object):
         return code_status
     
     
-    def load_video(self, video=None, crop_video=True):
+    def load_video(self, video=None, crop_video=True, cropping_rect=None):
         """ loads the video and applies a monochrome and cropping filter """
         # initialize the video
         if video is None:
@@ -267,13 +268,16 @@ class DataHandler(object):
             self.video = video
 
         # save some data about the video
-        self.data.create_child('video/raw', {'frame_count': self.video.frame_count,
-                                             'size': '%d x %d' % tuple(self.video.size),
-                                             'fps': self.video.fps})
+        video_info = {'frame_count': self.video.frame_count,
+                      'size': '%d x %d' % tuple(self.video.size),
+                      'fps': self.video.fps}
         try:
-            self.data['video/raw/filecount'] = self.video.filecount
+            video_info['filecount'] = self.video.filecount
         except AttributeError:
-            self.data['video/raw/filecount'] = 1
+            video_info['filecount'] = 1
+            
+        self.data.create_child('video', video_info)
+        self.data['video/filename_pattern'] = video_filename_pattern 
 
         # restrict the analysis to an interval of frames
         frames = self.data.get('parameters/video/frames', None)
@@ -281,13 +285,17 @@ class DataHandler(object):
             self.video = self.video[frames[0]:frames[1]]
         else:
             frames = (0, self.video.frame_count)
+            
+        video_info['frames'] = frames
 
-        cropping_rect = self.data.get('parameters/video/cropping_rect', None)
+        if cropping_rect is None:
+            cropping_rect = self.data.get('parameters/video/cropping_rect', None)
+
+        # restrict video to green channel if it is a color video
+        color_channel = 'green' if self.video.is_color else None
+        video_info['color_channel'] = color_channel
 
         if crop_video and cropping_rect is not None:
-            # restrict video to green channel if it is a color video
-            color_channel = 'green' if self.video.is_color else None
-            
             if isinstance(cropping_rect, str):
                 # crop according to the supplied string
                 self.video = FilterCrop(self.video, region=cropping_rect,
@@ -297,13 +305,17 @@ class DataHandler(object):
                 self.video = FilterCrop(self.video, rect=cropping_rect,
                                         color_channel=color_channel)
                 
-        else: # user_crop is not None                
-            # use the full video
-            if self.video.is_color:
-                # restrict video to green channel if it is a color video
-                self.video = FilterMonochrome(self.video, 'green')
-            else:
+            video_info['cropping_rect'] = cropping_rect
+                
+        else: # user_crop is not None => use the full video
+            if color_channel is None:
                 self.video = self.video
+            else:
+                self.video = FilterMonochrome(self.video, color_channel)
+
+            video_info['cropping_rect'] = None
+        
+        return video_info
 
             
     def write_data(self):
@@ -345,7 +357,7 @@ class DataHandler(object):
             self.data.from_dict(yaml.load(infile))
         
         # initialize the parameters read from the YAML file
-        self.initialize_parameters(self.user_parameters)
+        self.initialize_parameters(self.parameters_user)
         
         # initialize the loaders for values stored elsewhere
         hdf_folder = self.get_folder('results')

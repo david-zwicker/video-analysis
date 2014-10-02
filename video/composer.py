@@ -140,6 +140,11 @@ class VideoComposer(VideoFileWriter):
     @skip_if_no_output
     def add_polygon(self, points, color='w', is_closed=True, mark_points=False, width=1):
         """ adds a polygon to the frame """
+        
+        # filter the points
+        points = [p for p in points
+                  if np.all(np.isfinite(p))]
+        
         # add the polygon
         cv2.polylines(self.frame, np.array([points], np.int32),
                       isClosed=is_closed, color=get_color(color),
@@ -163,10 +168,10 @@ class VideoComposer(VideoFileWriter):
         """ add a circle to the frame.
         thickness=-1 denotes a filled circle 
         """
-        pos = (int(pos[0]), int(pos[1]))
         try:
+            pos = (int(pos[0]), int(pos[1]))
             cv2.circle(self.frame, pos, int(radius), get_color(color), thickness=int(thickness))
-        except OverflowError:
+        except (ValueError, OverflowError):
             pass
         
     

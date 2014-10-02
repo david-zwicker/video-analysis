@@ -11,10 +11,9 @@ from __future__ import division
 import os
 import warnings
 
+from .algorithm import FirstPass, SecondPass, ThirdPass
 from .algorithm.parameters import PARAMETERS_DEFAULT, set_base_folder
 from .algorithm.analyzer import Analyzer
-from .algorithm.pass1 import FirstPass
-from .algorithm.pass2 import SecondPass
 
 
 
@@ -42,13 +41,17 @@ def scan_video(name, video=None, parameters=None, passes=2, **kwargs):
     # do first pass
     job = FirstPass(name, parameters=parameters)
     job.load_video(video, crop_video=crop_video)
-    job.process_video()
+    job.process()
     
     # do second pass
     if passes > 1:
         job = SecondPass.from_first_pass(job)
-        job.process_data()
-        job.produce_video()
+        job.process()
+    
+    # do third pass
+    if passes > 2:
+        job = ThirdPass.from_second_pass(job)
+        job.process()
     
 
 
