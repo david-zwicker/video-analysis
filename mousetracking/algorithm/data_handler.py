@@ -266,6 +266,7 @@ class DataHandler(object):
                 
         else:
             self.video = video
+            video_filename_pattern = None
 
         # save some data about the video
         video_info = {'frame_count': self.video.frame_count,

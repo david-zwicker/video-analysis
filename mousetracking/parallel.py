@@ -63,7 +63,7 @@ def scan_video_quadrants(video=None, parameters=None, **kwargs):
     
     # create a fork, such that the data can be analyzed by multiple consumers
     video_fork = VideoFork(video, synchronized=True, client_count=len(QUADRANTS))
-    
+
     senders = []
     for name, crop in QUADRANTS.iteritems():
         # save the cropping rectangle for further analysis later
