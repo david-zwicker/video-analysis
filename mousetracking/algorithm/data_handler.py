@@ -80,12 +80,14 @@ class DataHandler(object):
         self.data['parameters'].from_dict(PARAMETERS_DEFAULT)
         self.user_parameters = parameters
 
-        if initialize_parameters:
+        if read_data:
+            # read_data internally initializes the parameters 
+            self.read_data()
+            self.data['analysis-state'] = 'Data from previous run has been read'
+
+        elif initialize_parameters:
             self.initialize_parameters(parameters)
             self.data['analysis-state'] = 'Initialized parameters'
-
-        if read_data:
-            self.read_data()
 
 
     def check_parameters(self, parameters):
@@ -333,9 +335,7 @@ class DataHandler(object):
        
                         
     def read_data(self):
-        """ read the data from result files.
-        If load_from_hdf is False, the data from the HDF file is not loaded.
-        """
+        """ read the data from result file """
         
         # read the main result file and copy data into internal dictionary
         filename = self.get_filename('results.yaml', 'results')
