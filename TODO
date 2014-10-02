@@ -19,10 +19,8 @@
 		This allows us to remove noise
 	- Explored area can then be used in the GrabCut algorithm as potential foreground		
 	- Think about redetermining centerlines of elongated burrows that have not been fitted in pass 2
-* Add mechanism for conveniently defining parameters for single runs
 * Gather more statistics about why certain parts of the algorithm failed
 * Handle burrows with two entrances (e.g. video 14)
-* Change parameters of output ffmpeg to produce useable videos, even when process was killed
 * Distinguish mouse position at burrow apex from positions at other points in burrow
 	- Analyze excavated burrow space (after mouse has been active)
 * Write out images equidistantly, which can be checked more easily than videos

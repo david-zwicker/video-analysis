@@ -16,14 +16,39 @@ import networkx as nx
 from .data_handler import DataHandler
 from .objects import mouse
 
+try:
+    import pint
+    UNITS_AVAILABLE = True
+except (ImportError, ImportWarning):
+    UNITS_AVAILABLE = False
+
+
 
 class Analyzer(DataHandler):
     """ class contains methods to analyze the results of a video """
     
+    use_units = True
+    
     def __init__(self, *args, **kwargs):
         super(Analyzer, self).__init__(*args, **kwargs)
         
+        if self.use_units and not UNITS_AVAILABLE:
+            raise ValueError('Outputting results with units is not available. '
+                             'Please install the `pint` python package.')
+
+        # set the dimensions        
         self.time_scale = 1/self.data['video/analyzed/fps']
+        self.length_scale = self.data['pass2/pixel_size_cm']
+        
+        if self.use_units:
+            # use a unit registry to keep track of all units
+            self.units = pint.UnitRegistry()
+            # define custom units
+            self.units.define('frames = %g * second' % self.time_scale)
+            self.units.define('pixel = %g * centimeter' % self.length_scale)
+            # augment the dimension with the appropriate units
+            self.time_scale *= self.units.second
+            self.length_scale *= self.units.centimeter
         
     
     def get_burrow_lengths(self):

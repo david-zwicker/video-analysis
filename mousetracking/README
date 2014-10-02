@@ -4,13 +4,13 @@ h5py        -- HDF5 python binding for writing out data
 matplotlib  -- Plotting library used for output
 networkx    -- Graph based tracking
 numpy		-- Array library used for manipulating data
-pint		-- Unit library to handle output with physical units
 scipy       -- Miscellaneous scientific functions
 shapely     -- Library for manipulating shapes
 yaml        -- YAML binding for writing out data
 
 
 Optional python packages:
-tqdm        -- for showing a progress bar while iterating
-sharedmem   -- for showing the debug video in a separate process while iterating 
 descartes   -- for debug plotting of shapes
+pint		-- Unit library to handle output with physical units
+sharedmem   -- for showing the debug video in a separate process while iterating 
+tqdm        -- for showing a progress bar while iterating

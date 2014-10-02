@@ -98,7 +98,7 @@ PARAMETER_LIST = [
               'options might be None, "gzip", "lzf", and "szip".'),
     
     # Cage
-    Parameter('cage/width_real', 85.5, UNIT.LENGTH_CM,
+    Parameter('cage/width_cm', 85.5, UNIT.LENGTH_CM,
               'Measured width of the cages/antfarms. The width is measured '
               'inside the cage, not including the frame.'),
     Parameter('cage/determine_boundaries', True, UNIT.BOOLEAN,

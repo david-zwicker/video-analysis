@@ -276,9 +276,11 @@ class SecondPass(DataHandler):
         profile.smooth(sigma)
          
         # store the result
+        width_mean, width_std = np.mean(cage_width), np.std(cage_width)
         self.data['pass2/ground_profile'] = profile
-        self.data['pass2/cage/width_mean'] = np.mean(cage_width)
-        self.data['pass2/cage/width_std'] = np.std(cage_width)
+        self.data['pass2/cage/width_mean'] = width_mean
+        self.data['pass2/cage/width_std'] = width_std
+        self.data['pass2/pixel_size_cm'] = self.params['cage/width_cm']/width_mean
         
         
     #===========================================================================
