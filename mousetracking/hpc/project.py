@@ -43,7 +43,10 @@ class HPCProjectBase(object):
         """ clears the project folder """
         # determine which files to delete
         if purge:
-            files_to_delete = os.listdir(self.folder)
+            try:
+                files_to_delete = os.listdir(self.folder)
+            except OSError:
+                files_to_delete = tuple()
         else:
             files_to_delete = []
             for p in self.passes:

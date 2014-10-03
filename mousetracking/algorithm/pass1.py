@@ -711,7 +711,15 @@ class FirstPass(DataHandler):
                     self.debug['video'].add_points([(pos_x, pos_y)], radius=2)
 #                 i_max = np.argmax(np.diff(profile) > )
 #                 pos_y = image.get_steepest_point(line_scan, 1, smoothing=ridge_width)#spacing)
-            pos_y = pos_ys[0]
+
+            try:
+                pos_y = pos_ys[0]
+            except IndexError:
+                raise RuntimeError("Ground profile could not be determined "
+                                   "since no ridge points could be detected. "
+                                   "Try lowering the parameter "
+                                   "'ground/slope_detector_max_factor' to "
+                                   "increase the number of detected points.")
             
             # add point
             points.append((pos_x, pos_y))
