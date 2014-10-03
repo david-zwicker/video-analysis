@@ -44,20 +44,17 @@ class ProjectSingleSlurm(HPCProjectBase):
     def submit(self):
         """ submit the tracking job using slurm """
         with change_directory(self.folder):
-            # submit first job
-            res = sp.check_output(['sbatch', self.files_job[0]])
-            pid_pass1 = int(res.split()[-1])
-            self.pids = [pid_pass1]
-            self.logger.info('Job id of first pass: %d', pid_pass1)
-
-            # submit second job if requested
-            if self.passes >= 2:
-                res = sp.check_output(['sbatch',
-                                       '--dependency=afterok:%d' % pid_pass1,
-                                       self.files_job[2]])
-                pid_pass2 = int(res.split()[-1])
-                self.pids.append(pid_pass2)
-                self.logger.info('Job id of second pass: %d', pid_pass2)
+            pid_prev = None #< pid of the previous process
+            
+            for pass_id in self.passes:
+                # create job command
+                cmd = ['sbatch', self.files_job[pass_id - 1][0]]
+                if pid_prev is not None:
+                    cmd += '--dependency=afterok:%d' % pid_prev
+                # submit command and fetch pid from output
+                res = sp.check_output(cmd)
+                pid_prev = int(res.split()[-1])
+                self.logger.info('Job id of pass %d: %d', pass_id, pid_prev)
 
 
     def check_log_for_error(self, log_file):
