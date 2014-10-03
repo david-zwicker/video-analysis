@@ -13,7 +13,8 @@ import time
 import numpy as np
 from shapely import geometry
 
-from .data_handler import DataHandler 
+from .data_handler import DataHandler
+from .objects import mouse 
 from video.analysis import curves
 from video.filters import FilterCrop
 from video.io import ImageWindow
@@ -172,7 +173,7 @@ class ThirdPass(DataHandler):
             #self.locate_burrows()
 
             # store some information in the debug dictionary
-            self.debug_process_frame(frame)
+            self.debug_process_frame(frame, mouse_track)
 
     
     #===========================================================================
@@ -190,10 +191,11 @@ class ThirdPass(DataHandler):
         
         # initialize variables
         state = {}
+        margin = self.params['mouse/model_radius']/2
                 
         # compare y value of mouse and ground
         # Note that the y-axis points down
-        if self.mouse_pos[1] > self.ground.get_y(self.mouse_pos[0]):
+        if self.mouse_pos[1] > self.ground.get_y(self.mouse_pos[0]) + margin:
             state['underground'] = True
             
             # handle mouse trail
@@ -224,7 +226,14 @@ class ThirdPass(DataHandler):
                 
             # get distance the mouse is under ground
             ground_dist = -curves.curve_length(self.mouse_trail)
-                
+            
+            # score the burrow based on its entry point
+            entry_point = self.ground.line[self.ground_idx]
+            if entry_point[1] > self.ground.midline:
+                state['location'] = 'burrow'
+            else:
+                state['location'] = 'dimple'
+
         else: 
             state['underground'] = False
             mouse_radius = self.params['mouse/model_radius']
@@ -288,7 +297,7 @@ class ThirdPass(DataHandler):
                 self.debug['video.show'] = image_window
 
 
-    def debug_process_frame(self, frame):
+    def debug_process_frame(self, frame, mouse_track):
         """ adds information of the current frame to the debug output """
         
         if 'video' in self.debug:
@@ -300,10 +309,9 @@ class ThirdPass(DataHandler):
                                         mark_points=True, color='y')
         
             # indicate the mouse position
-            track = self.data['pass2/mouse_trajectory'].pos
             trail_length = self.params['output/video/mouse_trail_length']
             time_start = max(0, self.frame_id - trail_length)
-            track = track[time_start:self.frame_id, :]
+            track = mouse_track.pos[time_start:self.frame_id, :]
             if len(track) > 0:
                 debug_video.add_polygon(track, '0.5', is_closed=False)
                 debug_video.add_circle(track[-1], self.params['mouse/model_radius'],
@@ -312,6 +320,12 @@ class ThirdPass(DataHandler):
             if self.mouse_trail is not None:
                 debug_video.add_polygon(self.mouse_trail, 'w', is_closed=False,
                                         mark_points=True, width=2)
+                
+            # indicate the mouse state
+            mouse_state = mouse_track.states[self.frame_id]
+            if mouse_state in mouse.STATES_SHORT:
+                debug_video.add_text(mouse.STATES_SHORT[mouse_state],
+                                     (120, 20), anchor='top')
                 
             # add additional debug information
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   

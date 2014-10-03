@@ -22,7 +22,8 @@ The location is encoded in the last two digits
     13 = mouse is in the valley
 
 20..29 = mouse is underground
-    21 = mouse is in any burrow
+    21 = mouse is in a burrow
+    22 = mouse is in a dimple
 """
 
 STATES = { 0:'unknown',
@@ -30,8 +31,16 @@ STATES = { 0:'unknown',
           12:'hill',
           13:'valley',
           20:'sand',
-          21:'burrow'}
+          21:'burrow',
+          22:'dimple'}
 
+STATES_SHORT = { 0: 'U',
+                11: 'A',
+                12: 'H',
+                13: 'V',
+                20: 'S',
+                21: 'B',
+                22: 'D'}
 
 
 def state_to_int(state):
@@ -56,9 +65,13 @@ def state_to_int(state):
             
     elif underground == True:
         value += 20
-        if state.get('location') == 'burrow':
+        location = state.pop('location')
+        if location == 'burrow':
             value += 1
-            state.pop('location')
+        elif location == 'dimple':
+            value += 2
+        else:
+            state['location'] = location
 
     if state:
         raise RuntimeError('Some state information cannot be interpreted: %s' % state)
@@ -85,6 +98,8 @@ def int_to_state(value):
         state['underground'] = True
         if value_loc == 21:
             state['location'] = 'burrow'
+        elif value_loc == 22:
+            state['location'] = 'dimple'
     
     return state
 
@@ -103,6 +118,8 @@ def query_state(states, query):
         return (20 <= states) & (states < 30)
     elif query == 'in_burrow':
         return states == 21
+    elif query == 'in_dimple':
+        return states == 22
     else:
         raise ValueError('Unknown query `%s`' % query)
 
@@ -178,3 +195,4 @@ def test_state_conversion():
 if __name__ == '__main__':
     print('Test the state to value conversion')
     test_state_conversion()
+    
