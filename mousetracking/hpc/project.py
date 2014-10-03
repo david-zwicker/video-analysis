@@ -30,6 +30,8 @@ class HPCProjectBase(object):
         self.name = name
         if not hasattr(passes, '__iter__'):
             self.passes = range(1, passes + 1)
+        else:
+            self.passes = passes
 
         # save tracking parameters
         self.parameters = DataDict(PARAMETERS_DEFAULT)
