@@ -48,10 +48,11 @@ class ProjectSingleSlurm(HPCProjectBase):
             
             for pass_id in self.passes:
                 # create job command
-                cmd = ['sbatch', self.files_job[pass_id][0]]
+                cmd = ['sbatch']
                 if pid_prev is not None:
                     cmd.append('--dependency=afterok:%d' % pid_prev)
-                print cmd
+                cmd.append(self.files_job[pass_id][0])
+
                 # submit command and fetch pid from output
                 res = sp.check_output(cmd)
                 pid_prev = int(res.split()[-1])
