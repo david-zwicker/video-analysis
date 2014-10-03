@@ -358,7 +358,12 @@ class DataHandler(object):
         self.logger.info('Read YAML data from %s', filename)
         
         with open(filename, 'r') as infile:
-            self.data.from_dict(yaml.load(infile))
+            yaml_content = yaml.load(infile)
+            
+        if yaml_content: 
+            self.data.from_dict(yaml_content)
+        else:
+            raise ValueError('Result file is empty.')
         
         # initialize the parameters read from the YAML file
         self.initialize_parameters(self.parameters_user)

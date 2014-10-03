@@ -237,7 +237,7 @@ class ThirdPass(DataHandler):
         else: 
             state['underground'] = False
             mouse_radius = self.params['mouse/model_radius']
-            if self.mouse_pos[1] + mouse_radius < self.ground.get_y(self.mouse_pos[0]):
+            if self.mouse_pos[1] + 2*mouse_radius < self.ground.get_y(self.mouse_pos[0]):
                 state['location'] = 'air'
             elif self.mouse_pos[1] < self.ground.midline:
                 state['location'] = 'hill'
