@@ -95,7 +95,7 @@ class VideoFFmpeg(VideoBase):
                                           frame_count=infos['video_nframes'],
                                           fps=infos['video_fps'], is_color=True)
 
-        logger.debug('Initialized video `%s` with %d frames using OpenCV',
+        logger.debug('Initialized video `%s` with %d frames using FFmpeg',
                      filename, infos['video_nframes'])
 
 
@@ -310,7 +310,12 @@ class VideoWriterFFmpeg(object):
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                                      stdout=DEVNULL, stderr=subprocess.PIPE)
 
-        logger.info('Start writing video `%s` with codec `%s`', filename, codec)
+        if debug:
+            logger.info('Start writing video `%s` with codec `%s` using '
+                        'FFmpeg with debug output.', filename, codec)
+        else:
+            logger.info('Start writing video `%s` with codec `%s` using '
+                        'FFmpeg.', filename, codec)
 
     
     @property

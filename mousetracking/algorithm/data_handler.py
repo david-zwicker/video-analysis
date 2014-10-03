@@ -118,27 +118,30 @@ class DataHandler(object):
         # create logger for this object
         self.logger = logging.getLogger(self.name)
         self.logger.handlers = []     #< reset list of handlers
-        self.logger.propagate = False #< disable default logger 
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.propagate = False #< disable default logger
         
         # add default logger to stderr
         handler = logging.StreamHandler()
         formatter = logging.Formatter('%(asctime)s ' + self.name + '%(levelname)8s: %(message)s',
                                       datefmt='%Y-%m-%d %H:%M:%S')
         handler.setFormatter(formatter)
-        level = get_loglevel_from_name(self.data['parameters/logging/level_stderr'])
-        handler.setLevel(level)
+        logging_level = get_loglevel_from_name(self.data['parameters/logging/level_stderr'])
+        handler.setLevel(logging_level)
         self.logger.addHandler(handler) 
+        logging_level_min = logging_level
         
         if self.data['parameters/logging/enabled']:
             # setup handler to log to file
             logfile = self.get_filename('log.log', 'logging')
             handler = logging.FileHandler(logfile, mode=LOGGING_FILE_MODES[self.logging_mode])
             handler.setFormatter(formatter)
-            level = get_loglevel_from_name(self.data['parameters/logging/level_file'])
-            handler.setLevel(level)
+            logging_level = get_loglevel_from_name(self.data['parameters/logging/level_file'])
+            handler.setLevel(logging_level)
             self.logger.addHandler(handler)
+            logging_level_min = min(logging_level_min, logging_level)
             
+        self.logger.setLevel(logging_level_min)
+        
         if self.data['parameters/debug/use_multiprocessing']:
             self.logger.debug('Analysis runs in process %d' % os.getpid())
             
