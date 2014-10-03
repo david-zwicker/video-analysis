@@ -37,7 +37,7 @@ class Analyzer(DataHandler):
                              'Please install the `pint` python package.')
 
         # set the dimensions        
-        self.time_scale = 1/self.data['video/analyzed/fps']
+        self.time_scale = 1/self.data['video/fps']
         self.length_scale = self.data['pass2/pixel_size_cm']
         
         if self.use_units:
@@ -111,7 +111,7 @@ class Analyzer(DataHandler):
             # get statistics            
             rate = 1/np.mean(lengths)
             nodes[u] += sum(lengths)
-            
+
             # add the edge
             graph.add_edge(u, v, rate=rate, count=len(lengths))
         
@@ -147,6 +147,7 @@ class Analyzer(DataHandler):
         
         # hard-coded node positions
         pos = {'unknown': (2, 2),
+               'dimple': (0, 1),
                'air': (1.5, 3),
                'hill': (0, 2),
                'valley': (1.2, 1.5),

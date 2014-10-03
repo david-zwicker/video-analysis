@@ -169,7 +169,19 @@ class MouseTrack(object):
     
     
     def to_array(self):
-        return np.c_[self.pos, self.states, self.ground_idx, self.ground_dist]
+        # determine the full data set
+        data = [self.pos, self.states[:, None],
+                self.ground_idx[:, None], self.ground_dist[:, None]]
+        data_count = len(data)
+        # remove columns from the right if they do not contain data
+        if not np.any(np.isfinite(self.ground_dist)):
+            data_count -= 1
+            if not np.any(np.isfinite(self.ground_idx)):
+                data_count -= 1
+                if not np.any(self.states != 0):
+                    data_count -= 1
+                    
+        return np.concatenate(data[:data_count], axis=1)
     
     
     @classmethod

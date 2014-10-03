@@ -271,6 +271,9 @@ PARAMETER_LIST = [
     Parameter('resources/pass2/cores', 2, None, 'Number of cores for pass 2'),
     Parameter('resources/pass2/time', 20*60, None, 'Maximal computation minutes for pass 2'),
     Parameter('resources/pass2/memory', 8000, None, 'Maximal RAM per core for pass 2 [in MB]'),
+    Parameter('resources/pass3/cores', 4, None, 'Number of cores for pass 3'),
+    Parameter('resources/pass3/time', 30*60, None, 'Maximal computation minutes for pass 3'),
+    Parameter('resources/pass3/memory', 1000, None, 'Maximal RAM per core for pass 3 [in MB]'),
 ]
 
 PARAMETERS = {p.key: p for p in PARAMETER_LIST}

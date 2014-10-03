@@ -8,7 +8,7 @@ import logging
 sys.path.append(os.path.expanduser("{FOLDER_CODE}"))
 
 from mousetracking import load_results
-from mousetracking.algorithm import SecondPass
+from mousetracking.algorithm import ThirdPass
 
 # configure basic logging, which will be overwritten later
 logging.basicConfig()
@@ -19,7 +19,5 @@ parameters = {{'base_folder': "{JOB_DIRECTORY}",
                'output/folder': ".",}}
 
 # do the second pass scan
-results = load_results("{NAME}", parameters, cls=SecondPass)
+results = load_results("{NAME}", parameters, cls=ThirdPass)
 results.process()
-if results.data['parameters/output/video/enabled']:
-    results.produce_video()

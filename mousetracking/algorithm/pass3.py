@@ -80,7 +80,7 @@ class ThirdPass(DataHandler):
         
         try:
             # skip the first frame, since it has already been analyzed
-            self._iterate_over_video(self.video[1:])
+            self._iterate_over_video(self.video)
                 
         except (KeyboardInterrupt, SystemExit):
             # abort the video analysis
@@ -124,14 +124,9 @@ class ThirdPass(DataHandler):
         if cropping_cage is not None:
             self.video = FilterCrop(self.video, rect=cropping_cage)
             
-        frames = self.data['pass1/video/frames']
-        if frames is not None:
-            self.video = self.video[frames[0]:frames[1]]
-        
         video_info = self.data['pass3/video']
         video_info['cropping_cage'] = cropping_cage
         video_info['frame_count'] = self.video.frame_count
-        video_info['frames'] = frames
         video_info['size'] = '%d x %d' % tuple(self.video.size),
         
         # get first frame, which will not be used in the iteration
@@ -142,6 +137,7 @@ class ThirdPass(DataHandler):
         self.background = first_frame.astype(np.double)
         self.ground_idx = None  #< index of the ground point where the mouse entered the burrow
         self.mouse_trail = None #< line from this point to the mouse (along the burrow)
+        self.burrows = []       #< list of current burrows
         
         
     def _iterate_over_video(self, video):
@@ -168,9 +164,7 @@ class ThirdPass(DataHandler):
 
             # do the actual work            
             self.classify_mouse_state(mouse_track)
-            # TODO: use the current mouse tracks to know where the burrows are
-            # use self.background to fit the burrows
-            #self.locate_burrows()
+            self.locate_burrows()
 
             # store some information in the debug dictionary
             self.debug_process_frame(frame, mouse_track)
@@ -251,6 +245,9 @@ class ThirdPass(DataHandler):
             # get distance from ground line
             mouse_point = geometry.Point(self.mouse_pos)
             ground_dist = self.ground.linestring.distance(mouse_point)
+            # report the distance as negative, if the mouse is under the ground line
+            if self.mouse_pos[1] > self.ground.get_y(self.mouse_pos[0]):
+                ground_dist *= -1
             
         # set the mouse state
         mouse_track.set_state(self.frame_id, state, self.ground_idx, ground_dist)
@@ -259,6 +256,38 @@ class ThirdPass(DataHandler):
     #===========================================================================
     # BURROW TRACKING
     #===========================================================================
+
+
+    def locate_burrows(self):
+        """ locates burrows based on the mouse's movement """
+        # check whether the mouse is in a burrow
+        if self.mouse_trail is None:
+            burrow_with_mouse = -1 #< all burrows are without mice
+        
+        else:
+            # mouse entered a burrow
+            entry_point_threshold = 3*self.params['burrows/width']
+            trail_length = curves.curve_length(self.mouse_trail)
+            
+            # check if we already know this burrow
+            for burrow_with_mouse, burrow in enumerate(self.burrows):
+                entry_point_dist = curves.point_distance(burrow[0], self.mouse_trail[0])
+                if entry_point_dist < entry_point_threshold:
+                    # mouse entered the k-th burrow
+                    burrow_length = curves.curve_length(burrow)
+                    if trail_length > burrow_length:
+                        self.burrows[burrow_with_mouse] = self.mouse_trail[:] #< copy list
+                    break
+            else:
+                # create the burrow, since we don't know it yet
+                self.burrows.append(self.mouse_trail[:]) #< copy list
+                burrow_with_mouse = len(self.burrows) - 1
+                
+        for k, burrow in enumerate(self.burrows):
+            # skip burrows with mice in them
+            if k == burrow_with_mouse:
+                continue
+            # TODO: fit the burrow to the background profile self.background
 
 
     #===========================================================================
@@ -317,8 +346,8 @@ class ThirdPass(DataHandler):
                 debug_video.add_circle(track[-1], self.params['mouse/model_radius'],
                                        'w', thickness=1)
                 
-            if self.mouse_trail is not None:
-                debug_video.add_polygon(self.mouse_trail, 'w', is_closed=False,
+            for burrow in self.burrows:
+                debug_video.add_polygon(burrow, 'w', is_closed=False,
                                         mark_points=True, width=2)
                 
             # indicate the mouse state
