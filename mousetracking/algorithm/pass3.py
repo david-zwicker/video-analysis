@@ -168,6 +168,7 @@ class ThirdPass(DataHandler):
             # do the actual work            
             self.classify_mouse_state(mouse_track)
             # TODO: use the current mouse tracks to know where the burrows are
+            # use self.background to fit the burrows
             #self.locate_burrows()
 
             # store some information in the debug dictionary

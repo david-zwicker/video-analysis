@@ -28,7 +28,8 @@ class HPCProjectBase(object):
 
         self.folder = folder
         self.name = name
-        self.passes = passes
+        if not hasattr(passes, '__iter__'):
+            self.passes = range(1, passes + 1)
 
         # save tracking parameters
         self.parameters = DataDict(PARAMETERS_DEFAULT)
@@ -42,7 +43,9 @@ class HPCProjectBase(object):
         if purge:
             files_to_delete = os.listdir(self.folder)
         else:
-            files_to_delete = self.files_job + self.files_cleanup
+            files_to_delete = []
+            for p in self.passes:
+                files_to_delete.extend(self.files_job[p] + self.files_cleanup[p])
             
         # iteratively delete these files
         for filename in files_to_delete:
@@ -56,7 +59,7 @@ class HPCProjectBase(object):
 
     @classmethod
     def create(cls, video_file, result_folder, video_name=None,
-               parameters=None, passes=2, prepare_workfolder='clean' ):
+               parameters=None, passes=2, prepare_workfolder='auto' ):
         """ creates a new project from data
         video_file is the filename of the video to scan
         result_folder is a general folder in which the results will be stored.
@@ -69,7 +72,8 @@ class HPCProjectBase(object):
             tracking pass or also the second one should be initialized
         prepare_workfolder can be 'none', 'clean', or 'purge', which indicates
             increasing amounts of files that will be deleted before creating
-            the project
+            the project. If it is set to 'auto', the folder will be purged
+            if a first pass run is requested.
         """
         video_file = os.path.abspath(video_file)
 
@@ -82,9 +86,12 @@ class HPCProjectBase(object):
         # setup the project instance
         result_folder = os.path.abspath(os.path.expanduser(result_folder))
         folder = os.path.join(result_folder, video_name)
-        project =  cls(folder, video_name, parameters, passes)
+        project = cls(folder, video_name, parameters, passes)
         
-        if 'clean' in prepare_workfolder:
+        if prepare_workfolder == 'auto':
+            pass1_requested = (1 in project.passes)
+            project.clean_workfolder(purge=pass1_requested)
+        elif 'clean' in prepare_workfolder:
             project.clean_workfolder()
         elif 'purge' in prepare_workfolder:
             project.clean_workfolder(purge=True)
@@ -101,10 +108,6 @@ class HPCProjectBase(object):
                   'VIDEO_FILE': video_file,
                   'TRACKING_PARAMETERS': pprint.pformat(tracking_parameters)}
         
-        # add job files to parameters
-        for k, filename in enumerate(cls.files_job):
-            params['JOB_FILE_%d' % k] = filename
-        
         # setup job resources
         resource_iter = project.parameters['resources'].iteritems(flatten=True)
         for key, value in resource_iter:
@@ -117,10 +120,16 @@ class HPCProjectBase(object):
             pass
         
         # set up job scripts
-        for filename in cls.files_job:
-            script = project.get_template(filename)
-            script = script.format(**params)
-            open(os.path.join(project.folder, filename), 'w').write(script)
+        for pass_id in project.passes:
+            # add job files to parameters
+            for k, filename in enumerate(cls.files_job[pass_id]):
+                params['JOB_FILE_%d' % k] = filename
+        
+            # create the job scripts
+            for filename in cls.files_job[pass_id]:
+                script = project.get_template(filename)
+                script = script.format(**params)
+                open(os.path.join(project.folder, filename), 'w').write(script)
             
         # create symbolic link if requested
         symlink_folder = project.parameters['project/symlink_folder']

@@ -35,9 +35,10 @@ class ProjectSingleSlurm(HPCProjectBase):
     """ HPC project based on the slurm scheduler """
 
     # the order of these files matters!
-    files_job = ('pass1_slurm.sh', 'pass1_single.py', 
-                 'pass2_slurm.sh', 'pass2_single.py')
-    files_cleanup = ('pass1_job_id.txt', 'pass2_job_id.txt')
+    files_job = {1: ('pass1_slurm.sh', 'pass1_single.py'), 
+                 2: ('pass2_slurm.sh', 'pass2_single.py')}
+    files_cleanup = {1: ('pass1_job_id.txt', ),
+                     2: ('pass2_job_id.txt', )}
     
 
     def submit(self):

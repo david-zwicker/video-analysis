@@ -11,8 +11,10 @@ from __future__ import division
 import os
 import warnings
 
+import yaml
+
 from .algorithm import FirstPass, SecondPass, ThirdPass
-from .algorithm.parameters import PARAMETERS_DEFAULT, set_base_folder
+from .algorithm.parameters import PARAMETERS_DEFAULT
 from .algorithm.analyzer import Analyzer
 
 
@@ -80,15 +82,33 @@ def load_results(name, parameters=None, cls=Analyzer, **kwargs):
 
 def load_result_file(result_file, parameters=None, **kwargs):
     """ loads the results of a simulation based on the result file """
+    if not result_file.endswith('_results.yaml'):
+        raise ValueError('Invalid result filename.')
+    
     # read folder and name from result_file
     result_file = os.path.abspath(result_file)
     folder, filename = os.path.split(result_file)
-    name = os.path.splitext(filename)[0]
-    name = '_'.join(name.split('_')[:-1])
+    name = filename[:-len('_results.yaml')]
+    
+    # read the paths from the yaml file
+    with open(result_file, 'r') as infile:
+        data = yaml.load(infile)
+    result_folder = data['parameters']['output']['folder']    
 
-    # set parameters and load results    
-    if parameters is None:
-        parameters = {}
-    parameters = set_base_folder(parameters, folder, include_default=True)
+    # infer base folder
+    if result_folder.endswith(os.sep):
+        result_folder = result_folder[:-1]
+    if result_folder.startswith('.' + os.sep):
+        result_folder = result_folder[2:]
+    if not folder.endswith(result_folder):
+        last_folder = os.path.split(folder)[1] 
+        raise ValueError('Result file does not reside in the right folder. '
+                         'File is in `%s`, but is expected in `%s`.' %
+                         (last_folder, result_folder))
+    base_folder = folder[:-len(result_folder)]
+
+    # set new base folder and load results
+    parameters = {'base_folder': base_folder,
+                  'output/folder': result_folder}
     return load_results(name, parameters, **kwargs)
     
