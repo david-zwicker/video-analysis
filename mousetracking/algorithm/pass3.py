@@ -246,6 +246,11 @@ class ThirdPass(DataHandler):
         # set the mouse state
         mouse_track.set_state(self.frame_id, state, self.ground_idx, ground_dist)
 
+    
+    #===========================================================================
+    # BURROW TRACKING
+    #===========================================================================
+
 
     #===========================================================================
     # DEBUGGING
