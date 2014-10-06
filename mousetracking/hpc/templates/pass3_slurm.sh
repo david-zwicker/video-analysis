@@ -6,6 +6,7 @@
 #SBATCH -p {SLURM_PARTITION} # Partition to submit to
 #SBATCH --mem-per-cpu={PASS3/MEMORY} # Memory per cpu in MB (see also --mem)
 #SBATCH -o {JOB_DIRECTORY}/log_pass3_%j.txt    # File to which stdout and stderr will be written
+#SBATCH --job-name={NAME}_P3
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user={NOTIFICATION_EMAIL}
 
