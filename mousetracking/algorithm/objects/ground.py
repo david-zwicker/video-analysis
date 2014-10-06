@@ -70,8 +70,8 @@ class GroundProfile(object):
     @cached_property
     def interpolator(self):
         return Interpolate_1D_Extrapolated(self._line[:, 0], self._line[:, 1])
-
-
+    
+    
     def get_y(self, x, nearest_neighbor=True):
         """ returns the y-value of the profile at a given x-position.
         This function interpolates between points and extrapolates beyond the

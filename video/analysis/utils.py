@@ -20,7 +20,6 @@ class cached_property(object):
                 return "Cached"
 
     Adapted from <http://wiki.python.org/moin/PythonDecoratorLibrary>.
-
     """
 
     def __init__(self, func, name=None, doc=None):

@@ -138,7 +138,7 @@ class VideoComposer(VideoFileWriter):
     
     
     @skip_if_no_output
-    def add_polygon(self, points, color='w', is_closed=True, mark_points=False, width=1):
+    def add_line(self, points, color='w', is_closed=True, mark_points=False, width=1):
         """ adds a polygon to the frame """
         
         # filter the points

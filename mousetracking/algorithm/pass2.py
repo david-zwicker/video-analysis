@@ -422,13 +422,13 @@ class SecondPass(DataHandler):
         
             # plot the ground profile
             ground_line = ground_profile.get_groundline(frame_id)
-            video.add_polygon(ground_line, is_closed=False,
+            video.add_line(ground_line, is_closed=False,
                               mark_points=False, color='y')
 
             # indicate burrow centerline
             for burrow in burrow_tracks.get_burrows(frame_id):
                 ground = GroundProfile(ground_line)
-                video.add_polygon(burrow.get_centerline(ground),
+                video.add_line(burrow.get_centerline(ground),
                                   'k', is_closed=False, width=2)
         
             # indicate all moving objects

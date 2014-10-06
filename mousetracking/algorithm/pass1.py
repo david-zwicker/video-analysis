@@ -851,9 +851,9 @@ class FirstPass(DataHandler):
         # plot the ground profiles to the debug video
         if 'video' in self.debug:
             debug_video = self.debug['video']
-            debug_video.add_polygon(points1, is_closed=False,
+            debug_video.add_line(points1, is_closed=False,
                                     mark_points=True, color='r')
-            debug_video.add_polygon(points2, is_closed=False, color='b')
+            debug_video.add_line(points2, is_closed=False, color='b')
         
         return GroundProfile(points3)
 
@@ -895,8 +895,12 @@ class FirstPass(DataHandler):
         pos_max = signal.argrelmax(profile)[0][0]
         pos_min = signal.argrelmin(profile[pos_max:])[0][0] + pos_max
         
-        # get steepest point in this interval
-        pos_edge = np.argmin(np.diff(profile[pos_max:pos_min])) + pos_max
+        if pos_min - pos_max >= 2:
+            # get steepest point in this interval
+            pos_edge = np.argmin(np.diff(profile[pos_max:pos_min + 1])) + pos_max
+        else:
+            # get steepest point in complete profile
+            pos_edge = np.argmin(np.diff(profile))
 
         if direction == 'right':
             pos_edge = image_width - pos_edge
@@ -1585,7 +1589,7 @@ class FirstPass(DataHandler):
 
             # add the unrefined burrow to the debug video
             if 'video' in self.debug:
-                self.debug['video'].add_polygon(burrow.outline, 'w',
+                self.debug['video'].add_line(burrow.outline, 'w',
                                                 is_closed=True, width=2)
 
             # check whether this burrow belongs to a previously found one                
@@ -1707,7 +1711,7 @@ class FirstPass(DataHandler):
             
             # plot the ground profile
             if self.ground is not None: 
-                debug_video.add_polygon(self.ground.line, is_closed=False,
+                debug_video.add_line(self.ground.line, is_closed=False,
                                         mark_points=True, color='y')
         
             # indicate the currently active burrow shapes
@@ -1716,9 +1720,9 @@ class FirstPass(DataHandler):
                 if burrow_track.track_end > self.frame_id - time_interval:
                     burrow = burrow_track.last
                     burrow_color = 'red' if burrow.refined else 'orange'
-                    debug_video.add_polygon(burrow.outline, burrow_color,
+                    debug_video.add_line(burrow.outline, burrow_color,
                                             is_closed=True, mark_points=True)
-                    debug_video.add_polygon(burrow.get_centerline(self.ground),
+                    debug_video.add_line(burrow.get_centerline(self.ground),
                                             burrow_color, is_closed=False,
                                             width=2, mark_points=True)
         
@@ -1735,7 +1739,7 @@ class FirstPass(DataHandler):
                     trail_length = self.params['output/video/mouse_trail_length']
                     if len(track) > trail_length:
                         track = track[-trail_length:]
-                    debug_video.add_polygon(track, '0.5', is_closed=False)
+                    debug_video.add_line(track, '0.5', is_closed=False)
                     debug_video.add_circle(obj.last.pos,
                                            self.params['mouse/model_radius'],
                                            obj_color, thickness=1)
@@ -1784,7 +1788,7 @@ class FirstPass(DataHandler):
             
             # plot the ground profile
             if self.ground is not None:
-                debug_video.add_polygon(self.ground.line, is_closed=False, color='y')
+                debug_video.add_line(self.ground.line, is_closed=False, color='y')
                 debug_video.add_points(self.ground.line, radius=2, color='y')
 
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
