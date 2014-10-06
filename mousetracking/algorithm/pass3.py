@@ -206,6 +206,10 @@ class ThirdPass(DataHandler):
                 # work with an existing mouse trail
                 p_trail = self.mouse_trail[-2]
                 
+                # FIXME: Smarter mouse trail statistics
+                # basically: find out whether self.mouse_pos is close to any of the
+                # previous points and if so, disregard any points after that
+                
                 trail_spacing = self.params['burrows/centerline_segment_length']
                 if curves.point_distance(p_trail, self.mouse_pos) < trail_spacing:
                     # old trail should be modified
@@ -464,7 +468,8 @@ class ThirdPass(DataHandler):
                 if entry_point_dist < entry_point_threshold:
                     # mouse entered the k-th burrow
                     if trail_length > burrow.length:
-                        self.burrows[burrow_with_mouse] = Burrow(self.mouse_trail[:]) #< copy list
+                        # update the centerline estimate
+                        self.burrows[burrow_with_mouse].centerline = self.mouse_trail[:] #< copy list
                     else:
                         burrow.refined = False
                     break

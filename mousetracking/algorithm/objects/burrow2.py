@@ -76,7 +76,7 @@ class Burrow(object):
         return self._outline
 
     
-    @outline.setter
+    @outline.setter 
     def outline(self, point_list):
         """ sets a new outline """
         if point_list is None:

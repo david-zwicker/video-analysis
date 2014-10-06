@@ -225,7 +225,7 @@ class ObjectTrackList(list):
     def break_long_tracks(self, duration_cutoff):
         """ breaks apart long tracks and stores the chunks """
         k1 = 0
-        # iterate over changing list
+        # iterate over changing list `self`
         while k1 < len(self):
             track1 = self[k1]
             if track1.duration < duration_cutoff:
@@ -248,7 +248,7 @@ class ObjectTrackList(list):
                             track1s = track1.split([track2.end + 1])
                         # else track1.end == track2.end and we don't do anything
 
-                    # we know that track1.start < track2.start 
+                    # we know that track1.start < track2.start, because we sorted
                     elif track1.end < track2.end:
                         track1s = track1.split([track2.start])
                         track2s = track2.split([track1.end + 1])

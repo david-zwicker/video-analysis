@@ -206,7 +206,7 @@ PARAMETER_LIST = [
     Parameter('tracking/time_scale', 10, UNIT.TIME_FRAMES,
               'Time duration of not seeing the mouse after which we do not ' 
               'know where it is anymore'),
-    Parameter('tracking/tolerated_overlap', 10, UNIT.TIME_FRAMES,
+    Parameter('tracking/tolerated_overlap', 50, UNIT.TIME_FRAMES,
               'How much are two consecutive tracks allowed to overlap'),
     Parameter('tracking/initial_score_threshold', 1000, UNIT.FACTOR,
               'Initial threshold for building the tracking graph'),

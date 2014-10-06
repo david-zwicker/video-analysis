@@ -104,12 +104,31 @@ class SecondPass(DataHandler):
                         + distance/self.params['mouse/speed_max']    # how close are the mice
                         + abs(gap_length)/time_scale                 # is it a long gap?
                     )
-                    
+
                     # add the edge if the weight is not too high
                     if weight < threshold:
-                        graph.add_weighted_edges_from([(a, b, weight)])
+                        graph.add_edge(a, b, weight=weight)
         return graph
             
+                
+    def find_paths_in_track_graph(self, graph, start_nodes, end_nodes, find_all=True):
+        """ finds all shortest paths from start_nodes to end_nodes in the graph """
+        # find paths between start and end nodes
+        paths = []
+        for start_node in start_nodes:
+            for end_node in end_nodes:
+                try:
+                    # find best path to reach this out degree
+                    path = nx.shortest_path(graph, start_node, end_node, weight='weight')
+                except nx.exception.NetworkXNoPath:
+                    # there are no connections between the start and the end node 
+                    continue #< check the next node
+                else:
+                    paths.append(path)
+                    if not find_all:
+                        return paths #< return as early as possible
+        return paths
+                
                 
     def get_best_track(self, tracks):
         """ finds the best connection of tracks """
@@ -130,6 +149,7 @@ class SecondPass(DataHandler):
         # get some statistics about the tracks
         start_time = min(track.start for track in tracks)
         end_time = max(track.end for track in tracks)
+        # find tracks that span the entire time
         end_node_interval = self.params['tracking/end_node_interval']
         endtoend_nodes = [track for track in tracks
                           if track.start <= start_time + end_node_interval and
@@ -138,9 +158,8 @@ class SecondPass(DataHandler):
         threshold = self.params['tracking/initial_score_threshold']
         
         # try different thresholds until we found a result
-        first_track_found = False
-        look_for_tracks = True
-        while look_for_tracks:
+        successful_iterations = 0
+        while successful_iterations < 2:
             self.logger.info('Pass 2 - Building tracking graph of %d nodes with threshold %g',
                              len(tracks), threshold) 
             graph = self.get_track_graph(tracks, threshold)
@@ -148,39 +167,24 @@ class SecondPass(DataHandler):
             self.logger.info('Pass 2 - Built tracking graph with %d nodes and %d edges',
                              graph.number_of_nodes(), graph.number_of_edges()) 
 
-            if graph.number_of_nodes() > 0:
+            # find start and end nodes
+            start_nodes = [node for node in graph
+                           if graph.in_degree(node) == 0 and 
+                               node.start <= start_time + end_node_interval]
+            end_nodes = [node for node in graph
+                         if graph.out_degree(node) == 0 and
+                             node.end >= end_time - end_node_interval]
     
-                # find start and end nodes
-                start_nodes = [node for node in graph
-                               if graph.in_degree(node) == 0 and 
-                                   node.start <= start_time + end_node_interval]
-                end_nodes = [node for node in graph
-                             if graph.out_degree(node) == 0 and
-                                 node.end >= end_time - end_node_interval]
-        
-                self.logger.info('Pass 2 - Found %d start node(s) and %d end node(s) in tracking graph.',
-                                 len(start_nodes), len(end_nodes)) 
-                
-                # find paths between start and end nodes
-                paths = []
-                for start_node in start_nodes:
-                    for end_node in end_nodes:
-                        try:
-                            # find best path to reach this out degree
-                            path = nx.shortest_path(graph, start_node, end_node, weight='weight')
-                            paths.append(path)
-                        except nx.exception.NetworkXNoPath:
-                            # there are no connections between the start and the end node 
-                            continue #< check the next node
-                        else:
-                            if first_track_found:
-                                # we did the additional search with an increased threshold
-                                look_for_tracks = False
-                            else:
-                                first_track_found = True
+            self.logger.info('Pass 2 - Found %d start node(s) and %d end node(s) in tracking graph.',
+                             len(start_nodes), len(end_nodes)) 
 
-            if first_track_found:
+            # find possible paths
+            find_all = (successful_iterations >= 1)
+            paths = self.find_paths_in_track_graph(graph, start_nodes, end_nodes, find_all)
+
+            if paths:
                 # we'll do an additional search with an increased threshold
+                successful_iterations += 1
                 threshold *= 10
             else:
                 threshold *= 2
@@ -193,8 +197,8 @@ class SecondPass(DataHandler):
             weight = sum(graph.get_edge_data(a, b)['weight']
                          for a, b in itertools.izip(path, path[1:]))
             length = 1 + path[-1].end - path[0].start
-            score = (1 + weight)/length # lower is better
-            if score < score_best:
+            score = (1 + weight)/length
+            if score < score_best:  #< lower is better
                 path_best, score_best = path, score
                 
 #         debug.show_tracking_graph(graph, path_best)
