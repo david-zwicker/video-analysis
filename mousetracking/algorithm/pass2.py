@@ -135,7 +135,24 @@ class SecondPass(DataHandler):
                     if not find_all:
                         return paths #< return as early as possible
         return paths
-                
+           
+           
+    def find_outer_nodes(self, graph, start_time, end_time):
+        """ locate the start and end nodes in a graph """
+        start_nodes, end_nodes = [], []
+        for node in graph:
+            if node.start <= start_time:
+                # potential start node
+                if all(neighbor.start >= node.start
+                       for neighbor in graph.neighbors(node)):
+                    start_nodes.append(node)
+            if node.end >= end_time:
+                # potential end node
+                if all(neighbor.end <= node.end
+                       for neighbor in graph.neighbors(node)):
+                    end_nodes.append(node)
+        return start_nodes, end_nodes
+         
                 
     def get_best_track(self, tracks):
         """ finds the best connection of tracks """
@@ -175,15 +192,9 @@ class SecondPass(DataHandler):
                              graph.number_of_nodes(), graph.number_of_edges()) 
 
             # find start and end nodes
-            # FIXME: start and end notes should have no other node that are
-            # before/after them. This is not the in/out degree, since we loop
-            # back in time sometimes
-            start_nodes = [node for node in graph
-                           if graph.in_degree(node) == 0 and 
-                               node.start <= start_time + end_node_interval]
-            end_nodes = [node for node in graph
-                         if graph.out_degree(node) == 0 and
-                             node.end >= end_time - end_node_interval]
+            start_nodes, end_nodes = self.find_outer_nodes(graph,
+                                                           start_time + end_node_interval,
+                                                           end_time - end_node_interval)
     
             self.logger.info('Pass 2 - Found %d start node(s) and %d end node(s) in tracking graph.',
                              len(start_nodes), len(end_nodes)) 

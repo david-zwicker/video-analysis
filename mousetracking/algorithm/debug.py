@@ -153,7 +153,7 @@ def show_shape(*shapes, **kwargs):
            
 
     
-def show_tracking_graph(graph, path, **kwargs):
+def show_tracking_graph(graph, path=None, **kwargs):
     """ displays a representation of the tracking graph """
     import matplotlib.pyplot as plt
     
@@ -176,16 +176,17 @@ def show_tracking_graph(graph, path, **kwargs):
                      color=str(d['weight']/max_weight), lw=1)
         
     # plot the actual graph
-    node_prev = None
-    for node in path:
-        plt.plot([node.start, node.end],
-                 [node.first.pos[0], node.last.pos[0]],
-                 'b', lw=2)
-        if node_prev is not None:
-            plt.plot([node_prev.end, node.start],
-                     [node_prev.last.pos[0], node.first.pos[0]],
+    if path is not None:
+        node_prev = None
+        for node in path:
+            plt.plot([node.start, node.end],
+                     [node.first.pos[0], node.last.pos[0]],
                      'b', lw=2)
-        node_prev = node
+            if node_prev is not None:
+                plt.plot([node_prev.end, node.start],
+                         [node_prev.last.pos[0], node.first.pos[0]],
+                         'b', lw=2)
+            node_prev = node
 
     # show plot
     plt.xlabel('Time in Frames')
