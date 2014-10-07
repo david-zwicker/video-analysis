@@ -91,7 +91,7 @@ class SecondPass(DataHandler):
         # find all possible connections
         time_scale = self.params['tracking/time_scale']
         tolerated_overlap = self.params['tracking/tolerated_overlap']
-        look_back_count = 0#int(tolerated_overlap) + 5
+        look_back_count = int(tolerated_overlap) + 5
         for a_idx, a in enumerate(tracks):
             # compare to other nodes (look back into past, too) 
             for b in tracks[max(a_idx - look_back_count, 1):]:
