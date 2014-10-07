@@ -6,17 +6,11 @@
 	- different error behavior (use some catch all try/except and log the error instead of failing in release run)
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
 * Determine absolute times by checking when the lights go on
+	- this does only seem to be visible outside the cage
 * Get precise cage dimensions:
 	- Do line scans at border in all directions and determine cage edge
 	- Think about getting a more precise estimate of the cage
-* Maybe we can get away with just using GrabCut for finding burrows?
-	- Change explored area to never decay but just accumulate pixels at every frame
-	- We can then get an idea of the explored area by requiring that a pixel has to be visited > 100 times
-		This allows us to remove noise
-	- Explored area can then be used in the GrabCut algorithm as potential foreground		
-	- Think about redetermining centerlines of elongated burrows that have not been fitted in pass 2
 * Gather more statistics about why certain parts of the algorithm failed
-* Handle burrows with two entrances (e.g. video 14)
 * Distinguish mouse position at burrow apex from positions at other points in burrow
 	- Analyze excavated burrow space (after mouse has been active)
 * Write out images equidistantly, which can be checked more easily than videos
@@ -24,6 +18,10 @@
 	Pass 1: Locate moving objects and the ground line
 	Pass 2: Find one continuous mouse track
 	Pass 3: Reiterate through the video and use the mouse trajectory to locate burrows
+* Third pass burrow finding:
+	If mouse is in burrow, burrow shape could be the union of grab cut (with mouse present)
+	and the explored area
+	Burrow finding of first pass can be removed altogether (if third pass gets sufficiently nice results)
 
 
 Performance improvements:

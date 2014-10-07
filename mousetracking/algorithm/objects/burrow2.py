@@ -53,9 +53,7 @@ class Burrow(object):
         self.outline = outline
         self.refined = refined
 
-        if length is None:
-            self.length = curves.curve_length(centerline)
-        else:
+        if length is not None:
             self.length = length
 
 
@@ -72,13 +70,21 @@ class Burrow(object):
 
 
     @property
+    def centerline(self):
+        return self._centerline
+    
+    @centerline.setter
+    def centerline(self, point_list):
+        self._centerline = point_list[:]
+        self.length = curves.curve_length(point_list)
+
+
+    @property
     def outline(self):
         return self._outline
-
     
     @outline.setter 
     def outline(self, point_list):
-        """ sets a new outline """
         if point_list is None:
             self._outline = None
         else:

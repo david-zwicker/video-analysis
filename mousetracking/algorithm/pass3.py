@@ -459,7 +459,8 @@ class ThirdPass(DataHandler):
         """ locates burrows based on the mouse's movement """
         # check whether the mouse is in a burrow
         if self.mouse_trail is None:
-            burrow_with_mouse = -1 #< all burrows are without mice
+            # mouse is above ground => all burrows are without mice 
+            burrow_with_mouse = -1
         
         else:
             # mouse entered a burrow
@@ -468,14 +469,14 @@ class ThirdPass(DataHandler):
             
             # check if we already know this burrow
             for burrow_with_mouse, burrow in enumerate(self.burrows):
-                entry_point_dist = curves.point_distance(burrow.entry_point, self.mouse_trail[0])
+                entry_point_dist = curves.point_distance(burrow.entry_point,
+                                                         self.mouse_trail[0])
                 if entry_point_dist < entry_point_threshold:
-                    # mouse entered the k-th burrow
+                    # mouse entered this burrow
+                    burrow.refined = False
                     if trail_length > burrow.length:
                         # update the centerline estimate
                         self.burrows[burrow_with_mouse].centerline = self.mouse_trail[:] #< copy list
-                    else:
-                        burrow.refined = False
                     break
             else:
                 # create the burrow, since we don't know it yet
