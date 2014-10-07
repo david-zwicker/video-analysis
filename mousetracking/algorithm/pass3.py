@@ -177,6 +177,25 @@ class ThirdPass(DataHandler):
     #===========================================================================
 
 
+    def extend_mouse_trail(self):
+        """ extends the mouse trail using the current mouse position """
+        # check points starting from the back of the trail
+        k = len(self.mouse_trail) - 1
+        while k >= 1:
+            p2, p1 = self.mouse_trail[k-1], self.mouse_trail[k]
+            angle = curves.angle_between_points(p2, p1, self.mouse_pos)
+            if np.abs(angle) < np.pi/2:
+                dist = curves.point_distance(p2, self.mouse_pos)
+                if dist > self.params['burrows/centerline_segment_length']/2:
+                    k += 1
+                break
+            else:
+                k -= 1
+    
+        del self.mouse_trail[max(1, k):]
+        self.mouse_trail.append(self.mouse_pos)
+
+
     def classify_mouse_state(self, mouse_track):
         """ classifies the mouse in the current frame """
         if (not np.all(np.isfinite(self.mouse_pos)) or
@@ -203,31 +222,16 @@ class ThirdPass(DataHandler):
                 self.mouse_trail = [ground_point, self.mouse_pos]
 
             else:
-                # work with an existing mouse trail
-                p_trail = self.mouse_trail[-2]
-                
-                # FIXME: Smarter mouse trail statistics
-                # basically: find out whether self.mouse_pos is close to any of the
-                # previous points and if so, disregard any points after that
-                
-                trail_spacing = self.params['burrows/centerline_segment_length']
-                if curves.point_distance(p_trail, self.mouse_pos) < trail_spacing:
-                    # old trail should be modified
-                    if len(self.mouse_trail) > 2:
-                        # check whether the trail has to be shortened
-                        p_trail = self.mouse_trail[-3]
-                        if curves.point_distance(p_trail, self.mouse_pos) < trail_spacing:
-                            del self.mouse_trail[-1] #< shorten trail
-                        
-                    self.mouse_trail[-1] = self.mouse_pos
-                else:
-                    # old trail must be extended
-                    self.mouse_trail.append(self.mouse_pos)
+                self.extend_mouse_trail()
                 
             # get distance the mouse is under ground
             ground_dist = -curves.curve_length(self.mouse_trail)
             
             # score the burrow based on its entry point
+            if self.ground_idx is None:
+                # only necessary if mouse starts inside burrow
+                dist = np.linalg.norm(self.ground.line - self.mouse_pos[None, :], axis=1)
+                self.ground_idx = np.argmin(dist)
             entry_point = self.ground.line[self.ground_idx]
             if entry_point[1] > self.ground.midline:
                 state['location'] = 'burrow'

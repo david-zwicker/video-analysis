@@ -23,6 +23,16 @@ def point_distance(p1, p2):
     return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
 
 
+def angle_between_points(p1, p2, p3):
+    """ calculates the angle at p2 of the line given by the three points """ 
+    ps = np.array([p1, p2, p3])
+    d12 = ps[1] - ps[0]
+    d23 = ps[2] - ps[1]
+    # use dot product to get the angle
+    return math.acos(np.dot(d12, d23)/
+                     (np.linalg.norm(d12)*np.linalg.norm(d23)))
+
+
 def translate_points(points, xoff, yoff):
     """ translate points by a certain offset """
     return [(p[0] + xoff, p[1] + yoff) for p in points]
@@ -90,4 +100,5 @@ def get_projection_point(line, point):
     point = geometry.asPoint(point)
     point = line.interpolate(line.project(point))
     return (point.x, point.y)
+
 
