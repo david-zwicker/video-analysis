@@ -133,7 +133,7 @@ class ObjectTrack(object):
         return dist > self.moving_threshold_pixel
     
     
-    def is_concurrent(self, other):
+    def overlaps(self, other):
         """ returns True if the other ObjectTrack overlaps with the current one """
         s0, s1 = self.time[0], self.time[-1]
         o0, o1 = other[0], other[-1]

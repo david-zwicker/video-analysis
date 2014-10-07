@@ -198,7 +198,7 @@ PARAMETER_LIST = [
               'Relative weight of distance vs. size of objects for matching them'),
     Parameter('tracking/moving_window', 100, UNIT.TIME_FRAMES,
               'Number of consecutive frames used for motion detection'),
-    Parameter('tracking/moving_threshold', 3, UNIT.SPEED_PIXEL_FRAME,
+    Parameter('tracking/moving_threshold', 1, UNIT.SPEED_PIXEL_FRAME,
               'Threshold speed above which an object is said to be moving'),
     Parameter('tracking/object_count_max', 7, None,
               'Maximal number of objects allowed in a single frame. If there are '
