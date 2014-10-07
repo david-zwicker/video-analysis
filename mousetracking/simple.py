@@ -80,7 +80,7 @@ def load_results(name, parameters=None, cls=Analyzer, **kwargs):
 
 
 
-def load_result_file(result_file, parameters=None, **kwargs):
+def load_result_file(result_file, parameters=None, do_logging=None, **kwargs):
     """ loads the results of a simulation based on the result file """
     if not result_file.endswith('_results.yaml'):
         raise ValueError('Invalid result filename.')
@@ -93,9 +93,11 @@ def load_result_file(result_file, parameters=None, **kwargs):
     # read the paths from the yaml file
     with open(result_file, 'r') as infile:
         data = yaml.load(infile)
-    result_folder = data['parameters']['output']['folder']    
+    result_folder = data['parameters']['output']['folder']   
 
     # infer base folder
+    if result_folder.endswith('.') and not result_folder.endswith('..'):
+        result_folder = result_folder[:-1]
     if result_folder.endswith(os.sep):
         result_folder = result_folder[:-1]
     if result_folder.startswith('.' + os.sep):
@@ -105,10 +107,16 @@ def load_result_file(result_file, parameters=None, **kwargs):
         raise ValueError('Result file does not reside in the right folder. '
                          'File is in `%s`, but is expected in `%s`.' %
                          (last_folder, result_folder))
-    base_folder = folder[:-len(result_folder)]
+    if result_folder:
+        base_folder = folder[:-len(result_folder)]
+    else:
+        base_folder = folder
 
-    # set new base folder and load results
+    # set new base folder and parameters
     parameters = {'base_folder': base_folder,
                   'output/folder': result_folder}
+    if do_logging is not None:
+        parameters['logging/enabled'] = do_logging
+    # load results
     return load_results(name, parameters, **kwargs)
     
