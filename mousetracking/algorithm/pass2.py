@@ -59,7 +59,6 @@ class SecondPass(DataHandler):
         
         self.find_mouse_track()
         self.smooth_ground_profile()
-        #self.smooth_burrows() # this should be 'morphing'
         #self.classify_mouse_track()
         
         self.data['analysis-status'] = 'Finished second pass'
@@ -94,27 +93,26 @@ class SecondPass(DataHandler):
         look_back_count = int(tolerated_overlap) + 5
         for a_idx, a in enumerate(tracks):
             # compare to other nodes (look back into past, too) 
-            for b in tracks[max(a_idx - look_back_count, 1):]:
+            for b in tracks[max(a_idx - look_back_count, 0):]:
                 if a is b or graph.has_edge(a, b):
-                    # no self-loops allowed
-                    continue
+                    continue # don't add self-loops or multiple loops
                 
                 gap_length = b.start - a.end #< time gap between the two chunks
                 if gap_length > -tolerated_overlap:
-                    # calculate the weight of this graph
+                    # calculate the cost of this gap
                     # lower is better; all terms should be normalized to one
                     
                     distance = curves.point_distance(a.last.pos, b.first.pos)
                     
-                    weight = (
+                    cost = (
                         #+ (2 - a.mouse_score - b.mouse_score)       # is it a mouse? 
                         + distance/self.params['mouse/speed_max']    # how close are the positions
                         + abs(gap_length)/time_scale                 # is it a long gap?
                     )
 
-                    # add the edge if the weight is not too high
-                    if weight < threshold:
-                        graph.add_edge(a, b, weight=weight)
+                    # add the edge if the cost is not too high
+                    if cost < threshold:
+                        graph.add_edge(a, b, cost=cost)
         return graph
             
                 
@@ -126,7 +124,7 @@ class SecondPass(DataHandler):
             for end_node in end_nodes:
                 try:
                     # find best path to reach this out degree
-                    path = nx.shortest_path(graph, start_node, end_node, weight='weight')
+                    path = nx.shortest_path(graph, start_node, end_node, weight='cost')
                 except nx.exception.NetworkXNoPath:
                     # there are no connections between the start and the end node 
                     continue #< check the next node
@@ -215,10 +213,10 @@ class SecondPass(DataHandler):
         # identify the best path
         path_best, score_best = None, np.inf 
         for path in paths:
-            weight = sum(graph.get_edge_data(a, b)['weight']
-                         for a, b in itertools.izip(path, path[1:]))
+            cost = sum(graph.get_edge_data(a, b)['cost']
+                       for a, b in itertools.izip(path, path[1:]))
             length = 1 + path[-1].end - path[0].start
-            score = (1 + weight)/length
+            score = (1 + cost)/length
             if score < score_best:  #< lower is better
                 path_best, score_best = path, score
                 
@@ -251,13 +249,15 @@ class SecondPass(DataHandler):
             # interpolate between the last track and the current one
             if obj is not None:
                 # time, obj contain data from previous object
+                # FIXME: don't interpolate above maximal gap length
                 time_now, obj_now = track.start, track.first
-                frames = np.arange(time + 1, time_now)
-                times = np.linspace(0, 1, len(frames) + 2)[1:-1]
-                x1, x2 = obj.pos[0], obj_now.pos[0]
-                trajectory[frames, 0] = x1 + (x2 - x1)*times
-                y1, y2 = obj.pos[1], obj_now.pos[1]
-                trajectory[frames, 1] = y1 + (y2 - y1)*times
+                if time_now - time < self.params['tracking/maximal_gap']:
+                    frames = np.arange(time + 1, time_now)
+                    times = np.linspace(0, 1, len(frames) + 2)[1:-1]
+                    x1, x2 = obj.pos[0], obj_now.pos[0]
+                    trajectory[frames, 0] = x1 + (x2 - x1)*times
+                    y1, y2 = obj.pos[1], obj_now.pos[1]
+                    trajectory[frames, 1] = y1 + (y2 - y1)*times
             
             # add the data of this track directly
             for time, obj in track:

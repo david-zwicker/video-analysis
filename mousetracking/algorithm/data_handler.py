@@ -150,11 +150,11 @@ class DataHandler(object):
         # number of consecutive frames used for motion detection [in frames]
         moving_window = self.data.get('parameters/tracking/moving_window', None)
         if moving_window:
-            objects.ObjectTrack.moving_window = moving_window
+            objects.ObjectTrack.moving_window_frames = moving_window
         moving_threshold = self.data.get('parameters/tracking/moving_threshold', None)
         if moving_threshold:
-            threshold = objects.ObjectTrack.moving_window*moving_threshold
-            objects.ObjectTrack.moving_threshold = threshold
+            threshold = objects.ObjectTrack.moving_window_frames*moving_threshold
+            objects.ObjectTrack.moving_threshold_pixel = threshold
         
         curvature_radius_max = self.data.get('parameters/burrows/curvature_radius_max', None)
         if curvature_radius_max:

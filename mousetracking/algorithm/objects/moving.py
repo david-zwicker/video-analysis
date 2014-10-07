@@ -45,8 +45,8 @@ class ObjectTrack(object):
     column_names = ('Time', 'Position X', 'Position Y', 'Object Area')
     mouse_area_mean = 700
     
-    moving_window = 20
-    moving_threshold = 20*10
+    moving_window_frames = 20
+    moving_threshold_pixel = 20*10
     
     def __init__(self, times=None, objects=None):
         self.times = [] if times is None else times
@@ -115,9 +115,10 @@ class ObjectTrack(object):
         return self.objects[-1].pos
         
         
-    def get_track(self):
+    def get_track(self, start=None, end=None, step=None):
         """ return a list of positions over time """
-        return [obj.pos for obj in self.objects]
+        s = slice(start, end, step)
+        return [obj.pos for obj in self.objects[s]]
 
 
     def append(self, time, obj):
@@ -128,10 +129,8 @@ class ObjectTrack(object):
         
     def is_moving(self):
         """ return if the object has moved in the last frames """
-        pos = self.objects[-1].pos
-        dist = sum(curves.point_distance(pos, obj.pos)
-                   for obj in self.objects[-self.moving_window:])
-        return dist > self.moving_threshold
+        dist = curves.curve_length(self.get_track(-self.moving_window_frames, None))
+        return dist > self.moving_threshold_pixel
     
     
     def is_concurrent(self, other):
@@ -148,8 +147,8 @@ class ObjectTrack(object):
         idx, result = 0, []
         for chunk in chunks:
             track = ObjectTrack(chunk, self.objects[idx: idx+len(chunk)])
-            idx += len(chunk)
             result.append(track)
+            idx += len(chunk)
         return result
     
     
@@ -237,9 +236,9 @@ class ObjectTrackList(list):
             for k2, track2 in enumerate(self[k1 + 1:], k1 + 1):
                 if track2.start >= track1.end - duration_cutoff:
                     # there won't be any overlapping tracks 
-                    break
+                    break #< check the next track1
                 if track2.duration >= duration_cutoff:
-                    # both tracks are long and they overlap => break them apart
+                    # both tracks are long and they overlap => split them
                     track1s, track2s = [], [] #< split tracks
                     if track1.start == track2.start:
                         if track1.end < track2.end:
@@ -248,7 +247,7 @@ class ObjectTrackList(list):
                             track1s = track1.split([track2.end + 1])
                         # else track1.end == track2.end and we don't do anything
 
-                    # we know that track1.start < track2.start, because we sorted
+                    # track1.start < track2.start, because tracks are sorted
                     elif track1.end < track2.end:
                         track1s = track1.split([track2.start])
                         track2s = track2.split([track1.end + 1])

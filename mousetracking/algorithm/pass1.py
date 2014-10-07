@@ -155,7 +155,8 @@ class FirstPass(DataHandler):
         
         self.result['objects/tracks'] = ObjectTrackList()
         self.result['ground/profile'] = GroundProfileList()
-        self.result['burrows/tracks'] = BurrowTrackList()
+        if self.params['burrows/enabled']:
+            self.result['burrows/tracks'] = BurrowTrackList()
 
         # create a simple template of the mouse, which will be used to update
         # the background image only away from the mouse.
@@ -238,7 +239,7 @@ class FirstPass(DataHandler):
                     
                     self.ground = self.get_ground_profile(self.ground)
         
-                if (not did_first_analysis
+                if self.params['burrows/enabled'] and (not did_first_analysis
                     or self.frame_id % self.params['burrows/adaptation_interval'] == 0):
                     
                     self.find_burrows()
@@ -1106,7 +1107,7 @@ class FirstPass(DataHandler):
             if ground is None:
                 return None
         
-        # build a mask with potential burrows
+        # build a mask with for the ground
         width, height = self.video.size
         mask_ground = np.zeros((height, width), np.uint8)
         
@@ -1715,16 +1716,17 @@ class FirstPass(DataHandler):
                                         mark_points=True, color='y')
         
             # indicate the currently active burrow shapes
-            time_interval = self.params['burrows/adaptation_interval']
-            for burrow_track in self.result['burrows/tracks']:
-                if burrow_track.track_end > self.frame_id - time_interval:
-                    burrow = burrow_track.last
-                    burrow_color = 'red' if burrow.refined else 'orange'
-                    debug_video.add_line(burrow.outline, burrow_color,
-                                            is_closed=True, mark_points=True)
-                    debug_video.add_line(burrow.get_centerline(self.ground),
-                                            burrow_color, is_closed=False,
-                                            width=2, mark_points=True)
+            if self.params['burrows/enabled']:
+                time_interval = self.params['burrows/adaptation_interval']
+                for burrow_track in self.result['burrows/tracks']:
+                    if burrow_track.track_end > self.frame_id - time_interval:
+                        burrow = burrow_track.last
+                        burrow_color = 'red' if burrow.refined else 'orange'
+                        debug_video.add_line(burrow.outline, burrow_color,
+                                                is_closed=True, mark_points=True)
+                        debug_video.add_line(burrow.get_centerline(self.ground),
+                                                burrow_color, is_closed=False,
+                                                width=2, mark_points=True)
         
             # indicate the mouse position
             if len(self.tracks) > 0:

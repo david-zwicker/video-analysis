@@ -160,13 +160,14 @@ class ThirdPass(DataHandler):
             if 'video' in self.debug:
                 self.debug['video'].set_frame(frame, copy=False)
             
-            # load data for current frame
+            # retrieve data for current frame
             self.mouse_pos = mouse_track.pos[self.frame_id, :]
             self.ground = ground_profile.get_ground_profile(self.frame_id)
 
             # do the actual work            
             self.classify_mouse_state(mouse_track)
-            self.locate_burrows()
+            if self.params['burrows/enabled']:
+                self.locate_burrows()
 
             # store some information in the debug dictionary
             self.debug_process_frame(frame, mouse_track)
@@ -186,7 +187,7 @@ class ThirdPass(DataHandler):
             angle = curves.angle_between_points(p2, p1, self.mouse_pos)
             if np.abs(angle) < np.pi/2:
                 dist = curves.point_distance(p2, self.mouse_pos)
-                if dist > self.params['burrows/centerline_segment_length']/2:
+                if dist > self.params['burrows/centerline_segment_length']:
                     k += 1
                 break
             else:
@@ -202,14 +203,14 @@ class ThirdPass(DataHandler):
             self.ground is None):
             
             # Not enough information to do anything
+            self.mouse_trail = None
             return
         
         # initialize variables
         state = {}
         margin = self.params['mouse/model_radius']/2
                 
-        # compare y value of mouse and ground
-        # Note that the y-axis points down
+        # compare y value of mouse and ground (y-axis points down)
         if self.mouse_pos[1] > self.ground.get_y(self.mouse_pos[0]) + margin:
             state['underground'] = True
             
@@ -547,12 +548,16 @@ class ThirdPass(DataHandler):
                 debug_video.add_circle(track[-1], self.params['mouse/model_radius'],
                                        'w', thickness=1)
                 
-            for burrow in self.burrows:
-                debug_video.add_line(burrow.centerline, 'w', is_closed=False,
+            if self.params['burrows/enabled']:
+                for burrow in self.burrows:
+                    debug_video.add_line(burrow.centerline, 'w', is_closed=False,
+                                         mark_points=True, width=2)
+                    if burrow.outline is not None:
+                        debug_video.add_line(burrow.outline, 'w', is_closed=True,
+                                             mark_points=False, width=1)
+            elif self.mouse_trail:
+                debug_video.add_line(self.mouse_trail, 'w', is_closed=False,
                                      mark_points=True, width=2)
-                if burrow.outline is not None:
-                    debug_video.add_line(burrow.outline, 'w', is_closed=True,
-                                         mark_points=False, width=1)
                 
             # indicate the mouse state
             mouse_state = mouse_track.states[self.frame_id]

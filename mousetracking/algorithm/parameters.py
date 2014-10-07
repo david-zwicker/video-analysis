@@ -196,9 +196,9 @@ PARAMETER_LIST = [
                   
     Parameter('tracking/weight', 0.5, UNIT.FACTOR,
               'Relative weight of distance vs. size of objects for matching them'),
-    Parameter('tracking/moving_window', 20, UNIT.TIME_FRAMES,
+    Parameter('tracking/moving_window', 100, UNIT.TIME_FRAMES,
               'Number of consecutive frames used for motion detection'),
-    Parameter('tracking/moving_threshold', 15, UNIT.SPEED_PIXEL_FRAME,
+    Parameter('tracking/moving_threshold', 3, UNIT.SPEED_PIXEL_FRAME,
               'Threshold speed above which an object is said to be moving'),
     Parameter('tracking/object_count_max', 7, None,
               'Maximal number of objects allowed in a single frame. If there are '
@@ -214,8 +214,13 @@ PARAMETER_LIST = [
               'What time duration do we consider for start and end nodes'),
     Parameter('tracking/splitting_duration_min', 10, UNIT.TIME_FRAMES,
               'Track duration above which two overlapping tracks are split'),
+    Parameter('tracking/maximal_gap', 25, UNIT.TIME_FRAMES,
+              'Maximal gap length where we will use linear interpolation to ' 
+              'determine the mouse position'),
         
     # Burrows
+    Parameter('burrows/enabled', True, UNIT.BOOLEAN,
+              'Whether burrows should be located'),
     Parameter('burrows/adaptation_interval', 100, UNIT.TIME_FRAMES,
               'How often are the burrow shapes adapted'),
     Parameter('burrows/cage_margin', 30, UNIT.LENGTH_PIXEL,

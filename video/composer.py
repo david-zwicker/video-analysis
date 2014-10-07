@@ -9,10 +9,9 @@ from __future__ import division
 import numpy as np
 import cv2
 
-from .utils import get_color
+from .utils import get_color, contiguous_regions
 from .analysis.regions import rect_to_corners
 from .io.file import VideoFileWriter
-
 
 
 def skip_if_no_output(func):
@@ -140,19 +139,21 @@ class VideoComposer(VideoFileWriter):
     @skip_if_no_output
     def add_line(self, points, color='w', is_closed=True, mark_points=False, width=1):
         """ adds a polygon to the frame """
+        points = np.asarray(points, np.int32)
         
-        # filter the points
-        points = [p for p in points
-                  if np.all(np.isfinite(p))]
+        # find the regions where the points are finite
+        # Here, we compare to 0 to capture nans in the int32 array        
+        indices = contiguous_regions(points[:, 0] > 0)
         
-        # add the polygon
-        cv2.polylines(self.frame, np.array([points], np.int32),
-                      isClosed=is_closed, color=get_color(color),
-                      thickness=int(width))
-        # mark the anchor points if requested
-        if mark_points:
-            for p in points:
-                self.add_circle(p, 2*width, color, thickness=-1)
+        for start, end in indices:
+            # add the line
+            cv2.polylines(self.frame, [points[start:end, :]],
+                          isClosed=is_closed, color=get_color(color),
+                          thickness=int(width))
+            # mark the anchor points if requested
+            if mark_points:
+                for p in points[start:end, :]:
+                    self.add_circle(p, 2*width, color, thickness=-1)
 
         
     

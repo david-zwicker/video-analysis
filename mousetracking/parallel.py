@@ -25,18 +25,18 @@ QUADRANTS = {'UL': 'upper left',
              'DR': 'lower right'}
   
 
-def get_window_pos(location, video_size):
+def get_window_pos(location, video_size, offset=100):
     """ calculate the window position given a location string and the size
     of the total video """
     width, height = video_size[0]//2, video_size[1]//2    
     if location == 'upper left':
         return 0, 0
     elif location == 'lower left':
-        return 0, height
+        return 0, height - offset
     elif location == 'upper right':
-        return width, 0
+        return width - offset, 0
     elif location == 'lower right':
-        return width, height
+        return width - offset, height - offset
     else:
         raise ValueError('Unknown location `%s`' % location)
 
