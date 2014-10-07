@@ -91,7 +91,12 @@ class SecondPass(DataHandler):
         # find all possible connections
         time_scale = self.params['tracking/time_scale']
         for a_idx, a in enumerate(tracks):
-            for b in tracks[a_idx + 1:]:
+            # compare to other nodes (look back into past, too) 
+            for b in tracks[max(a_idx - 50, 1):]:
+                if a is b or graph.has_edge(a, b):
+                    # no self-loops allowed
+                    continue
+                
                 gap_length = b.start - a.end #< time gap between the two chunks
                 if gap_length > -self.params['tracking/tolerated_overlap']:
                     # calculate the weight of this graph
@@ -101,7 +106,7 @@ class SecondPass(DataHandler):
                     
                     weight = (
                         #+ (2 - a.mouse_score - b.mouse_score)       # is it a mouse? 
-                        + distance/self.params['mouse/speed_max']    # how close are the mice
+                        + distance/self.params['mouse/speed_max']    # how close are the positions
                         + abs(gap_length)/time_scale                 # is it a long gap?
                     )
 
@@ -229,6 +234,7 @@ class SecondPass(DataHandler):
         for track in path:
             # interpolate between the last track and the current one
             if obj is not None:
+                # time, obj contain data from previous object
                 time_now, obj_now = track.start, track.first
                 frames = np.arange(time + 1, time_now)
                 times = np.linspace(0, 1, len(frames) + 2)[1:-1]
@@ -239,7 +245,11 @@ class SecondPass(DataHandler):
             
             # add the data of this track directly
             for time, obj in track:
-                trajectory[time, :] = obj.pos
+                if np.all(np.isfinite(trajectory[time, :])):
+                    # average overlapping tracks
+                    trajectory[time, :] = (trajectory[time, :] + obj.pos)/2
+                else:
+                    trajectory[time, :] = obj.pos
         
         self.data['pass2/mouse_trajectory'] = MouseTrack(trajectory)
     
