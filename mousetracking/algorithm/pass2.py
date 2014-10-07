@@ -90,15 +90,17 @@ class SecondPass(DataHandler):
         
         # find all possible connections
         time_scale = self.params['tracking/time_scale']
+        tolerated_overlap = self.params['tracking/tolerated_overlap']
+        look_back_count = 0#int(tolerated_overlap) + 5
         for a_idx, a in enumerate(tracks):
             # compare to other nodes (look back into past, too) 
-            for b in tracks[max(a_idx - 50, 1):]:
+            for b in tracks[max(a_idx - look_back_count, 1):]:
                 if a is b or graph.has_edge(a, b):
                     # no self-loops allowed
                     continue
                 
                 gap_length = b.start - a.end #< time gap between the two chunks
-                if gap_length > -self.params['tracking/tolerated_overlap']:
+                if gap_length > -tolerated_overlap:
                     # calculate the weight of this graph
                     # lower is better; all terms should be normalized to one
                     
@@ -173,6 +175,9 @@ class SecondPass(DataHandler):
                              graph.number_of_nodes(), graph.number_of_edges()) 
 
             # find start and end nodes
+            # FIXME: start and end notes should have no other node that are
+            # before/after them. This is not the in/out degree, since we loop
+            # back in time sometimes
             start_nodes = [node for node in graph
                            if graph.in_degree(node) == 0 and 
                                node.start <= start_time + end_node_interval]
