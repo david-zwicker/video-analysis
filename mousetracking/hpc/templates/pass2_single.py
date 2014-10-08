@@ -7,7 +7,6 @@ import os
 import logging
 sys.path.append(os.path.expanduser("{FOLDER_CODE}"))
 
-from mousetracking import load_results
 from mousetracking.algorithm import SecondPass
 
 # configure basic logging, which will be overwritten later
@@ -19,7 +18,8 @@ parameters = {{'base_folder': "{JOB_DIRECTORY}",
                'output/folder': ".",}}
 
 # do the second pass scan
-results = load_results("{NAME}", parameters, cls=SecondPass)
-results.process()
-if results.data['parameters/output/video/enabled']:
-    results.produce_video()
+pass2 = SecondPass("{NAME}", parameters=parameters, read_data=True)
+pass2.process()
+pass2.process()
+if pass2.data['parameters/output/video/enabled']:
+    pass2.produce_video()

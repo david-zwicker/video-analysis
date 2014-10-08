@@ -7,7 +7,6 @@ import os
 import logging
 sys.path.append(os.path.expanduser("{FOLDER_CODE}"))
 
-from mousetracking import load_results
 from mousetracking.algorithm import ThirdPass
 
 # configure basic logging, which will be overwritten later
@@ -19,5 +18,5 @@ parameters = {{'base_folder': "{JOB_DIRECTORY}",
                'output/folder': ".",}}
 
 # do the second pass scan
-results = load_results("{NAME}", parameters, cls=ThirdPass)
-results.process()
+pass3 = ThirdPass("{NAME}", parameters=parameters, read_data=True)
+pass3.process()

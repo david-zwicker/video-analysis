@@ -29,13 +29,17 @@ def angle_between_points(p1, p2, p3):
     d12 = ps[1] - ps[0]
     d23 = ps[2] - ps[1]
     # use dot product to get the angle
-    arg = np.dot(d12, d23)/(np.linalg.norm(d12)*np.linalg.norm(d23))
-    try:
-        angle = math.acos(arg)
-    except ValueError:
-        # raised, when argument is not in [-1, 1]
-        # => we just extrapolate the value at the boundary
-        angle = 0 if arg > 0 else math.pi
+    denom = np.linalg.norm(d12)*np.linalg.norm(d23)
+    if denom == 0:
+        angle = np.nan
+    else:
+        arg = np.dot(d12, d23)/denom
+        try:
+            angle = math.acos(arg)
+        except ValueError:
+            # raised, when argument is not in [-1, 1]
+            # => we just extrapolate the value at the boundary
+            angle = 0 if arg > 0 else math.pi
     return angle
 
 

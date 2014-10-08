@@ -161,8 +161,9 @@ class Analyzer(DataHandler):
 
         # plot nodes
         nodes = graph.nodes(data=True)
-        max_duration = max(node[1]['duration'] for node in nodes)
-        node_sizes = log_scale([node[1]['duration'] for node in nodes],
+        durations = [node[1].get('duration', np.nan) for node in nodes]
+        max_duration = max(durations)
+        node_sizes = log_scale(durations,
                                range_from=(1, max_duration),
                                range_to=(10, 5000))
         nx.draw_networkx_nodes(graph, pos, node_size=node_sizes, ax=ax)

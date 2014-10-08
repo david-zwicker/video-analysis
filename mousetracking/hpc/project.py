@@ -21,7 +21,7 @@ class HPCProjectBase(object):
     files_cleanup = tuple()  #< files that need to be deleted to clean the work folder
 
     
-    def __init__(self, folder, name=None, parameters=None, passes=2):
+    def __init__(self, folder, name=None, parameters=None, passes=3):
         """ initializes a project with all necessary information """
         
         self.logger = logging.getLogger(self.__class__.__name__)

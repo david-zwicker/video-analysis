@@ -66,8 +66,8 @@ class ThirdPass(DataHandler):
             self.debug_output = []
         else:
             self.debug_output = self.params['debug/output']
+            
 
-    
     def process(self):
         """ processes the entire video """
         self.log_event('Pass 3 - Started initializing the video analysis.')
@@ -181,19 +181,22 @@ class ThirdPass(DataHandler):
     def extend_mouse_trail(self):
         """ extends the mouse trail using the current mouse position """
         # check points starting from the back of the trail
-        k = len(self.mouse_trail) - 1
-        while k >= 1:
-            p2, p1 = self.mouse_trail[k-1], self.mouse_trail[k]
+        last_point = len(self.mouse_trail) - 1
+        while last_point >= 1:
+            p2 = self.mouse_trail[last_point-1] 
+            p1 = self.mouse_trail[last_point]
             angle = curves.angle_between_points(p2, p1, self.mouse_pos)
             if np.abs(angle) < np.pi/2:
+                # we found the last point to keep
                 dist = curves.point_distance(p2, self.mouse_pos)
                 if dist > self.params['burrows/centerline_segment_length']:
-                    k += 1
+                    last_point += 1
                 break
             else:
-                k -= 1
+                # remove this point from the mouse trail
+                last_point -= 1
     
-        del self.mouse_trail[max(1, k):]
+        del self.mouse_trail[max(1, last_point):]
         self.mouse_trail.append(self.mouse_pos)
 
 
@@ -585,4 +588,7 @@ class ThirdPass(DataHandler):
             try:
                 self.debug['video'].close()
             except IOError:
-                self.logger.exception('Error while writing out the debug video') 
+                    self.logger.exception('Error while writing out the debug '
+                                          'video') 
+            
+    
