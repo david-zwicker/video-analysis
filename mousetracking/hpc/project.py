@@ -19,15 +19,18 @@ class HPCProjectBase(object):
     
     files_job = tuple()      #< files that need to be set up for the project
     files_cleanup = tuple()  #< files that need to be deleted to clean the work folder
-
+    default_passes = 3
     
-    def __init__(self, folder, name=None, parameters=None, passes=3):
+    def __init__(self, folder, name=None, parameters=None, passes=None):
         """ initializes a project with all necessary information """
         
         self.logger = logging.getLogger(self.__class__.__name__)
 
         self.folder = folder
         self.name = name
+
+        if passes is None:
+            passes = self.default_passes
         if not hasattr(passes, '__iter__'):
             self.passes = range(1, passes + 1)
         else:
@@ -64,7 +67,7 @@ class HPCProjectBase(object):
 
     @classmethod
     def create(cls, video_file, result_folder, video_name=None,
-               parameters=None, passes=2, prepare_workfolder='auto' ):
+               parameters=None, passes=None, prepare_workfolder='auto' ):
         """ creates a new project from data
         video_file is the filename of the video to scan
         result_folder is a general folder in which the results will be stored.
@@ -73,7 +76,7 @@ class HPCProjectBase(object):
             to name folders and such. If no name is given, the filename is used.
         parameters is a dictionary that sets the parameters that are
             used for tracking.
-        passes is an integer which is 1 or 2, indicating whether only the first
+        passes is an integer which is 1, 2 or 3, indicating whether only the first
             tracking pass or also the second one should be initialized
         prepare_workfolder can be 'none', 'clean', or 'purge', which indicates
             increasing amounts of files that will be deleted before creating
