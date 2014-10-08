@@ -249,7 +249,6 @@ class SecondPass(DataHandler):
             # interpolate between the last track and the current one
             if obj is not None:
                 # time, obj contain data from previous object
-                # FIXME: don't interpolate above maximal gap length
                 time_now, obj_now = track.start, track.first
                 if time_now - time < self.params['tracking/maximal_gap']:
                     frames = np.arange(time + 1, time_now)

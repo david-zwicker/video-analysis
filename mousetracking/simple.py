@@ -112,11 +112,14 @@ def load_result_file(result_file, parameters=None, do_logging=None, **kwargs):
     else:
         base_folder = folder
 
-    # set new base folder and parameters
-    parameters = {'base_folder': base_folder,
-                  'output/folder': result_folder}
+    # adjust parameters
+    if parameters is None:
+        parameters = {}
+    parameters['base_folder'] = base_folder
+    parameters['output/folder'] = result_folder
     if do_logging is not None:
         parameters['logging/enabled'] = do_logging
+
     # load results
     return load_results(name, parameters, **kwargs)
     

@@ -166,7 +166,8 @@ class ThirdPass(DataHandler):
 
             # do the actual work            
             self.classify_mouse_state(mouse_track)
-            if self.params['burrows/enabled']:
+            if (self.params['burrows/enabled'] and 
+                self.frame_id % self.params['burrows/adaptation_interval'] == 0):
                 self.locate_burrows()
 
             # store some information in the debug dictionary
@@ -468,15 +469,20 @@ class ThirdPass(DataHandler):
         
         else:
             # mouse entered a burrow
-            entry_point_threshold = 3*self.params['burrows/width']
+#            entry_point_threshold = 3*self.params['burrows/width']
             trail_length = curves.curve_length(self.mouse_trail)
             
             # check if we already know this burrow
             for burrow_with_mouse, burrow in enumerate(self.burrows):
-                entry_point_dist = curves.point_distance(burrow.entry_point,
-                                                         self.mouse_trail[0])
-                if entry_point_dist < entry_point_threshold:
-                    # mouse entered this burrow
+                # determine whether we are inside this burrow
+                centerline = geometry.LineString(self.mouse_trail)
+                if burrow.outline is not None:
+                    in_this_burrow = burrow.polygon.intersects(centerline)
+                else:
+                    dist = burrow.linestring.distance(centerline)
+                    in_this_burrow = (dist < self.params['burrows/width']) 
+                     
+                if in_this_burrow:
                     burrow.refined = False
                     if trail_length > burrow.length:
                         # update the centerline estimate
@@ -486,14 +492,14 @@ class ThirdPass(DataHandler):
                 # create the burrow, since we don't know it yet
                 self.burrows.append(Burrow(self.mouse_trail[:])) #< copy list
                 burrow_with_mouse = len(self.burrows) - 1
-                
+
         for k, burrow in enumerate(self.burrows):
             # skip burrows with mice in them
             if k == burrow_with_mouse:
                 continue
             if not burrow.refined:
                 self.burrows[k] = self.refine_burrow(burrow) 
-
+                
 
     #===========================================================================
     # DEBUGGING

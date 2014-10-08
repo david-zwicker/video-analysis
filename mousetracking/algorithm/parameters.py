@@ -214,7 +214,7 @@ PARAMETER_LIST = [
               'What time duration do we consider for start and end nodes'),
     Parameter('tracking/splitting_duration_min', 10, UNIT.TIME_FRAMES,
               'Track duration above which two overlapping tracks are split'),
-    Parameter('tracking/maximal_gap', 25, UNIT.TIME_FRAMES,
+    Parameter('tracking/maximal_gap', 20, UNIT.TIME_FRAMES,
               'Maximal gap length where we will use linear interpolation to ' 
               'determine the mouse position'),
         
