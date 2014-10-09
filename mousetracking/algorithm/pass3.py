@@ -504,8 +504,7 @@ class ThirdPass(DataHandler):
             self.debug['video'] = VideoComposer(debug_file, size=self.video.size,
                                                 fps=self.video.fps, is_color=True,
                                                 output_period=video_output_period,
-                                                codec=video_codec, bitrate=video_bitrate,
-                                                debug=self.debug_run)
+                                                codec=video_codec, bitrate=video_bitrate)
             
             if 'video.show' in self.debug_output:
                 name = self.name if self.name else ''

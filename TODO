@@ -18,6 +18,9 @@
 	Pass 1: Locate moving objects and the ground line
 	Pass 2: Find one continuous mouse track
 	Pass 3: Reiterate through the video and use the mouse trajectory to locate burrows
+* Ground profile location:
+	- build template library from already measured ground profiles
+	- use this to estimate the position of the ground profile (template matching)
 * Third pass burrow finding:
 	If mouse is in burrow, burrow shape could be the union of grab cut (with mouse present)
 	and the explored area
