@@ -258,8 +258,8 @@ class ObjectTrackList(list):
                         
                     if track1s or track2s:
                         # delete tracks that have been split
+                        if track2s: del self[k2] #< has to be deleted before k1!
                         if track1s: del self[k1]
-                        if track2s: del self[k2]
                                 
                         # insert the split tracks
                         for track in itertools.chain(track1s, track2s):
