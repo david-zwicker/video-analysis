@@ -172,6 +172,9 @@ class ThirdPass(DataHandler):
 
             # store some information in the debug dictionary
             self.debug_process_frame(frame, mouse_track)
+            
+            if self.frame_id % 1000 == 0:
+                self.debug('Analyzed frame %d', self.frame_id)
 
     
     #===========================================================================
@@ -384,42 +387,19 @@ class ThirdPass(DataHandler):
         centerline = geometry.LineString(centerline)
         
         def add_to_mask(color, buffer_radius):
-            polygon = centerline.buffer(buffer_radius) 
-            x, y = polygon.exterior.xy
-            cv2.fillPoly(mask, [np.asarray([x, y], np.int).T], color=int(color))
+            """ adds the region around the centerline to the mask """
+            polygon = centerline.buffer(buffer_radius)
+            coords = np.asarray(polygon.exterior.xy, np.int).T 
+            cv2.fillPoly(mask, [coords], color=int(color))
 
+        # setup the mask for the GrabCut algorithm
         mask.fill(cv2.GC_BGD)
         add_to_mask(cv2.GC_PR_BGD, 2*self.params['burrows/width'])
         add_to_mask(cv2.GC_PR_FGD, self.params['burrows/width'])
-        add_to_mask(cv2.GC_FGD, self.params['burrows/width_min'])
+        add_to_mask(cv2.GC_FGD, self.params['burrows/width_min']/2)
 
 #         debug.show_image(img, debug.get_grabcut_image(mask))
 
-        #img[mask_ground == 0] = self.result['colors/sand'] #< turn into background
-
-        # prepare the input mask for the GrabCut algorithm by defining 
-        # foreground and background regions  
-#         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (int(2*width_min), int(2*width_min)))
-#         mask[cv2.dilate(mask_burrow, kernel) == 255] = cv2.GC_PR_BGD #< probable background
-#         mask[mask_burrow == 255] = cv2.GC_PR_FGD #< probable foreground
-
-#         # find sure foreground
-#         kernel_size = int(2*width_min)
-#         burrow_core_area_min = self.params['burrows/grabcut_burrow_core_area_min']
-#         while kernel_size >= 1:
-#             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-#             burrow_sure = (cv2.erode(mask_burrow, kernel) == 255)
-#             if burrow_sure.sum() >= burrow_core_area_min:
-#                 # the burrow was large enough that erosion left a good foreground
-#                 mask[burrow_sure] = cv2.GC_FGD #< surely foreground
-#                 break
-#             else:
-#                 kernel_size //= 2 #< try smaller kernel
-        
-#         debug.show_image(mask_burrow, mask_ground, img, 
-#                          debug.get_grabcut_image(mask),
-#                          wait_for_key=False)
-        
         # have to convert to color image, since grabCut only supports color
         img = cv2.cvtColor(img, cv2.cv.CV_GRAY2RGB)
         bgdmodel = np.zeros((1, 65), np.float64)
@@ -495,10 +475,10 @@ class ThirdPass(DataHandler):
 
         for k, burrow in enumerate(self.burrows):
             # skip burrows with mice in them
-            if k == burrow_with_mouse:
-                continue
+#             if k == burrow_with_mouse:
+#                 continue
             if not burrow.refined:
-                self.burrows[k] = self.refine_burrow(burrow) 
+                self.burrows[k] = self.refine_burrow(burrow)
                 
 
     #===========================================================================

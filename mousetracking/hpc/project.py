@@ -6,6 +6,7 @@ Created on Sep 18, 2014
 
 from __future__ import division
 
+import glob
 import logging
 import os
 import pprint
@@ -56,13 +57,14 @@ class HPCProjectBase(object):
                 files_to_delete.extend(self.files_job[p] + self.files_cleanup[p])
             
         # iteratively delete these files
-        for filename in files_to_delete:
-            file_path = os.path.join(self.folder, filename)
-            if os.path.isfile(file_path):
-                try:
-                    os.remove(file_path)
-                except OSError:
-                    pass
+        for pattern in files_to_delete:
+            file_pattern = os.path.join(self.folder, pattern)
+            for file_path in glob.iglob(file_pattern):
+                if os.path.isfile(file_path):
+                    try:
+                        os.remove(file_path)
+                    except OSError:
+                        pass
 
 
     @classmethod

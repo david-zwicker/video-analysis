@@ -75,7 +75,7 @@ class Burrow(object):
     
     @centerline.setter
     def centerline(self, point_list):
-        self._centerline = point_list[:]
+        self._centerline = np.array(point_list, np.double)
         self.length = curves.curve_length(point_list)
 
 
@@ -171,9 +171,13 @@ class Burrow(object):
     
     def get_bounding_rect(self, margin=0):
         """ returns the bounding rectangle of the burrow """
-        bounds = self.linestring.bounds
+        burrow_points = self.centerline
+        if self.outline is not None:
+            burrow_points = np.vstack((burrow_points, self.outline))
+        bounds = geometry.MultiPoint(burrow_points).bounds
         bound_rect = regions.corners_to_rect(bounds[:2], bounds[2:])
-        bound_rect = regions.expand_rectangle(bound_rect, margin)
+        if margin:
+            bound_rect = regions.expand_rectangle(bound_rect, margin)
         return np.asarray(bound_rect, np.int)
     
     

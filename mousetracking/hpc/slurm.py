@@ -38,9 +38,9 @@ class ProjectSingleSlurm(HPCProjectBase):
     files_job = {1: ('pass1_slurm.sh', 'pass1_single.py'), 
                  2: ('pass2_slurm.sh', 'pass2_single.py'),
                  3: ('pass3_slurm.sh', 'pass3_single.py')}
-    files_cleanup = {1: ('pass1_job_id.txt', ),
-                     2: ('pass2_job_id.txt', ),
-                     3: ('pass3_job_id.txt', )}
+    files_cleanup = {1: ('pass1_job_id.txt', 'log_pass1*'),
+                     2: ('pass2_job_id.txt', 'log_pass2*'),
+                     3: ('pass3_job_id.txt', 'log_pass3*')}
     
 
     def submit(self):

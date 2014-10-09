@@ -136,10 +136,7 @@ def find_bounding_box(mask):
        
 def expand_rectangle(rect, amount=1):
     """ expands a rectangle by a given amount """
-    if amount:
-        return (rect[0] - amount, rect[1] - amount, rect[2] + 2*amount, rect[3] + 2*amount)
-    else:
-        return rect
+    return (rect[0] - amount, rect[1] - amount, rect[2] + 2*amount, rect[3] + 2*amount)
     
        
 def get_largest_region(mask):
