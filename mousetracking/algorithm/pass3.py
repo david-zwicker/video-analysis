@@ -174,7 +174,7 @@ class ThirdPass(DataHandler):
             self.debug_process_frame(frame, mouse_track)
             
             if self.frame_id % 1000 == 0:
-                self.debug('Analyzed frame %d', self.frame_id)
+                self.logger.debug('Analyzed frame %d', self.frame_id)
 
     
     #===========================================================================
