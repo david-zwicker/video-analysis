@@ -119,18 +119,19 @@ class DataHandler(object):
         self.logger = logging.getLogger(self.name)
         self.logger.handlers = []     #< reset list of handlers
         self.logger.propagate = False #< disable default logger
-        
-        # add default logger to stderr
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s ' + self.name + '%(levelname)8s: %(message)s',
-                                      datefmt='%Y-%m-%d %H:%M:%S')
-        handler.setFormatter(formatter)
-        logging_level = get_loglevel_from_name(self.data['parameters/logging/level_stderr'])
-        handler.setLevel(logging_level)
-        self.logger.addHandler(handler) 
-        logging_level_min = logging_level
+        logging_level_min = logging.CRITICAL
         
         if self.data['parameters/logging/enabled']:
+            # add default logger to stderr
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter('%(asctime)s ' + self.name + '%(levelname)8s: %(message)s',
+                                          datefmt='%Y-%m-%d %H:%M:%S')
+            handler.setFormatter(formatter)
+            logging_level = get_loglevel_from_name(self.data['parameters/logging/level_stderr'])
+            handler.setLevel(logging_level)
+            self.logger.addHandler(handler) 
+            logging_level_min = min(logging_level_min, logging_level)
+        
             # setup handler to log to file
             logfile = self.get_filename('log.log', 'logging')
             handler = logging.FileHandler(logfile, mode=LOGGING_FILE_MODES[self.logging_mode])

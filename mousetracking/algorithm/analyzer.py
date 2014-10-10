@@ -64,19 +64,21 @@ class Analyzer(DataHandler):
         return results
     
     
-    def get_mouse_state_transitions(self, states=None, len_threshold=0):
+    def get_mouse_state_transitions(self, states=None, len_threshold=0,
+                                    ret_states=False):
         """ returns the durations the mouse spends in each state before 
         transitioning to another state
         
-        If states is given only, these states are included in the result.
+        If a list of `states` is given, only these states are included in
+        the result.
         Transitions with a duration [in seconds] below len_threshold will
         not be included in the results.
         """
         try:
             mouse_state = self.data['pass2/mouse_trajectory'].states
         except KeyError:
-            raise RuntimeError('The mouse trajectory has to be determined before '
-                               'the transitions can be analyzed.')
+            raise RuntimeError('The mouse trajectory has to be determined '
+                               'before the transitions can be analyzed.')
             
         if states is None:
             states = mouse.STATES.keys()
@@ -93,7 +95,36 @@ class Analyzer(DataHandler):
                 transitions[trans].append(duration)
             last_trans = k
             
-        return transitions
+        if ret_states:
+            return transitions, states
+        else:
+            return transitions
+            
+    
+    def get_mouse_transition_matrices(self, ret_states=False, **kwargs):
+        """ returns the matrix of transition rates between different states.
+        ret_states indicates whether a list indicating which row/column corresponds
+            to which state should also be returned. """
+            
+        transitions, states = self.get_mouse_state_transitions(ret_states=True,
+                                                               **kwargs)
+            
+        # build the matrix
+        rates = np.empty((len(states), len(states)))
+        rates.fill(np.nan)
+        counts = np.zeros_like(rates)
+        states = sorted(states)
+        lut = {s: k for k, s in enumerate(states)}
+        for trans, lengths in transitions.iteritems():
+            # calculate the transition rate            
+            rate = 1/np.mean(lengths)
+            rates[lut[trans[0]], lut[trans[1]]] = rate
+            counts[lut[trans[0]], lut[trans[1]]] = len(lengths)
+            
+        if ret_states:
+            return rates, counts, states
+        else:
+            return rates, counts
             
     
     def get_mouse_transition_graph(self, **kwargs):

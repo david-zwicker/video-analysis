@@ -112,3 +112,13 @@ def get_projection_point(line, point):
     return (point.x, point.y)
 
 
+def average_normalized_functions(profiles):
+    """ averages functions defined on the interval [0, 1] """
+    len_max = max(len(ps) for ps in profiles)
+    xs = np.linspace(0, 1, len_max)
+    ys = np.mean([np.interp(xs, ps[:, 0], ps[:, 1])
+                  for ps in profiles], axis=0)
+    return np.c_[xs, ys]
+    
+
+

@@ -8,15 +8,12 @@ from __future__ import division
 
 import logging
 
-import numpy as np
-
 from ..simple import load_result_file
+from video.analysis import curves
 
 
 logger = logging.getLogger('mousetracking.utilities')
 
-
-import matplotlib.pyplot as plt
 
 def average_ground_shape(result_files, time_point=60*60, parameters=None,
                          ret_traces=False):
@@ -44,15 +41,10 @@ def average_ground_shape(result_files, time_point=60*60, parameters=None,
         scale = points[-1][0] - points[0][0]
         points[:, 0] = (points[:, 0] - points[0, 0])/scale
         points[:, 1] = (points[:, 1] - points[:, 1].mean())/scale
-        plt.plot(points[:, 0], points[:, 1], 'k-')
         profiles.append(points)
         
     # average the profiles
-    len_max = max(len(ps) for ps in profiles)
-    xs = np.linspace(0, 1, len_max)
-    ys = np.mean([np.interp(xs, ps[:, 0], ps[:, 1])
-                  for ps in profiles], axis=0)
-    profile_avg = np.c_[xs, ys] 
+    profile_avg = curves.average_normalized_functions(profiles) 
     
     if ret_traces:
         return profile_avg, profiles
