@@ -144,6 +144,10 @@ PARAMETER_LIST = [
               'Rate at which the explored area is adapted inside burrows'),
     
     # Ground
+    Parameter('ground/template', '', None,
+              'Name of the ground template stored in the assets directory. '
+              'If the template is not given or could not be found, an '
+              'alternative method based on line scans is used.'),
     Parameter('ground/point_spacing', 20, UNIT.LENGTH_PIXEL,
               'Spacing of the support points describing the ground profile'),
     Parameter('ground/linescan_length', 50, UNIT.LENGTH_PIXEL,

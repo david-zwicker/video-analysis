@@ -20,12 +20,14 @@ top to bottom. The origin is thus in the upper left corner.
 from __future__ import division
 
 import math
+import os
 import time
 
 import numpy as np
 from scipy import ndimage, optimize, signal, spatial
 from shapely import affinity, geometry
 import cv2
+import yaml
 
 from video.io import ImageWindow
 from video.filters import FilterCrop
@@ -668,6 +670,65 @@ class FirstPass(DataHandler):
     # FINDING THE GROUND PROFILE
     #===========================================================================
         
+    def _get_ground_template(self, width_estimate):
+        """ builds the ground template from a stored template.
+        width_estimate is the estimated full width of the ground """
+        # find the t_points file
+        filename = 'ground_%s.yaml' % self.params['ground/template']
+        path = os.path.join(os.path.dirname(__file__), 'assets', filename)
+        if not os.path.isfile(path):
+            return None
+        
+        t_points = np.array(yaml.load(open(path)))
+        
+        # scale the t_points to the current image
+        frame_margin = self.params['ground/frame_margin']
+        t_points[:, 0] = (t_points[:, 0]*width_estimate) - frame_margin
+        t_points[:, 1] = (t_points[:, 1] - t_points[:, 1].min())*width_estimate
+
+        # determine template width
+        t_width = int(np.floor(width_estimate) - 2*frame_margin)
+        
+        # filter points that are too close to the edge
+        t_points = np.array([p for p in t_points if 0 < p[0] < t_width])
+        
+        # shift points vertically and determine template height
+        t_points[:, 1] -= t_points[:, 1].min()
+        t_height = int(np.ceil(t_points[:, 1].max()))
+        
+        # add corner points
+        t_points = t_points.tolist()
+        t_points.append((t_width, 0))
+        t_points.append((t_width, t_height))
+        t_points.append((0, t_height))
+        t_points.append((0, 0))
+        
+        # fill the t_points 
+        template = np.zeros((t_height, t_width), np.uint8)
+        cv2.fillPoly(template, [np.array(t_points, np.int32)], 255)
+        return template, t_points[:-4]
+        
+        
+    def _get_ground_from_template(self, frame):
+        """ determine the ground profile using a template.
+        Returns None if ground profile could not be determined. """
+        if not self.params['ground/template']:
+            return None
+        
+        width_estimate = 0.9 * frame.shape[1] #< width
+        template, points = self._get_ground_template(width_estimate)
+        
+        # convolute template with frame
+        conv = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+        
+        # determine maximum
+        _, _, _, max_loc = cv2.minMaxLoc(conv)
+        
+        # shift the points of the template 
+        points = curves.translate_points(points, max_loc[0], max_loc[1])
+        
+        return points
+    
         
     def _get_ground_from_linescans(self, frame):
         """ get a rough series of points on the ground line from vertical
@@ -844,19 +905,28 @@ class FirstPass(DataHandler):
         # get the background image from which we extract the ground profile
         frame = self.background.astype(np.uint8)
 
-        # get the ground profile and refine it
-        points1 = self._get_ground_from_linescans(frame)
-        points2 = self._refine_ground_points_grabcut(frame, points1)
-        points3 = self._revise_ground_points(frame, points2)
+        # get the ground profile by using a template
+        points_est1 = self._get_ground_from_template(frame)
+        
+        # if this didn't work, fall back to another method
+        if points_est1 is None:
+            points_est1 = self._get_ground_from_linescans(frame)
+            points_est2 = self._refine_ground_points_grabcut(frame, points_est1)
+        else:
+            points_est2 = points_est1
+        
+        # refine the ground profile that we found
+        points_final = self._revise_ground_points(frame, points_est2)
 
         # plot the ground profiles to the debug video
         if 'video' in self.debug:
             debug_video = self.debug['video']
-            debug_video.add_line(points1, is_closed=False,
-                                    mark_points=True, color='r')
-            debug_video.add_line(points2, is_closed=False, color='b')
+            debug_video.add_line(points_est1, is_closed=False,
+                                 mark_points=True, color='r')
+            if points_est1 is not points_est2:
+                debug_video.add_line(points_est2, is_closed=False, color='b')
         
-        return GroundProfile(points3)
+        return GroundProfile(points_final)
 
     
     def _get_cage_boundary(self, ground_point, direction='left'):
