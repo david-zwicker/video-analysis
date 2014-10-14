@@ -203,6 +203,6 @@ def prepare_data_for_yaml(data):
     elif isinstance(data, LazyHDFValue):
         return data.get_yaml_string()
     elif data is not None and not isinstance(data, (bool, int, float, list, basestring)):
-        warnings.warn('Encountered unknown instance of `%s` in YAML prepartion',
+        warnings.warn('Encountered unknown instance of `%s` in YAML preparation' %
                       data.__class__)
     return data

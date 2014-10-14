@@ -16,7 +16,7 @@ from shapely import affinity, geometry
 
 from .data_handler import DataHandler
 from .objects import mouse
-from .objects.burrow2 import Burrow
+from .objects.burrow2 import Burrow, BurrowTrack, BurrowTrackList
 from video.analysis import curves, regions
 from video.filters import FilterCrop
 from video.io import ImageWindow
@@ -139,8 +139,10 @@ class ThirdPass(DataHandler):
         self.background = first_frame.astype(np.double)
         self.ground_idx = None  #< index of the ground point where the mouse entered the burrow
         self.mouse_trail = None #< line from this point to the mouse (along the burrow)
-        self.burrows = []       #< list of current burrows
         
+        if self.params['burrows/enabled_pass3']:
+            self.result['burrows/tracks'] = BurrowTrackList()
+
         
     def _iterate_over_video(self, video):
         """ internal function doing the heavy lifting by iterating over the video """
@@ -164,10 +166,12 @@ class ThirdPass(DataHandler):
             self.mouse_pos = mouse_track.pos[self.frame_id, :]
             self.ground = ground_profile.get_ground_profile(self.frame_id)
 
-            # do the actual work            
+            # find out where the mouse currently is        
             self.classify_mouse_state(mouse_track)
-            if (self.params['burrows/enabled'] and 
+            
+            if (self.params['burrows/enabled_pass3'] and 
                 self.frame_id % self.params['burrows/adaptation_interval'] == 0):
+                # find the burrow from the mouse trail
                 self.locate_burrows()
 
             # store some information in the debug dictionary
@@ -335,8 +339,8 @@ class ThirdPass(DataHandler):
                 contour[k] = curves.get_projection_point(ground_line, point)
         
         # simplify contour while keeping the area roughly constant
-        threshold = self.params['burrows/simplification_threshold_area']
-        contour = regions.simplify_contour(contour, threshold)
+#         threshold = self.params['burrows/simplification_threshold_area']
+#         contour = regions.simplify_contour(contour, threshold)
         
         # remove potential invalid structures from contour
         if contour:
@@ -440,8 +444,23 @@ class ThirdPass(DataHandler):
         return burrow
     
     
+    def active_burrows(self, time_interval=None):
+        """ returns a generator to iterate over all active burrows """
+        if time_interval is None:
+            time_interval = self.params['burrows/adaptation_interval']
+        for k, burrow_track in enumerate(self.result['burrows/tracks']):
+            if burrow_track.track_end >= self.frame_id - time_interval:
+                yield k, burrow_track.last
+
+    
     def locate_burrows(self):
         """ locates burrows based on the mouse's movement """
+        burrow_tracks = self.result['burrows/tracks']
+        
+        # copy all burrows to the this frame
+        for burrow_id, burrow in self.active_burrows():
+            burrow_tracks[burrow_id].append(self.frame_id, burrow)
+        
         # check whether the mouse is in a burrow
         if self.mouse_trail is None:
             # mouse is above ground => all burrows are without mice 
@@ -449,37 +468,50 @@ class ThirdPass(DataHandler):
         
         else:
             # mouse entered a burrow
-#            entry_point_threshold = 3*self.params['burrows/width']
             trail_length = curves.curve_length(self.mouse_trail)
             
             # check if we already know this burrow
-            for burrow_with_mouse, burrow in enumerate(self.burrows):
+            for burrow_with_mouse, burrow in self.active_burrows():
                 # determine whether we are inside this burrow
-                centerline = geometry.LineString(self.mouse_trail)
+                trail_line = geometry.LineString(self.mouse_trail)
                 if burrow.outline is not None:
-                    in_this_burrow = burrow.polygon.intersects(centerline)
+                    in_this_burrow = burrow.polygon.intersects(trail_line)
                 else:
-                    dist = burrow.linestring.distance(centerline)
+                    dist = burrow.linestring.distance(trail_line)
                     in_this_burrow = (dist < self.params['burrows/width']) 
                      
                 if in_this_burrow:
                     burrow.refined = False
                     if trail_length > burrow.length:
                         # update the centerline estimate
-                        self.burrows[burrow_with_mouse].centerline = self.mouse_trail[:] #< copy list
+                        burrow_tracks[burrow_with_mouse].centerline = self.mouse_trail[:] #< copy list
                     break
             else:
                 # create the burrow, since we don't know it yet
-                self.burrows.append(Burrow(self.mouse_trail[:])) #< copy list
-                burrow_with_mouse = len(self.burrows) - 1
+                burrow_track = BurrowTrack(self.frame_id, Burrow(self.mouse_trail[:]))
+                burrow_tracks.append(burrow_track)
+                burrow_with_mouse = len(burrow_tracks) - 1
 
-        for k, burrow in enumerate(self.burrows):
+        # refine burrows
+        refined_burrows = []
+        for k, burrow in self.active_burrows(0):
             # skip burrows with mice in them
 #             if k == burrow_with_mouse:
 #                 continue
             if not burrow.refined:
-                self.burrows[k] = self.refine_burrow(burrow)
+                burrow = self.refine_burrow(burrow)
+                refined_burrows.append(k)
                 
+#         # check for overlapping burrows
+#         for id1 in reversed(refined_burrows):
+#             burrow1 = burrows[id1]
+#             # check against all the other burrows
+#             for id2, burrow2 in enumerate(burrows):
+#                 if id1 != id2 and burrow1.intersects(burrow2):
+                    
+            
+            
+            
 
     #===========================================================================
     # DEBUGGING
@@ -525,7 +557,7 @@ class ThirdPass(DataHandler):
             # plot the ground profile
             if self.ground is not None:
                 debug_video.add_line(self.ground.line, is_closed=False,
-                                        mark_points=True, color='y')
+                                     mark_points=True, color='y')
         
             # indicate the mouse position
             trail_length = self.params['output/video/mouse_trail_length']
@@ -536,15 +568,17 @@ class ThirdPass(DataHandler):
                 debug_video.add_circle(track[-1], self.params['mouse/model_radius'],
                                        'w', thickness=1)
                 
-            if self.params['burrows/enabled']:
-                for burrow in self.burrows:
+            # indicate the currently active burrow shapes
+            if self.params['burrows/enabled_pass3']:
+                for _, burrow in self.active_burrows():
                     debug_video.add_line(burrow.centerline, 'w', is_closed=False,
                                          mark_points=True, width=2)
                     if burrow.outline is not None:
                         debug_video.add_line(burrow.outline, 'w', is_closed=True,
                                              mark_points=False, width=1)
+                            
             elif self.mouse_trail:
-                debug_video.add_line(self.mouse_trail, 'w', is_closed=False,
+                debug_video.add_line(self.mouse_trail, '0.5', is_closed=False,
                                      mark_points=True, width=2)
                 
             # indicate the mouse state

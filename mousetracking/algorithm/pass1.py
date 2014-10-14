@@ -157,7 +157,7 @@ class FirstPass(DataHandler):
         
         self.result['objects/tracks'] = ObjectTrackList()
         self.result['ground/profile'] = GroundProfileList()
-        if self.params['burrows/enabled']:
+        if self.params['burrows/enabled_pass1']:
             self.result['burrows/tracks'] = BurrowTrackList()
 
         # create a simple template of the mouse, which will be used to update
@@ -241,7 +241,7 @@ class FirstPass(DataHandler):
                     
                     self.ground = self.get_ground_profile(self.ground)
         
-                if self.params['burrows/enabled'] and (not did_first_analysis
+                if self.params['burrows/enabled_pass1'] and (not did_first_analysis
                     or self.frame_id % self.params['burrows/adaptation_interval'] == 0):
                     
                     self.find_burrows()
@@ -1786,7 +1786,7 @@ class FirstPass(DataHandler):
                                         mark_points=True, color='y')
         
             # indicate the currently active burrow shapes
-            if self.params['burrows/enabled']:
+            if self.params['burrows/enabled_pass1']:
                 time_interval = self.params['burrows/adaptation_interval']
                 for burrow_track in self.result['burrows/tracks']:
                     if burrow_track.track_end > self.frame_id - time_interval:

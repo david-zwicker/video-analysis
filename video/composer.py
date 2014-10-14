@@ -139,6 +139,9 @@ class VideoComposer(VideoFileWriter):
     @skip_if_no_output
     def add_line(self, points, color='w', is_closed=True, mark_points=False, width=1):
         """ adds a polygon to the frame """
+        if len(points) == 0:
+            return
+        
         points = np.asarray(points, np.int32)
         
         # find the regions where the points are finite

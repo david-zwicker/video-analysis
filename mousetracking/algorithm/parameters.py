@@ -223,8 +223,10 @@ PARAMETER_LIST = [
               'determine the mouse position'),
         
     # Burrows
-    Parameter('burrows/enabled', True, UNIT.BOOLEAN,
-              'Whether burrows should be located'),
+    Parameter('burrows/enabled_pass1', False, UNIT.BOOLEAN,
+              'Whether burrows should be located in the first pass'),
+    Parameter('burrows/enabled_pass3', True, UNIT.BOOLEAN,
+              'Whether burrows should be located in the third pass'),
     Parameter('burrows/adaptation_interval', 100, UNIT.TIME_FRAMES,
               'How often are the burrow shapes adapted'),
     Parameter('burrows/cage_margin', 30, UNIT.LENGTH_PIXEL,
