@@ -198,10 +198,6 @@ class Burrow(object):
     def get_centerline(self, ground):
         """ determine the centerline, given the outline and the ground profile.
         The ground profile is used to determine the burrow exit. """
-        
-        if self.centerline is not None:
-            return self.centerline
-        
         # get the ground line 
         ground_line = ground.linestring
         

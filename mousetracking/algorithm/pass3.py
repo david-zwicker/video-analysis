@@ -339,8 +339,8 @@ class ThirdPass(DataHandler):
                 contour[k] = curves.get_projection_point(ground_line, point)
         
         # simplify contour while keeping the area roughly constant
-#         threshold = self.params['burrows/simplification_threshold_area']
-#         contour = regions.simplify_contour(contour, threshold)
+        threshold = self.params['burrows/simplification_threshold_area']
+        contour = regions.simplify_contour(contour, threshold)
         
         # remove potential invalid structures from contour
         if contour:
@@ -436,6 +436,7 @@ class ThirdPass(DataHandler):
             contour = self.get_burrow_contour_from_mask(mask.astype(np.uint8),
                                                         offset=rect[:2])
             burrow.outline = contour
+            burrow.get_centerline(self.ground)
             burrow.refined = True
         except RuntimeError as err:
             self.logger.debug('%d: Invalid burrow from GrabCut: %s',
