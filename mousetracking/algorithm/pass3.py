@@ -497,8 +497,8 @@ class ThirdPass(DataHandler):
         refined_burrows = []
         for k, burrow in self.active_burrows(0):
             # skip burrows with mice in them
-#             if k == burrow_with_mouse:
-#                 continue
+            if k == burrow_with_mouse:
+                continue
             if not burrow.refined:
                 burrow = self.refine_burrow(burrow)
                 refined_burrows.append(k)

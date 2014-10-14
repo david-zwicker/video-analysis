@@ -284,7 +284,10 @@ class Burrow(object):
     def to_array(self):
         """ converts the internal representation to a single array """
         # collect the data for the first two columns
-        data1 = np.asarray(self.outline, np.double)
+        if self.outline is None:
+            data1 = np.zeros((0, 2), np.double)
+        else:
+            data1 = np.asarray(self.outline, np.double)
 
         # collect the data for the last two columns
         data2 = np.array([[self.length, self.refined],
