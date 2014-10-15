@@ -472,20 +472,21 @@ class ThirdPass(DataHandler):
             trail_length = curves.curve_length(self.mouse_trail)
             
             # check if we already know this burrow
-            for burrow_with_mouse, burrow in self.active_burrows():
+            for burrow_with_mouse, burrow in self.active_burrows(0):
                 # determine whether we are inside this burrow
                 trail_line = geometry.LineString(self.mouse_trail)
                 if burrow.outline is not None:
-                    in_this_burrow = burrow.polygon.intersects(trail_line)
+                    dist = burrow.polygon.distance(trail_line)
+                    in_this_burrow = (dist < self.params['burrows/width']) 
                 else:
                     dist = burrow.linestring.distance(trail_line)
-                    in_this_burrow = (dist < self.params['burrows/width']) 
+                    in_this_burrow = (dist < 2*self.params['burrows/width']) 
                      
                 if in_this_burrow:
                     burrow.refined = False
                     if trail_length > burrow.length:
                         # update the centerline estimate
-                        burrow_tracks[burrow_with_mouse].centerline = self.mouse_trail[:] #< copy list
+                        burrow.centerline = self.mouse_trail[:] #< copy list
                     break
             else:
                 # create the burrow, since we don't know it yet
