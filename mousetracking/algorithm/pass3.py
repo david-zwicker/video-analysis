@@ -431,7 +431,7 @@ class ThirdPass(DataHandler):
             contour = self.get_burrow_contour_from_mask(mask.astype(np.uint8),
                                                         offset=rect[:2])
             burrow.outline = contour
-            burrow.get_centerline(self.ground)
+            burrow.get_centerline(self.ground, p_exit=burrow.centerline[0])
             burrow.refined = True
         except RuntimeError as err:
             self.logger.debug('%d: Invalid burrow from GrabCut: %s',

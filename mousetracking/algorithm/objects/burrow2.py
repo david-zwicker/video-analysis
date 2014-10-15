@@ -195,9 +195,11 @@ class Burrow(object):
         self.outline = np.asarray(outline, np.int32)
 
     
-    def get_centerline(self, ground):
+    def get_centerline(self, ground, p_exit=None):
         """ determine the centerline, given the outline and the ground profile.
-        The ground profile is used to determine the burrow exit. """
+        The ground profile is used to determine the burrow exit p_exit if it
+        is not given explicitly.
+        """
         # get the ground line 
         ground_line = ground.linestring
         
@@ -206,16 +208,19 @@ class Burrow(object):
                                                 self.ground_point_distance)
         outline = np.asarray(outline, np.double)
 
-        # calculate the distance of each outline point to the ground
-        dist = np.array([ground_line.distance(geometry.Point(p))
-                         for p in outline])
-        
-        # get points at the burrow exit (close to the ground profile)
-        indices = (dist < self.ground_point_distance)
-        if np.any(indices):
-            p_exit = outline[indices, :].mean(axis=0)
-        else:
-            p_exit = outline[np.argmin(dist)]
+        if p_exit is None:
+            # calculate the distance of each outline point to the ground
+            dist = np.array([ground_line.distance(geometry.Point(p))
+                             for p in outline])
+            
+            # get points at the burrow exit (close to the ground profile)
+            indices = (dist < self.ground_point_distance)
+            if np.any(indices):
+                p_exit = outline[indices, :].mean(axis=0)
+            else:
+                p_exit = outline[np.argmin(dist)]
+
+        # project exit_point onto the ground line
         p_exit = curves.get_projection_point(ground_line, p_exit)
             
         # get the two ground points closest to the exit point
@@ -244,7 +249,7 @@ class Burrow(object):
             # find the next point along the burrow
             point_max, dist_max, angle = regions.get_farthest_ray_intersection(
                 point_anchor,
-                np.linspace(angle - angle_max, angle + angle_max, 16),
+                np.linspace(angle - angle_max, angle + angle_max, 64),
                 outline_poly)
                 # this also sets the angle for the next iteration
 

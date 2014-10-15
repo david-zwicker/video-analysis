@@ -161,13 +161,16 @@ class DataHandler(object):
         
         curvature_radius_max = self.data.get('parameters/burrows/curvature_radius_max', None)
         if curvature_radius_max:
-            objects.Burrow.curvature_radius_max = curvature_radius_max 
+            objects.Burrow.curvature_radius_max = curvature_radius_max
+            burrow2.Burrow.curvature_radius_max = curvature_radius_max
         centerline_segment_length = self.data.get('parameters/burrows/centerline_segment_length', None)
         if centerline_segment_length:
             objects.Burrow.centerline_segment_length = centerline_segment_length
+            burrow2.Burrow.centerline_segment_length = centerline_segment_length
         ground_point_distance = self.data.get('parameters/burrows/ground_point_distance', None)
         if ground_point_distance:
             objects.Burrow.ground_point_distance = ground_point_distance
+            burrow2.Burrow.ground_point_distance = ground_point_distance
         hdf5_compression = self.data.get('parameters/output/hdf5_compression', None)
         if hdf5_compression:
             LazyHDFValue.compression = hdf5_compression
