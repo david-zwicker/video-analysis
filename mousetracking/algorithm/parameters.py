@@ -218,7 +218,7 @@ PARAMETER_LIST = [
               'What time duration do we consider for start and end nodes'),
     Parameter('tracking/splitting_duration_min', 10, UNIT.TIME_FRAMES,
               'Track duration above which two overlapping tracks are split'),
-    Parameter('tracking/maximal_gap', 20, UNIT.TIME_FRAMES,
+    Parameter('tracking/maximal_gap', 10, UNIT.TIME_FRAMES,
               'Maximal gap length where we will use linear interpolation to ' 
               'determine the mouse position'),
         
@@ -242,7 +242,7 @@ PARAMETER_LIST = [
               'considered exit points'),
     Parameter('burrows/centerline_segment_length', 25, UNIT.LENGTH_PIXEL,
               'Length of a segment of the center line of a burrow'),
-    Parameter('burrows/curvature_radius_max', 50, UNIT.LENGTH_PIXEL,
+    Parameter('burrows/curvature_radius_max', 30, UNIT.LENGTH_PIXEL,
               'Maximal radius of curvature the centerline is allowed to have'),
     Parameter('burrows/grabcut_burrow_core_area_min', 500, UNIT.AREA_PIXEL,
               'Minimal area the sure region of the mask for the grab cut '

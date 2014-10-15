@@ -88,7 +88,7 @@ class Burrow(object):
         if point_list is None:
             self._outline = None
         else:
-            point_list = np.asarray(point_list, np.double)
+            point_list = np.array(point_list, np.double)
             # make sure that the outline is given in clockwise direction
             if geometry.LinearRing(point_list).is_ccw:
                 point_list = point_list[::-1]

@@ -402,8 +402,6 @@ class ThirdPass(DataHandler):
         add_to_mask(cv2.GC_PR_FGD, self.params['burrows/width'])
         add_to_mask(cv2.GC_FGD, self.params['burrows/width_min']/2)
 
-#         debug.show_image(img, debug.get_grabcut_image(mask))
-
         # have to convert to color image, since grabCut only supports color
         img = cv2.cvtColor(img, cv2.cv.CV_GRAY2RGB)
         bgdmodel = np.zeros((1, 65), np.float64)
@@ -424,9 +422,6 @@ class ThirdPass(DataHandler):
 
         # calculate the mask of the foreground
         mask = np.where((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0)
-        
-#         # make sure that the burrow has been explored by the mouse
-#         mask[mask_unexplored] = 0
         
         # make sure that the burrow is under ground
         mask[mask_ground == 0] = 0
@@ -477,17 +472,17 @@ class ThirdPass(DataHandler):
                 trail_line = geometry.LineString(self.mouse_trail)
                 if burrow.outline is not None:
                     dist = burrow.polygon.distance(trail_line)
-                    in_this_burrow = (dist < self.params['burrows/width']) 
+                    mouse_close_to_burrow = (dist < self.params['burrows/width']) 
                 else:
                     dist = burrow.linestring.distance(trail_line)
-                    in_this_burrow = (dist < 2*self.params['burrows/width']) 
+                    mouse_close_to_burrow = (dist < 2*self.params['burrows/width']) 
                      
-                if in_this_burrow:
+                if mouse_close_to_burrow:
                     burrow.refined = False
                     if trail_length > burrow.length:
                         # update the centerline estimate
                         burrow.centerline = self.mouse_trail[:] #< copy list
-                    break
+                    break #< burrow_with_mouse contains burrow id
             else:
                 # create the burrow, since we don't know it yet
                 burrow_track = BurrowTrack(self.frame_id, Burrow(self.mouse_trail[:]))
