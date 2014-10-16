@@ -470,14 +470,8 @@ class ThirdPass(DataHandler):
             
         # find a better approximation for the burrow exit
         if len(points) >= 2:
-            p_a, p_b = points[1], points[0]
-            dx, dy = p_b[0] - p_a[0], p_b[1] - p_a[1]
-            angle = np.arctan2(dy, dx)
-            angles = np.linspace(angle - np.pi/4, angle + np.pi/4, 16)
-            p_near, _, _ = regions.get_nearest_ray_intersection(points[0], angles, outline)
-            
-            if p_near is not None:
-                points = [p_near] + points
+            p_near = curves.get_projection_point(self.ground.linestring, points[0])
+            points = [p_near] + points
             
         burrow.centerline = points
     
@@ -504,8 +498,7 @@ class ThirdPass(DataHandler):
             
         else:
             # burrow is close to the ground
-            angles = np.linspace(0, 2*np.pi, 64, endpoint=False)
-            p_near, _, _ = regions.get_nearest_ray_intersection(p_far, angles, groundline)
+            p_near = curves.get_projection_point(groundline, p_far)
             burrow.elongated = False
             
             burrow.centerline = [p_near, p_far]

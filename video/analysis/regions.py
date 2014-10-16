@@ -303,27 +303,6 @@ def get_farthest_ray_intersection(point_anchor, angles, polygon, ray_length=1000
 
 
 
-def get_nearest_ray_intersection(point_anchor, angles, polygon, ray_length=1000):
-    """ shoots out rays from point_anchor in different angles and determines
-    the nearest point where polygon is hit.
-    Returns the hit point, its distance to point_anchor and the associated
-    angle
-    """
-    point_min, dist_min, angle_min = None, np.inf, None
-    # try some rays distributed around `angle`
-    for angle in angles:
-        point_far = (point_anchor[0] + ray_length*np.cos(angle),
-                     point_anchor[1] + ray_length*np.sin(angle))
-        point_hit, dist_hit = get_ray_hitpoint(point_anchor, point_far,
-                                               polygon, ret_dist=True)
-        if dist_hit < dist_min:
-            dist_min = dist_hit
-            point_min = point_hit
-            angle_min = angle
-    return point_min, dist_min, angle_min
-
-
-
 def triangle_area(a, b, c):
     """ returns the area of a triangle with sides a, b, c """
     # use Heron's formula
