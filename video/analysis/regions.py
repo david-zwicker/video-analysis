@@ -208,6 +208,21 @@ def simplify_contour(contour, threshold):
         ring = simple_poly.simplify_ring(ring, threshold)
         return None if ring is None else ring.coords[:-1]
 
+
+def get_intersections(geometry1, geometry2):
+    """ get intersection points between two (line) geometries """
+    # find the intersections between the ray and the burrow outline
+    try:
+        inter = geometry1.intersection(geometry2)
+    except geos.TopologicalError:
+        return []
+    
+    # process the result    
+    if isinstance(inter, geometry.Point):
+        return [inter.coords[0]]
+    elif inter is not None and not inter.is_empty:
+        return [p.coords[0] for p in inter]
+
     
 def get_ray_hitpoint(point_anchor, point_far, line_string, ret_dist=False):
     """ returns the point where a ray anchored at point_anchor hits the polygon

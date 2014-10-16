@@ -93,6 +93,8 @@ class Burrow(object):
             if geometry.LinearRing(point_list).is_ccw:
                 point_list = point_list[::-1]
             self._outline = point_list
+            
+        self._cache = {}
         
 
     @cached_property

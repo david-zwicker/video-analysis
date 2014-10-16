@@ -8,10 +8,12 @@ Module that contains the class responsible for the third pass of the algorithm
 
 from __future__ import division
 
+import math
 import time
 
 import cv2
 import numpy as np
+from scipy import optimize
 from shapely import affinity, geometry
 
 from .data_handler import DataHandler
@@ -364,6 +366,114 @@ class ThirdPass(DataHandler):
             raise RuntimeError('Contour is not a simple polygon')
     
     
+    def refine_burrow_centerline(self, burrow):
+        """ refines the centerline of a burrow """
+
+        spacing = self.params['burrows/centerline_segment_length']
+        centerline = curves.make_curve_equidistant(burrow.centerline, spacing)
+        outline = burrow.outline_ring
+        
+        # iterate over all but the boundary points
+        ray_len = 10000
+
+        # determine the boundary points for each centerline point
+        points, dp, boundary = [centerline[0]], [(0, 0)], []
+        for k in xrange(1, len(centerline)):
+            # get local points and slopes
+            if k == len(centerline) - 1:
+                p_p, p_m =  centerline[k-1], centerline[k]
+                dx, dy = p_m - p_p
+            else:
+                p_p, p_m, p_n =  centerline[k-1], centerline[k], centerline[k+1]
+                dx, dy = p_n - p_p
+            dist = math.hypot(dx, dy)
+            if dist == 0: #< something went wrong 
+                continue #< skip this point
+            dx /= dist; dy /= dist
+
+            # determine the points of intersection with the burrow outline         
+            p_a = (p_m[0] - ray_len*dy, p_m[1] + ray_len*dx)
+            p_b = (p_m[0] + ray_len*dy, p_m[1] - ray_len*dx)
+            line = geometry.LineString((p_a, p_b))
+            
+            # find the intersections between the ray and the burrow outline
+            inter = regions.get_intersections(outline, line)
+
+            if len(inter) < 2:
+                # not enough information to proceed
+                continue
+            
+            # find the two closest points
+            print p_m, inter
+            dist = [curves.point_distance(p, p_m) for p in inter]
+            k_a = np.argmin(dist)
+            p_a = inter[k_a]
+            dist[k_a] = np.inf
+            p_b = inter[np.argmin(dist)]
+            
+            # set boundary point
+            points.append(p)
+            dp.append((-dy, dx))
+            boundary.append((p_a, p_b))
+
+
+        points = np.array(points)
+        dp = np.array(dp)
+        boundary = np.array(boundary)
+
+#         def energy_curvature(ps):
+#             energy = 0
+#             for k in xrange(1, len(ps) - 1):
+#                 p_p, p_c, p_n = ps[k-1:k+2]
+#                 a = curves.point_distance(p_p, p_c)
+#                 b = curves.point_distance(p_c, p_n)
+#                 c = curves.point_distance(p_n, p_p)
+# 
+#                 # determine curvature of circle through the three points
+#                 A = regions.triangle_area(a, b, c)
+#                 curvature = 4*A/(a*b*c)*(a + b)
+#                 energy += curvature
+#             return energy
+#         
+#         def energy_outline(ps):
+#             energy = 0
+#             for k, p in enumerate(ps[1:]):
+#                 a = curves.point_distance(p, boundary[k][0])
+#                 b = curves.point_distance(p, boundary[k][1])
+#                 energy += np.hypot(a, b)
+#             return energy
+#                 
+#         ds = np.zeros(len(points))
+#         def energy_snake(data):
+#             ds[1:] = data
+#             ps = points + ds[:, None]*dp
+#             print 'curv', energy_curvature(ps) 
+#             print 'outl', energy_outline(ps)
+#             return energy_curvature(ps) + energy_outline(ps)
+# 
+#         # fit the simple model to the line scan profile
+#         res = optimize.fmin(energy_snake, x0=np.zeros(len(points)-1))
+# 
+#         ds[1:] = res
+#         points = points + ds[:, None]*dp
+        
+        points_i = np.mean(boundary, axis=1)
+        
+        # check whether the centerline can be extended
+        angle = np.arctan2(-dp[-1][0], dp[-1][1])
+        angles = np.linspace(angle - np.pi/2, angle + np.pi/2, 32)
+        
+        p_far, _, _ = regions.get_farthest_ray_intersection(points_i[-1], angles, outline)
+        
+        points = [points[0]] + points_i.tolist() + [p_far]
+#         debug.show_shape(geometry.LineString(points),
+#                          background=self.background)
+        
+#         points = np.mean(boundary, axis=1)
+        
+        burrow.centerline = points
+    
+    
     def refine_burrow(self, burrow):
         """ refine burrow by thresholding background image using the GrabCut
         algorithm """
@@ -388,6 +498,7 @@ class ThirdPass(DataHandler):
         centerline = curves.translate_points(burrow.centerline,
                                              xoff=-rect[0],
                                              yoff=-rect[1])
+
         centerline = geometry.LineString(centerline)
         
         def add_to_mask(color, buffer_radius):
@@ -431,7 +542,8 @@ class ThirdPass(DataHandler):
             contour = self.get_burrow_contour_from_mask(mask.astype(np.uint8),
                                                         offset=rect[:2])
             burrow.outline = contour
-            burrow.get_centerline(self.ground, p_exit=burrow.centerline[0])
+            self.refine_burrow_centerline(burrow)
+#             burrow.get_centerline(self.ground, p_exit=burrow.centerline[0])
             burrow.refined = True
         except RuntimeError as err:
             self.logger.debug('%d: Invalid burrow from GrabCut: %s',

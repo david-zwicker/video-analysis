@@ -1022,10 +1022,10 @@ class FirstPass(DataHandler):
             energy_factor_last = 1
 
         # parameters of the line scan            
-        profile_len = int(self.params['ground/linescan_length']/2)
+        ray_len = int(self.params['ground/linescan_length']/2)
         profile_width = self.params['ground/point_spacing']/2
         ridge_width = self.params['ground/ridge_width']
-        len_ratio = profile_len/ridge_width
+        len_ratio = ray_len/ridge_width
         model_std = math.sqrt(1 - math.tanh(len_ratio)/len_ratio)
         assert 0.5 < model_std < 1
             
@@ -1043,8 +1043,8 @@ class FirstPass(DataHandler):
             dx /= dist; dy /= dist
 
             # do the line scan perpendicular to the ground line         
-            p_a = (p[0] - profile_len*dy, p[1] + profile_len*dx)
-            p_b = (p[0] + profile_len*dy, p[1] - profile_len*dx)
+            p_a = (p[0] - ray_len*dy, p[1] + ray_len*dx)
+            p_b = (p[0] + ray_len*dy, p[1] - ray_len*dx)
             profile = image.line_scan(frame, p_a, p_b, width=profile_width)
             # scale profile to -1, 1
             profile -= profile.mean()
