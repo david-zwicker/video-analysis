@@ -244,9 +244,9 @@ class ThirdPass(DataHandler):
             # score the burrow based on its entry point
             if self.ground_idx is None:
                 # only necessary if mouse starts inside burrow
-                dist = np.linalg.norm(self.ground.line - self.mouse_pos[None, :], axis=1)
+                dist = np.linalg.norm(self.ground.points - self.mouse_pos[None, :], axis=1)
                 self.ground_idx = np.argmin(dist)
-            entry_point = self.ground.line[self.ground_idx]
+            entry_point = self.ground.points[self.ground_idx]
             if entry_point[1] > self.ground.midline:
                 state['location'] = 'burrow'
             else:
@@ -264,7 +264,7 @@ class ThirdPass(DataHandler):
 
             self.mouse_trail = None
             # get index of the ground line
-            dist = np.linalg.norm(self.ground.line - self.mouse_pos[None, :], axis=1)
+            dist = np.linalg.norm(self.ground.points - self.mouse_pos[None, :], axis=1)
             self.ground_idx = np.argmin(dist)
             # get distance from ground line
             mouse_point = geometry.Point(self.mouse_pos)
@@ -290,7 +290,7 @@ class ThirdPass(DataHandler):
         
         # create a mask for the region below the current mask_ground profile
         ground_points = np.empty((len(self.ground) + 4, 2), np.int32)
-        ground_points[:-4, :] = self.ground.line
+        ground_points[:-4, :] = self.ground.points
         ground_points[-4, :] = (width, ground_points[-5, 1])
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
@@ -366,9 +366,8 @@ class ThirdPass(DataHandler):
             raise RuntimeError('Contour is not a simple polygon')
     
     
-    def refine_burrow_centerline(self, burrow):
-        """ refines the centerline of a burrow """
-
+    
+    def refine_elongated_burrow_centerline(self, burrow):
         spacing = self.params['burrows/centerline_segment_length']
         centerline = curves.make_curve_equidistant(burrow.centerline, spacing)
         outline = burrow.outline_ring
@@ -481,6 +480,35 @@ class ThirdPass(DataHandler):
                 points = [p_near] + points
             
         burrow.centerline = points
+    
+    
+    def refine_burrow_centerline(self, burrow):
+        """ refines the centerline of a burrow """
+        # check the percentage of outline points close to the ground
+        spacing = self.params['burrows/ground_point_distance']
+        outline = curves.make_curve_equidistant(burrow.outline, spacing)
+        groundline = self.ground.linestring
+
+        num_close = 0
+        dist_far, p_far = 0, None
+        for p in outline:
+            dist = groundline.distance(geometry.Point(p))
+            if dist < spacing:
+                num_close += 1
+            if dist > dist_far:
+                dist_far = dist
+                p_far = p
+                
+        if num_close < 0.5*len(outline):
+            # burrow has few points close to the ground
+            self.refine_elongated_burrow_centerline(burrow)
+            
+        else:
+            # burrow is close to the ground
+            angles = np.linspace(0, 2*np.pi, 64, endpoint=False)
+            p_near, _, _ = regions.get_nearest_ray_intersection(p_far, angles, groundline)
+            
+            self.centerline = [p_near, p_far]
     
     
     def refine_burrow(self, burrow):
@@ -677,7 +705,7 @@ class ThirdPass(DataHandler):
             
             # plot the ground profile
             if self.ground is not None:
-                debug_video.add_line(self.ground.line, is_closed=False,
+                debug_video.add_line(self.ground.points, is_closed=False,
                                      mark_points=True, color='y')
         
             # indicate the mouse position

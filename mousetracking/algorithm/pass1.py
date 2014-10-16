@@ -998,7 +998,7 @@ class FirstPass(DataHandler):
         # consider all points that are far away from the borders        
         frame_margin = int(self.params['ground/frame_margin'])
         x_max = frame.shape[1] - frame_margin
-        points = [point for point in ground.line
+        points = [point for point in ground.points
                   if frame_margin < point[0] < x_max]
         points = np.array(np.round(points),  np.int32)
         
@@ -1188,7 +1188,7 @@ class FirstPass(DataHandler):
         
         # create a mask for the region below the current mask_ground profile
         ground_points = np.empty((len(ground) + 4, 2), np.int32)
-        ground_points[:-4, :] = ground.line
+        ground_points[:-4, :] = ground.points
         ground_points[-4, :] = (width, ground_points[-5, 1])
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
@@ -1787,7 +1787,7 @@ class FirstPass(DataHandler):
             
             # plot the ground profile
             if self.ground is not None: 
-                debug_video.add_line(self.ground.line, is_closed=False,
+                debug_video.add_line(self.ground.points, is_closed=False,
                                         mark_points=True, color='y')
         
             # indicate the currently active burrow shapes
@@ -1865,8 +1865,8 @@ class FirstPass(DataHandler):
             
             # plot the ground profile
             if self.ground is not None:
-                debug_video.add_line(self.ground.line, is_closed=False, color='y')
-                debug_video.add_points(self.ground.line, radius=2, color='y')
+                debug_video.add_line(self.ground.points, is_closed=False, color='y')
+                debug_video.add_points(self.ground.points, radius=2, color='y')
 
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
 

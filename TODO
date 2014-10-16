@@ -13,12 +13,10 @@
 * Gather more statistics about why certain parts of the algorithm failed
 * Distinguish mouse position at burrow apex from positions at other points in burrow
 	- Analyze excavated burrow space (after mouse has been active)
-* Write out images equidistantly, which can be checked more easily than videos
 * Third pass burrow finding:
 	If mouse is in burrow, burrow shape could be the union of grab cut (with mouse present)
 	and the explored area
 	Burrow finding of first pass can be removed altogether (if third pass gets sufficiently nice results)
-* Add
 
 
 Performance improvements:
@@ -31,7 +29,3 @@ Performance improvements:
 
 Low priority enhancements:
 --------------------------
-* Apparently, sometimes the light flickers and a frame becomes unusably bright.
-	- Get an example video to see how we could circumvent this problem in our code
-	- One idea is to just drop these frames and assume that not much happens during this time
-	- it seems we circumvent these problems by having a maximum for the number of moving objects  

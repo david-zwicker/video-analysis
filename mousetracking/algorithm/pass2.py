@@ -283,19 +283,19 @@ class SecondPass(DataHandler):
         # determine the minimal and maximal extend of the ground profile
         x_min, x_max = np.inf, 0
         for ground in profile_list.grounds:
-            x_min = min(x_min, ground.line[ 0, 0])
-            x_max = max(x_max, ground.line[-1, 0])
+            x_min = min(x_min, ground.points[ 0, 0])
+            x_max = max(x_max, ground.points[-1, 0])
             
         # extend all ground profiles that do not reach to these limits
         cage_width = []
         for ground in profile_list.grounds:
-            line = ground.line.tolist()
-            if line[0][0] > x_min:
-                line.insert(0, (x_min, line[0][1]))
-            if line[-1][0] < x_max:
-                line.append((x_max, line[-1][1]))
-            ground.line = line
-            cage_width.append(line[-1][0] - line[0][0])
+            points = ground.points.tolist()
+            if points[0][0] > x_min:
+                points.insert(0, (x_min, points[0][1]))
+            if points[-1][0] < x_max:
+                points.append((x_max, points[-1][1]))
+            ground.points = points
+            cage_width.append(points[-1][0] - points[0][0])
         
         # create a ground profile track from the list
         profile = GroundProfileTrack.create_from_ground_profile_list(profile_list)
@@ -400,7 +400,7 @@ class SecondPass(DataHandler):
 
                     mouse_trail = None
                     # get index of the ground line
-                    dist = np.linalg.norm(ground.line - mouse_pos[None, :], axis=1)
+                    dist = np.linalg.norm(ground.points - mouse_pos[None, :], axis=1)
                     ground_idx = np.argmin(dist)
                     # get distance from ground line
                     ground_dist = ground.linestring.distance(geometry.Point(mouse_pos))

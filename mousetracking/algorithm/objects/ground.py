@@ -22,54 +22,54 @@ from video.analysis.utils import cached_property
 class GroundProfile(object):
     """ class representing a single ground profile """
     
-    def __init__(self, line):
-        self.line = line
+    def __init__(self, points):
+        self.points = points
         
-        
+ 
     @property
-    def line(self):
-        return self._line
+    def points(self):
+        return self._points
     
-    
-    @line.setter
-    def line(self, value):
-        self._line = np.asarray(value, np.double)
+    @points.setter
+    def points(self, value):
+        self._points = np.asarray(value, np.double)
+        self._cache = {}
         
         
     def __repr__(self):
-        return 'GroundProfile(%d line)' % (len(self.line))
+        return 'GroundProfile(%d line)' % (len(self))
     
     
     def __len__(self):
-        return len(self.line)
+        return len(self._points)
         
         
     @cached_property
     def length(self):
         """ returns the length of the profile """
-        return curves.curve_length(self.line)
+        return curves.curve_length(self.points)
     
     
     @cached_property
     def linestring(self):
         """ returns a shapely line string corresponding to the ground """
-        return geometry.asLineString(self.line)
+        return geometry.asLineString(self.points)
     
     
     def make_equidistant(self, **kwargs):
         """ makes the ground profile equidistant """
-        self.line = curves.make_curve_equidistant(self.line, **kwargs)
+        self.points = curves.make_curve_equidistant(self.points, **kwargs)
 
 
     @cached_property
     def midline(self):
         """ returns the average y-value along the profile """
-        return np.mean(self.line[:, 1])
+        return np.mean(self.points[:, 1])
 
 
     @cached_property
     def interpolator(self):
-        return Interpolate_1D_Extrapolated(self._line[:, 0], self._line[:, 1])
+        return Interpolate_1D_Extrapolated(self._points[:, 0], self._points[:, 1])
     
     
     def get_y(self, x, nearest_neighbor=True):
@@ -77,8 +77,8 @@ class GroundProfile(object):
         This function interpolates between points and extrapolates beyond the
         edge points. """
         if nearest_neighbor:
-            idx = np.argmin(np.abs(self.line[:, 0] - x))
-            return self.line[idx, 1]
+            idx = np.argmin(np.abs(self.points[:, 0] - x))
+            return self.points[idx, 1]
         else:
             return self.interpolator(x)
    
@@ -117,7 +117,7 @@ class GroundProfileList(object):
         results = []
         for time, ground in itertools.izip(self.times, self.grounds):
             time_array = np.zeros((len(ground), 1), np.int32) + time
-            results.append(np.hstack((time_array, ground.line)))
+            results.append(np.hstack((time_array, ground.points)))
 
         if results:
             return np.concatenate(results)
@@ -222,7 +222,7 @@ class GroundProfileTrack(object):
         # iterate through all profiles and convert them to have equal number of line
         # and store the data
         times = ground_profiles.times
-        profiles = [curves.make_curve_equidistant(ground.line, count=num_points)
+        profiles = [curves.make_curve_equidistant(ground.points, count=num_points)
                     for ground in ground_profiles.grounds]
         
         # store information in numpy arrays 
