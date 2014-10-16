@@ -76,7 +76,7 @@ class Burrow(object):
     @centerline.setter
     def centerline(self, point_list):
         self._centerline = np.array(point_list, np.double)
-        self.length = curves.curve_length(point_list)
+        self.length = curves.curve_length(self._centerline)
 
 
     @property

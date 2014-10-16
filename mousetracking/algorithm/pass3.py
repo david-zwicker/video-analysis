@@ -467,7 +467,7 @@ class ThirdPass(DataHandler):
             trail_length = curves.curve_length(self.mouse_trail)
             
             # check if we already know this burrow
-            for burrow_with_mouse, burrow in self.active_burrows(0):
+            for burrow_with_mouse, burrow in self.active_burrows(time_interval=0):
                 # determine whether we are inside this burrow
                 trail_line = geometry.LineString(self.mouse_trail)
                 if burrow.outline is not None:
@@ -491,7 +491,7 @@ class ThirdPass(DataHandler):
 
         # refine burrows
         refined_burrows = []
-        for k, burrow in self.active_burrows(0):
+        for k, burrow in self.active_burrows(time_interval=0):
             # skip burrows with mice in them
             if k == burrow_with_mouse:
                 continue

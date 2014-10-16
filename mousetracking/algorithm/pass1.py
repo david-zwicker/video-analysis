@@ -715,17 +715,22 @@ class FirstPass(DataHandler):
         if not self.params['ground/template']:
             return None
         
-        width_estimate = 0.9 * frame.shape[1] #< width
-        template, points = self._get_ground_template(width_estimate)
+        correlation_max, points = 0, None                  
+        for factor in (1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65):
+            width_estimate = factor * frame.shape[1] #< width
+            template, t_points = self._get_ground_template(width_estimate)
         
-        # convolute template with frame
-        conv = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
-        
-        # determine maximum
-        _, _, _, max_loc = cv2.minMaxLoc(conv)
-        
-        # shift the points of the template 
-        points = curves.translate_points(points, max_loc[0], max_loc[1])
+            # convolute template with frame
+            conv = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+
+            # determine maximum
+            _, max_val, _, max_loc = cv2.minMaxLoc(conv)
+
+            if max_val > correlation_max:
+                # better match than the previous one
+                correlation_max = max_val
+                # shift the points of the template 
+                points = curves.translate_points(t_points, max_loc[0], max_loc[1])
         
         return points
     
