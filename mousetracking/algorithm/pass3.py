@@ -499,7 +499,6 @@ class ThirdPass(DataHandler):
                 p_far = p
                 
         shape_threshold = self.params['burrows/shape_threshold_fraction']
-        print num_close/len(outline)
         if num_close < shape_threshold*len(outline):
             # burrow has few points close to the ground
             self.refine_elongated_burrow_centerline(burrow)
@@ -735,11 +734,14 @@ class ThirdPass(DataHandler):
             # indicate the currently active burrow shapes
             if self.params['burrows/enabled_pass3']:
                 for _, burrow in self.active_burrows():
-                    debug_video.add_line(burrow.centerline, 'w', is_closed=False,
+                    if hasattr(burrow, 'elongated') and burrow.elongated:
+                        burrow_color = 'r'
+                    else:
+                        burrow_color = '#FF7F00' # orange
+                    debug_video.add_line(burrow.centerline, burrow_color, is_closed=False,
                                          mark_points=True, width=2)
                     if burrow.outline is not None:
-                        color = 'r' if hasattr(burrow, 'elongated') and burrow.elongated else 'w'
-                        debug_video.add_line(burrow.outline, color, is_closed=True,
+                        debug_video.add_line(burrow.outline, burrow_color, is_closed=True,
                                              mark_points=False, width=1)
                             
             elif self.mouse_trail:
