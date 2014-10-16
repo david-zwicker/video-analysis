@@ -455,27 +455,31 @@ class ThirdPass(DataHandler):
 #  
 #         ds[1:] = res
 #         points_i = (points + ds[:, None]*dp)[1:]
-#         
-        points_i = np.mean(boundary, axis=1)
+
+        # get the points, which are neither at the exit nor the front
+        points = np.mean(boundary, axis=1).tolist()
         
-        # check whether the centerline can be extended
+        # extend the centerline to the burrow front
         angle = np.arctan2(-dp[-1][0], dp[-1][1])
         angles = np.linspace(angle - np.pi/3, angle + np.pi/3, 32)
-        
-        p_far, _, _ = regions.get_farthest_ray_intersection(points_i[-1], angles, outline)
+        p_far, _, _ = regions.get_farthest_ray_intersection(points[-1], angles, outline)
 
-        if p_far is None:
-            points = [points[0]] + points_i.tolist()
-        else:        
-            points = [points[0]] + points_i.tolist() + [p_far]
-#         debug.show_shape(geometry.LineString(points),
-#                          background=self.background)
-        
-#         points = np.mean(boundary, axis=1)
-        
-        if curves.point_distance(points[-1], points[-2]) < spacing:
-            del points[-2]
-        
+        if p_far is not None:
+            points = points + [p_far]
+            if curves.point_distance(points[-1], points[-2]) < spacing:
+                del points[-2]
+            
+        # find a better approximation for the burrow exit
+        if len(points) >= 2:
+            p_a, p_b = points[1], points[0]
+            dx, dy = p_b[0] - p_a[0], p_b[1] - p_a[1]
+            angle = np.arctan2(dy, dx)
+            angles = np.linspace(angle - np.pi/4, angle + np.pi/4, 16)
+            p_near, _, _ = regions.get_nearest_ray_intersection(points[0], angles, outline)
+            
+            if p_near is not None:
+                points = [p_near] + points
+            
         burrow.centerline = points
     
     
