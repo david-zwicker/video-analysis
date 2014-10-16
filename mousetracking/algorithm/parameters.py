@@ -240,6 +240,11 @@ PARAMETER_LIST = [
     Parameter('burrows/ground_point_distance', 10, UNIT.LENGTH_PIXEL,
               'Maximal distance of ground profile to outline points that are '
               'considered exit points'),
+    Parameter('burrows/shape_threshold_fraction', 0.3, UNIT.FRACTION,
+              'Minimal fraction of burrow outline points that must be close '
+              'to the ground line in order for the burrow to qualify as a '
+              '"wide burrow". Otherwise, the burrow will be treated as a '
+              '"long burrow".'),
     Parameter('burrows/centerline_segment_length', 15, UNIT.LENGTH_PIXEL,
               'Length of a segment of the center line of a burrow'),
     Parameter('burrows/curvature_radius_max', 30, UNIT.LENGTH_PIXEL,

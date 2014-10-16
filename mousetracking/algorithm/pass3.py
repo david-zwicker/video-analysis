@@ -498,14 +498,18 @@ class ThirdPass(DataHandler):
                 dist_far = dist
                 p_far = p
                 
-        if num_close < 0.5*len(outline):
+        shape_threshold = self.params['burrows/shape_threshold_fraction']
+        print num_close/len(outline)
+        if num_close < shape_threshold*len(outline):
             # burrow has few points close to the ground
             self.refine_elongated_burrow_centerline(burrow)
+            burrow.elongated = True
             
         else:
             # burrow is close to the ground
             angles = np.linspace(0, 2*np.pi, 64, endpoint=False)
             p_near, _, _ = regions.get_nearest_ray_intersection(p_far, angles, groundline)
+            burrow.elongated = False
             
             self.centerline = [p_near, p_far]
     
@@ -734,7 +738,8 @@ class ThirdPass(DataHandler):
                     debug_video.add_line(burrow.centerline, 'w', is_closed=False,
                                          mark_points=True, width=2)
                     if burrow.outline is not None:
-                        debug_video.add_line(burrow.outline, 'w', is_closed=True,
+                        color = 'r' if hasattr(burrow, 'elongated') and burrow.elongated else 'w'
+                        debug_video.add_line(burrow.outline, color, is_closed=True,
                                              mark_points=False, width=1)
                             
             elif self.mouse_trail:
