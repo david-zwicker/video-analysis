@@ -536,7 +536,7 @@ class ThirdPass(DataHandler):
                                              xoff=-rect[0],
                                              yoff=-rect[1])
 
-        if burrow.outline is not None:
+        if burrow.outline is not None and len(centerline) > 1:
             centerline = geometry.LineString(centerline[:-1])
         else:
             centerline = geometry.LineString(centerline)
