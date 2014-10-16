@@ -489,18 +489,15 @@ class ThirdPass(DataHandler):
         outline = curves.make_curve_equidistant(burrow.outline, spacing)
         groundline = self.ground.linestring
 
-        num_close = 0
         dist_far, p_far = 0, None
         for p in outline:
             dist = groundline.distance(geometry.Point(p))
-            if dist < spacing:
-                num_close += 1
             if dist > dist_far:
                 dist_far = dist
                 p_far = p
                 
-        shape_threshold = self.params['burrows/shape_threshold_fraction']
-        if num_close < shape_threshold*len(outline):
+        threshold_dist = self.params['burrows/shape_threshold_distance']
+        if dist_far > threshold_dist:
             # burrow has few points close to the ground
             self.refine_elongated_burrow_centerline(burrow)
             burrow.elongated = True
@@ -512,7 +509,7 @@ class ThirdPass(DataHandler):
             burrow.elongated = False
             
             burrow.centerline = [p_near, p_far]
-    
+
     
     def refine_burrow(self, burrow):
         """ refine burrow by thresholding background image using the GrabCut
@@ -735,9 +732,9 @@ class ThirdPass(DataHandler):
             if self.params['burrows/enabled_pass3']:
                 for _, burrow in self.active_burrows():
                     if hasattr(burrow, 'elongated') and burrow.elongated:
-                        burrow_color = 'r'
+                        burrow_color = 'red'
                     else:
-                        burrow_color = '#FF7F00' # orange
+                        burrow_color = 'DarkOrange'
                     debug_video.add_line(burrow.centerline, burrow_color, is_closed=False,
                                          mark_points=True, width=2)
                     if burrow.outline is not None:
