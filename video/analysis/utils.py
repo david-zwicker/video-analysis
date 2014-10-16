@@ -29,7 +29,7 @@ class cached_property(object):
         self.func = func
 
 
-    def __get__(self, obj, type=None):  # @ReservedAssignment
+    def __get__(self, obj, owner):
         if obj is None:
             return self
 

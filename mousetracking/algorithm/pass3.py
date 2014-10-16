@@ -13,7 +13,6 @@ import time
 
 import cv2
 import numpy as np
-from scipy import optimize
 from shapely import affinity, geometry
 
 from .data_handler import DataHandler
