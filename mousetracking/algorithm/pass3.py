@@ -529,6 +529,9 @@ class ThirdPass(DataHandler):
                                              xoff=-rect[0],
                                              yoff=-rect[1])
 
+        spacing = self.params['burrows/centerline_segment_length']
+        centerline = curves.make_curve_equidistant(centerline, spacing) 
+
         if burrow.outline is not None and len(centerline) > 2:
             centerline = geometry.LineString(centerline[:-1])
         else:
