@@ -648,7 +648,19 @@ class ThirdPass(DataHandler):
             if k == burrow_with_mouse:
                 continue
             if not burrow.refined:
-                burrow = self.refine_burrow(burrow)
+                old_shape = burrow.polygon
+                while True:
+                    burrow = self.refine_burrow(burrow)
+                    area = burrow.area
+                    # check whether the burrow is small
+                    if area < 2*self.params['burrows/area_min']:
+                        break
+                    # check whether the burrow has changed significantly
+                    diff = old_shape.symmetric_difference(burrow.polygon) 
+                    if diff.area / area < 0.1:
+                        break 
+                    old_shape = burrow.polygon
+                
                 refined_burrows.append(k)
                 
 #         # check for overlapping burrows
