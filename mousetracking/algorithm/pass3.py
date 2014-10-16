@@ -13,7 +13,7 @@ import time
 
 import cv2
 import numpy as np
-from scipy import optimize
+# from scipy import optimize
 from shapely import affinity, geometry
 
 from .data_handler import DataHandler
@@ -404,7 +404,6 @@ class ThirdPass(DataHandler):
                 continue
             
             # find the two closest points
-            print p_m, inter
             dist = [curves.point_distance(p, p_m) for p in inter]
             k_a = np.argmin(dist)
             p_a = inter[k_a]
@@ -471,6 +470,9 @@ class ThirdPass(DataHandler):
         
 #         points = np.mean(boundary, axis=1)
         
+        if curves.point_distance(points[-1], points[-2]) < spacing:
+            del points[-2]
+        
         burrow.centerline = points
     
     
@@ -499,7 +501,10 @@ class ThirdPass(DataHandler):
                                              xoff=-rect[0],
                                              yoff=-rect[1])
 
-        centerline = geometry.LineString(centerline)
+        if burrow.outline is not None:
+            centerline = geometry.LineString(centerline[:-1])
+        else:
+            centerline = geometry.LineString(centerline)
         
         def add_to_mask(color, buffer_radius):
             """ adds the region around the centerline to the mask """

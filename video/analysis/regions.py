@@ -217,10 +217,12 @@ def get_intersections(geometry1, geometry2):
     except geos.TopologicalError:
         return []
     
-    # process the result    
-    if isinstance(inter, geometry.Point):
+    # process the result
+    if inter is None or inter.is_empty:
+        return []    
+    elif isinstance(inter, geometry.Point):
         return [inter.coords[0]]
-    elif inter is not None and not inter.is_empty:
+    else:
         return [p.coords[0] for p in inter]
 
     
