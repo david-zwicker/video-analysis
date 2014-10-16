@@ -460,7 +460,7 @@ class ThirdPass(DataHandler):
         
         # extend the centerline to the burrow front
         angle = np.arctan2(-dp[-1][0], dp[-1][1])
-        angles = np.linspace(angle - np.pi/3, angle + np.pi/3, 32)
+        angles = np.linspace(angle - np.pi/4, angle + np.pi/4, 32)
         p_far, _, _ = regions.get_farthest_ray_intersection(points[-1], angles, outline)
 
         if p_far is not None:
