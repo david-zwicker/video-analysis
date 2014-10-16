@@ -367,6 +367,7 @@ class ThirdPass(DataHandler):
     
     
     def refine_elongated_burrow_centerline(self, burrow):
+        """ refines the centerline of an elongated burrow """
         spacing = self.params['burrows/centerline_segment_length']
         centerline = curves.make_curve_equidistant(burrow.centerline, spacing)
         outline = burrow.outline_ring
@@ -510,7 +511,7 @@ class ThirdPass(DataHandler):
             p_near, _, _ = regions.get_nearest_ray_intersection(p_far, angles, groundline)
             burrow.elongated = False
             
-            self.centerline = [p_near, p_far]
+            burrow.centerline = [p_near, p_far]
     
     
     def refine_burrow(self, burrow):
@@ -585,7 +586,6 @@ class ThirdPass(DataHandler):
                                                         offset=rect[:2])
             burrow.outline = contour
             self.refine_burrow_centerline(burrow)
-#             burrow.get_centerline(self.ground, p_exit=burrow.centerline[0])
             burrow.refined = True
         except RuntimeError as err:
             self.logger.debug('%d: Invalid burrow from GrabCut: %s',
