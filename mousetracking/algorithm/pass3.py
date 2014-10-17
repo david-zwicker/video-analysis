@@ -591,9 +591,9 @@ class ThirdPass(DataHandler):
         """ returns a generator to iterate over all active burrows """
         if time_interval is None:
             time_interval = self.params['burrows/adaptation_interval']
-        for k, burrow_track in enumerate(self.result['burrows/tracks']):
+        for track_id, burrow_track in enumerate(self.result['burrows/tracks']):
             if burrow_track.track_end >= self.frame_id - time_interval:
-                yield k, burrow_track.last
+                yield track_id, burrow_track.last
 
     
     def locate_burrows(self):
@@ -640,9 +640,9 @@ class ThirdPass(DataHandler):
 
         # refine burrows
         refined_burrows = []
-        for k, burrow in self.active_burrows(time_interval=0):
+        for track_id, burrow in self.active_burrows(time_interval=0):
             # skip burrows with mice in them
-            if k == burrow_with_mouse:
+            if track_id == burrow_with_mouse:
                 continue
             if not burrow.refined:
                 old_shape = burrow.polygon
@@ -658,21 +658,21 @@ class ThirdPass(DataHandler):
                         break 
                     old_shape = burrow.polygon
                 
-                refined_burrows.append(k)
+                refined_burrows.append(track_id)
                 
         # check for overlapping burrows
-        for id1 in reversed(refined_burrows):
-            burrow1 = burrow_tracks[id1]
+        for track1_id in reversed(refined_burrows):
+            burrow1_track = burrow_tracks[track1_id]
             # check against all the other burrows
-            for id2, burrow2 in self.active_burrows(time_interval=0):
-                if id2 >= id1:
+            for track2_id, burrow2 in self.active_burrows(time_interval=0):
+                if track2_id >= track1_id:
                     break
-                if burrow1.intersects(burrow2):
+                if burrow1_track.last.intersects(burrow2):
                     # intersecting burrows: keep the older burrow
-                    if len(burrow1) <= 1:
-                        del burrow_tracks[id1]
+                    if len(burrow1_track) <= 1:
+                        del burrow_tracks[track1_id]
                     else:
-                        del burrow1[-1]
+                        del burrow1_track[-1]
                         
             
     #===========================================================================
