@@ -662,7 +662,7 @@ class ThirdPass(DataHandler):
                 
         # check for overlapping burrows
         for id1 in reversed(refined_burrows):
-            burrow1 = self.burrows[id1]
+            burrow1 = burrow_tracks[id1]
             # check against all the other burrows
             for id2, burrow2 in self.active_burrows(time_interval=0):
                 if id2 >= id1:
@@ -670,7 +670,7 @@ class ThirdPass(DataHandler):
                 if burrow1.intersects(burrow2):
                     # intersecting burrows: keep the older burrow
                     if len(burrow1) <= 1:
-                        del self.burrows[id1]
+                        del burrow_tracks[id1]
                     else:
                         del burrow1[-1]
                         
