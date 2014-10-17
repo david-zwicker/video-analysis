@@ -703,32 +703,31 @@ class FirstPass(DataHandler):
         path = os.path.join(os.path.dirname(__file__), 'assets', filename)
         if not os.path.isfile(path):
             return None
-        
-        t_points = np.array(yaml.load(open(path)))
-        
-        # scale the t_points to the current image
-        frame_margin = self.params['ground/frame_margin']
-        t_points[:, 0] = (t_points[:, 0]*width_estimate) - frame_margin
-        t_points[:, 1] = (t_points[:, 1] - t_points[:, 1].min())*width_estimate
 
-        # determine template width
-        t_width = int(np.floor(width_estimate) - 2*frame_margin)
+        # load the points and scale them to the given width        
+        t_points = np.array(yaml.load(open(path)))
+        t_points *= width_estimate
+
+        # determine template width by subtracting margin
+        frame_margin = self.params['ground/frame_margin']
+        t_width = int(np.ceil(width_estimate) - 2*frame_margin)
         
         # filter points that are too close to the edge
+        t_points[:, 0] -= frame_margin
         t_points = np.array([p for p in t_points if 0 < p[0] < t_width])
         
         # shift points vertically and determine template height
         t_points[:, 1] -= t_points[:, 1].min()
         t_height = int(np.ceil(t_points[:, 1].max()))
         
-        # add corner points
+        # add corner points to point list
         t_points = t_points.tolist()
         t_points.append((t_width, 0))
         t_points.append((t_width, t_height))
         t_points.append((0, t_height))
         t_points.append((0, 0))
         
-        # fill the t_points 
+        # create the mask based on the points 
         template = np.zeros((t_height, t_width), np.uint8)
         cv2.fillPoly(template, [np.array(t_points, np.int32)], 255)
         return template, t_points[:-4]
@@ -754,7 +753,7 @@ class FirstPass(DataHandler):
             if max_val > correlation_max:
                 # better match than the previous one
                 correlation_max = max_val
-                # shift the points of the template 
+                # shift the points of the template
                 points = curves.translate_points(t_points, max_loc[0], max_loc[1])
         
         return points
@@ -946,7 +945,7 @@ class FirstPass(DataHandler):
             points_est2 = points_est1
         
         # refine the ground profile that we found
-        points_final = self._revise_ground_points(frame, points_est2)
+        points_final = self._revise_ground_points(frame, points_est2[:])
 
         # plot the ground profiles to the debug video
         if 'video' in self.debug:
