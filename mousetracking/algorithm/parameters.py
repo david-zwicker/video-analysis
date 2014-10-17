@@ -160,7 +160,7 @@ PARAMETER_LIST = [
               'estimated to be'),
     Parameter('ground/length_max', 1500, UNIT.LENGTH_PIXEL,
               'Maximal length of the ground profile above which it is rejected'),
-    Parameter('ground/curvature_energy_factor', 2, UNIT.FACTOR,
+    Parameter('ground/curvature_energy_factor', 1, UNIT.FACTOR,
               'Relative strength of the curvature energy to the image energy '
               'in the snake model of the ground line'),
     Parameter('ground/snake_energy_max', 10, UNIT.FACTOR,
