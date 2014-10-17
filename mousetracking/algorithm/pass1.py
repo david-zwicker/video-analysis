@@ -321,6 +321,7 @@ class FirstPass(DataHandler):
         while brightness < threshold*255*width and bottom > height//2: 
             bottom -= 1
             brightness = binarized[bottom, :].sum()
+            print bottom, brightness
 
         # return the rectangle defined by two corner points
         p1 = (rect_large[0] + left,  rect_large[1] + top)
