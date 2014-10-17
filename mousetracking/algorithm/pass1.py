@@ -258,21 +258,22 @@ class FirstPass(DataHandler):
     #===========================================================================
     
     
-    def find_cage_approximately(self, frame):
+    def find_cage_approximately(self, frame, ret_binarized=False):
         """ analyzes a single frame and locates the mouse cage in it.
         Try to find a bounding box for the cage.
         The rectangle [top, left, height, width] enclosing the cage is returned. """
         # do automatic thresholding to find large, bright areas
-        _, binarized = cv2.threshold(frame, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, binarized_frame = cv2.threshold(frame, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
         # find the largest bright are, which should contain the cage
-        cage_mask = regions.get_largest_region(binarized)
+        cage_mask = regions.get_largest_region(binarized_frame)
         
         # find an enclosing rectangle, which usually overestimates the cage bounding box
         rect_large = regions.find_bounding_box(cage_mask)
          
-        # crop frame to this rectangle, which should surely contain the cage 
-        frame = frame[regions.rect_to_slices(rect_large)]
+        # crop frame to this rectangle, which should surely contain the cage
+        region_slices = regions.rect_to_slices(rect_large) 
+        frame = frame[region_slices]
 
         # initialize the rect coordinates
         left, top = 0, 0 # start in top right corner
@@ -322,7 +323,14 @@ class FirstPass(DataHandler):
         # return the rectangle defined by two corner points
         p1 = (rect_large[0] + left,  rect_large[1] + top)
         p2 = (rect_large[0] + right, rect_large[1] + bottom)
-        return regions.corners_to_rect(p1, p2)
+        cage_rect = regions.corners_to_rect(p1, p2)
+        
+        if ret_binarized:
+            binarized_frame.fill(0)
+            binarized_frame[region_slices] = binarized
+            return cage_rect, binarized_frame
+        else:
+            return cage_rect
 
 
     def find_cage_exactly(self, frame, rect_cage):
@@ -339,7 +347,7 @@ class FirstPass(DataHandler):
                                          sigmaX=self.params['video/blur_radius'])
         
         # find the rectangle describing the cage
-        rect_cage = self.find_cage_approximately(blurred_frame)
+        rect_cage, frame_binarized = self.find_cage_approximately(blurred_frame, ret_binarized=True)
         rect_cage = self.find_cage_exactly(blurred_frame, rect_cage)
         
         # determine the rectangle of the cage in global coordinates
@@ -350,8 +358,12 @@ class FirstPass(DataHandler):
 
         if 'cage_rectangle' in self.params['debug/output']:
             p1, p2 = regions.rect_to_corners(rect_cage)
-            frame = cv2.cvtColor(frame, cv2.cv.CV_GRAY2RGB)
-            cv2.rectangle(frame, p1, p2, color=255, thickness=2)
+            b, g, r = cv2.split(cv2.cvtColor(frame, cv2.cv.CV_GRAY2BGR))
+            b[frame_binarized == 255] = 0
+            g[frame_binarized == 255] = 0
+            r[frame_binarized == 0] = 0
+            frame = cv2.merge((b, g, r))
+            cv2.rectangle(frame, p1, p2, color=(255, 255, 255), thickness=2)
             filename = self.get_filename('cage_rectangle.jpg', 'debug')
             cv2.imwrite(filename, frame)
 
