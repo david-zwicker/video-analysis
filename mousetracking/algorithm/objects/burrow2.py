@@ -156,10 +156,12 @@ class Burrow(object):
         return self.polygon.contains(geometry.Point(point))
     
     
-    def intersects(self, polygon):
+    def intersects(self, burrow_or_shape):
         """ returns True if polygon intersects the burrow """
+        if isinstance(burrow_or_shape, Burrow):
+            burrow_or_shape = burrow_or_shape.polygon
         try:
-            return not self.polygon.intersection(polygon).is_empty
+            return self.polygon.intersects(burrow_or_shape)
         except shapely.geos.TopologicalError:
             return False
     
@@ -352,6 +354,18 @@ class BurrowTrack(object):
         return len(self.times)
     
     
+    def append(self, time, burrow):
+        """ append a new burrow with a time code """
+        self.times.append(time)
+        self.burrows.append(burrow)
+        
+        
+    def __delitem__(self, key):
+        """ deletes a certain burrow from the track list """
+        del self.times[key]
+        del self.burrows[key]
+        
+    
     @property
     def last(self):
         """ return the last burrow in the track """
@@ -380,12 +394,6 @@ class BurrowTrack(object):
                 return burrow, (self.times[idx] + self.times[idx + 1])/2
         else:
             return burrow
-    
-    
-    def append(self, time, burrow):
-        """ append a new burrow with a time code """
-        self.times.append(time)
-        self.burrows.append(burrow)
     
     
     def to_array(self):

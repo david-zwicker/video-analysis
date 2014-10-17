@@ -619,12 +619,14 @@ class ThirdPass(DataHandler):
                 trail_line = geometry.LineString(self.mouse_trail)
                 if burrow.outline is not None:
                     dist = burrow.polygon.distance(trail_line)
-                    mouse_close_to_burrow = (dist < self.params['burrows/width']) 
+                    mouse_is_close = (dist < self.params['burrows/width']) 
                 else:
+                    mouse_is_close = False
+                if not mouse_is_close:
                     dist = burrow.linestring.distance(trail_line)
-                    mouse_close_to_burrow = (dist < 2*self.params['burrows/width']) 
+                    mouse_is_close = (dist < 2*self.params['burrows/width']) 
                      
-                if mouse_close_to_burrow:
+                if mouse_is_close:
                     burrow.refined = False
                     if trail_length > burrow.length:
                         # update the centerline estimate
@@ -658,17 +660,21 @@ class ThirdPass(DataHandler):
                 
                 refined_burrows.append(k)
                 
-#         # check for overlapping burrows
-#         for id1 in reversed(refined_burrows):
-#             burrow1 = burrows[id1]
-#             # check against all the other burrows
-#             for id2, burrow2 in enumerate(burrows):
-#                 if id1 != id2 and burrow1.intersects(burrow2):
-                    
+        # check for overlapping burrows
+        for id1 in reversed(refined_burrows):
+            burrow1 = self.burrows[id1]
+            # check against all the other burrows
+            for id2, burrow2 in self.active_burrows(time_interval=0):
+                if id2 >= id1:
+                    break
+                if burrow1.intersects(burrow2):
+                    # intersecting burrows: keep the older burrow
+                    if len(burrow1) <= 1:
+                        del self.burrows[id1]
+                    else:
+                        del burrow1[-1]
+                        
             
-            
-            
-
     #===========================================================================
     # DEBUGGING
     #===========================================================================
