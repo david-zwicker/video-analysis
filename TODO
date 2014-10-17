@@ -17,6 +17,8 @@
 	If mouse is in burrow, burrow shape could be the union of grab cut (with mouse present)
 	and the explored area
 	Burrow finding of first pass can be removed altogether (if third pass gets sufficiently nice results)
+* First pass might want to construct a binary image of all the area that was explored by any moving object
+	- This mask could be saved in the hdf file and than used later to restrict the mouse movement
 
 
 Performance improvements:

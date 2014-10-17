@@ -673,6 +673,8 @@ class ThirdPass(DataHandler):
                         del burrow_tracks[track1_id]
                     else:
                         del burrow1_track[-1]
+                    self.logger.debug('Delete overlapping burrow at %s',
+                                      burrow.position)
                         
             
     #===========================================================================

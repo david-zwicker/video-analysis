@@ -73,9 +73,7 @@ class FirstPass(DataHandler):
         self.result['objects/moved_first_in_frame'] = None
         self.result['objects/too_many_objects'] = 0
         if self.params['debug/output'] is None:
-            self.debug_output = []
-        else:
-            self.debug_output = self.params['debug/output']
+            self.params['debug/output'] = []
         self.log_event('Pass 1 - Initialized the first pass analysis.')
 
 
@@ -336,7 +334,8 @@ class FirstPass(DataHandler):
     def crop_video_to_cage(self, video):
         """ crops the video to a suitable cropping rectangle given by the cage """
         # find the cage in the blurred image
-        blurred_frame = cv2.GaussianBlur(video[0], ksize=(0, 0),
+        frame = video[0]
+        blurred_frame = cv2.GaussianBlur(frame, ksize=(0, 0),
                                          sigmaX=self.params['video/blur_radius'])
         
         # find the rectangle describing the cage
@@ -347,13 +346,19 @@ class FirstPass(DataHandler):
         width = rect_cage[2] - rect_cage[2] % 2   # make sure its divisible by 2
         height = rect_cage[3] - rect_cage[3] % 2  # make sure its divisible by 2
         # Video dimensions should be divisible by two for some codecs
+        rect_cage = (rect_cage[0], rect_cage[1], width, height)
+
+        if 'cage_rectangle' in self.params['debug/output']:
+            p1, p2 = regions.rect_to_corners(rect_cage)
+            frame = cv2.cvtColor(frame, cv2.cv.CV_GRAY2RGB)
+            cv2.rectangle(frame, p1, p2, color=255, thickness=2)
+            filename = self.get_filename('cage_rectangle.jpg', 'debug')
+            cv2.imwrite(filename, frame)
 
         if not (self.params['cage/width_min'] < width < self.params['cage/width_max'] and
                 self.params['cage/height_min'] < height < self.params['cage/height_max']):
             raise RuntimeError('The cage bounding box (%dx%d) is out of the '
                                'limits.' % (width, height)) 
-        
-        rect_cage = (rect_cage[0], rect_cage[1], width, height)
         
         self.logger.debug('The cage was determined to lie in the rectangle %s', rect_cage)
         
@@ -930,6 +935,16 @@ class FirstPass(DataHandler):
                                  mark_points=True, color='r')
             if points_est1 is not points_est2:
                 debug_video.add_line(points_est2, is_closed=False, color='b')
+                
+        if 'ground_estimate' in self.params['debug/output']:
+            frame = cv2.cvtColor(frame, cv2.cv.CV_GRAY2BGR)
+            cv2.polylines(frame, [np.array(points_est1, np.int32)],
+                          isClosed=False, color=(0, 0, 255), thickness=2)
+            if points_est1 is not points_est2:
+                cv2.polylines(frame, [np.array(points_est2, np.int32)],
+                              isClosed=False, color=(255, 0, 0), thickness=2)
+            filename = self.get_filename('ground_estimate.jpg', 'debug')
+            cv2.imwrite(filename, frame)
         
         return GroundProfile(points_final)
 
@@ -1740,6 +1755,7 @@ class FirstPass(DataHandler):
         self.debug['object_count'] = 0
         self.debug['video.mark.text1'] = ''
         self.debug['video.mark.text2'] = ''
+        debug_output = self.params['debug/output']
 
         # load parameters for video output        
         video_output_period = int(self.params['output/video/period'])
@@ -1748,7 +1764,7 @@ class FirstPass(DataHandler):
         video_bitrate = self.params['output/video/bitrate']
         
         # set up the general video output, if requested
-        if 'video' in self.debug_output or 'video.show' in self.debug_output:
+        if 'video' in debug_output or 'video.show' in debug_output:
             # initialize the writer for the debug video
             debug_file = self.get_filename('pass1' + video_extension, 'debug')
             self.debug['video'] = VideoComposer(debug_file, size=self.video.size,
@@ -1757,7 +1773,7 @@ class FirstPass(DataHandler):
                                                 codec=video_codec, bitrate=video_bitrate,
                                                 debug=self.debug_run)
             
-            if 'video.show' in self.debug_output:
+            if 'video.show' in debug_output:
                 name = self.name if self.name else ''
                 position = self.params['debug/window_position']
                 image_window = ImageWindow(self.debug['video'].shape,
@@ -1768,7 +1784,7 @@ class FirstPass(DataHandler):
 
         # set up additional video writers
         for identifier in ('difference', 'background', 'explored_area'):
-            if identifier in self.debug_output:
+            if identifier in debug_output:
                 # determine the filename to be used
                 debug_file = self.get_filename(identifier + video_extension, 'debug')
                 # set up the video file writer

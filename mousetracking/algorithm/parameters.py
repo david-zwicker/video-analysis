@@ -66,7 +66,10 @@ PARAMETER_LIST = [
             
     # Debug
     Parameter('debug/output', [], None,
-              'List of identifiers determining what debug output is produced'),
+              "List of identifiers determining what debug output is produced. "
+              "Supported identifiers include 'video', 'explored_area', "
+              "'background', 'difference', 'cage_rectangle', "
+              "'ground_estimate'."),
     Parameter('debug/use_multiprocessing', True, UNIT.BOOLEAN,
               'Flag indicating whether multiprocessing should be used to read '
               'and display videos'),
