@@ -326,8 +326,8 @@ class FirstPass(DataHandler):
         cage_rect = regions.corners_to_rect(p1, p2)
         
         if ret_binarized:
-            binarized_frame.fill(0)
-            binarized_frame[region_slices] = binarized
+            binarized_frame /= 255 #< 255 becomes 1
+            binarized_frame[region_slices] += binarized/255*2 #< 255 becomes 2
             return cage_rect, binarized_frame
         else:
             return cage_rect
@@ -357,13 +357,19 @@ class FirstPass(DataHandler):
         rect_cage = (rect_cage[0], rect_cage[1], width, height)
 
         if 'cage_rectangle' in self.params['debug/output']:
-            p1, p2 = regions.rect_to_corners(rect_cage)
-            b, g, r = cv2.split(cv2.cvtColor(frame, cv2.cv.CV_GRAY2BGR))
-            b[frame_binarized == 255] = 0
-            g[frame_binarized == 255] = 0
-            r[frame_binarized == 0] = 0
+            # create the image from the binarized masks
+            r, g, b = [np.zeros_like(frame) for _ in xrange(3)]
+            mask_bin1 = (frame_binarized  % 2 == 0)
+            mask_bin2 = (frame_binarized // 2 == 0)
+            mask_none = ~(mask_bin1 ^ mask_bin2)
+            b[mask_bin1] = frame[mask_bin1]
+            r[mask_bin2] = frame[mask_bin2]
+            g[mask_none] = frame[mask_none]
             frame = cv2.merge((b, g, r))
+            # add the rectangle on top
+            p1, p2 = regions.rect_to_corners(rect_cage)
             cv2.rectangle(frame, p1, p2, color=(255, 255, 255), thickness=2)
+            # save the image
             filename = self.get_filename('cage_rectangle.jpg', 'debug')
             cv2.imwrite(filename, frame)
 
