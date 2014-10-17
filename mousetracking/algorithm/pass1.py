@@ -270,6 +270,8 @@ class FirstPass(DataHandler):
         
         # find an enclosing rectangle, which usually overestimates the cage bounding box
         rect_large = regions.find_bounding_box(cage_mask)
+        self.logger.debug('The cage is estimated to be contained in the '
+                          'rectangle %s', rect_large)
          
         # crop frame to this rectangle, which should surely contain the cage
         region_slices = regions.rect_to_slices(rect_large) 
@@ -292,7 +294,7 @@ class FirstPass(DataHandler):
         # We move until more then 30% of the pixel of a vertical line are bright
         brightness = binarized[:, left].sum()
         threshold = self.params['cage/boundary_detection_thresholds'][0]
-        while brightness < threshold*255*width and left < width//2: 
+        while brightness < threshold*255*height and left < width//2: 
             left += 1
             brightness = binarized[:, left].sum()
             
@@ -308,7 +310,7 @@ class FirstPass(DataHandler):
         # We move until more then 30% of the pixel of a vertical line are bright
         brightness = binarized[:, right].sum()
         threshold = self.params['cage/boundary_detection_thresholds'][2]
-        while brightness < threshold*255*width and right > width//2: 
+        while brightness < threshold*255*height and right > width//2: 
             right -= 1
             brightness = binarized[:, right].sum()
         
