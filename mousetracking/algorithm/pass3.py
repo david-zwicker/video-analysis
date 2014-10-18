@@ -414,6 +414,8 @@ class ThirdPass(DataHandler):
             dp.append((-dy, dx))
             boundary.append((p_a, p_b))
 
+        if len(points) == 0:
+            return
 
         points = np.array(points)
         dp = np.array(dp)
