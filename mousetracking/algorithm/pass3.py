@@ -376,7 +376,9 @@ class ThirdPass(DataHandler):
         ray_len = 10000
 
         # determine the boundary points for each centerline point
-        points, dp, boundary = [centerline[0]], [(0, 0)], []
+#         points = [centerline[0]]
+        dp = [(0, 0)]
+        boundary = [[centerline[0], centerline[0]]]
         for k in xrange(1, len(centerline)):
             # get local points and slopes
             if k == len(centerline) - 1:
@@ -410,14 +412,11 @@ class ThirdPass(DataHandler):
             p_b = inter[np.argmin(dist)]
             
             # set boundary point
-            points.append(p)
+#             points.append(p)
             dp.append((-dy, dx))
             boundary.append((p_a, p_b))
 
-        if len(points) == 0:
-            return
-
-        points = np.array(points)
+#         points = np.array(points)
         dp = np.array(dp)
         boundary = np.array(boundary)
 # 
@@ -470,10 +469,9 @@ class ThirdPass(DataHandler):
             if curves.point_distance(points[-1], points[-2]) < spacing:
                 del points[-2]
             
-        # find a better approximation for the burrow exit
-        if len(points) >= 2:
-            p_near = curves.get_projection_point(self.ground.linestring, points[0])
-            points = [p_near] + points
+        # find the best approximation for the burrow exit
+        p_near = curves.get_projection_point(self.ground.linestring, points[0])
+        points = [p_near] + points
             
         burrow.centerline = points
     
