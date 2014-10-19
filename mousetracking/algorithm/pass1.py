@@ -649,8 +649,13 @@ class FirstPass(DataHandler):
         moving_objects = self.find_moving_features(frame)
     
         # find all distinct features and label them
-        num_features = ndimage.measurements.label(moving_objects,
-                                                  output=moving_objects)
+        try:
+            num_features = ndimage.measurements.label(moving_objects,
+                                                      output=moving_objects)
+        except RuntimeError:
+            # in some rare cases the function wants to store data in a data
+            # format with more bits, where it has to create a new array
+            moving_objects, num_features = ndimage.measurements.label(moving_objects)
         self.debug['object_count'] = num_features
         
         if num_features == 0:
