@@ -658,7 +658,7 @@ class ThirdPass(DataHandler):
                     except geos.TopologicalError:
                         # can happen in some corner cases
                         break
-                    finally: 
+                    else: 
                         if diff.area / area < 0.1:
                             break 
                     old_shape = burrow.polygon
