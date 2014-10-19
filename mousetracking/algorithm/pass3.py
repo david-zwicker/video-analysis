@@ -13,7 +13,7 @@ import time
 
 import cv2
 import numpy as np
-from shapely import affinity, geometry
+from shapely import affinity, geometry, geos
 
 from .data_handler import DataHandler
 from .objects import mouse
@@ -655,9 +655,14 @@ class ThirdPass(DataHandler):
                     if area < 2*self.params['burrows/area_min']:
                         break
                     # check whether the burrow has changed significantly
-                    diff = old_shape.symmetric_difference(burrow.polygon) 
-                    if diff.area / area < 0.1:
-                        break 
+                    try:
+                        diff = old_shape.symmetric_difference(burrow.polygon)
+                    except geos.TopologicalError:
+                        # can happen in some corner cases
+                        break
+                    finally: 
+                        if diff.area / area < 0.1:
+                            break 
                     old_shape = burrow.polygon
                 
                 refined_burrows.append(track_id)
