@@ -243,7 +243,7 @@ PARAMETER_LIST = [
     Parameter('burrows/ground_point_distance', 10, UNIT.LENGTH_PIXEL,
               'Maximal distance of ground profile to outline points that are '
               'considered exit points'),
-    Parameter('burrows/shape_threshold_distance', 75, UNIT.LENGTH_PIXEL,
+    Parameter('burrows/shape_threshold_distance', 50, UNIT.LENGTH_PIXEL,
               'Threshold value for the distance of burrow points from the '
               'ground points. If all points are closer than this threshold, '
               'the burrow is called a "wide burrow". Otherwise, the burrow '
