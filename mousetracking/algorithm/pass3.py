@@ -272,12 +272,13 @@ class ThirdPass(DataHandler):
                 ground_dist *= -1
             
             # check whether the mouse left the burrow at the point where it entered it
-            dist = mouse_point.distance(geometry.Point(self.mouse_trail[0]))
-            if (dist > 2*self.params['burrows/width']
-                and self.params['burrows/enabled_pass3']):
-                # mouse left the burrow at the point where it entered it
-                self.mouse_trail.append(self.mouse_pos)
-                self.locate_burrows(two_exits=True)
+            if self.mouse_trail is not None:
+                dist = mouse_point.distance(geometry.Point(self.mouse_trail[0]))
+                if (dist > 2*self.params['burrows/width']
+                    and self.params['burrows/enabled_pass3']):
+                    # mouse left the burrow at the point where it entered it
+                    self.mouse_trail.append(self.mouse_pos)
+                    self.locate_burrows(two_exits=True)
                 
             # reset the mouse trail since the mouse is over the ground
             self.mouse_trail = None
