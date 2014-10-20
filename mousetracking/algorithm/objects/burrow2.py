@@ -76,15 +76,19 @@ class Burrow(object):
 
         
     def __repr__(self):
-        polygon = self.polygon
-        center = polygon.centroid
-        flags = []
+        center = self.polygon.centroid
+        flags = ['center=(%d, %d)' % (center.x, center.y),
+                 'points=%d' % len(self._outline)]
+        if self.length:
+            flags.append('length=%d' % self.length)
+        else:
+            flags.append('area=%d' % self.polygon.area)
         if self.refined:
             flags.append('refined')
         if self.two_exits:
             flags.append('two_exits')
-        return ('Burrow(center=(%d, %d), area=%s, points=%d, flags=%s)' %
-                (center.x, center.y, polygon.area, len(self._outline), flags))
+            
+        return ('Burrow(%s)' % (', '.join(flags)))
 
 
     @property
