@@ -274,7 +274,7 @@ class ThirdPass(DataHandler):
             # check whether the mouse left the burrow at the point where it entered it
             if self.mouse_trail is not None:
                 dist = mouse_point.distance(geometry.Point(self.mouse_trail[0]))
-                if (dist > 2*self.params['burrows/width']
+                if (dist > 5*self.params['burrows/width']
                     and self.params['burrows/enabled_pass3']):
                     # mouse left the burrow at the point where it entered it
                     self.mouse_trail.append(self.mouse_pos)
