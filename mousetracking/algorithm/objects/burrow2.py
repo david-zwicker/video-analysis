@@ -28,6 +28,17 @@ if not hasattr(geometry, 'LinearRing'):
     geometry.LinearRing = geometry.polygon.LinearRing
 
 
+
+def bool_nan(number):
+    """ returns the boolean value of the number.
+    Returns False if number is not-a-number"""
+    if np.isnan(number):
+        return False
+    else:
+        return bool(number)
+
+
+
 class Burrow(object):
     """ represents a single burrow.
     Note that the outline are always given in clockwise direction
@@ -44,7 +55,8 @@ class Burrow(object):
     ground_point_distance = 10
     
     
-    def __init__(self, centerline, outline=None, length=None, refined=False):
+    def __init__(self, centerline, outline=None, length=None,
+                 refined=False, two_exits=False):
         """ initialize the structure using line on its outline """
         if len(centerline) < 2:
             raise ValueError("Burrow centerlines must be defined by at least "
@@ -52,6 +64,7 @@ class Burrow(object):
         self.centerline = centerline
         self.outline = outline
         self.refined = refined
+        self.two_exits = two_exits
 
         if length is not None:
             self.length = length
@@ -65,8 +78,13 @@ class Burrow(object):
     def __repr__(self):
         polygon = self.polygon
         center = polygon.centroid
-        return ('Burrow(center=(%d, %d), area=%s, points=%d)' %
-                (center.x, center.y, polygon.area, len(self._outline)))
+        flags = []
+        if self.refined:
+            flags.append('refined')
+        if self.two_exits:
+            flags.append('two_exits')
+        return ('Burrow(center=(%d, %d), area=%s, points=%d, flags=%s)' %
+                (center.x, center.y, polygon.area, len(self._outline), flags))
 
 
     @property
@@ -199,98 +217,7 @@ class Burrow(object):
 
         self.outline = np.asarray(outline, np.int32)
 
-    
-    def get_centerline(self, ground, p_exit=None):
-        """ determine the centerline, given the outline and the ground profile.
-        The ground profile is used to determine the burrow exit p_exit if it
-        is not given explicitly.
-        """
-        # get the ground line 
-        ground_line = ground.linestring
-        
-        # reparameterize the burrow outline to locate the burrow exit reliably
-        outline = curves.make_curve_equidistant(self.outline,
-                                                self.ground_point_distance)
-        outline = np.asarray(outline, np.double)
-
-        if p_exit is None:
-            # calculate the distance of each outline point to the ground
-            dist = np.array([ground_line.distance(geometry.Point(p))
-                             for p in outline])
             
-            # get points at the burrow exit (close to the ground profile)
-            indices = (dist < self.ground_point_distance)
-            if np.any(indices):
-                p_exit = outline[indices, :].mean(axis=0)
-            else:
-                p_exit = outline[np.argmin(dist)]
-
-        # project exit_point onto the ground line
-        p_exit = curves.get_projection_point(ground_line, p_exit)
-            
-        # get the two ground points closest to the exit point
-        dist = np.linalg.norm(ground.points - p_exit, axis=1)
-        k1 = np.argmin(dist)
-        dist[k1] = np.inf
-        k2 = np.argmin(dist)
-        p1, p2 = ground.points[k1], ground.points[k2]
-        # ensure that p1 is left of p2
-        if p1[0] > p2[0]:
-            p1, p2 = p2, p1
-        
-        # send out rays perpendicular to the ground profile
-        angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0]) + np.pi/2
-        point_anchor = (p_exit[0] + 5*np.cos(angle), p_exit[1] + 5*np.sin(angle))
-        outline_poly = self.outline_ring
-        
-        # calculate the angle each segment is allowed to deviate from the 
-        # previous one based on the maximal radius of curvature
-        ratio = self.centerline_segment_length/self.curvature_radius_max
-        angle_max = np.arccos(1 - 0.5*ratio**2)
-        segment_length = self.centerline_segment_length
-        
-        centerline = [p_exit]
-        while True:
-            # find the next point along the burrow
-            point_max, dist_max, angle = regions.get_farthest_ray_intersection(
-                point_anchor,
-                np.linspace(angle - angle_max, angle + angle_max, 64),
-                outline_poly)
-                # this also sets the angle for the next iteration
-
-            # abort if the search was not successful
-            if point_max is None:
-                break
-                
-            # get the length of the longest ray
-            if dist_max > segment_length:
-                # continue shooting out rays
-                point_anchor = (point_anchor[0] + segment_length*np.cos(angle),
-                                point_anchor[1] + segment_length*np.sin(angle))
-                centerline.append(point_anchor)
-            else:
-                # we've hit the end of the burrow
-                centerline.append(point_max)
-                break
-                    
-        # save results
-        self.centerline = centerline
-        self.length = curves.curve_length(centerline)
-        return centerline
-            
-        
-    def get_length(self, ground=None):
-        """ calculates the centerline and returns its length """
-        if self.length is None:
-            try:
-                centerline = self.get_centerline(ground)
-            except AttributeError:
-                raise ValueError('Ground line must be provided if length of a '
-                                 'burrow without a centerline should be determined')
-            self.length = curves.curve_length(centerline)
-        return self.length
-            
-    
     def to_array(self):
         """ converts the internal representation to a single array """
         # collect the data for the first two columns
@@ -301,7 +228,7 @@ class Burrow(object):
 
         # collect the data for the last two columns
         data2 = np.array([[self.length, self.refined],
-                          [np.nan, np.nan]], np.double)
+                          [self.two_exits, np.nan]], np.double)
         if self.centerline is not None:
             data2 = np.concatenate((data2, self.centerline))
         
@@ -319,15 +246,18 @@ class Burrow(object):
         """ creates a burrow track from a single array """
         # load the data from the respective places
         data = np.asarray(data)
-        data_attr = data[0, 2:]
+        data_attr = data[:2, 2:]
         data_outline = rtrim_nan(data[:, :2])
         data_centerline = rtrim_nan(data[2:, 2:])
         if len(data_centerline) == 0:
             data_centerline = None
             
         # create the object
-        return cls(outline=data_outline, centerline=data_centerline,
-                   length=data_attr[0], refined=bool(data_attr[1]))
+        return cls(outline=data_outline,
+                   centerline=data_centerline,
+                   length=data_attr[0, 0],
+                   refined=bool_nan(data_attr[0, 1]),
+                   two_exits=bool_nan(data_attr[1, 0]))
         
         
         

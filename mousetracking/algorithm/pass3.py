@@ -261,7 +261,6 @@ class ThirdPass(DataHandler):
             else:
                 state['location'] = 'valley'
 
-            self.mouse_trail = None
             # get index of the ground line
             dist = np.linalg.norm(self.ground.points - self.mouse_pos[None, :], axis=1)
             self.ground_idx = np.argmin(dist)
@@ -271,6 +270,17 @@ class ThirdPass(DataHandler):
             # report the distance as negative, if the mouse is under the ground line
             if self.mouse_pos[1] > self.ground.get_y(self.mouse_pos[0]):
                 ground_dist *= -1
+            
+            # check whether the mouse left the burrow at the point where it entered it
+            dist = mouse_point.distance(geometry.Point(self.mouse_trail[0]))
+            if (dist > 2*self.params['burrows/width']
+                and self.params['burrows/enabled_pass3']):
+                # mouse left the burrow at the point where it entered it
+                self.mouse_trail.append(self.mouse_pos)
+                self.locate_burrows(two_exits=True)
+                
+            # reset the mouse trail since the mouse is over the ground
+            self.mouse_trail = None
             
         # set the mouse state
         mouse_track.set_state(self.frame_id, state, self.ground_idx, ground_dist)
@@ -365,7 +375,6 @@ class ThirdPass(DataHandler):
             raise RuntimeError('Contour is not a simple polygon')
     
     
-    
     def refine_elongated_burrow_centerline(self, burrow):
         """ refines the centerline of an elongated burrow """
         spacing = self.params['burrows/centerline_segment_length']
@@ -419,55 +428,27 @@ class ThirdPass(DataHandler):
 #         points = np.array(points)
         dp = np.array(dp)
         boundary = np.array(boundary)
-# 
-#         def energy_curvature(ps):
-#             energy = 0
-#             for k in xrange(1, len(ps) - 1):
-#                 p_p, p_c, p_n = ps[k-1:k+2]
-#                 a = curves.point_distance(p_p, p_c)
-#                 b = curves.point_distance(p_c, p_n)
-#                 c = curves.point_distance(p_n, p_p)
-#  
-#                 # determine curvature of circle through the three points
-#                 A = regions.triangle_area(a, b, c)
-#                 curvature = 4*A/(a*b*c)*spacing#(a + b)
-#                 energy += curvature
-#             return 50*energy
-#          
-#         def energy_outline(ps):
-#             energy = 0
-#             for k, p in enumerate(ps[1:]):
-#                 a = curves.point_distance(p, boundary[k][0])
-#                 b = curves.point_distance(p, boundary[k][1])
-#                 energy += np.hypot(a, b)
-#             return energy
-#                  
-#         ds = np.zeros(len(points))
-#         def energy_snake(data):
-#             ds[1:] = data
-#             ps = points + ds[:, None]*dp
-#             print 'curv', energy_curvature(ps) 
-#             print 'outl', energy_outline(ps)
-#             return energy_curvature(ps) + energy_outline(ps)
-#  
-#         # fit the simple model to the line scan profile
-#         res = optimize.fmin(energy_snake, x0=np.zeros(len(points)-1))
-#  
-#         ds[1:] = res
-#         points_i = (points + ds[:, None]*dp)[1:]
 
         # get the points, which are neither at the exit nor the front
         points = np.mean(boundary, axis=1).tolist()
         
-        # extend the centerline to the burrow front
-        angle = np.arctan2(-dp[-1][0], dp[-1][1])
-        angles = np.linspace(angle - np.pi/4, angle + np.pi/4, 32)
-        p_far, _, _ = regions.get_farthest_ray_intersection(points[-1], angles, outline)
-
-        if p_far is not None:
-            points = points + [p_far]
-            if curves.point_distance(points[-1], points[-2]) < spacing:
-                del points[-2]
+        if burrow.two_exits:
+            # the burrow end point is also an exit point 
+            # => find the best approximation for this burrow exit
+            p_far = curves.get_projection_point(self.ground.linestring, points[-1])
+            points = points[:-1] + [p_far]
+            
+        else:
+            # the burrow end point is under ground
+            # => extend the centerline to the burrow front
+            angle = np.arctan2(-dp[-1][0], dp[-1][1])
+            angles = np.linspace(angle - np.pi/4, angle + np.pi/4, 32)
+            p_far, _, _ = regions.get_farthest_ray_intersection(points[-1], angles, outline)
+    
+            if p_far is not None:
+                points = points + [p_far]
+                if curves.point_distance(points[-1], points[-2]) < spacing:
+                    del points[-2]
             
         # find the best approximation for the burrow exit
         p_near = curves.get_projection_point(self.ground.linestring, points[0])
@@ -596,8 +577,10 @@ class ThirdPass(DataHandler):
                 yield track_id, burrow_track.last
 
     
-    def locate_burrows(self):
-        """ locates burrows based on the mouse's movement """
+    def locate_burrows(self, two_exits=False):
+        """ locates burrows based on the mouse's movement.
+        two_exits indicates whether the current mouse_trail describes a burrow
+        with two exits """
         burrow_tracks = self.result['burrows/tracks']
         
         # copy all burrows to the this frame
@@ -631,10 +614,13 @@ class ThirdPass(DataHandler):
                     if trail_length > burrow.length:
                         # update the centerline estimate
                         burrow.centerline = self.mouse_trail[:] #< copy list
+                    if two_exits:
+                        burrow.two_exits = True
                     break #< burrow_with_mouse contains burrow id
             else:
                 # create the burrow, since we don't know it yet
-                burrow_track = BurrowTrack(self.frame_id, Burrow(self.mouse_trail[:]))
+                burrow = Burrow(self.mouse_trail[:], two_exits=two_exits)
+                burrow_track = BurrowTrack(self.frame_id, burrow)
                 burrow_tracks.append(burrow_track)
                 burrow_with_mouse = len(burrow_tracks) - 1
 
@@ -740,7 +726,9 @@ class ThirdPass(DataHandler):
             # indicate the currently active burrow shapes
             if self.params['burrows/enabled_pass3']:
                 for _, burrow in self.active_burrows():
-                    if hasattr(burrow, 'elongated') and burrow.elongated:
+                    if burrow.two_exits:
+                        burrow_color = 'green'
+                    elif hasattr(burrow, 'elongated') and burrow.elongated:
                         burrow_color = 'red'
                     else:
                         burrow_color = 'DarkOrange'
