@@ -387,8 +387,8 @@ class ThirdPass(DataHandler):
 
         # determine the boundary points for each centerline point
 #         points = [centerline[0]]
-        dp = [(0, 0)]
-        boundary = [[centerline[0], centerline[0]]]
+        dp = []
+        boundary = []
         for k in xrange(1, len(centerline)):
             # get local points and slopes
             if k == len(centerline) - 1:
@@ -431,6 +431,8 @@ class ThirdPass(DataHandler):
         boundary = np.array(boundary)
 
         # get the points, which are neither at the exit nor the front
+        if len(boundary) == 0:
+            return
         points = np.mean(boundary, axis=1).tolist()
         
         if burrow.two_exits:
