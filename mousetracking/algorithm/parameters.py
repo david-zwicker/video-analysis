@@ -224,6 +224,9 @@ PARAMETER_LIST = [
     Parameter('tracking/maximal_gap', 10, UNIT.TIME_FRAMES,
               'Maximal gap length where we will use linear interpolation to ' 
               'determine the mouse position'),
+    Parameter('tracking/maximal_jump', 50, UNIT.LENGTH_PIXEL,
+              'Maximal distance between two tracks where we will use linear '
+              'interpolation to determine the intermediated mouse positions.'),
         
     # Burrows
     Parameter('burrows/enabled_pass1', False, UNIT.BOOLEAN,

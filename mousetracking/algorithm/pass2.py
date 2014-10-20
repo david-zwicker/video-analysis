@@ -252,12 +252,14 @@ class SecondPass(DataHandler):
                 time_now, obj_now = track.start, track.first
                 # FIXME: distinguish on maximal distance, not on maximal gap
                 if time_now - time < self.params['tracking/maximal_gap']:
-                    frames = np.arange(time + 1, time_now)
-                    times = np.linspace(0, 1, len(frames) + 2)[1:-1]
-                    x1, x2 = obj.pos[0], obj_now.pos[0]
-                    trajectory[frames, 0] = x1 + (x2 - x1)*times
-                    y1, y2 = obj.pos[1], obj_now.pos[1]
-                    trajectory[frames, 1] = y1 + (y2 - y1)*times
+                    obj_dist = curves.point_distance(obj.pos, obj_now.pos)
+                    if obj_dist < self.params['tracking/maximal_jump']: 
+                        frames = np.arange(time + 1, time_now)
+                        times = np.linspace(0, 1, len(frames) + 2)[1:-1]
+                        x1, x2 = obj.pos[0], obj_now.pos[0]
+                        trajectory[frames, 0] = x1 + (x2 - x1)*times
+                        y1, y2 = obj.pos[1], obj_now.pos[1]
+                        trajectory[frames, 1] = y1 + (y2 - y1)*times
             
             # add the data of this track directly
             for time, obj in track:
