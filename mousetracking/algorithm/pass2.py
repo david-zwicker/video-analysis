@@ -250,6 +250,7 @@ class SecondPass(DataHandler):
             if obj is not None:
                 # time, obj contain data from previous object
                 time_now, obj_now = track.start, track.first
+                # FIXME: distinguish on maximal distance, not on maximal gap
                 if time_now - time < self.params['tracking/maximal_gap']:
                     frames = np.arange(time + 1, time_now)
                     times = np.linspace(0, 1, len(frames) + 2)[1:-1]

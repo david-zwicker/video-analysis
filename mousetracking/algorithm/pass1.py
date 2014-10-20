@@ -700,7 +700,7 @@ class FirstPass(DataHandler):
     # FINDING THE GROUND PROFILE
     #===========================================================================
         
-    def _get_ground_template(self, width_estimate):
+    def _get_ground_template(self, width_estimate, stretch_height=1):
         """ builds the ground template from a stored template.
         width_estimate is the estimated full width of the ground """
         # find the t_points file
@@ -712,6 +712,7 @@ class FirstPass(DataHandler):
         # load the points and scale them to the given width        
         t_points = np.array(yaml.load(open(path)))
         t_points *= width_estimate
+        t_points[:, 1] *= stretch_height
 
         # determine template width by subtracting margin
         frame_margin = self.params['ground/frame_margin']
@@ -744,22 +745,25 @@ class FirstPass(DataHandler):
         if not self.params['ground/template']:
             return None
         
-        correlation_max, points = 0, None                  
-        for factor in (1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65):
-            width_estimate = factor * frame.shape[1] #< width
-            template, t_points = self._get_ground_template(width_estimate)
-        
-            # convolute template with frame
-            conv = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
-
-            # determine maximum
-            _, max_val, _, max_loc = cv2.minMaxLoc(conv)
-
-            if max_val > correlation_max:
-                # better match than the previous one
-                correlation_max = max_val
-                # shift the points of the template
-                points = curves.translate_points(t_points, max_loc[0], max_loc[1])
+        correlation_max, points = 0, None
+        # try different height ratios
+        for stretch_height in (0.8, 1., 1.2):
+            # try different fractions of the total width                  
+            for factor in (1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65):
+                width_estimate = factor * frame.shape[1] #< width
+                template, t_points = self._get_ground_template(width_estimate, stretch_height)
+            
+                # convolute template with frame
+                conv = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+    
+                # determine maximum
+                _, max_val, _, max_loc = cv2.minMaxLoc(conv)
+    
+                if max_val > correlation_max:
+                    # better match than the previous one
+                    correlation_max = max_val
+                    # shift the points of the template
+                    points = curves.translate_points(t_points, max_loc[0], max_loc[1])
         
         return points
     
