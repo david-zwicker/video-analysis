@@ -12,8 +12,10 @@ import time
 
 import cv2
 import numpy as np
+from shapely import geometry
 
 from .data_handler import DataHandler
+from video.analysis import image, curves, regions
 from video.io import ImageWindow, VideoFile
 from video.filters import FilterMonochrome
 from video.utils import display_progress
@@ -128,7 +130,8 @@ class FourthPass(DataHandler):
         self.frame_id = -1
         self.background_avg = None
 
-        self.burrows = np.zeros(self.video.shape[1:], np.uint8)
+        self.burrows = []
+        self.burrow_mask = None
         self._cache['image_uint8'] = np.empty(self.video.shape[1:], np.uint8)
 
         
@@ -137,6 +140,7 @@ class FourthPass(DataHandler):
         
         # load data from previous passes
         ground_profile = self.data['pass2/ground_profile']
+        adaptation_rate = self.params['background/adaptation_rate']
 
         # iterate over the video and analyze it
         for background_id, frame in enumerate(display_progress(self.video)):
@@ -146,7 +150,6 @@ class FourthPass(DataHandler):
             if self.background_avg is None:
                 self.background_avg = frame.astype(np.double)
             else:
-                adaptation_rate = self.params['background/adaptation_rate']
                 self.background_avg += adaptation_rate*(frame - self.background_avg)
             
             # copy frame to debug video
@@ -157,10 +160,11 @@ class FourthPass(DataHandler):
             self.ground = ground_profile.get_ground_profile(self.frame_id)
 
             # find the changes in the background
-            background_mask = self.get_background_changes(frame)
+            if background_id >= 0*1/adaptation_rate:
+                self.get_burrows(frame)
 
             # store some debug information
-            self.debug_process_frame(frame, background_mask)
+            self.debug_process_frame(frame)
             
             if self.frame_id % 100000 == 0:
                 self.logger.debug('Analyzed frame %d', self.frame_id)
@@ -171,7 +175,43 @@ class FourthPass(DataHandler):
     #===========================================================================
 
 
+
+    def get_ground_mask(self):
+        """ returns a binary mask distinguishing the ground from the sky """
+        # build a mask with potential burrows
+        width, height = self.video.size
+        mask_ground = np.zeros((height, width), np.uint8)
+        
+        # create a mask for the region below the current mask_ground profile
+        ground_points = np.empty((len(self.ground) + 4, 2), np.int32)
+        ground_points[:-4, :] = self.ground.points
+        ground_points[-4, :] = (width, ground_points[-5, 1])
+        ground_points[-3, :] = (width, height)
+        ground_points[-2, :] = (0, height)
+        ground_points[-1, :] = (0, ground_points[0, 1])
+        cv2.fillPoly(mask_ground, np.array([ground_points], np.int32), color=255)
+
+        return mask_ground
+
+
+    def get_initial_burrow_mask(self, frame):
+        ground_mask = self.get_ground_mask()
+        w = self.params['burrows/ground_point_distance']
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
+        ground_mask = cv2.erode(ground_mask, kernel)
+        
+        color_sand = self.data['pass1/colors/sand']
+        color_sky = self.data['pass1/colors/sky']
+        color_mean = 0.5*(color_sand + color_sky)
+        
+        self.burrow_mask = (frame < color_mean).astype(np.uint8)
+        self.burrow_mask[ground_mask == 0] = 0
+        
+        #debug.show_image(frame, burrow_mask, ground_mask)
+    
+
     def get_background_changes(self, frame):
+        """ determines a mask of all the burrows """
         mask = self._cache['image_uint8']
         #mask.fill(0)
         diff = -self.background_avg + frame
@@ -185,18 +225,78 @@ class FourthPass(DataHandler):
         #mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel1)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel1)
          
-        self.burrows[mask == 1] = 0
+        self.burrow_mask[mask == 1] = 0
 
         # enlarge burrows
-        mask[:] = diff < -5
+        mask[:] = diff < -16
         #mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel1)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel1)
         
-        self.burrows[mask == 1] = 1
+        self.burrow_mask[mask == 1] = 1
         #kernel2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20, 20))
-        self.burrows = cv2.morphologyEx(self.burrows, cv2.MORPH_CLOSE, kernel1)
+        self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel1)
         
-        return mask
+        return self.burrow_mask
+
+
+    def extend_burrow_to_ground(self, contour):
+
+        # check whether the burrow is far away from the ground line
+        outline = geometry.LinearRing(contour)
+        dist = self.ground.linestring.distance(outline)
+        if dist < 1:
+            return contour
+        
+        dist_max = dist + self.params['burrows/width']/2
+        ground_line = self.ground.linestring
+
+        # determine burrow points close to the ground and
+        # their associated ground points        
+        points = []
+        for point in contour:
+            if ground_line.distance(geometry.Point(point)) < dist_max:
+                points.append(point)
+                point_ground = curves.get_projection_point(ground_line, point)
+                points.append(point_ground)
+        
+        # get the convex hull of all these points
+        hull = geometry.MultiPoint(points).convex_hull
+        
+        # add this to the burrow outline
+        outline = regions.regularize_polygon(geometry.Polygon(contour))
+        outline = outline.union(hull.buffer(0.1))
+        outline = regions.get_enclosing_outline(outline)
+        outline = np.array(outline.coords)
+        
+        # fill the burrow mask, such that this extension does not have to be done next time again
+        cv2.fillPoly(self.burrow_mask, [np.asarray(outline, np.int32)], 1) 
+        
+        return outline  
+        
+
+    def get_burrows(self, frame):
+        if self.burrow_mask is None:
+            self.get_initial_burrow_mask(frame)
+        
+        burrow_mask = self.get_background_changes(frame)
+
+        contours, _ = cv2.findContours(burrow_mask,
+                                       cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_SIMPLE)
+        
+        self.burrows = []
+        for contour in contours:
+            props = image.regionprops(contour=contour)
+            if props.area < self.params['burrows/area_min']:
+                continue
+            
+            if self.ground.above_ground(props.centroid):
+                continue
+            
+            contour = np.squeeze(np.asarray(contour, np.double))
+            
+            #contour = self.extend_burrow_to_ground(contour)
+            self.burrows.append(contour)
 
 
     #===========================================================================
@@ -231,7 +331,7 @@ class FourthPass(DataHandler):
                 self.debug['video.show'] = image_window
 
 
-    def debug_process_frame(self, frame, background_mask):
+    def debug_process_frame(self, frame):
         """ adds information of the current frame to the debug output """
         
         if 'video' in self.debug:
@@ -244,7 +344,9 @@ class FourthPass(DataHandler):
                 
 #             debug_video.highlight_mask(background_mask == 1, 'g', strength=64)
 #             debug_video.highlight_mask(background_mask == 2, 'r', strength=64)
-            debug_video.highlight_mask(self.burrows == 1, 'g', strength=64)
+            #debug_video.highlight_mask(self.burrow_mask == 1, 'g', strength=64)
+            for burrow in self.burrows:
+                debug_video.add_line(burrow, 'r')
                 
             # add additional debug information
             if 'video.show' in self.debug:

@@ -344,9 +344,23 @@ class SecondPass(DataHandler):
             # check the mouse position
             ground = ground_profile.get_ground_profile(frame_id)
             if ground is not None:
-                # compare y value of mouse and ground
-                # Note that the y-axis points down
-                if mouse_pos[1] > ground.get_y(mouse_pos[0]):
+                if ground.above_ground(mouse_pos):
+                    state['underground'] = False
+                    if mouse_pos[1] + mouse_radius < ground.get_y(mouse_pos[0]):
+                        state['location'] = 'air'
+                    elif mouse_pos[1] < ground.midline:
+                        state['location'] = 'hill'
+                    else:
+                        state['location'] = 'valley'
+
+                    mouse_trail = None
+                    # get index of the ground line
+                    dist = np.linalg.norm(ground.points - mouse_pos[None, :], axis=1)
+                    ground_idx = np.argmin(dist)
+                    # get distance from ground line
+                    ground_dist = ground.linestring.distance(geometry.Point(mouse_pos))
+
+                else:
                     state['underground'] = True
                     # check the burrow structure
                     if frame_id >= burrow_next_change:
@@ -390,22 +404,6 @@ class SecondPass(DataHandler):
                         
                     # get distance the mouse is under ground
                     ground_dist = -curves.curve_length(mouse_trail)
-                        
-                else: 
-                    state['underground'] = False
-                    if mouse_pos[1] + mouse_radius < ground.get_y(mouse_pos[0]):
-                        state['location'] = 'air'
-                    elif mouse_pos[1] < ground.midline:
-                        state['location'] = 'hill'
-                    else:
-                        state['location'] = 'valley'
-
-                    mouse_trail = None
-                    # get index of the ground line
-                    dist = np.linalg.norm(ground.points - mouse_pos[None, :], axis=1)
-                    ground_idx = np.argmin(dist)
-                    # get distance from ground line
-                    ground_dist = ground.linestring.distance(geometry.Point(mouse_pos))
                     
             # set the mouse state
             mouse_track.set_state(frame_id, state, ground_idx, ground_dist)

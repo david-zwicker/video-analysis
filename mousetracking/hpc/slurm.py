@@ -37,10 +37,12 @@ class ProjectSingleSlurm(HPCProjectBase):
     # the order of these files matters!
     files_job = {1: ('pass1_slurm.sh', 'pass1_single.py'), 
                  2: ('pass2_slurm.sh', 'pass2_single.py'),
-                 3: ('pass3_slurm.sh', 'pass3_single.py')}
+                 3: ('pass3_slurm.sh', 'pass3_single.py'),
+                 4: ('pass4_slurm.sh', 'pass4_single.py')}
     files_cleanup = {1: ('pass1_job_id.txt', 'log_pass1*'),
                      2: ('pass2_job_id.txt', 'log_pass2*'),
-                     3: ('pass3_job_id.txt', 'log_pass3*')}
+                     3: ('pass3_job_id.txt', 'log_pass3*'),
+                     4: ('pass4_job_id.txt', 'log_pass4*')}
     
 
     def submit(self):
@@ -142,7 +144,7 @@ class ProjectSingleSlurm(HPCProjectBase):
             # project is initialized
             status['project'] = 'initialized'
 
-            for pass_id in xrange(1, 4):
+            for pass_id in xrange(1, 5):
                 status['pass%d' % pass_id] = self.check_pass_status(pass_id)
 
         else:

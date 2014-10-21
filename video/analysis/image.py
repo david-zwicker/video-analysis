@@ -99,8 +99,15 @@ class regionprops(object):
     POSSIBILITY OF SUCH DAMAGE.
     """
     
-    def __init__(self, mask):
-        self.moments = cv2.moments(mask.astype(np.uint8))
+    def __init__(self, mask=None, contour=None, moments=None):
+        if moments is not None:
+            self.moments = moments
+        elif mask is not None:
+            self.moments = cv2.moments(mask.astype(np.uint8))
+        elif contour is not None:
+            self.moments = cv2.moments(contour)
+        else:
+            raise ValueError('Either the mask or the moments must be given')
         
     @property
     def area(self):

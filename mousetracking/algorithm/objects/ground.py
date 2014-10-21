@@ -72,7 +72,7 @@ class GroundProfile(object):
         return Interpolate_1D_Extrapolated(self._points[:, 0], self._points[:, 1])
     
     
-    def get_y(self, x, nearest_neighbor=True):
+    def get_y(self, x, nearest_neighbor=False):
         """ returns the y-value of the profile at a given x-position.
         This function interpolates between points and extrapolates beyond the
         edge points. """
@@ -81,6 +81,12 @@ class GroundProfile(object):
             return self.points[idx, 1]
         else:
             return self.interpolator(x)
+        
+        
+    def above_ground(self, (x, y)):
+        """ returns True if the point is above the ground """
+        # Note that the y axis points down
+        return self.get_y(x) > y
    
 
 
