@@ -23,6 +23,10 @@ def skip_if_no_output(func):
     return func_wrapper
 
 
+CHANNEL_NAMES = {0: 0, 'r': 0, 'red': 0,
+                 1: 1, 'g': 1, 'green': 1,
+                 2: 2, 'b': 2, 'blue': 2}
+
 
 class VideoComposer(VideoFileWriter):
     """ A class that can be used to compose a video frame by frame.
@@ -78,8 +82,29 @@ class VideoComposer(VideoFileWriter):
                     self.frame[:] = frame[:]
                 else:
                     self.frame = frame
+
         
+    @skip_if_no_output
+    def highlight_mask(self, mask, channel='all', strength=128):
+        """ highlights the non-zero entries of a mask in the current frame """
+        if channel is None or channel == 'all':
+            if self.is_color:
+                channel = slice(0, 3)
+            else:
+                channel = 0
+        elif self.is_color:
+            try:
+                channel = CHANNEL_NAMES[channel]
+            except KeyError:
+                raise ValueError('Unknown value `%s` for channel.' % channel)
+        else:
+            raise ValueError('Highlighting a specific channel is only '
+                             'supported for color videos.')
+
+        factor = (255 - strength)/255
+        self.frame[mask, channel] = strength + factor*self.frame[mask, channel]
         
+
     @skip_if_no_output
     def add_image(self, image, mask=None):
         """ adds an image to the frame """
@@ -99,8 +124,8 @@ class VideoComposer(VideoFileWriter):
             cv2.add(frame, image, frame)
         else:
             cv2.add(frame, image, frame, mask=mask.astype(np.uint8))
-        
-        
+            
+    
     @skip_if_no_output
     def blend_image(self, image, weight=0.5, mask=None):
         """ overlay image with weight """

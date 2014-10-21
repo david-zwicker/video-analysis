@@ -678,9 +678,6 @@ class ThirdPass(DataHandler):
 
     def debug_setup(self):
         """ prepares everything for the debug output """
-        self.debug['video.mark.text1'] = ''
-        self.debug['video.mark.text2'] = ''
-
         # load parameters for video output        
         video_output_period = int(self.params['output/video/period'])
         video_extension = self.params['output/video/extension']

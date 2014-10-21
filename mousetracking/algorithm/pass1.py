@@ -746,10 +746,11 @@ class FirstPass(DataHandler):
             return None
         
         correlation_max, points = 0, None
+        parameters_max = None
         # try different height ratios
-        for stretch_height in (0.8, 1., 1.2):
+        for stretch_height in np.arange(0.7, 1.31, 0.1):
             # try different fractions of the total width                  
-            for factor in (1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65):
+            for factor in np.arange(0.5, 1.01, 0.05):
                 width_estimate = factor * frame.shape[1] #< width
                 template, t_points = self._get_ground_template(width_estimate, stretch_height)
             
@@ -762,8 +763,13 @@ class FirstPass(DataHandler):
                 if max_val > correlation_max:
                     # better match than the previous one
                     correlation_max = max_val
+                    parameters_max = (factor, stretch_height)
                     # shift the points of the template
                     points = curves.translate_points(t_points, max_loc[0], max_loc[1])
+        
+        self.logger.info('Best template match for template width %d%% of video '
+                         'and a height factor of %.2g.',
+                         parameters_max[0]*100, parameters_max[1])
         
         return points
     
@@ -1832,7 +1838,7 @@ class FirstPass(DataHandler):
             # plot the ground profile
             if self.ground is not None: 
                 debug_video.add_line(self.ground.points, is_closed=False,
-                                        mark_points=True, color='y')
+                                     mark_points=True, color='y')
         
             # indicate the currently active burrow shapes
             if self.params['burrows/enabled_pass1']:
@@ -1842,10 +1848,10 @@ class FirstPass(DataHandler):
                         burrow = burrow_track.last
                         burrow_color = 'red' if burrow.refined else 'orange'
                         debug_video.add_line(burrow.outline, burrow_color,
-                                                is_closed=True, mark_points=True)
+                                             is_closed=True, mark_points=True)
                         debug_video.add_line(burrow.get_centerline(self.ground),
-                                                burrow_color, is_closed=False,
-                                                width=2, mark_points=True)
+                                             burrow_color, is_closed=False,
+                                             width=2, mark_points=True)
         
             # indicate the mouse position
             if len(self.tracks) > 0:

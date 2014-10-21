@@ -180,7 +180,7 @@ PARAMETER_LIST = [
               'How often is the ground profile adapted'),
     Parameter('ground/ridge_width', 5, UNIT.LENGTH_PIXEL,
               'Width of the ground profile ridge'),
-    Parameter('ground/smoothing_sigma', 300, UNIT.TIME_FRAMES,
+    Parameter('ground/smoothing_sigma', 1000, UNIT.TIME_FRAMES,
               'Standard deviation for Gaussian smoothing over time'),
     
     # Mouse and the associated tracking
