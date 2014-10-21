@@ -173,7 +173,7 @@ class ThirdPass(DataHandler):
             if (self.params['burrows/enabled_pass3'] and 
                 self.frame_id % self.params['burrows/adaptation_interval'] == 0):
                 # find the burrow from the mouse trail
-                self.locate_burrows()
+                self.find_burrows()
 
             # store some information in the debug dictionary
             self.debug_process_frame(frame, mouse_track)
@@ -278,7 +278,7 @@ class ThirdPass(DataHandler):
                     and self.params['burrows/enabled_pass3']):
                     # mouse left the burrow at the point where it entered it
                     self.mouse_trail.append(self.mouse_pos)
-                    self.locate_burrows(two_exits=True)
+                    self.find_burrows(two_exits=True)
                 
             # reset the mouse trail since the mouse is over the ground
             self.mouse_trail = None
@@ -580,7 +580,7 @@ class ThirdPass(DataHandler):
                 yield track_id, burrow_track.last
 
     
-    def locate_burrows(self, two_exits=False):
+    def find_burrows(self, two_exits=False):
         """ locates burrows based on the mouse's movement.
         two_exits indicates whether the current mouse_trail describes a burrow
         with two exits """

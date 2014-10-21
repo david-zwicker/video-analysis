@@ -427,7 +427,7 @@ class BurrowTrackList(list):
                         'the centerline.'} 
 
 
-    def get_burrows(self, frame_id, ret_next_change=False):
+    def find_burrows(self, frame_id, ret_next_change=False):
         """ returns a list of all burrows active in a given frame.
         If ret_next_change is True, the number of the frame where something
         will change in the returned burrows is also returned. This can be

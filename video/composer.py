@@ -154,7 +154,7 @@ class VideoComposer(VideoFileWriter):
         """ adds the contours of a mask.
         Note that this function modifies the mask, unless copy=True
         """
-        if np.any(s == 1 for s in mask_or_contour.shape[:2]):
+        if any(s == 1 for s in mask_or_contour.shape[:2]):
             # given value is a list of contour points
             contours = [mask_or_contour]
         else:
@@ -162,7 +162,7 @@ class VideoComposer(VideoFileWriter):
             if copy:
                 mask_or_contour = mask_or_contour.copy()
             contours, _ = cv2.findContours(mask_or_contour,
-                                           cv2.RETR_LIST,
+                                           cv2.RETR_EXTERNAL,
                                            cv2.CHAIN_APPROX_SIMPLE)
             
         cv2.drawContours(self.frame, contours, -1,

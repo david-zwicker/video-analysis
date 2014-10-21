@@ -365,7 +365,7 @@ class SecondPass(DataHandler):
                     # check the burrow structure
                     if frame_id >= burrow_next_change:
                         burrows, burrow_next_change = \
-                            burrow_tracks.get_burrows(frame_id, ret_next_change=True)
+                            burrow_tracks.find_burrows(frame_id, ret_next_change=True)
                     
                     # check whether the mouse is inside a burrow
                     mouse_point = geometry.Point(mouse_pos)
@@ -455,7 +455,7 @@ class SecondPass(DataHandler):
                               mark_points=False, color='y')
 
             # indicate burrow centerline
-            for burrow in burrow_tracks.get_burrows(frame_id):
+            for burrow in burrow_tracks.find_burrows(frame_id):
                 ground = GroundProfile(ground_line)
                 video.add_line(burrow.get_centerline(ground),
                                   'k', is_closed=False, width=2)

@@ -161,7 +161,7 @@ class FourthPass(DataHandler):
 
             # find the changes in the background
             if background_id >= 0*1/adaptation_rate:
-                self.get_burrows(frame)
+                self.find_burrows(frame)
 
             # store some debug information
             self.debug_process_frame(frame)
@@ -173,7 +173,6 @@ class FourthPass(DataHandler):
     #===========================================================================
     # LOCATE CHANGES IN BACKGROUND
     #===========================================================================
-
 
 
     def get_ground_mask(self):
@@ -195,6 +194,8 @@ class FourthPass(DataHandler):
 
 
     def get_initial_burrow_mask(self, frame):
+        """ get the burrow mask estimated from the first frame.
+        This is mainly the predug, provided in the antfarm experiments """
         ground_mask = self.get_ground_mask()
         w = self.params['burrows/ground_point_distance']
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
@@ -202,7 +203,7 @@ class FourthPass(DataHandler):
         
         color_sand = self.data['pass1/colors/sand']
         color_sky = self.data['pass1/colors/sky']
-        color_mean = 0.5*(color_sand + color_sky)
+        color_mean = 0.33*color_sand + 0.67*color_sky
         
         self.burrow_mask = (frame < color_mean).astype(np.uint8)
         self.burrow_mask[ground_mask == 0] = 0
@@ -213,22 +214,21 @@ class FourthPass(DataHandler):
     def get_background_changes(self, frame):
         """ determines a mask of all the burrows """
         mask = self._cache['image_uint8']
-        #mask.fill(0)
+        mask.fill(0)
         diff = -self.background_avg + frame
-#         mask[diff < -16] = 1
-#         mask[diff > 16] = 2
-#         
+
+        change_threshold = self.data['pass1/colors/sand_std']
         
 #         # shrink burrows
         kernel1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        mask[:] = diff > 32
-        #mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel1)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel1)
-         
-        self.burrow_mask[mask == 1] = 0
+#         mask[:] = (diff > change_threshold)
+#         #mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel1)
+#         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel1)
+#          
+#         self.burrow_mask[mask == 1] = 0
 
-        # enlarge burrows
-        mask[:] = diff < -16
+        # enlarge burrows with excavated regions
+        mask[:] = (diff < -change_threshold)
         #mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel1)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel1)
         
@@ -240,6 +240,7 @@ class FourthPass(DataHandler):
 
 
     def extend_burrow_to_ground(self, contour):
+        """ extends the burrow outline such that it connects to the ground line """
 
         # check whether the burrow is far away from the ground line
         outline = geometry.LinearRing(contour)
@@ -274,7 +275,8 @@ class FourthPass(DataHandler):
         return outline  
         
 
-    def get_burrows(self, frame):
+    def find_burrows(self, frame):
+        """ finds burrows from the current frame """
         if self.burrow_mask is None:
             self.get_initial_burrow_mask(frame)
         
