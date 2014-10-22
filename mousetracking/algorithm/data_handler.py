@@ -68,7 +68,8 @@ class DataHandler(object):
                   'pass1/burrows/tracks': objects.BurrowTrackList,
                   'pass2/ground_profile': objects.GroundProfileTrack,
                   'pass2/mouse_trajectory': objects.MouseTrack,
-                  'pass3/burrows/tracks': burrow2.BurrowTrackList,}
+                  'pass3/burrows/tracks': burrow2.BurrowTrackList,
+                  'pass4/burrows/tracks': objects.BurrowTrackList}
     
     def __init__(self, name='', parameters=None, initialize_parameters=True,
                  read_data=False):

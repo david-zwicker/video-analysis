@@ -408,7 +408,7 @@ class FourthPass(DataHandler):
             c1, c2 = disconnected[k1], connected[k2]
             # k1 is chunk to connect, k2 is closest chunk to connect it to
             
-            # merge the two structures
+            # merge the two structures and find the common outline
             structure = geometry.LinearRing(burrow_chunks[c2])
             enlarged_chunk = self.connect_burrow_to_structure(burrow_chunks[c1], structure)
 
@@ -416,6 +416,7 @@ class FourthPass(DataHandler):
             poly2 = regions.regularize_polygon(geometry.Polygon(structure))
             poly = poly1.union(poly2).buffer(0.1)
             outline = regions.get_enclosing_outline(poly)
+            outline = regions.regularize_contour(outline)
             outline = outline.coords
             
             burrow_chunks[c1] = outline
