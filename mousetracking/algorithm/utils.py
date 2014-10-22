@@ -53,3 +53,15 @@ def change_directory(path):
         yield
     finally:
         os.chdir(prev_cwd)
+
+
+def unique_based_on_id(data):
+    """ returns a list with only unique items, where the uniqueness
+    is determined from the id of the items """
+    result, seen = [], set()
+    for item in data:
+        if id(item) not in seen:
+            result.append(item)
+            seen.add(id(item))
+    return result
+

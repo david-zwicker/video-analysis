@@ -12,9 +12,12 @@ import time
 
 import cv2
 import numpy as np
+from scipy import cluster, ndimage
 from shapely import geometry
 
+from .objects.burrow import Burrow, BurrowTrackList
 from .data_handler import DataHandler
+from .utils import unique_based_on_id
 from video.analysis import image, curves, regions
 from video.io import ImageWindow, VideoFile
 from video.filters import FilterMonochrome
@@ -42,7 +45,7 @@ class FourthPass(DataHandler):
         obj = cls(third_pass.name, initialize_parameters=False)
         obj.data = third_pass.data
         obj.params = obj.data['parameters']
-        obj.result = obj.data.create_child('pass2')
+        obj.result = obj.data.create_child('pass4')
 
         # close logging handlers and other files        
         third_pass.close()
@@ -122,15 +125,11 @@ class FourthPass(DataHandler):
         filename = self.get_filename('background' + video_extension, 'debug')
         self.video = FilterMonochrome(VideoFile(filename))
         
-        video_info = self.data['pass3/video']
-        video_info['frame_count'] = self.video.frame_count
-        video_info['size'] = '%d x %d' % tuple(self.video.size),
-        
         # initialize data structures
         self.frame_id = -1
         self.background_avg = None
 
-        self.burrows = []
+        self.result['burrows/tracks'] = BurrowTrackList()
         self.burrow_mask = None
         self._cache['image_uint8'] = np.empty(self.video.shape[1:], np.uint8)
 
@@ -197,21 +196,44 @@ class FourthPass(DataHandler):
         """ get the burrow mask estimated from the first frame.
         This is mainly the predug, provided in the antfarm experiments """
         ground_mask = self.get_ground_mask()
-        w = self.params['burrows/ground_point_distance']
+        w = int(self.params['burrows/ground_point_distance'])
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
         ground_mask = cv2.erode(ground_mask, kernel)
         
+        # find initial threshold color
         color_sand = self.data['pass1/colors/sand']
         color_sky = self.data['pass1/colors/sky']
-        color_mean = 0.33*color_sand + 0.67*color_sky
+        fraction = 0.33
+        color_thresh = fraction*color_sand + (1 - fraction)*color_sky
         
-        self.burrow_mask = (frame < color_mean).astype(np.uint8)
-        self.burrow_mask[ground_mask == 0] = 0
-        
-        #debug.show_image(frame, burrow_mask, ground_mask)
-    
+        largest_area = np.inf
+        while largest_area > 10*self.params['burrows/area_min']:
+            # apply the threshold
+            self.burrow_mask = (frame < color_thresh).astype(np.uint8)
+            self.burrow_mask[ground_mask == 0] = 0
+            
+            # find the largest cluster
+            labels, num_features = ndimage.measurements.label(self.burrow_mask)
+            areas = ndimage.measurements.sum(labels, labels, index=range(1, num_features + 1))
+            largest_area = max(areas)
+            
+            # change fraction in case we have to do another round
+            color_thresh -= 1
+            
+        # remove all structures which are too far away from the ground line
+        labels, num_features = ndimage.measurements.label(self.burrow_mask)
+        for label in xrange(1, num_features + 1):
+            # check whether the burrow is large enough
+            props = image.regionprops(labels == label)
+            
+            # check whether the burrow is sufficiently underground
+            ground_line = self.ground.linestring
+            dist = ground_line.distance(geometry.Point(props.centroid))
+            if dist > self.params['burrows/ground_point_distance']:
+                self.burrow_mask[label == labels] = 0
+                    
 
-    def get_background_changes(self, frame):
+    def update_burrow_mask(self, frame):
         """ determines a mask of all the burrows """
         mask = self._cache['image_uint8']
         mask.fill(0)
@@ -235,37 +257,92 @@ class FourthPass(DataHandler):
         self.burrow_mask[mask == 1] = 1
         #kernel2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20, 20))
         self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel1)
-        
-        return self.burrow_mask
+
+        ground_mask = self.get_ground_mask()
+        self.burrow_mask[ground_mask == 0] = 0
+
+#         # find initial threshold color
+#         color_sand = self.data['pass1/colors/sand']
+#         color_sky = self.data['pass1/colors/sky']
+#         fraction = 0.9
+#         color_thresh = fraction*color_sand + (1 - fraction)*color_sky
+#         self.burrow_mask[frame > color_thresh] = 0
 
 
-    def extend_burrow_to_ground(self, contour):
-        """ extends the burrow outline such that it connects to the ground line """
+    def get_burrow_chunks(self, frame):
+        """ determines regions under ground that belong to burrows """     
+        labels, num_features = ndimage.measurements.label(self.burrow_mask)
 
-        # check whether the burrow is far away from the ground line
-        outline = geometry.LinearRing(contour)
-        dist = self.ground.linestring.distance(outline)
-        if dist < 1:
-            return contour
-        
-        dist_max = dist + self.params['burrows/width']/2
-        ground_line = self.ground.linestring
+        color_sand = self.data['pass1/colors/sand']
+        color_sky = self.data['pass1/colors/sky']
+        fraction = 0.8
+        color_thresh = fraction*color_sand + (1 - fraction)*color_sky
 
-        # determine burrow points close to the ground and
-        # their associated ground points        
-        points = []
-        for point in contour:
-            if ground_line.distance(geometry.Point(point)) < dist_max:
-                points.append(point)
-                point_ground = curves.get_projection_point(ground_line, point)
-                points.append(point_ground)
-        
-        # get the convex hull of all these points
-        hull = geometry.MultiPoint(points).convex_hull
-        
-        # add this to the burrow outline
+        burrow_chunks = []
+        for label in xrange(1, num_features + 1):
+            # check whether the burrow is large enough
+            props = image.regionprops(labels == label)
+            if props.area < self.params['burrows/area_min']:
+                continue
+            
+            # check whether the burrow is sufficiently underground
+            ground_line = self.ground.linestring
+            dist = ground_line.distance(geometry.Point(props.centroid))
+            if dist < self.params['burrows/ground_point_distance']/2:
+                continue
+            
+            # check mean color of the burrow
+            color_avg = frame[labels == label].mean()
+            if color_avg > color_thresh:
+                self.burrow_mask[labels == label] = 0
+                continue
+            
+            # extend the contour to the ground line
+            contours, _ = cv2.findContours(np.asarray(labels == label, np.uint8),
+                                           cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE)
+            contour = np.squeeze(np.asarray(contours, np.double))
+            
+            # save the contour line as a burrow
+            if len(contour) > 2:
+                burrow_chunks.append(contour)
+                
+        return burrow_chunks
+
+
+    def connect_burrow_to_structure(self, contour, structure):
+        """ extends the burrow outline such that it connects to the ground line 
+        or to other burrows """
+
         outline = regions.regularize_polygon(geometry.Polygon(contour))
-        outline = outline.union(hull.buffer(0.1))
+
+        dist = structure.distance(outline)        
+        dist_max = dist + self.params['burrows/width']/2
+
+        # determine burrow points close to the ground
+        exit_points = [point for point in contour
+                       if structure.distance(geometry.Point(point)) < dist_max]
+        exit_points = np.array(exit_points)
+
+        # cluster the points to detect multiple connections 
+        # this is important when a burrow has multiple exits to the ground
+        dist_max = self.params['burrows/width']
+        data = cluster.hierarchy.fclusterdata(exit_points, dist_max,
+                                              criterion='distance')
+        for cluster_id in np.unique(data):
+            points = []
+            for p in exit_points[data == cluster_id]:  # @NoEffect
+                point_ground = curves.get_projection_point(structure, p)
+                points.append(p)
+                points.append(point_ground)
+
+            # get the convex hull of all these points
+            hull = geometry.MultiPoint(points).convex_hull
+    
+            # add this to the burrow outline
+            outline = outline.union(hull.buffer(0.1))
+        
+        # get the outline points
         outline = regions.get_enclosing_outline(outline)
         outline = np.array(outline.coords)
         
@@ -274,31 +351,122 @@ class FourthPass(DataHandler):
         
         return outline  
         
+        
+    def connect_burrow_chunks(self, burrow_chunks):
+        """ takes a list of burrow chunks and connects them such that in the
+        end all burrow chunks are connected to the ground line. """
+        if len(burrow_chunks) == 0:
+            return []
+        
+        # calculate distances to ground
+        ground_dist = []
+        for contour in burrow_chunks:
+            # measure distance to ground
+            outline = geometry.LinearRing(contour)
+            dist = self.ground.linestring.distance(outline)
+            ground_dist.append(dist)
+            
+        # calculate distances to other burrows
+        burrow_dist = np.zeros([len(burrow_chunks)]*2)
+        np.fill_diagonal(burrow_dist, np.inf)
+        linear_rings = [geometry.LinearRing(c) for c in burrow_chunks]
+        for x, contour1 in enumerate(linear_rings):
+            for y, contour2 in enumerate(linear_rings[x+1:], x+1):
+                dist = contour1.distance(contour2)
+                burrow_dist[x, y] = dist
+                burrow_dist[y, x] = dist
+        
+        # handle all burrows close to the ground
+        connected = []
+        disconnected = []
+        for k in xrange(len(burrow_chunks)):
+            if ground_dist[k] < np.min(burrow_dist[k]):
+                # burrow is closest to ground
+                if ground_dist[k] > 1:
+                    burrow_chunks[k] = self.connect_burrow_to_structure(
+                                    burrow_chunks[k], self.ground.linestring)
+                connected.append(k)
+            else:
+                disconnected.append(k)
+                
+        # make sure that at least one chunk is connected to the ground
+        if len(connected) == 0:
+            # find the structure closest to the ground
+            k = np.argmin(ground_dist)
+            burrow_chunks[k] = self.connect_burrow_to_structure(
+                            burrow_chunks[k], self.ground.linestring)
+            connected.append(k)
+            disconnected.remove(k)
+                
+        assert (set(connected) | set(disconnected)) == set(range(len(burrow_chunks)))
+        
+        # handle all remaining chunks, which need to be connected to other chunks
+        while disconnected:
+            # find chunks which is closest to all the others
+            dist = burrow_dist[disconnected, :][:, connected]
+            k1, k2 = np.unravel_index(dist.argmin(), dist.shape)
+            c1, c2 = disconnected[k1], connected[k2]
+            # k1 is chunk to connect, k2 is closest chunk to connect it to
+            
+            # merge the two structures
+            structure = geometry.LinearRing(burrow_chunks[c2])
+            enlarged_chunk = self.connect_burrow_to_structure(burrow_chunks[c1], structure)
+
+            poly1 = regions.regularize_polygon(geometry.Polygon(enlarged_chunk))
+            poly2 = regions.regularize_polygon(geometry.Polygon(structure))
+            poly = poly1.union(poly2).buffer(0.1)
+            outline = regions.get_enclosing_outline(poly)
+            outline = outline.coords
+            
+            burrow_chunks[c1] = outline
+            
+            # replace all other burrow chunks with this id
+            id_c2 = id(burrow_chunks[c2])
+            for k, bc in enumerate(burrow_chunks):
+                if id(bc) == id_c2:
+                    burrow_chunks[k] = outline
+            
+            # mark the cluster as connected
+            del disconnected[k1]
+            connected.append(c1)
+
+        # return the unique burrow structures
+        burrows = [Burrow(outline)
+                   for outline in unique_based_on_id(burrow_chunks)]
+        
+        return burrows
+
+
+    def active_burrows(self, time_interval=None):
+        """ returns a generator to iterate over all active burrows """
+        if time_interval is None:
+            time_interval = self.params['burrows/adaptation_interval']
+        for track_id, burrow_track in enumerate(self.result['burrows/tracks']):
+            if burrow_track.track_end >= self.frame_id - time_interval:
+                yield track_id, burrow_track.last
+
 
     def find_burrows(self, frame):
         """ finds burrows from the current frame """
         if self.burrow_mask is None:
             self.get_initial_burrow_mask(frame)
         
-        burrow_mask = self.get_background_changes(frame)
+        self.update_burrow_mask(frame)
 
-        contours, _ = cv2.findContours(burrow_mask,
-                                       cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
+        burrow_chunks = self.get_burrow_chunks(frame)
+
+        # get the burrows
+        burrows = self.connect_burrow_chunks(burrow_chunks)
         
-        self.burrows = []
-        for contour in contours:
-            props = image.regionprops(contour=contour)
-            if props.area < self.params['burrows/area_min']:
-                continue
-            
-            if self.ground.above_ground(props.centroid):
-                continue
-            
-            contour = np.squeeze(np.asarray(contour, np.double))
-            
-            #contour = self.extend_burrow_to_ground(contour)
-            self.burrows.append(contour)
+        # assign the burrows to burrow tracks
+        burrow_tracks = self.result['burrows/tracks']
+        for burrow_new in burrows:
+            for burrow_id, burrow in self.active_burrows():
+                if burrow.intersects(burrow_new.polygon):
+                    burrow_tracks[burrow_id].append(self.frame_id, burrow_new)
+                    break
+            else:
+                burrow_tracks.create_track(self.frame_id, burrow_new)
 
 
     #===========================================================================
@@ -344,11 +512,9 @@ class FourthPass(DataHandler):
                 debug_video.add_line(self.ground.points, is_closed=False,
                                      mark_points=True, color='y')
                 
-#             debug_video.highlight_mask(background_mask == 1, 'g', strength=64)
-#             debug_video.highlight_mask(background_mask == 2, 'r', strength=64)
-            #debug_video.highlight_mask(self.burrow_mask == 1, 'g', strength=64)
-            for burrow in self.burrows:
-                debug_video.add_line(burrow, 'r')
+            debug_video.highlight_mask(self.burrow_mask == 1, 'b', strength=64)
+            for _, burrow in self.active_burrows():
+                debug_video.add_line(burrow.outline, 'r')
                 
             # add additional debug information
             if 'video.show' in self.debug:

@@ -108,6 +108,7 @@ def make_curve_equidistant(points, spacing=None, count=None):
 def get_projection_point(line, point):
     """ determines the point on the line closest to `point` """
     point = geometry.asPoint(point)
+    line = geometry.asLineString(line)
     point = line.interpolate(line.project(point))
     return (point.x, point.y)
 

@@ -53,7 +53,7 @@ class GroundProfile(object):
     @cached_property
     def linestring(self):
         """ returns a shapely line string corresponding to the ground """
-        return geometry.asLineString(self.points)
+        return geometry.LineString(self.points)
     
     
     def make_equidistant(self, **kwargs):

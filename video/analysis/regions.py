@@ -139,7 +139,7 @@ def expand_rectangle(rect, amount=1):
     return (rect[0] - amount, rect[1] - amount, rect[2] + 2*amount, rect[3] + 2*amount)
     
        
-def get_largest_region(mask):
+def get_largest_region(mask, ret_area=False):
     """ returns a mask only containing the largest region """
     # find all regions and label them
     labels, num_features = ndimage.measurements.label(mask)

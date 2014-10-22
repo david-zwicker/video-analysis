@@ -52,8 +52,8 @@ class Burrow(object):
         self.centerline = centerline
         self.refined = refined
 
-        if ((length is None or not np.isfinite(length)) 
-            and centerline is not None):
+        length_unknown = (length is None or not np.isfinite(length))
+        if length_unknown and centerline is not None:
             # calculate length from centerline
             length = curves.curve_length(centerline)
         self.length = length
@@ -144,6 +144,7 @@ class Burrow(object):
         """ returns True if polygon intersects the burrow """
         try:
             return not self.polygon.intersection(polygon).is_empty
+#             return self.polygon.intersects(polygon)
         except shapely.geos.TopologicalError:
             return False
     
@@ -426,6 +427,11 @@ class BurrowTrackList(list):
                         'data, e.g. the burrow length and the coordinates of '
                         'the centerline.'} 
 
+
+    def create_track(self, frame_id, burrow):
+        """ creates a new burrow track and appends it to the list """
+        self.append(BurrowTrack(frame_id, burrow))
+        
 
     def find_burrows(self, frame_id, ret_next_change=False):
         """ returns a list of all burrows active in a given frame.

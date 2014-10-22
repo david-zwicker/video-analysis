@@ -45,7 +45,7 @@ class ThirdPass(DataHandler):
         obj = cls(second_pass.name, initialize_parameters=False)
         obj.data = second_pass.data
         obj.params = obj.data['parameters']
-        obj.result = obj.data.create_child('pass2')
+        obj.result = obj.data.create_child('pass3')
 
         # close logging handlers and other files        
         second_pass.close()
