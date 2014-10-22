@@ -232,36 +232,38 @@ class DataHandler(object):
         the code in the local git repository """
         code_status = {}
         
-        # go to root of mousetracking project
+        def get_output(cmd):
+            try:
+                output = subprocess.check_output(cmd, stderr=DEVNULL)
+            except (OSError, subprocess.CalledProcessError):
+                output = None
+            return output        
+        
+        # go to root of project
         folder, _ = os.path.split(__file__)
         folder = os.path.abspath(os.path.join(folder, '..'))
         with change_directory(folder):
             # get number of commits
-            try:
-                commit_count = subprocess.check_output(['git', 'rev-list', 'HEAD', '--count'],
-                                                       stderr=DEVNULL)
-            except (OSError, subprocess.CalledProcessError):
-                code_status['commit_count'] = None
+            commit_count = get_output(['git', 'rev-list', 'HEAD', '--count'])
+            if commit_count is None:
+                output = get_output(['git', 'rev-list', 'HEAD', '--count'])
+                if output is not None:
+                    commit_count = int(output.count('\n'))
             else:
-                code_status['commit_count'] = int(commit_count.strip())
+                commit_count = int(commit_count.strip())
+            code_status['commit_count'] = commit_count
     
             # get the current revision
-            try:
-                revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
-                                                   stderr=DEVNULL)
-            except (OSError, subprocess.CalledProcessError):
-                code_status['revision'] = None
-            else:        
-                code_status['revision'] = revision.splitlines()[0]
+            revision = get_output(['git', 'rev-parse', 'HEAD'])
+            if revision is not None:
+                revision = revision.splitlines()[0]
+            code_status['revision'] = revision
             
             # get the date of the last change
-            try:
-                last_change = subprocess.check_output(['git', 'show', '-s', r'--format=%ci'],
-                                                      stderr=DEVNULL)
-            except (OSError, subprocess.CalledProcessError):
-                code_status['last_change'] = None
-            else:
-                code_status['last_change'] = last_change.splitlines()[0]
+            last_change = get_output(['git', 'show', '-s', r'--format=%ci'])
+            if last_change is not None:
+                last_change = last_change.splitlines()[0]
+            code_status['last_change'] = last_change
         
         return code_status
     

@@ -12,8 +12,7 @@ import itertools
 
 import numpy as np
 import cv2
-import shapely
-from shapely import geometry
+from shapely import geometry, geos
 
 from .utils import LazyHDFCollection, rtrim_nan
 from video.analysis import curves, regions
@@ -33,7 +32,7 @@ class Burrow(object):
     """
     
     storage_class = LazyHDFCollection
-    array_columns = ('Outline X', 'Outline Y', 
+    array_columns = ('Outline X', 'Outline Y',
                      'Burrow length + Centerline X',
                      'Flag if burrow was refined + Centerline Y')
     
@@ -68,6 +67,13 @@ class Burrow(object):
         center = polygon.centroid
         return ('Burrow(center=(%d, %d), area=%s, points=%d)' %
                 (center.x, center.y, polygon.area, len(self._outline)))
+
+
+    def __eq__(self, other):
+        return np.all(self.outline == other.outline)
+
+    def __ne__(self, other):
+        return np.any(self.outline != other.outline)
 
 
     @property
@@ -140,12 +146,17 @@ class Burrow(object):
         return self.polygon.contains(geometry.Point(point))
     
     
-    def intersects(self, polygon):
+    def intersects(self, burrow):
         """ returns True if polygon intersects the burrow """
         try:
-            return not self.polygon.intersection(polygon).is_empty
-#             return self.polygon.intersects(polygon)
-        except shapely.geos.TopologicalError:
+            # We'd like to use the simple form
+            #    return self.polygon.intersects(polygon)
+            # but that does not work due a shapely error
+            poly1 = self.polygon.buffer(0)
+            poly2 = burrow.polygon.buffer(0)
+            intersection = poly1.intersection(poly2)
+            return not intersection.is_empty
+        except geos.TopologicalError:
             return False
     
     
@@ -314,6 +325,7 @@ class BurrowTrack(object):
     def __init__(self, time=None, burrow=None):
         self.times = [] if time is None else [time]
         self.burrows = [] if burrow is None else [burrow]
+        self.active = True
         
         
     def __repr__(self):

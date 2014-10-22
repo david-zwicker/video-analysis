@@ -1721,7 +1721,7 @@ class FirstPass(DataHandler):
             adaptation_interval = self.params['burrows/adaptation_interval']
             for track_id, burrow_track in enumerate(self.result['burrows/tracks']):
                 if (burrow_track.track_end >= self.frame_id - adaptation_interval
-                    and burrow_track.last.intersects(burrow.polygon)):
+                    and burrow_track.last.intersects(burrow)):
                     
                     # this burrow is active and overlaps with the current one
                     break

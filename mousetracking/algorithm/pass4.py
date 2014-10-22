@@ -438,13 +438,37 @@ class FourthPass(DataHandler):
         return burrows
 
 
-    def active_burrows(self, time_interval=None):
+    def active_burrows(self):
         """ returns a generator to iterate over all active burrows """
-        if time_interval is None:
-            time_interval = self.params['burrows/adaptation_interval']
-        for track_id, burrow_track in enumerate(self.result['burrows/tracks']):
-            if burrow_track.track_end >= self.frame_id - time_interval:
-                yield track_id, burrow_track.last
+        for burrow_track in self.result['burrows/tracks']:
+            if burrow_track.active:
+                yield burrow_track.last
+
+
+    def add_burrows_to_tracks(self, burrows):
+        """ adds the burrows to the current tracks """
+        burrow_tracks = self.result['burrows/tracks']
+        
+        # get currently active tracks
+        active_tracks = [track for track in burrow_tracks
+                         if track.active]
+
+        # check each burrow that has been found
+        tracks_extended = set()
+        for burrow in burrows:
+            for track_id, track in enumerate(active_tracks):
+                if burrow.intersects(track.last):
+                    tracks_extended.add(track_id)
+                    if burrow != track.last:
+                        track.append(self.frame_id, burrow)
+                    break
+            else:
+                burrow_tracks.create_track(self.frame_id, burrow)
+                
+        # deactivate tracks that have not been found
+        for track_id, track in enumerate(active_tracks):
+            if track_id not in tracks_extended:
+                track.active = False 
 
 
     def find_burrows(self, frame):
@@ -452,22 +476,17 @@ class FourthPass(DataHandler):
         if self.burrow_mask is None:
             self.get_initial_burrow_mask(frame)
         
+        # find regions of possible burrows            
         self.update_burrow_mask(frame)
 
+        # identify chunks from the burrow mask
         burrow_chunks = self.get_burrow_chunks(frame)
 
-        # get the burrows
+        # get the burrows by connecting chunks
         burrows = self.connect_burrow_chunks(burrow_chunks)
         
-        # assign the burrows to burrow tracks
-        burrow_tracks = self.result['burrows/tracks']
-        for burrow_new in burrows:
-            for burrow_id, burrow in self.active_burrows():
-                if burrow.intersects(burrow_new.polygon):
-                    burrow_tracks[burrow_id].append(self.frame_id, burrow_new)
-                    break
-            else:
-                burrow_tracks.create_track(self.frame_id, burrow_new)
+        # assign the burrows to burrow tracks or create new ones
+        self.add_burrows_to_tracks(burrows)
 
 
     #===========================================================================
@@ -514,7 +533,7 @@ class FourthPass(DataHandler):
                                      mark_points=True, color='y')
                 
             debug_video.highlight_mask(self.burrow_mask == 1, 'b', strength=64)
-            for _, burrow in self.active_burrows():
+            for burrow in self.active_burrows():
                 debug_video.add_line(burrow.outline, 'r')
                 
             # add additional debug information
