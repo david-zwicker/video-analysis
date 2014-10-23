@@ -70,7 +70,7 @@ PARAMETER_LIST = [
     Parameter('debug/output', [], None,
               "List of identifiers determining what debug output is produced. "
               "Supported identifiers include 'video', 'explored_area', "
-              "'background', 'difference', 'cage_rectangle', "
+              "'background', 'difference', 'cage_estimate', "
               "'ground_estimate'."),
     Parameter('debug/use_multiprocessing', True, UNIT.BOOLEAN,
               'Flag indicating whether multiprocessing should be used to read '
@@ -113,7 +113,13 @@ PARAMETER_LIST = [
               'Flag indicating whether the cropping rectangle should be determined '
               'automatically. If False, we assume that the original video is '
               'already cropped'),
-    Parameter('cage/boundary_detection_thresholds', [0.2, 0.1, 0.2, 0.9], None,
+    Parameter('cage/threshold_zscore', 0.5, UNIT.FACTOR,
+              'Factor that determines the threshold for producing the binary '
+              'image that is used to located the frame of the cage. The '
+              'threshold is calculated according to the formula '
+              'thresh = img_mean - factor*img_std, where factor is the factor'
+              'determined here.'),
+    Parameter('cage/boundary_detection_thresholds', [0.7, 0.3, 0.7, 0.9], None,
               'Thresholds for the boundary detection algorithm. The four values '
               'are the fraction of bright pixels necessary to define the '
               'boundary for [left, top, right, bottom], respectively.'),

@@ -255,7 +255,6 @@ class FirstPass(DataHandler):
     # FINDING THE CAGE
     #===========================================================================
     
-    
     def find_cage_approximately(self, frame, ret_binarized=False):
         """ analyzes a single frame and locates the mouse cage in it.
         Try to find a bounding box for the cage.
@@ -268,6 +267,7 @@ class FirstPass(DataHandler):
         
         # find an enclosing rectangle, which usually overestimates the cage bounding box
         rect_large = regions.find_bounding_box(cage_mask)
+        self.debug['cage']['rect_large'] = rect_large
         self.logger.debug('The cage is estimated to be contained in the '
                           'rectangle %s', rect_large)
          
@@ -276,79 +276,133 @@ class FirstPass(DataHandler):
         frame = frame[region_slices]
 
         # initialize the rect coordinates
-        left, top = 0, 0 # start in top right corner
-        height, width = frame.shape
-        bottom = height - 1
-        right = width - 1
+        left_est, top_est = 0, 0 # start in top right corner
+        height_est, width_est = frame.shape
+        bottom_est = int(0.95*height_est - 1)
+        right_est = width_est - 1
+        # the magic 0.95 factor tries to circumvent some problems with the
+        # stands underneath each cage
 
         # threshold again, because large distractions outside of cages are now
         # definitely removed. Still, bright objects close to the cage, e.g. the
         # stands or some pipes in the background might distract the estimate.
         # We thus adjust the rectangle in the following  
-        _, binarized = cv2.threshold(frame, 0, 255,
-                                     cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        thresh = int(frame.mean() - self.params['cage/threshold_zscore']*frame.std())
+        _, binarized = cv2.threshold(frame, thresh=thresh, maxval=255,
+                                     type=cv2.THRESH_BINARY)
         
         # move left line to right until we hit the cage boundary
-        # We move until more then 30% of the pixel of a vertical line are bright
-        brightness = binarized[:, left].sum()
         threshold = self.params['cage/boundary_detection_thresholds'][0]
-        while brightness < threshold*255*height and left < width//2: 
-            left += 1
-            brightness = binarized[:, left].sum()
-            
-        # move top line down until we hit the cage boundary.
-        # We move until more than 10% of the pixel on a horizontal line are bright
-        brightness = binarized[top, :].sum()
+        while threshold is not None:
+            # move bottom line up with current threshold
+            for left in xrange(left_est, width_est//2):
+                brightness = binarized[:, left].sum()
+                if brightness > threshold*255*height_est:
+                    # border has been found
+                    threshold = None
+                    break
+            else:
+                # border has not been found and we try a lower threshold
+                threshold -= 0.05
+                    
+        # move top line down until we hit the cage boundary
         threshold = self.params['cage/boundary_detection_thresholds'][1]
-        while brightness < threshold*255*width and top < height//2: 
-            top += 1
-            brightness = binarized[top, :].sum()
-            
+        while threshold is not None:
+            # move bottom line up with current threshold
+            for top in xrange(top_est, height_est//2):
+                brightness = binarized[top, :].sum()
+                if brightness > threshold*255*width_est:
+                    # border has been found
+                    threshold = None
+                    break
+            else:
+                # border has not been found and we try a lower threshold
+                threshold -= 0.05
+        
         # move right line to left until we hit the cage boundary
-        # We move until more then 30% of the pixel of a vertical line are bright
-        brightness = binarized[:, right].sum()
         threshold = self.params['cage/boundary_detection_thresholds'][2]
-        while brightness < threshold*255*height and right > width//2: 
-            right -= 1
-            brightness = binarized[:, right].sum()
+        while threshold is not None:
+            # move bottom line up with current threshold
+            for right in xrange(right_est, width_est//2, -1):
+                brightness = binarized[:, right].sum()
+                if brightness > threshold*255*height_est:
+                    # border has been found
+                    threshold = None
+                    break
+            else:
+                # border has not been found and we try a lower threshold
+                threshold -= 0.05
         
         # move bottom line up until we hit the cage boundary
-        # We move until more then 90% of the pixel of a horizontal line are bright
-        brightness = binarized[bottom, :].sum()
         threshold = self.params['cage/boundary_detection_thresholds'][3]
-        while brightness < threshold*255*width and bottom > height//2: 
-            bottom -= 1
-            brightness = binarized[bottom, :].sum()
+        while threshold is not None:
+            # move bottom line up with current threshold
+            for bottom in xrange(bottom_est, height_est//2, -1):
+                brightness = binarized[bottom, :].sum()
+                if brightness > threshold*255*width_est:
+                    # border has been found
+                    threshold = None
+                    break
+            else:
+                # border has not been found and we try a lower threshold
+                threshold -= 0.05
 
         # return the rectangle defined by two corner points
         p1 = (rect_large[0] + left,  rect_large[1] + top)
         p2 = (rect_large[0] + right, rect_large[1] + bottom)
         cage_rect = regions.corners_to_rect(p1, p2)
+        self.debug['cage']['rect_cage'] = cage_rect
         
         if ret_binarized:
-            binarized_frame /= 255 #< 255 becomes 1
-            binarized_frame[region_slices] += binarized/255*2 #< 255 becomes 2
+            binarized[binarized > 0] = 1
+            binarized_frame[binarized_frame > 0] = 1
+            binarized_frame[region_slices] += 2*binarized
             return cage_rect, binarized_frame
         else:
             return cage_rect
 
 
-    def find_cage_exactly(self, frame, rect_cage):
-        """
-        """
-        return rect_cage
+    def produce_cage_debug_image(self, frame, frame_binarized):
+        """ saves an image with information on how the frame of the cage was
+        obtained """
+        
+        # create the image from the binarized masks
+        r, g, b = [np.zeros_like(frame) for _ in xrange(3)]
+        mask_bin1 = (frame_binarized  % 2 == 0)
+        mask_bin2 = (frame_binarized // 2 == 0)
+        mask_none = ~(mask_bin1 ^ mask_bin2)
+        b[mask_bin1] = frame[mask_bin1]
+        r[mask_bin2] = frame[mask_bin2]
+        g[mask_none] = frame[mask_none]
+        frame = cv2.merge((b, g, r))
+
+        # add the cropping rectangle
+        rect_large = self.debug['cage']['rect_large']
+        p1, p2 = regions.rect_to_corners(rect_large)
+        cv2.rectangle(frame, p1, p2, color=(0, 0, 0), thickness=2)
+        
+        # add the rectangle on top
+        rect_cage = self.debug['cage']['rect_cage']
+        p1, p2 = regions.rect_to_corners(rect_cage)
+        cv2.rectangle(frame, p1, p2, color=(255, 255, 255), thickness=4)
+
+        # save the image
+        filename = self.get_filename('cage_estimate.jpg', 'debug')
+        cv2.imwrite(filename, frame)
 
   
     def crop_video_to_cage(self, video):
         """ crops the video to a suitable cropping rectangle given by the cage """
+        self.debug['cage'] = defaultdict(dict)
+        
         # find the cage in the blurred image
         frame = video[0]
         blurred_frame = cv2.GaussianBlur(frame, ksize=(0, 0),
                                          sigmaX=self.params['video/blur_radius'])
         
         # find the rectangle describing the cage
-        rect_cage, frame_binarized = self.find_cage_approximately(blurred_frame, ret_binarized=True)
-        rect_cage = self.find_cage_exactly(blurred_frame, rect_cage)
+        rect_cage, frame_binarized = self.find_cage_approximately(blurred_frame,
+                                                                  ret_binarized=True)
         
         # determine the rectangle of the cage in global coordinates
         width = rect_cage[2] - rect_cage[2] % 2   # make sure its divisible by 2
@@ -356,22 +410,8 @@ class FirstPass(DataHandler):
         # Video dimensions should be divisible by two for some codecs
         rect_cage = (rect_cage[0], rect_cage[1], width, height)
 
-        if 'cage_rectangle' in self.params['debug/output']:
-            # create the image from the binarized masks
-            r, g, b = [np.zeros_like(frame) for _ in xrange(3)]
-            mask_bin1 = (frame_binarized  % 2 == 0)
-            mask_bin2 = (frame_binarized // 2 == 0)
-            mask_none = ~(mask_bin1 ^ mask_bin2)
-            b[mask_bin1] = frame[mask_bin1]
-            r[mask_bin2] = frame[mask_bin2]
-            g[mask_none] = frame[mask_none]
-            frame = cv2.merge((b, g, r))
-            # add the rectangle on top
-            p1, p2 = regions.rect_to_corners(rect_cage)
-            cv2.rectangle(frame, p1, p2, color=(255, 255, 255), thickness=2)
-            # save the image
-            filename = self.get_filename('cage_rectangle.jpg', 'debug')
-            cv2.imwrite(filename, frame)
+        if 'cage_estimate' in self.params['debug/output']:
+            self.produce_cage_debug_image(frame, frame_binarized)
 
         if not (self.params['cage/width_min'] < width < self.params['cage/width_max'] and
                 self.params['cage/height_min'] < height < self.params['cage/height_max']):
@@ -772,7 +812,7 @@ class FirstPass(DataHandler):
                     points = curves.translate_points(t_points, max_loc[0], max_loc[1])
         
         self.debug['ground']['template_rect_max'] = rect_max
-        self.logger.info('Best template match for template width %d%% of video '
+        self.logger.info('Best ground match for template width %d%% '
                          'and a height factor of %.2g.',
                          parameters_max[0]*100, parameters_max[1])
         
@@ -1001,8 +1041,13 @@ class FirstPass(DataHandler):
         profile = np.r_[0, profile, 255]
 
         # determine first maximum and first minimum after that
-        pos_max = signal.argrelmax(profile)[0][0]
-        pos_min = signal.argrelmin(profile[pos_max:])[0][0] + pos_max
+        maxima = signal.argrelextrema(profile, comparator=np.greater_equal)
+        pos_max = maxima[0][0]
+        minima = signal.argrelextrema(profile[pos_max:],
+                                      comparator=np.less_equal)
+        pos_min = minima[0][0] + pos_max
+        # we have to use argrelextrema instead of argrelmax and argrelmin,
+        # because the latter don't capture wide maxima like [0, 1, 1, 0]
         
         if pos_min - pos_max >= 2:
             # get steepest point in this interval
