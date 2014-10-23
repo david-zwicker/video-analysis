@@ -66,6 +66,7 @@ class FirstPass(DataHandler):
         # setup internal structures that will be filled by analyzing the video
         self._cache = {}               # cache that some functions might want to use
         self.debug = {}                # dictionary holding debug information
+        self.output = {}               # dictionary holding output structures
         self.background = None         # current background model
         self.ground = None             # current model of the ground profile
         self.tracks = []               # list of plausible mouse models in current frame
@@ -219,8 +220,8 @@ class FirstPass(DataHandler):
                                                 sigmaSpace=blur_sigma)
             
             # copy frame to debug video
-            if 'video' in self.debug:
-                self.debug['video'].set_frame(frame, copy=False)
+            if 'video' in self.output:
+                self.output['video'].set_frame(frame, copy=False)
             
             # do the main analysis after an initial wait period
             do_analysis = (self.frame_id >= self.params['video/initial_adaptation_frames'])
@@ -550,8 +551,8 @@ class FirstPass(DataHandler):
         cv2.morphologyEx(mask_moving, cv2.MORPH_CLOSE, kernel, dst=mask_moving)
 
         # plot the contour of the movement if debug video is enabled
-        if 'video' in self.debug:
-            self.debug['video'].add_contour(mask_moving, color='g', copy=True)
+        if 'video' in self.output:
+            self.output['video'].add_contour(mask_moving, color='g', copy=True)
 
         return mask_moving
 
@@ -846,9 +847,9 @@ class FirstPass(DataHandler):
             slope_threshold = self.params['ground/slope_detector_max_factor']*slopes.max()
             pos_ys = np.nonzero(slopes > slope_threshold)[0] + frame_margin
     
-            if 'video' in self.debug:
+            if 'video' in self.output:
                 for pos_y in pos_ys:
-                    self.debug['video'].add_points([(pos_x, pos_y)], radius=2)
+                    self.output['video'].add_points([(pos_x, pos_y)], radius=2)
 
             try:
                 pos_y = pos_ys[0]
@@ -985,8 +986,8 @@ class FirstPass(DataHandler):
         points_final = self._revise_ground_points(frame, points_est2[:])
 
         # plot the ground profiles to the debug video
-        if 'video' in self.debug:
-            debug_video = self.debug['video']
+        if 'video' in self.output:
+            debug_video = self.output['video']
             debug_video.add_line(points_est1, is_closed=False,
                                  mark_points=True, color='r')
             if points_est1 is not points_est2:
@@ -1774,9 +1775,9 @@ class FirstPass(DataHandler):
                 continue
 
             # add the unrefined burrow to the debug video
-            if 'video' in self.debug:
-                self.debug['video'].add_line(burrow.outline, 'w',
-                                                is_closed=True, width=2)
+            if 'video' in self.output:
+                self.output['video'].add_line(burrow.outline, 'w',
+                                              is_closed=True, width=2)
 
             # check whether this burrow belongs to a previously found one                
             adaptation_interval = self.params['burrows/adaptation_interval']
@@ -1862,24 +1863,24 @@ class FirstPass(DataHandler):
         if 'video' in debug_output or 'video.show' in debug_output:
             # initialize the writer for the debug video
             debug_file = self.get_filename('pass1' + video_extension, 'debug')
-            self.debug['video'] = VideoComposer(debug_file, size=self.video.size,
-                                                fps=self.video.fps, is_color=True,
-                                                output_period=video_output_period,
-                                                codec=video_codec, bitrate=video_bitrate,
-                                                debug=self.debug_run)
+            self.output['video'] = VideoComposer(debug_file, size=self.video.size,
+                                                 fps=self.video.fps, is_color=True,
+                                                 output_period=video_output_period,
+                                                 codec=video_codec, bitrate=video_bitrate,
+                                                 debug=self.debug_run)
             
             if 'video.show' in debug_output:
                 name = self.name if self.name else ''
                 position = self.params['debug/window_position']
-                image_window = ImageWindow(self.debug['video'].shape,
+                image_window = ImageWindow(self.output['video'].shape,
                                            title='Debug video pass 1 [%s]' % name,
                                            multiprocessing=self.params['debug/use_multiprocessing'],
                                            position=position)
-                self.debug['video.show'] = image_window
+                self.output['video.show'] = image_window
 
         # set up additional video writers
         for identifier in ('difference', 'background', 'explored_area'):
-            if identifier in debug_output:
+            if identifier == 'background' or identifier in debug_output:
                 # determine the filename to be used
                 debug_file = self.get_filename(identifier + video_extension, 'debug')
                 # set up the video file writer
@@ -1887,14 +1888,14 @@ class FirstPass(DataHandler):
                                              is_color=False, output_period=video_output_period,
                                              codec=video_codec, bitrate=video_bitrate,
                                              debug=self.debug_run)
-                self.debug[identifier + '.video'] = video_writer
+                self.output[identifier + '.video'] = video_writer
         
 
     def debug_process_frame(self, frame):
         """ adds information of the current frame to the debug output """
         
-        if 'video' in self.debug:
-            debug_video = self.debug['video']
+        if 'video' in self.output:
+            debug_video = self.output['video']
             
             # plot the ground profile
             if self.ground is not None: 
@@ -1950,26 +1951,26 @@ class FirstPass(DataHandler):
                 debug_video.add_rectangle(rect, 'w', 10)
                 self.debug['video.mark.highlight'] = False
             
-            if 'video.show' in self.debug:
+            if 'video.show' in self.output:
                 if debug_video.output_this_frame:
-                    self.debug['video.show'].show(debug_video.frame)
+                    self.output['video.show'].show(debug_video.frame)
                 else:
-                    self.debug['video.show'].show()
+                    self.output['video.show'].show()
                 
-        if 'difference.video' in self.debug:
+        if 'difference.video' in self.output:
             diff = frame.astype(int, copy=False) - self.background + 128
             diff = np.clip(diff, 0, 255).astype(np.uint8, copy=False)
-            self.debug['difference.video'].set_frame(diff)
-            self.debug['difference.video'].add_text(str(self.frame_id),
-                                                    (20, 20), anchor='top')   
+            self.output['difference.video'].set_frame(diff)
+            self.output['difference.video'].add_text(str(self.frame_id),
+                                                     (20, 20), anchor='top')   
                 
-        if 'background.video' in self.debug:
-            self.debug['background.video'].set_frame(self.background)
-            self.debug['background.video'].add_text(str(self.frame_id),
-                                                    (20, 20), anchor='top')   
+        if 'background.video' in self.output:
+            self.output['background.video'].set_frame(self.background)
+            self.output['background.video'].add_text(str(self.frame_id),
+                                                     (20, 20), anchor='top')   
 
-        if 'explored_area.video' in self.debug:
-            debug_video = self.debug['explored_area.video']
+        if 'explored_area.video' in self.output:
+            debug_video = self.output['explored_area.video']
              
             # set the background
             debug_video.set_frame(128*np.clip(self.explored_area, 0, 1))
@@ -1985,14 +1986,14 @@ class FirstPass(DataHandler):
     def debug_finalize(self):
         """ close the video streams when done iterating """
         # close the window displaying the video
-        if 'video.show' in self.debug:
-            self.debug['video.show'].close()
+        if 'video.show' in self.output:
+            self.output['video.show'].close()
         
         # close the open video streams
         for video in ('video', 'difference.video', 'background.video', 'explored_area.video'):
-            if video in self.debug:
+            if video in self.output:
                 try:
-                    self.debug[video].close()
+                    self.output[video].close()
                 except IOError:
                     self.logger.exception('Error while writing out the debug '
                                           'video `%s`' % video) 
