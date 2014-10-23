@@ -206,7 +206,7 @@ class VideoBase(object):
         raise ValueError("Writing to this video stream is prohibited.")  
         
     
-    def copy(self, dtype=np.uint8):
+    def copy(self, dtype=np.uint8, disp=True):
         """
         Creates a copy of the current video and returns a VideoMemory instance.
         """
@@ -217,7 +217,13 @@ class VideoBase(object):
         
         # copy the data into a numpy array
         data = np.empty(self.shape, dtype)
-        for k, val in enumerate(display_progress(self)):
+        
+        if disp:
+            iterator = display_progress(self)
+        else:
+            iterator = self
+        
+        for k, val in enumerate(iterator):
             data[k, ...] = val
             
         # construct the memory object without copying the data

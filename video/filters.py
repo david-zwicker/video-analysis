@@ -329,6 +329,41 @@ class FilterMoveTowards(VideoFilterBase):
     
     
     
+class FilterReplicate(VideoFilterBase):
+    """ replicates the video `count` times """
+    
+    def __init__(self, source, count=1):
+        
+        self.count = count
+            
+        # calculate the number of frames to be expected
+        frame_count = source.frame_count * count
+
+        # correct the size, since we are going to crop the movie
+        super(FilterReplicate, self).__init__(source, frame_count=frame_count)
+
+    
+    def set_frame_pos(self, index):
+        if not 0 <= index < self.frame_count:
+            raise IndexError('Cannot access frame %d.' % index)
+
+        self._source.set_frame_pos(index % self.count)
+        self._frame_pos = index
+        
+        
+    def get_next_frame(self):
+        if self.get_frame_pos() % self.count == 0:
+            # rewind source video
+            self._source.set_frame_pos(0)
+        
+        frame = self._source.get_next_frame()
+
+        # advance to the next frame
+        self._frame_pos += 1
+        return frame
+
+    
+    
 #===============================================================================
 # FILTERS THAT ANALYZE CONSECUTIVE FRAMES
 #===============================================================================

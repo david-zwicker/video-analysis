@@ -69,7 +69,7 @@ class FirstPass(DataHandler):
         self.ground = None             # current model of the ground profile
         self.tracks = []               # list of plausible mouse models in current frame
         self.explored_area = None      # region the mouse has explored yet
-        self.frame_id = None           # id of the current frame
+        self.frame_id = 0              # id of the current frame
         self.result['objects/moved_first_in_frame'] = None
         self.result['objects/too_many_objects'] = 0
         if self.params['debug/output'] is None:
@@ -210,7 +210,7 @@ class FirstPass(DataHandler):
         blur_sigma_color = self.params['video/blur_sigma_color']
 
         # iterate over the video and analyze it
-        did_first_analysis = False
+        analyzed_never = True
         for self.frame_id, frame in enumerate(display_progress(video)):
             # remove noise using a bilateral filter
             frame_blurred = cv2.bilateralFilter(frame, d=int(blur_sigma),
@@ -221,34 +221,31 @@ class FirstPass(DataHandler):
             if 'video' in self.debug:
                 self.debug['video'].set_frame(frame, copy=False)
             
-            if self.frame_id >= self.params['video/initial_adaptation_frames']:
-                # do the main analysis after an initial wait period
-                
-                # update the color estimates
-                if (not did_first_analysis
-                    or self.frame_id % self.params['colors/adaptation_interval'] == 0):
-                    
-                    self.find_color_estimates(frame_blurred)
+            # do the main analysis after an initial wait period
+            do_analysis = (self.frame_id >= self.params['video/initial_adaptation_frames'])
+            do_colors = (self.frame_id % self.params['colors/adaptation_interval'] == 0)
+            do_ground = (self.frame_id % self.params['ground/adaptation_interval'] == 0)
+            do_burrows = (self.frame_id % self.params['burrows/adaptation_interval'] == 0)
+            
+            if do_analysis and (analyzed_never or do_colors):
+                self.find_color_estimates(frame_blurred)
+                analyzed_never = False
 
+            # update the background model
+            self.update_background_model(frame)
+                
+            if do_analysis:
+                # do the main analysis after an initial wait period
                 # identify moving objects by comparing current frame to background
                 self.find_objects(frame_blurred)
                 
                 # use the background to find the current ground profile and burrows
-                if (not did_first_analysis
-                    or self.frame_id % self.params['ground/adaptation_interval'] == 0):
-                    
+                if analyzed_never or do_ground:
                     self.ground = self.get_ground_profile(self.ground)
         
-                if self.params['burrows/enabled_pass1'] and (not did_first_analysis
-                    or self.frame_id % self.params['burrows/adaptation_interval'] == 0):
-                    
+                if self.params['burrows/enabled_pass1'] and (analyzed_never or do_burrows):
                     self.find_burrows()
                     
-                did_first_analysis = True
-                    
-            # update the background model
-            self.update_background_model(frame)
-                
             # store some information in the debug dictionary
             self.debug_process_frame(frame)
                          
@@ -971,6 +968,8 @@ class FirstPass(DataHandler):
                 debug_video.add_line(points_est2, is_closed=False, color='b')
                 
         if 'ground_estimate' in self.params['debug/output']:
+            self._cache['ground_estimate1'] = points_est1
+            self._cache['ground_estimate2'] = points_est2
             frame = cv2.cvtColor(frame, cv2.cv.CV_GRAY2BGR)
             cv2.polylines(frame, [np.array(points_est1, np.int32)],
                           isClosed=False, color=(0, 0, 255), thickness=2)
@@ -1203,9 +1202,12 @@ class FirstPass(DataHandler):
         
         if ground_estimate is None:
             ground_estimate = self.estimate_ground_profile()
+            estimated_ground = True
             
             self.logger.debug('%d: Estimated ground profile of length %g',
                               self.frame_id, ground_estimate.length)
+        else:
+            estimated_ground = False            
             
         if ground_estimate.length > self.params['ground/length_max']:
             # reject excessively long ground profiles
@@ -1220,6 +1222,20 @@ class FirstPass(DataHandler):
         
             # add the ground to the result list
             self.result['ground/profile'].append(self.frame_id, ground)
+            
+        if estimated_ground and 'ground_estimate' in self.params['debug/output']:
+            points_est1 = self._cache['ground_estimate1']
+            points_est2 = self._cache['ground_estimate2']
+            frame = cv2.cvtColor(self.background.astype(np.uint8), cv2.cv.CV_GRAY2BGR)
+            cv2.polylines(frame, [np.array(points_est1, np.int32)],
+                          isClosed=False, color=(0, 0, 255), thickness=2)
+            if points_est1 is not points_est2:
+                cv2.polylines(frame, [np.array(points_est2, np.int32)],
+                              isClosed=False, color=(255, 0, 0), thickness=2)
+            cv2.polylines(frame, [np.array(ground.points, np.int32)],
+                          isClosed=False, color=(0, 255, 255), thickness=1)
+            filename = self.get_filename('ground_estimate.jpg', 'debug')
+            cv2.imwrite(filename, frame)
         
         return ground
         

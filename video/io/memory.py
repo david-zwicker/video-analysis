@@ -29,7 +29,7 @@ class VideoMemory(VideoBase):
         self.data = np.array(data, copy=copy_data)
         
         # remove the color dimension if it is single
-        if self.data.ndim > 3:
+        if self.data.ndim > 3 and self.data.shape[3] == 1:
             self.data = np.squeeze(self.data, 3) 
 
         # read important information

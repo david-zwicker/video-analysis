@@ -178,7 +178,7 @@ class VideoComposer(VideoFileWriter):
         points = np.asarray(points, np.int32)
         
         # find the regions where the points are finite
-        # Here, we compare to 0 to capture nans in the int32 array        
+        # Here, we compare to 0 to capture nans in the int32 array 
         indices = contiguous_regions(points[:, 0] > 0)
         
         for start, end in indices:
