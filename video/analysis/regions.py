@@ -178,7 +178,19 @@ def regularize_polygon(polygon):
     return polygon
 
 
-def regularize_contour(contour):
+def regularize_linear_ring(linear_ring):
+    """ regularize a list of points defining a contour """
+    polygon = geometry.Polygon(linear_ring)
+    regular_polygon = regularize_polygon(polygon)
+    if polygon is not regular_polygon:
+        if regular_polygon.is_empty:
+            return geometry.LinearRing() #< empty ring
+        else:
+            linear_ring = regular_polygon.exterior
+    return linear_ring
+
+
+def regularize_contour_points(contour):
     """ regularize a list of points defining a contour """
     if len(contour) >= 3:
         polygon = geometry.Polygon(contour)
@@ -221,9 +233,15 @@ def get_intersections(geometry1, geometry2):
     if inter is None or inter.is_empty:
         return []    
     elif isinstance(inter, geometry.Point):
+        # intersection is a single point
         return [inter.coords[0]]
-    else:
+    elif isinstance(inter, geometry.MultiPoint):
+        # intersection contains multiple points
         return [p.coords[0] for p in inter]
+    else:
+        # intersection contains objects of lines
+        # => we cannot do anything sensible and thus return nothing
+        return []
 
     
 def get_ray_hitpoint(point_anchor, point_far, line_string, ret_dist=False):

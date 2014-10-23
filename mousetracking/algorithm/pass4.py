@@ -235,14 +235,17 @@ class FourthPass(DataHandler):
 
     def update_burrow_mask(self, frame):
         """ determines a mask of all the burrows """
+        # initialize masks for this frame
+        ground_mask = self.get_ground_mask()
         mask = self._cache['image_uint8']
-        mask.fill(0)
+        
+        # determine the difference between this frame and the background
         diff = -self.background_avg + frame
 
         change_threshold = self.data['pass1/colors/sand_std']
+        kernel1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         
 #         # shrink burrows
-        kernel1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
 #         mask[:] = (diff > change_threshold)
 #         #mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel1)
 #         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel1)
@@ -251,14 +254,19 @@ class FourthPass(DataHandler):
 
         # enlarge burrows with excavated regions
         mask[:] = (diff < -change_threshold)
-        #mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel1)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel1)
+        if mask.sum() > 0.1*ground_mask.sum():
+            # there is way too much change
+            # - this can happen when the light flickers
+            # - we ignore these frames and return immediately
+            return
         
+        # remove small changes, which are likely due to noise
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel1)
+        # add the regions to the burrow mask
         self.burrow_mask[mask == 1] = 1
-        #kernel2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20, 20))
+        # combine nearby burrow chunks by closing the mask
         self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel1)
-
-        ground_mask = self.get_ground_mask()
+        # ensure that all points above ground are not burrow chunks
         self.burrow_mask[ground_mask == 0] = 0
 
 #         # find initial threshold color
@@ -310,7 +318,7 @@ class FourthPass(DataHandler):
         return burrow_chunks
 
 
-    def connect_burrow_to_structure(self, contour, structure):
+    def _connect_burrow_to_structure(self, contour, structure):
         """ extends the burrow outline such that it connects to the ground line 
         or to other burrows """
 
@@ -383,8 +391,9 @@ class FourthPass(DataHandler):
             if ground_dist[k] < np.min(burrow_dist[k]):
                 # burrow is closest to ground
                 if ground_dist[k] > 1:
-                    burrow_chunks[k] = self.connect_burrow_to_structure(
-                                    burrow_chunks[k], self.ground.linestring)
+                    burrow_chunks[k] = \
+                        self._connect_burrow_to_structure(burrow_chunks[k],
+                                                          self.ground.linestring)
                 connected.append(k)
             else:
                 disconnected.append(k)
@@ -393,8 +402,9 @@ class FourthPass(DataHandler):
         if len(connected) == 0:
             # find the structure closest to the ground
             k = np.argmin(ground_dist)
-            burrow_chunks[k] = self.connect_burrow_to_structure(
-                            burrow_chunks[k], self.ground.linestring)
+            burrow_chunks[k] = \
+                self._connect_burrow_to_structure(burrow_chunks[k],
+                                                  self.ground.linestring)
             connected.append(k)
             disconnected.remove(k)
                 
@@ -407,18 +417,22 @@ class FourthPass(DataHandler):
             k1, k2 = np.unravel_index(dist.argmin(), dist.shape)
             c1, c2 = disconnected[k1], connected[k2]
             # k1 is chunk to connect, k2 is closest chunk to connect it to
-            
-            # merge the two structures and find the common outline
-            structure = geometry.LinearRing(burrow_chunks[c2])
-            enlarged_chunk = self.connect_burrow_to_structure(burrow_chunks[c1], structure)
 
+            # connect the current chunk to the other structure
+            structure = geometry.LinearRing(burrow_chunks[c2])
+            enlarged_chunk = self._connect_burrow_to_structure(burrow_chunks[c1], structure)
+            
+            # merge the two structures
             poly1 = regions.regularize_polygon(geometry.Polygon(enlarged_chunk))
             poly2 = regions.regularize_polygon(geometry.Polygon(structure))
             poly = poly1.union(poly2).buffer(0.1)
+            
+            # find and regularize the common outline
             outline = regions.get_enclosing_outline(poly)
-            outline = regions.regularize_contour(outline)
+            outline = regions.regularize_linear_ring(outline)
             outline = outline.coords
             
+            # replace the current chunk by the merged one
             burrow_chunks[c1] = outline
             
             # replace all other burrow chunks with this id
@@ -468,7 +482,7 @@ class FourthPass(DataHandler):
         # deactivate tracks that have not been found
         for track_id, track in enumerate(active_tracks):
             if track_id not in tracks_extended:
-                track.active = False 
+                track.active = False
 
 
     def find_burrows(self, frame):

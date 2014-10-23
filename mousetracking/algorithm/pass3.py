@@ -356,7 +356,7 @@ class ThirdPass(DataHandler):
         
         # remove potential invalid structures from contour
         if contour:
-            contour = regions.regularize_contour(contour)
+            contour = regions.regularize_contour_points(contour)
         
 #         if offset[0]:
 #             debug.show_shape(geometry.LinearRing(contour),

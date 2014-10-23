@@ -747,12 +747,12 @@ class FirstPass(DataHandler):
         
         correlation_max, points = 0, None
         parameters_max = None
-        # try different height ratios
-        for stretch_height in np.arange(0.7, 1.31, 0.1):
+        # try different aspect ratios
+        for aspect_factor in self.params['ground_template_aspect_factors']:
             # try different fractions of the total width                  
-            for factor in np.arange(0.5, 1.01, 0.05):
-                width_estimate = factor * frame.shape[1] #< width
-                template, t_points = self._get_ground_template(width_estimate, stretch_height)
+            for width_factor in self.params['ground_template_width_factors']:
+                width_estimate = width_factor * frame.shape[1] #< width
+                template, t_points = self._get_ground_template(width_estimate, aspect_factor)
             
                 # convolute template with frame
                 conv = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
@@ -763,12 +763,12 @@ class FirstPass(DataHandler):
                 if max_val > correlation_max:
                     # better match than the previous one
                     correlation_max = max_val
-                    parameters_max = (factor, stretch_height)
+                    parameters_max = (width_factor, aspect_factor)
                     # shift the points of the template
                     points = curves.translate_points(t_points, max_loc[0], max_loc[1])
         
         self.logger.info('Best template match for template width %d%% of video '
-                         'and a height factor of %.2g.',
+                         'and a height width_factor of %.2g.',
                          parameters_max[0]*100, parameters_max[1])
         
         return points
@@ -1339,7 +1339,7 @@ class FirstPass(DataHandler):
         
         # remove potential invalid structures from contour
         if contour:
-            contour = regions.regularize_contour(contour)
+            contour = regions.regularize_contour_points(contour)
         
 #         if offset[0]:
 #             debug.show_shape(geometry.LinearRing(contour),
@@ -1577,7 +1577,7 @@ class FirstPass(DataHandler):
             centerline_new[0] = point_max
 
         # make sure that shape is a valid polygon
-        outline_new = regions.regularize_contour(outline_new)
+        outline_new = regions.regularize_contour_points(outline_new)
         if not outline_new:
             self.logger.warn('%d: Refined, long burrow at %s is not a valid '
                              'polygon anymore.', self.frame_id, burrow.position)

@@ -13,6 +13,8 @@ from __future__ import division
 from collections import namedtuple
 import warnings
 
+import numpy as np
+
 
 # enum of different units that we use
 class UNIT(object):
@@ -151,6 +153,11 @@ PARAMETER_LIST = [
               'Name of the ground template stored in the assets directory. '
               'If the template is not given or could not be found, an '
               'alternative method based on line scans is used.'),
+    Parameter('ground_template_width_factors', np.arange(0.5, 1.01, 0.05), None,
+              'Different factors to try for scaling the template width with '
+              'respect to the cage width.'),
+    Parameter('ground_template_aspect_factors', np.arange(0.7, 1.31, 0.1), None,
+              'Different factors to try for scaling the template aspect ratio.'),
     Parameter('ground/point_spacing', 20, UNIT.LENGTH_PIXEL,
               'Spacing of the support points describing the ground profile'),
     Parameter('ground/linescan_length', 50, UNIT.LENGTH_PIXEL,
@@ -297,7 +304,7 @@ PARAMETER_LIST = [
     Parameter('resources/pass3/time', 30*60, None, 'Maximal computation minutes for pass 3'),
     Parameter('resources/pass3/memory', 1000, None, 'Maximal RAM per core for pass 3 [in MB]'),
     Parameter('resources/pass4/cores', 4, None, 'Number of cores for pass 4'),
-    Parameter('resources/pass4/time', 10*60, None, 'Maximal computation minutes for pass 4'),
+    Parameter('resources/pass4/time', 5*60, None, 'Maximal computation minutes for pass 4'),
     Parameter('resources/pass4/memory', 1000, None, 'Maximal RAM per core for pass 4 [in MB]'),
 ]
 
