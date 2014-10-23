@@ -171,23 +171,21 @@ def get_enclosing_outline(polygon):
 def regularize_polygon(polygon):
     """ regularize a shapely polygon using polygon.buffer(0) """
     # regularize polygon
-    polygon = polygon.buffer(0)
-    # retrieve the result with the largest area
-    if isinstance(polygon, geometry.MultiPolygon):
-        polygon = max(polygon, key=operator.attrgetter('area'))
-    return polygon
+    result = polygon.buffer(0)
+    if isinstance(result, geometry.MultiPolygon):
+        # retrieve the result with the largest area
+        result = max(result, key=operator.attrgetter('area'))
+    return result
 
 
 def regularize_linear_ring(linear_ring):
     """ regularize a list of points defining a contour """
     polygon = geometry.Polygon(linear_ring)
     regular_polygon = regularize_polygon(polygon)
-    if polygon is not regular_polygon:
-        if regular_polygon.is_empty:
-            return geometry.LinearRing() #< empty ring
-        else:
-            linear_ring = regular_polygon.exterior
-    return linear_ring
+    if regular_polygon.is_empty:
+        return geometry.LinearRing() #< empty ring
+    else:
+        return regular_polygon.exterior
 
 
 def regularize_contour_points(contour):
@@ -195,11 +193,10 @@ def regularize_contour_points(contour):
     if len(contour) >= 3:
         polygon = geometry.Polygon(contour)
         regular_polygon = regularize_polygon(polygon)
-        if polygon is not regular_polygon:
-            if regular_polygon.is_empty:
-                return [] #< empty polygon
-            else:
-                contour = regular_polygon.exterior.coords
+        if regular_polygon.is_empty:
+            return [] #< empty polygon
+        else:
+            contour = regular_polygon.exterior.coords
     return contour
 
 

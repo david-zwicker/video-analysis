@@ -19,9 +19,7 @@
 	Burrow finding of first pass can be removed altogether (if third pass gets sufficiently nice results)
 * First pass might want to construct a binary image of all the area that was explored by any moving object
 	- This mask could be saved in the hdf file and than used later to restrict the mouse movement
-* Get burrow evolution from the background video (with maybe additional filtering)
-	- Try running the moving objects localization algorithm on the background video
-* Adapt burrows every now and then
+* Work on the centerline algorithm for burrows defined by their outline
 
 Performance improvements:
 -------------------------

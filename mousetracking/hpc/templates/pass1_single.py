@@ -7,6 +7,8 @@ import os
 import logging
 sys.path.append(os.path.expanduser("{FOLDER_CODE}"))
 
+from numpy import array  # @UnusedImport
+
 from mousetracking import scan_video
 
 # configure basic logging, which will be overwritten later

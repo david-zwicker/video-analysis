@@ -28,7 +28,8 @@ if not hasattr(geometry, 'LinearRing'):
 
 class Burrow(object):
     """ represents a single burrow.
-    Note that the outline are always given in clockwise direction
+    Note that the outline are always given in clockwise direction, which is
+    ensured automatically
     """
     
     storage_class = LazyHDFCollection
@@ -42,7 +43,8 @@ class Burrow(object):
     ground_point_distance = 10
     
     
-    def __init__(self, outline, centerline=None, length=None, refined=False):
+    def __init__(self, outline, centerline=None, length=None,
+                 refined=False, exit_count=1):
         """ initialize the structure using line on its outline """
         if len(outline) < 3:
             raise ValueError("Burrow outline must be defined by at least "
@@ -50,6 +52,7 @@ class Burrow(object):
         self.outline = outline
         self.centerline = centerline
         self.refined = refined
+        self.exit_count = exit_count
 
         length_unknown = (length is None or not np.isfinite(length))
         if length_unknown and centerline is not None:
@@ -152,8 +155,8 @@ class Burrow(object):
             # We'd like to use the simple form
             #    return self.polygon.intersects(polygon)
             # but that does not work due a shapely error
-            poly1 = self.polygon.buffer(0)
-            poly2 = burrow.polygon.buffer(0)
+            poly1 = self.polygon
+            poly2 = burrow.polygon
             intersection = poly1.intersection(poly2)
             return not intersection.is_empty
         except geos.TopologicalError:

@@ -7,3 +7,4 @@ from .data_handler import DataHandler
 from .pass1 import FirstPass
 from .pass2 import SecondPass
 from .pass3 import ThirdPass
+from .pass4 import FourthPass

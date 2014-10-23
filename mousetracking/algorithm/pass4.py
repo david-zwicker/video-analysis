@@ -352,6 +352,7 @@ class FourthPass(DataHandler):
         
         # get the outline points
         outline = regions.get_enclosing_outline(outline)
+        outline = regions.regularize_linear_ring(outline)
         outline = np.array(outline.coords)
         
         # fill the burrow mask, such that this extension does not have to be done next time again
@@ -423,7 +424,7 @@ class FourthPass(DataHandler):
             enlarged_chunk = self._connect_burrow_to_structure(burrow_chunks[c1], structure)
             
             # merge the two structures
-            poly1 = regions.regularize_polygon(geometry.Polygon(enlarged_chunk))
+            poly1 = geometry.Polygon(enlarged_chunk)
             poly2 = regions.regularize_polygon(geometry.Polygon(structure))
             poly = poly1.union(poly2).buffer(0.1)
             
@@ -446,7 +447,7 @@ class FourthPass(DataHandler):
             connected.append(c1)
 
         # return the unique burrow structures
-        burrows = [Burrow(outline)
+        burrows = [Burrow(regions.regularize_contour_points(outline))
                    for outline in unique_based_on_id(burrow_chunks)]
         
         return burrows

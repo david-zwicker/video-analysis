@@ -7,6 +7,8 @@ import os
 import logging
 sys.path.append(os.path.expanduser("{FOLDER_CODE}"))
 
+from numpy import array  # @UnusedImport
+
 from mousetracking.algorithm import ThirdPass
 
 # configure basic logging, which will be overwritten later
