@@ -395,7 +395,16 @@ class DataHandler(object):
 
  
     def close(self):
-        self.logger = None
+        """ close all resources hold by this class.
+        Currently, this is only the logging facility """
+        handlers = self.logger.handlers[:]
+        for handler in handlers:
+            handler.close()
+            self.logger.removeHandler(handler)
+        
+    
+    def __del__(self):
+        self.close()
 
 
 

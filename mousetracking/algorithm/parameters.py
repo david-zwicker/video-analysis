@@ -153,11 +153,15 @@ PARAMETER_LIST = [
               'Name of the ground template stored in the assets directory. '
               'If the template is not given or could not be found, an '
               'alternative method based on line scans is used.'),
-    Parameter('ground_template_width_factors', np.arange(0.5, 1.01, 0.05), None,
+    Parameter('ground/template_width_factors', np.arange(0.7, 1.01, 0.05), None,
               'Different factors to try for scaling the template width with '
               'respect to the cage width.'),
-    Parameter('ground_template_aspect_factors', np.arange(0.7, 1.31, 0.1), None,
+    Parameter('ground/template_aspect_factors', np.arange(0.7, 1.31, 0.1), None,
               'Different factors to try for scaling the template aspect ratio.'),
+    Parameter('ground/template_width_fraction', 0.8, UNIT.FRACTION,
+              'Fraction of the full template width that is used for matching.'),
+    Parameter('ground/template_margin', 40, UNIT.LENGTH_PIXEL,
+              'Margin on the top and the bottom of the template.'),
     Parameter('ground/point_spacing', 20, UNIT.LENGTH_PIXEL,
               'Spacing of the support points describing the ground profile'),
     Parameter('ground/linescan_length', 50, UNIT.LENGTH_PIXEL,

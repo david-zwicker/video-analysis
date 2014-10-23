@@ -22,6 +22,7 @@ from __future__ import division
 import math
 import os
 import time
+from collections import defaultdict 
 
 import numpy as np
 from scipy import ndimage, optimize, signal, spatial
@@ -697,38 +698,43 @@ class FirstPass(DataHandler):
     # FINDING THE GROUND PROFILE
     #===========================================================================
         
+        
     def _get_ground_template(self, width_estimate, stretch_height=1):
         """ builds the ground template from a stored template.
         width_estimate is the estimated full width of the ground """
-        # find the t_points file
-        filename = 'ground_%s.yaml' % self.params['ground/template']
-        path = os.path.join(os.path.dirname(__file__), 'assets', filename)
-        if not os.path.isfile(path):
-            return None
+        # load the template file once
+        if 'ground_template' not in self._cache:
+            filename = 'ground_%s.yaml' % self.params['ground/template']
+            path = os.path.join(os.path.dirname(__file__), 'assets', filename)
+            if not os.path.isfile(path):
+                return None
+            self._cache['ground_template'] = np.array(yaml.load(open(path)))
 
         # load the points and scale them to the given width        
-        t_points = np.array(yaml.load(open(path)))
+        t_points = self._cache['ground_template'].copy()
         t_points *= width_estimate
         t_points[:, 1] *= stretch_height
 
         # determine template width by subtracting margin
-        frame_margin = self.params['ground/frame_margin']
-        t_width = int(np.ceil(width_estimate) - 2*frame_margin)
+        width_fraction = self.params['ground/template_width_fraction']
+        margin_vert = int(self.params['ground/template_margin'])
+        t_width = int(np.ceil(width_fraction*width_estimate))
         
         # filter points that are too close to the edge
-        t_points[:, 0] -= frame_margin
+        width_crop = (width_estimate - t_width)/2
+        t_points[:, 0] -= width_crop
         t_points = np.array([p for p in t_points if 0 < p[0] < t_width])
         
         # shift points vertically and determine template height
-        t_points[:, 1] -= t_points[:, 1].min()
-        t_height = int(np.ceil(t_points[:, 1].max()))
+        t_points[:, 1] += margin_vert - t_points[:, 1].min()
+        t_height = int(np.ceil(t_points[:, 1].max())) + margin_vert
         
         # add corner points to point list
         t_points = t_points.tolist()
-        t_points.append((t_width, 0))
+        t_points.append((t_width, margin_vert))
         t_points.append((t_width, t_height))
         t_points.append((0, t_height))
-        t_points.append((0, 0))
+        t_points.append((0, margin_vert))
         
         # create the mask based on the points 
         template = np.zeros((t_height, t_width), np.uint8)
@@ -743,11 +749,11 @@ class FirstPass(DataHandler):
             return None
         
         correlation_max, points = 0, None
-        parameters_max = None
+        parameters_max, rect_max = None, None
         # try different aspect ratios
-        for aspect_factor in self.params['ground_template_aspect_factors']:
+        for aspect_factor in self.params['ground/template_aspect_factors']:
             # try different fractions of the total width                  
-            for width_factor in self.params['ground_template_width_factors']:
+            for width_factor in self.params['ground/template_width_factors']:
                 width_estimate = width_factor * frame.shape[1] #< width
                 template, t_points = self._get_ground_template(width_estimate, aspect_factor)
             
@@ -761,11 +767,13 @@ class FirstPass(DataHandler):
                     # better match than the previous one
                     correlation_max = max_val
                     parameters_max = (width_factor, aspect_factor)
+                    rect_max = max_loc + template.shape[::-1]
                     # shift the points of the template
                     points = curves.translate_points(t_points, max_loc[0], max_loc[1])
         
+        self.debug['ground']['template_rect_max'] = rect_max
         self.logger.info('Best template match for template width %d%% of video '
-                         'and a height width_factor of %.2g.',
+                         'and a height factor of %.2g.',
                          parameters_max[0]*100, parameters_max[1])
         
         return points
@@ -784,13 +792,6 @@ class FirstPass(DataHandler):
         
         # build the ground ridge template for matching 
         ridge_width = self.params['ground/ridge_width']
-#         model_width = 3*ridge_width
-#         ys = np.arange(-model_width, model_width + 1)
-#         color_sky = self.result['colors/sky']
-#         color_sand = self.result['colors/sand']
-#         model = (1 + np.tanh(ys/ridge_width))/2
-#         model = color_sky + (color_sand - color_sky)*model
-#         model = model.astype(np.uint8)
         
         # do vertical line scans and determine ground position
         spacing = int(self.params['ground/point_spacing'])
@@ -798,11 +799,7 @@ class FirstPass(DataHandler):
         for k in xrange(frame.shape[1]//spacing):
             pos_x = (k + 0.5)*spacing + frame_margin
             line_scan = frame[:, spacing*k:spacing*(k + 1)].mean(axis=1)
-#                 # get the cross-correlation between the profile and the template
-#                 conv = cv2.matchTemplate(line_scan.astype(np.uint8),
-#                                          model, cv2.cv.CV_TM_SQDIFF_NORMED)
-#                 # get the minimum, indicating the best match
-#                 pos_y = np.argmin(conv) + model_width
+
             profile = ndimage.filters.gaussian_filter1d(line_scan, ridge_width)
     
             slopes = np.diff(profile)
@@ -812,8 +809,6 @@ class FirstPass(DataHandler):
             if 'video' in self.debug:
                 for pos_y in pos_ys:
                     self.debug['video'].add_points([(pos_x, pos_y)], radius=2)
-#                 i_max = np.argmax(np.diff(profile) > )
-#                 pos_y = image.get_steepest_point(line_scan, 1, smoothing=ridge_width)#spacing)
 
             try:
                 pos_y = pos_ys[0]
@@ -826,17 +821,7 @@ class FirstPass(DataHandler):
             
             # add point
             points.append((pos_x, pos_y))
-            
-#                 if k == 13:
-#                     import matplotlib.pyplot as plt
-#                     plt.plot(line_scan, label='line scan')
-#                     plt.axvline(pos_y)
-#                     plt.legend(loc='best')
-#                     plt.show()
-                
-#         debug.show_shape(geometry.LineString(points),
-#                          background=frame, mark_points=True)
-                
+
         return points
     
     
@@ -968,8 +953,8 @@ class FirstPass(DataHandler):
                 debug_video.add_line(points_est2, is_closed=False, color='b')
                 
         if 'ground_estimate' in self.params['debug/output']:
-            self._cache['ground_estimate1'] = points_est1
-            self._cache['ground_estimate2'] = points_est2
+            self.debug['ground']['estimate1'] = points_est1
+            self.debug['ground']['estimate2'] = points_est2
             frame = cv2.cvtColor(frame, cv2.cv.CV_GRAY2BGR)
             cv2.polylines(frame, [np.array(points_est1, np.int32)],
                           isClosed=False, color=(0, 0, 255), thickness=2)
@@ -1049,12 +1034,6 @@ class FirstPass(DataHandler):
         points = [point for point in ground.points
                   if frame_margin < point[0] < x_max]
         points = np.array(np.round(points),  np.int32)
-        
-#         # only consider valid points, which are away from the boundary
-#         y_max, x_max = frame.shape[0] - spacing, frame.shape[1] - spacing
-#         points = [p for p in points
-#                   if (spacing <= p[0] <= x_max and 
-#                       spacing <= p[1] <= y_max)]
 
         # iterate over all but the boundary points
         curvature_energy_factor = self.params['ground/curvature_energy_factor']
@@ -1096,7 +1075,11 @@ class FirstPass(DataHandler):
             profile = image.line_scan(frame, p_a, p_b, width=profile_width)
             # scale profile to -1, 1
             profile -= profile.mean()
-            profile /= profile.std()
+            try:
+                profile /= profile.std()
+            except RuntimeWarning:
+                # this can happen in strange cases where the profile is flat
+                continue
 
             plen = len(profile)
             xs = np.linspace(-plen/2 + 0.5,
@@ -1197,10 +1180,38 @@ class FirstPass(DataHandler):
         return GroundProfile(points)
             
 
+    def produce_ground_debug_image(self, ground):
+        """ saves an image with information on how the ground profile was
+        obtained """
+        points_est1 = self.debug['ground']['estimate1']
+        points_est2 = self.debug['ground']['estimate2']
+        frame = cv2.cvtColor(self.background.astype(np.uint8), cv2.cv.CV_GRAY2BGR)
+        
+        # plot rectangle where the template matched
+        if 'template_rect_max' in self.debug['ground']:
+            template_rect = self.debug['ground']['template_rect_max']
+            p1, p2 = regions.rect_to_corners(template_rect)
+            cv2.rectangle(frame, p1, p2, color=(0, 0, 255))
+            
+        # plot ground lines from several stages
+        cv2.polylines(frame, [np.array(points_est1, np.int32)],
+                      isClosed=False, color=(0, 0, 255), thickness=2)
+        if points_est1 is not points_est2:
+            cv2.polylines(frame, [np.array(points_est2, np.int32)],
+                          isClosed=False, color=(255, 0, 0), thickness=2)
+        cv2.polylines(frame, [np.array(ground.points, np.int32)],
+                      isClosed=False, color=(0, 255, 255), thickness=1)
+        
+        # save the resulting image to a file
+        filename = self.get_filename('ground_estimate.jpg', 'debug')
+        cv2.imwrite(filename, frame)
+
+
     def get_ground_profile(self, ground_estimate=None):
         """ finds the ground profile given an image of an antfarm. """
         
         if ground_estimate is None:
+            self.debug['ground'] = defaultdict(dict)
             ground_estimate = self.estimate_ground_profile()
             estimated_ground = True
             
@@ -1224,18 +1235,7 @@ class FirstPass(DataHandler):
             self.result['ground/profile'].append(self.frame_id, ground)
             
         if estimated_ground and 'ground_estimate' in self.params['debug/output']:
-            points_est1 = self._cache['ground_estimate1']
-            points_est2 = self._cache['ground_estimate2']
-            frame = cv2.cvtColor(self.background.astype(np.uint8), cv2.cv.CV_GRAY2BGR)
-            cv2.polylines(frame, [np.array(points_est1, np.int32)],
-                          isClosed=False, color=(0, 0, 255), thickness=2)
-            if points_est1 is not points_est2:
-                cv2.polylines(frame, [np.array(points_est2, np.int32)],
-                              isClosed=False, color=(255, 0, 0), thickness=2)
-            cv2.polylines(frame, [np.array(ground.points, np.int32)],
-                          isClosed=False, color=(0, 255, 255), thickness=1)
-            filename = self.get_filename('ground_estimate.jpg', 'debug')
-            cv2.imwrite(filename, frame)
+            self.produce_ground_debug_image(ground)
         
         return ground
         
