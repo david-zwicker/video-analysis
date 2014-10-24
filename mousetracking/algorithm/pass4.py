@@ -187,6 +187,10 @@ class FourthPass(DataHandler):
         # determine burrow points close to the ground
         exit_points = [point for point in outline
                        if ground_line.distance(geometry.Point(point)) < dist_max]
+
+        if len(exit_points) == 0:
+            return []
+        
         exit_points = np.array(exit_points)
 
         # cluster the points to detect multiple connections 
@@ -317,6 +321,7 @@ class FourthPass(DataHandler):
         """ determines the burrow centerlines """
         exits = self._get_burrow_exits(burrow.outline)
         
+        # check the different number of possible exits
         if len(exits) == 0:
             self.logger.warn('%d: Found burrow with no exit at %s',
                              self.frame_id, burrow.position)
@@ -336,7 +341,7 @@ class FourthPass(DataHandler):
     #===========================================================================
 
 
-    def get_ground_mask(self, fill_value=255):
+    def get_ground_mask(self, y_displacement=0, fill_value=255):
         """ returns a binary mask distinguishing the ground from the sky """
         # build a mask with potential burrows
         width, height = self.video.size
@@ -345,10 +350,14 @@ class FourthPass(DataHandler):
         # create a mask for the region below the current mask_ground profile
         ground_points = np.empty((len(self.ground) + 4, 2), np.int32)
         ground_points[:-4, :] = self.ground.points
+        ground_points[:, 1] += y_displacement
+        
+        # extend the outline points to the edges of the mask
         ground_points[-4, :] = (width, ground_points[-5, 1])
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
         ground_points[-1, :] = (0, ground_points[0, 1])
+        
         cv2.fillPoly(mask_ground, np.array([ground_points], np.int32),
                      color=fill_value)
 
@@ -399,7 +408,9 @@ class FourthPass(DataHandler):
     def update_burrow_mask(self, frame):
         """ determines a mask of all the burrows """
         # initialize masks for this frame
-        ground_mask = self.get_ground_mask(fill_value=1)
+        ground_margin = self.params['burrows/ground_point_distance']/2
+        ground_mask = self.get_ground_mask(y_displacement=ground_margin,
+                                           fill_value=1)
         mask = self._cache['image_uint8']
         
         # determine the difference between this frame and the background
@@ -512,17 +523,15 @@ class FourthPass(DataHandler):
         data = cluster.hierarchy.fclusterdata(exit_points, dist_max,
                                               criterion='distance')
         for cluster_id in np.unique(data):
-            points = []
-            for p in exit_points[data == cluster_id]:  # @NoEffect
-                point_ground = curves.get_projection_point(structure, p)
-                points.append(p)
-                points.append(point_ground)
+            p_exit = exit_points[data == cluster_id].mean(axis=0)
+            p_ground = curves.get_projection_point(structure, p_exit)
+            
+            line = geometry.LineString((p_exit, p_ground))
+            tunnel = line.buffer(distance=dist_max/2,
+                                 cap_style=geometry.CAP_STYLE.flat)
 
-            # get the convex hull of all these points
-            hull = geometry.MultiPoint(points).convex_hull
-    
             # add this to the burrow outline
-            outline = outline.union(hull.buffer(0.1))
+            outline = outline.union(tunnel.buffer(0.1))
         
         # get the outline points
         outline = regions.get_enclosing_outline(outline)
@@ -531,8 +540,8 @@ class FourthPass(DataHandler):
         
         # fill the burrow mask, such that this extension does not have to be done next time again
         cv2.fillPoly(self.burrow_mask, [np.asarray(outline, np.int32)], 1) 
-        
-        return outline  
+
+        return contour
         
         
     def connect_burrow_chunks(self, burrow_chunks):
@@ -577,9 +586,9 @@ class FourthPass(DataHandler):
         if len(connected) == 0:
             # find the structure closest to the ground
             k = np.argmin(ground_dist)
-            burrow_chunks[k] = \
-                self._connect_burrow_to_structure(burrow_chunks[k],
-                                                  self.ground.linestring)
+#             burrow_chunks[k] = \
+#                 self._connect_burrow_to_structure(burrow_chunks[k],
+#                                                   self.ground.linestring)
             connected.append(k)
             disconnected.remove(k)
                 
