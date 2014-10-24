@@ -157,7 +157,7 @@ class ProjectSingleSlurm(HPCProjectBase):
                 status = yaml.load(infile)
                 print 'loaded from yaml'
                 
-        except OSError:
+        except IOError:
             # determine the status by querying slurm
             status = self.check_pass_status(pass_id)
             
