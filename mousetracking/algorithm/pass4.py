@@ -173,6 +173,50 @@ class FourthPass(DataHandler):
     # LOCATE CHANGES IN BACKGROUND
     #===========================================================================
 
+    def _get_burrow_exits(self, outline):
+        """ determines the exits of a burrow """
+        
+        ground_line = self.ground.line_string
+        dist_max = self.params['burrows/ground_point_distance']
+        
+        # determine burrow points close to the ground
+        exit_points = [point for point in outline
+                       if ground_line.distance(geometry.Point(point)) < dist_max]
+        exit_points = np.array(exit_points)
+
+        # cluster the points to detect multiple connections 
+        # this is important when a burrow has multiple exits to the ground
+        dist_max = self.params['burrows/width']
+        data = cluster.hierarchy.fclusterdata(exit_points, dist_max,
+                                              criterion='distance')
+        
+        exits = []
+        for cluster_id in np.unique(data):
+            points = exit_points[data == cluster_id]
+            point = points.mean(axis=0)
+            point_ground = curves.get_projection_point(ground_line, point)
+            exits.append(point_ground)
+            
+        return exits
+            
+
+    def determine_burrow_centerlines(self, burrow):
+        """ determines the burrow centerlines """
+        exits = self._get_burrow_exits(burrow.outline)
+        
+        if len(exits) == 0:
+            self.logger.warn('%d: Found burrow with no exit at %s',
+                             self.frame_id, burrow.position)
+            return
+        elif len(exits) == 1:
+            pass
+        elif len(exits) == 2:
+            pass
+        else:
+            self.logger.warn('%d: Found burrow with more than 2 exits at %s',
+                             self.frame_id, burrow.position)
+            return
+    
 
     def get_ground_mask(self):
         """ returns a binary mask distinguishing the ground from the sky """
@@ -256,8 +300,8 @@ class FourthPass(DataHandler):
         mask[:] = (diff < -change_threshold)
         if mask.sum() > 0.1*ground_mask.sum():
             # there is way too much change
-            # - this can happen when the light flickers
-            # - we ignore these frames and return immediately
+            # This can happen when the light flickers
+            # => we ignore these frames and return immediately
             return
         
         # remove small changes, which are likely due to noise
@@ -268,13 +312,6 @@ class FourthPass(DataHandler):
         self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel1)
         # ensure that all points above ground are not burrow chunks
         self.burrow_mask[ground_mask == 0] = 0
-
-#         # find initial threshold color
-#         color_sand = self.data['pass1/colors/sand']
-#         color_sky = self.data['pass1/colors/sky']
-#         fraction = 0.9
-#         color_thresh = fraction*color_sand + (1 - fraction)*color_sky
-#         self.burrow_mask[frame > color_thresh] = 0
 
 
     def get_burrow_chunks(self, frame):

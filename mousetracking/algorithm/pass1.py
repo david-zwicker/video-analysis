@@ -1480,6 +1480,84 @@ class FirstPass(DataHandler):
         else:
             return None
     
+    
+    def get_burrow_centerline(self, burrow):
+        """ determine the centerline of a burrow from its outline.
+        The ground profile is used to determine the burrow exit. """
+        
+        if burrow.centerline is not None:
+            return
+        
+        # get the ground line 
+        ground_line = self.ground.linestring
+        
+        # reparameterize the burrow outline to locate the burrow exit reliably
+        ground_point_distance = self.params['burrows/ground_point_distance']
+        outline = curves.make_curve_equidistant(burrow.outline, ground_point_distance)
+        outline = np.asarray(outline, np.double)
+
+        # calculate the distance of each outline point to the ground
+        dist = np.array([ground_line.distance(geometry.Point(p))
+                         for p in outline])
+        
+        # get points at the burrow exit (close to the ground profile)
+        indices = (dist < ground_point_distance)
+        if np.any(indices):
+            p_exit = outline[indices, :].mean(axis=0)
+        else:
+            p_exit = outline[np.argmin(dist)]
+        p_exit = curves.get_projection_point(ground_line, p_exit)
+            
+        # get the two ground points closest to the exit point
+        dist = np.linalg.norm(self.ground.points - p_exit, axis=1)
+        k1 = np.argmin(dist)
+        dist[k1] = np.inf
+        k2 = np.argmin(dist)
+        p1, p2 = self.ground.points[k1], self.ground.points[k2]
+        # ensure that p1 is left of p2
+        if p1[0] > p2[0]:
+            p1, p2 = p2, p1
+        
+        # send out rays perpendicular to the ground profile
+        angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0]) + np.pi/2
+        point_anchor = (p_exit[0] + 5*np.cos(angle), p_exit[1] + 5*np.sin(angle))
+        outline_poly = burrow.outline_ring
+        
+        # calculate the angle each segment is allowed to deviate from the 
+        # previous one based on the maximal radius of curvature
+        centerline_segment_length = self.params['burrows/centerline_segment_length']
+        curvature_radius_max = self.params['burrows/curvature_radius_max']
+        ratio = centerline_segment_length/curvature_radius_max
+        angle_max = np.arccos(1 - 0.5*ratio**2)
+        
+        centerline = [p_exit]
+        while True:
+            # find the next point along the burrow
+            point_max, dist_max, angle = regions.get_farthest_ray_intersection(
+                point_anchor,
+                np.linspace(angle - angle_max, angle + angle_max, 16),
+                outline_poly)
+                # this also sets the angle for the next iteration
+
+            # abort if the search was not successful
+            if point_max is None:
+                break
+                
+            # get the length of the longest ray
+            if dist_max > centerline_segment_length:
+                # continue shooting out rays
+                point_anchor = (point_anchor[0] + centerline_segment_length*np.cos(angle),
+                                point_anchor[1] + centerline_segment_length*np.sin(angle))
+                centerline.append(point_anchor)
+            else:
+                # we've hit the end of the burrow
+                centerline.append(point_max)
+                break
+                    
+        # save results
+        burrow.centerline = centerline
+        burrow.length = curves.curve_length(centerline)
+            
 
     def refine_long_burrow(self, burrow):
         """ refines an elongated burrow by doing line scans perpendicular to
@@ -1494,7 +1572,8 @@ class FirstPass(DataHandler):
 
         # replace the remaining points by fitting perpendicular to the center line
         outline = burrow.outline_ring
-        centerline = burrow.get_centerline(self.ground)
+        self.get_burrow_centerline(burrow)
+        centerline = burrow.centerline
         if len(centerline) < 4:
             self.logger.warn('%d: Refining the very short burrows at %s is not '
                              'supported.', self.frame_id, burrow.position)
@@ -1743,6 +1822,7 @@ class FirstPass(DataHandler):
         # find the burrow from the mask
         try:
             burrow = self.get_burrow_from_mask(mask.astype(np.uint8), offset=rect[:2])
+            self.get_burrow_centerline(burrow)
         except RuntimeError as err:
             burrow = None
             self.logger.debug('%d: Invalid burrow from GrabCut: %s',
@@ -1791,20 +1871,21 @@ class FirstPass(DataHandler):
                 track_id = None
 
             # refine the burrow based on its shape
-            burrow.get_centerline(self.ground) #< also calculates the length
+            self.get_burrow_centerline(burrow) #< also calculates the length
+
             burrow_width = burrow.area/burrow.length if burrow.length > 0 else 0
             min_length = self.params['burrows/fitting_length_threshold']
             max_width = self.params['burrows/fitting_width_threshold']
             if (burrow.length > min_length and burrow_width < max_width):
                 # it's a long burrow => fit the current burrow
                 burrow = self.refine_long_burrow(burrow)
-                
+                 
             elif track_id is not None:
                 # it's a bulky burrow with a known previous burrow
                 # => refine burrow taken any previous burrows into account
                 burrow_prev = self.result['burrows/tracks'][track_id].last
                 burrow = self.refine_bulky_burrow(burrow, burrow_prev)
-                
+                 
             else:
                 # it's a bulky burrow without a known previous burrow
                 # => just refine this burrow
@@ -1911,9 +1992,11 @@ class FirstPass(DataHandler):
                         burrow_color = 'red' if burrow.refined else 'orange'
                         debug_video.add_line(burrow.outline, burrow_color,
                                              is_closed=True, mark_points=True)
-                        debug_video.add_line(burrow.get_centerline(self.ground),
-                                             burrow_color, is_closed=False,
-                                             width=2, mark_points=True)
+                        centerline = burrow.centerline
+                        if centerline is not None:
+                            debug_video.add_line(centerline,
+                                                 burrow_color, is_closed=False,
+                                                 width=2, mark_points=True)
         
             # indicate the mouse position
             if len(self.tracks) > 0:

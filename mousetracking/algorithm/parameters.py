@@ -219,7 +219,8 @@ PARAMETER_LIST = [
               'Maximal area change allowed between consecutive frames'),
                   
     Parameter('tracking/weight', 0.5, UNIT.FACTOR,
-              'Relative weight of distance vs. size of objects for matching them'),
+              'Relative weight of distance vs. size of objects for matching '
+              'them'),
     Parameter('tracking/moving_window', 200, UNIT.TIME_FRAMES,
               'Number of consecutive frames used for motion detection'),
     Parameter('tracking/moving_threshold', 1, UNIT.SPEED_PIXEL_FRAME,

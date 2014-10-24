@@ -295,7 +295,7 @@ class VideoWriterFFmpeg(object):
              '-i', '-',
              '-an'] # no audio
             + ([] if (codec is None) else ['-vcodec', codec])
-            + ([] if (bitrate is None) else ['-b', bitrate])
+            + ([] if (bitrate is None) else ['-b:v', bitrate])
 
             # http://trac.FFmpeg.org/ticket/658
             + (['-pix_fmt', 'yuv420p']

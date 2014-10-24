@@ -49,11 +49,6 @@ class Burrow(object):
                      'Burrow length + Centerline X',
                      'Flag if burrow was refined + Centerline Y')
     
-    # parameters influencing how the centerline is determined
-    curvature_radius_max = 50
-    centerline_segment_length = 25
-    ground_point_distance = 10
-    
     
     def __init__(self, centerline, outline=None, length=None,
                  refined=False, two_exits=False):

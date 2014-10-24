@@ -37,11 +37,6 @@ class Burrow(object):
                      'Burrow length + Centerline X',
                      'Flag if burrow was refined + Centerline Y')
     
-    # parameters influencing how the centerline is determined
-    curvature_radius_max = 50
-    centerline_segment_length = 25
-    ground_point_distance = 10
-    
     
     def __init__(self, outline, centerline=None, length=None,
                  refined=False, exit_count=1):
@@ -54,11 +49,8 @@ class Burrow(object):
         self.refined = refined
         self.exit_count = exit_count
 
-        length_unknown = (length is None or not np.isfinite(length))
-        if length_unknown and centerline is not None:
-            # calculate length from centerline
-            length = curves.curve_length(centerline)
-        self.length = length
+        if length is not None and np.isfinite(length):
+            self.length = length
 
 
     def copy(self):
@@ -82,7 +74,6 @@ class Burrow(object):
     @property
     def outline(self):
         return self._outline
-
     
     @outline.setter
     def outline(self, point_list):
@@ -98,6 +89,21 @@ class Burrow(object):
         self.length = None
         self.refined = False
         self._cache = {}
+        
+        
+    @property
+    def centerline(self):
+        return self._centerline
+    
+    @centerline.setter
+    def centerline(self, point_list):
+        """ sets a new centerline """
+        if point_list is None:
+            self._centerline = None
+            self.length = None
+        else:
+            self._centerline = np.asarray(point_list, np.double)
+            self.length = curves.curve_length(self._centerline)
         
 
     @cached_property
@@ -191,85 +197,7 @@ class Burrow(object):
         outline = outline.simplify(simplify_threshold*outline.length)
 
         self.outline = np.asarray(outline, np.int32)
-
-    
-    def get_centerline(self, ground):
-        """ determine the centerline, given the outline and the ground profile.
-        The ground profile is used to determine the burrow exit. """
-        
-        if self.centerline is not None:
-            return self.centerline
-        
-        # get the ground line 
-        ground_line = ground.linestring
-        
-        # reparameterize the burrow outline to locate the burrow exit reliably
-        outline = curves.make_curve_equidistant(self.outline,
-                                                self.ground_point_distance)
-        outline = np.asarray(outline, np.double)
-
-        # calculate the distance of each outline point to the ground
-        dist = np.array([ground_line.distance(geometry.Point(p))
-                         for p in outline])
-        
-        # get points at the burrow exit (close to the ground profile)
-        indices = (dist < self.ground_point_distance)
-        if np.any(indices):
-            p_exit = outline[indices, :].mean(axis=0)
-        else:
-            p_exit = outline[np.argmin(dist)]
-        p_exit = curves.get_projection_point(ground_line, p_exit)
-            
-        # get the two ground points closest to the exit point
-        dist = np.linalg.norm(ground.points - p_exit, axis=1)
-        k1 = np.argmin(dist)
-        dist[k1] = np.inf
-        k2 = np.argmin(dist)
-        p1, p2 = ground.points[k1], ground.points[k2]
-        # ensure that p1 is left of p2
-        if p1[0] > p2[0]:
-            p1, p2 = p2, p1
-        
-        # send out rays perpendicular to the ground profile
-        angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0]) + np.pi/2
-        point_anchor = (p_exit[0] + 5*np.cos(angle), p_exit[1] + 5*np.sin(angle))
-        outline_poly = self.outline_ring
-        
-        # calculate the angle each segment is allowed to deviate from the 
-        # previous one based on the maximal radius of curvature
-        ratio = self.centerline_segment_length/self.curvature_radius_max
-        angle_max = np.arccos(1 - 0.5*ratio**2)
-        segment_length = self.centerline_segment_length
-        
-        centerline = [p_exit]
-        while True:
-            # find the next point along the burrow
-            point_max, dist_max, angle = regions.get_farthest_ray_intersection(
-                point_anchor,
-                np.linspace(angle - angle_max, angle + angle_max, 16),
-                outline_poly)
-                # this also sets the angle for the next iteration
-
-            # abort if the search was not successful
-            if point_max is None:
-                break
-                
-            # get the length of the longest ray
-            if dist_max > segment_length:
-                # continue shooting out rays
-                point_anchor = (point_anchor[0] + segment_length*np.cos(angle),
-                                point_anchor[1] + segment_length*np.sin(angle))
-                centerline.append(point_anchor)
-            else:
-                # we've hit the end of the burrow
-                centerline.append(point_max)
-                break
-                    
-        # save results
-        self.centerline = centerline
-        self.length = curves.curve_length(centerline)
-        return centerline
-            
+ 
         
     def get_length(self, ground=None):
         """ calculates the centerline and returns its length """
