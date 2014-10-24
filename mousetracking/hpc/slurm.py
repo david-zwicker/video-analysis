@@ -50,7 +50,7 @@ class ProjectSingleSlurm(HPCProjectBase):
     job_id_file = 'pass%d_job_id.txt'
     log_file = 'log_pass%d_%s.txt'
     status_cache_file = 'status_pass%d.yaml'
-    status_pass_finished = {'done', 'ffmpeg-error'}
+    pass_finished_states = {'done', 'ffmpeg-error'}
 
 
     def submit(self):
@@ -162,12 +162,12 @@ class ProjectSingleSlurm(HPCProjectBase):
             status = self.check_pass_status(pass_id)
             
             # save the status to the cache file if the pass has finished
-            if status in self.status_pass_finished:
+            if status['state'] in self.pass_finished_states:
                 with open(cache_file_name, 'w') as outfile:
                     yaml.dump(status, outfile)
                     print 'saved to yaml'
             else:
-                print repr(status), 'is not in', self.status_pass_finished
+                print repr(status), 'is not in', self.pass_finished_states
             
         return status
         
