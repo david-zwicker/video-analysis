@@ -180,7 +180,7 @@ class ProjectSingleSlurm(HPCProjectBase):
             status['project'] = 'initialized'
 
             for pass_id in xrange(1, 5):
-                status['pass%d' % pass_id] = self.check_pass_status(pass_id)
+                status['pass%d' % pass_id] = self.get_pass_status(pass_id)
 
         else:
             status['project'] = 'not-initialized'
