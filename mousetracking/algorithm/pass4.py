@@ -279,12 +279,14 @@ class FourthPass(DataHandler):
 
     def get_burrow_chunks(self, frame):
         """ determines regions under ground that belong to burrows """     
-        labels, num_features = ndimage.measurements.label(self.burrow_mask)
+        ground_line = self.ground.linestring
 
         color_sand = self.data['pass1/colors/sand']
         color_sky = self.data['pass1/colors/sky']
-        fraction = 0.8
+        fraction = self.params['burrows/color_threshold_fraction']
         color_thresh = fraction*color_sand + (1 - fraction)*color_sky
+
+        labels, num_features = ndimage.measurements.label(self.burrow_mask)
 
         burrow_chunks = []
         for label in xrange(1, num_features + 1):
@@ -294,7 +296,6 @@ class FourthPass(DataHandler):
                 continue
             
             # check whether the burrow is sufficiently underground
-            ground_line = self.ground.linestring
             dist = ground_line.distance(geometry.Point(props.centroid))
             if dist < self.params['burrows/ground_point_distance']/2:
                 continue
@@ -309,7 +310,24 @@ class FourthPass(DataHandler):
             contours, _ = cv2.findContours(np.asarray(labels == label, np.uint8),
                                            cv2.RETR_EXTERNAL,
                                            cv2.CHAIN_APPROX_SIMPLE)
-            contour = np.squeeze(np.asarray(contours, np.double))
+
+            if len(contours) == 1:
+                # a single contour has been found
+                contour = np.squeeze(np.asarray(contours, np.double))
+            elif len(contours) == 0:
+                # no contour has been found
+                continue
+            else:
+                # multiple contours have been found
+                # => return the one with the largest area
+                contour_max, area_max = None, 0
+                for contour in contours:
+                    contour = np.squeeze(np.asarray(contour, np.double))
+                    props = image.regionprops(contour=contour)
+                    if props.area > area_max:
+                        area_max = props.area
+                        contour_max = contour
+                contour = contour_max
             
             # save the contour line as a burrow
             if len(contour) > 2:

@@ -163,8 +163,10 @@ class VideoFFmpeg(VideoBase):
 
         if len(s) != nbytes:
             # frame_count is a rather crude estimate
-            # We thus stop the iteration, when we think we are close to the end 
-            if self._frame_pos >= 0.99*self.frame_count:
+            # We thus stop the iteration, when we think we are close to the end
+            # The last frames are sometimes unreadable and we thus allow to
+            # stop early. The magic number 2 is rather arbitrary 
+            if self._frame_pos >= self.frame_count - 2:
                 raise StopIteration
             
             logger.warn("Warning: in file %s, %d bytes wanted but %d bytes read, "
