@@ -170,13 +170,14 @@ class FourthPass(DataHandler):
 
     
     #===========================================================================
-    # LOCATE CHANGES IN BACKGROUND
+    # DETERMINE THE BURROW CENTERLINES
     #===========================================================================
+
 
     def _get_burrow_exits(self, outline):
         """ determines the exits of a burrow """
         
-        ground_line = self.ground.line_string
+        ground_line = self.ground.linestring
         dist_max = self.params['burrows/ground_point_distance']
         
         # determine burrow points close to the ground
@@ -198,9 +199,74 @@ class FourthPass(DataHandler):
             exits.append(point_ground)
             
         return exits
+    
+    
+    def _get_burrow_centerline_exit1(self, burrow, p_exit):
+        """ determine the centerline of a burrow with one exit """
+
+        # get a binary image of the burrow
+        mask, shift = burrow.get_mask(margin=5, dtype=np.int32, ret_shift=True)
+        p_exit_a = (int(p_exit[0] - shift[0]),
+                    int(p_exit[1] - shift[1]))
+        mask[p_exit_a[1], p_exit_a[0]] = 1
+
+        # calculate the distance from the 
+        regions.distance_fill(mask.T, [p_exit_a])
+        
+        # find the second exit points having the maximal distance from p_exit
+        _, dist, _, p_exit_b = cv2.minMaxLoc(mask)
+        dist = int(dist)
+        
+        # find an estimate for the centerline from the shortest distance between
+        # the two points
+        points = []
+        xmax = mask.shape[1] - 1
+        ymax = mask.shape[0] - 1
+        x, y = p_exit_b
+        d = dist
+        while d > 1:
+            points.append((x, y))
+            d -= 1
+            
+            if x > 0 and y > 0 and mask[y - 1, x - 1] == d - 1:
+                x -= 1
+                y -= 1
+                d -= 1
+            elif x > 0 and y < ymax and mask[y + 1, x - 1] == d - 1:
+                x -= 1
+                y += 1
+                d -= 1
+            elif x < xmax and y > 0 and mask[y - 1, x + 1] == d - 1:
+                x += 1
+                y -= 1
+                d -= 1
+            elif x < xmax and y < ymax and mask[y + 1, x + 1] == d - 1:
+                x += 1
+                y += 1
+                d -= 1 
+            
+            # test linear steps
+            elif x > 0 and mask[y, x - 1] == d:
+                x -= 1
+            elif x < xmax and mask[y, x + 1] == d:
+                x += 1
+            elif y > 0 and mask[y - 1, x] == d:
+                y -= 1
+            elif y < ymax and mask[y + 1, x] == d:
+                y += 1
+        points.append(p_exit_a)
+        
+#         debug.show_shape(geometry.LineString(points),
+#                          geometry.Point(p_exit_a), geometry.Point(p_exit_b),
+#                          background=mask)
+
+        # simplify the curve        
+        points = curves.simplify_curve(points, epsilon=1)
+        
+        burrow.centerline = curves.translate_points(points, shift[0], shift[1]) 
             
 
-    def determine_burrow_centerlines(self, burrow):
+    def determine_burrow_centerline(self, burrow):
         """ determines the burrow centerlines """
         exits = self._get_burrow_exits(burrow.outline)
         
@@ -209,7 +275,7 @@ class FourthPass(DataHandler):
                              self.frame_id, burrow.position)
             return
         elif len(exits) == 1:
-            pass
+            self._get_burrow_centerline_exit1(burrow, exits[0])
         elif len(exits) == 2:
             pass
         else:
@@ -217,6 +283,11 @@ class FourthPass(DataHandler):
                              self.frame_id, burrow.position)
             return
     
+    
+    #===========================================================================
+    # LOCATE BURROWS FROM CHANGES IN THE BACKGROUND
+    #===========================================================================
+
 
     def get_ground_mask(self):
         """ returns a binary mask distinguishing the ground from the sky """
@@ -502,8 +573,11 @@ class FourthPass(DataHandler):
             connected.append(c1)
 
         # return the unique burrow structures
-        burrows = [Burrow(regions.regularize_contour_points(outline))
-                   for outline in unique_based_on_id(burrow_chunks)]
+        burrows = []
+        for outline in unique_based_on_id(burrow_chunks):
+            outline = regions.regularize_contour_points(outline)
+            burrow = Burrow(outline)
+            burrows.append(burrow)
         
         return burrows
 
@@ -530,9 +604,11 @@ class FourthPass(DataHandler):
                 if burrow.intersects(track.last):
                     tracks_extended.add(track_id)
                     if burrow != track.last:
+                        self.determine_burrow_centerline(burrow)
                         track.append(self.frame_id, burrow)
                     break
             else:
+                self.determine_burrow_centerline(burrow)
                 burrow_tracks.create_track(self.frame_id, burrow)
                 
         # deactivate tracks that have not been found
@@ -556,6 +632,7 @@ class FourthPass(DataHandler):
         burrows = self.connect_burrow_chunks(burrow_chunks)
         
         # assign the burrows to burrow tracks or create new ones
+        # this also determines their centerlines
         self.add_burrows_to_tracks(burrows)
 
 
@@ -605,6 +682,9 @@ class FourthPass(DataHandler):
             debug_video.highlight_mask(self.burrow_mask == 1, 'b', strength=64)
             for burrow in self.active_burrows():
                 debug_video.add_line(burrow.outline, 'r')
+                if burrow.centerline is not None:
+                    debug_video.add_line(burrow.centerline, 'r', is_closed=False,
+                                         width=2, mark_points=True)
                 
             # add additional debug information
             if 'video.show' in self.debug:

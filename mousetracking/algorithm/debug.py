@@ -113,7 +113,10 @@ def show_shape(*shapes, **kwargs):
         color = kwargs.get('color', colors.next())
         line_width = kwargs.get('lw', 3)
         
-        if isinstance(shape, geometry.Polygon):
+        if isinstance(shape, geometry.Point):
+            ax.plot(shape.x, shape.y, 'o', color=color, ms=20)
+        
+        elif isinstance(shape, geometry.Polygon):
             patch = descartes.PolygonPatch(shape,
                                            ec=kwargs.get('ec', 'none'),
                                            fc=color, alpha=0.5)

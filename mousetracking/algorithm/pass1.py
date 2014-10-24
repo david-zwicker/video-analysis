@@ -1488,7 +1488,7 @@ class FirstPass(DataHandler):
         if burrow.centerline is not None:
             return
         
-        # get the ground line 
+        # get the ground line
         ground_line = self.ground.linestring
         
         # reparameterize the burrow outline to locate the burrow exit reliably

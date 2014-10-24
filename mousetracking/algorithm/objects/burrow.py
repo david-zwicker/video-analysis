@@ -198,17 +198,22 @@ class Burrow(object):
 
         self.outline = np.asarray(outline, np.int32)
  
+   
+    def get_mask(self, margin=0, dtype=np.uint8, ret_shift=False):
+        """ builds a mask of the burrow """
+        # prepare the array to store the mask into
+        rect = self.get_bounding_rect(margin=margin)
+        mask = np.zeros((rect[3], rect[2]), dtype)
+
+        # draw the burrow into the mask
+        outline = np.asarray(self.outline, np.int)
+        offset = (margin - rect[0], margin - rect[1])
+        cv2.fillPoly(mask, [outline], color=1, offset=offset)
         
-    def get_length(self, ground=None):
-        """ calculates the centerline and returns its length """
-        if self.length is None:
-            try:
-                centerline = self.get_centerline(ground)
-            except AttributeError:
-                raise ValueError('Ground line must be provided if length of a '
-                                 'burrow without a centerline should be determined')
-            self.length = curves.curve_length(centerline)
-        return self.length
+        if ret_shift:
+            return mask, (-offset[0], -offset[1])
+        else:
+            return mask
             
     
     def to_array(self):

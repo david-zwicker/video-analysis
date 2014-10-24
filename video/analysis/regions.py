@@ -328,3 +328,38 @@ def triangle_area(a, b, c):
     else:
         # sometimes rounding errors produce small negative quantities
         return 0
+
+
+
+def distance_fill(data, start_points):
+    """
+    fills a binary region of the array `data` with new values.
+    The values are based on the distance to the start points `start_points`,
+    which must lie in the domain.
+    """
+    # initialize the shape
+    xmax = data.shape[0] - 1
+    ymax = data.shape[1] - 1
+    stack = set(start_points)
+
+    # the outer loop iterates through all possible distances from the start point    
+    # the inner loop iterates through all points with a given distance `dist`
+    # `stack` is a set of all points with distance `dist`
+    # `stack_next` is a set of all points with distance `dist + 1` 
+    dist = 1
+    while stack:
+        dist += 1
+        stack_next = set()
+        while stack:
+            x, y = stack.pop()
+            if data[x, y] == 1:
+                data[x, y] = dist
+                if x > 0:
+                    stack_next.add((x - 1, y))
+                if x < xmax:
+                    stack_next.add((x + 1, y))
+                if y > 0:
+                    stack_next.add((x, y - 1))
+                if y < ymax:
+                    stack_next.add((x, y + 1))
+        stack = stack_next
