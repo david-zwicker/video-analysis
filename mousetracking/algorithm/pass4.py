@@ -633,8 +633,12 @@ class FourthPass(DataHandler):
         burrows = []
         for outline in unique_based_on_id(burrow_chunks):
             outline = regions.regularize_contour_points(outline)
-            burrow = Burrow(outline)
-            burrows.append(burrow)
+            try:
+                burrow = Burrow(outline)
+            except ValueError:
+                continue
+            else:
+                burrows.append(burrow)
         
         return burrows
 
