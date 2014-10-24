@@ -150,12 +150,10 @@ class ProjectSingleSlurm(HPCProjectBase):
         """ check the status of a single pass """
         cache_file_name = os.path.join(self.folder,
                                        self.status_cache_file % pass_id)
-        print 'Cache file', cache_file_name
         try:
             # try loading the status from the cache file
             with open(cache_file_name, 'r') as infile:
                 status = yaml.load(infile)
-                print 'loaded from yaml'
                 
         except IOError:
             # determine the status by querying slurm
@@ -165,9 +163,6 @@ class ProjectSingleSlurm(HPCProjectBase):
             if status['state'] in self.pass_finished_states:
                 with open(cache_file_name, 'w') as outfile:
                     yaml.dump(status, outfile)
-                    print 'saved to yaml'
-            else:
-                print repr(status), 'is not in', self.pass_finished_states
             
         return status
         
