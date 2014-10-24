@@ -94,6 +94,10 @@ class FourthPass(DataHandler):
             
         else:
             # finished analysis successfully
+
+            # finalize all active burrow tracks
+            self.add_burrows_to_tracks(self.active_burrows())
+            
             self.log_event('Pass 4 - Finished iterating through the frames.')
             self.data['analysis-status'] = 'Finished third pass'
             
@@ -645,12 +649,14 @@ class FourthPass(DataHandler):
         for burrow in burrows:
             for track_id, track in enumerate(active_tracks):
                 if burrow.intersects(track.last):
+                    # burrow belongs to a known track => add it
                     tracks_extended.add(track_id)
                     if burrow != track.last:
                         self.determine_burrow_centerline(burrow)
                         track.append(self.frame_id, burrow)
                     break
             else:
+                # burrow is not known => start a new track
                 self.determine_burrow_centerline(burrow)
                 burrow_tracks.create_track(self.frame_id, burrow)
                 

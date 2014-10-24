@@ -9,6 +9,8 @@ from __future__ import division
 import subprocess as sp
 import os
 
+import yaml
+
 from .project import HPCProjectBase
 from ..algorithm.utils import change_directory
 
@@ -34,16 +36,22 @@ def parse_time(text):
 class ProjectSingleSlurm(HPCProjectBase):
     """ HPC project based on the slurm scheduler """
 
-    # the order of these files matters!
+    # The first file of each pass will be the one submitted to slurm
     files_job = {1: ('pass1_slurm.sh', 'pass1_single.py'), 
                  2: ('pass2_slurm.sh', 'pass2_single.py'),
                  3: ('pass3_slurm.sh', 'pass3_single.py'),
                  4: ('pass4_slurm.sh', 'pass4_single.py')}
-    files_cleanup = {1: ('pass1_job_id.txt', 'log_pass1*'),
-                     2: ('pass2_job_id.txt', 'log_pass2*'),
-                     3: ('pass3_job_id.txt', 'log_pass3*'),
-                     4: ('pass4_job_id.txt', 'log_pass4*')}
+    files_cleanup = {1: ('pass1_job_id.txt', 'status_pass1.yaml', 'log_pass1*'),
+                     2: ('pass2_job_id.txt', 'status_pass2.yaml', 'log_pass2*'),
+                     3: ('pass3_job_id.txt', 'status_pass3.yaml', 'log_pass3*'),
+                     4: ('pass4_job_id.txt', 'status_pass4.yaml', 'log_pass4*')}
     
+    # file name patterns used here
+    job_id_file = 'pass%d_job_id.txt'
+    log_file = 'log_pass%d_%s.txt'
+    status_cache_file = 'status_pass%d.yaml'
+    status_pass_finished = {'done', 'ffmpeg-error'}
+
 
     def submit(self):
         """ submit the tracking job using slurm """
@@ -79,11 +87,11 @@ class ProjectSingleSlurm(HPCProjectBase):
 
 
     def check_pass_status(self, pass_id):
-        """ check the status of a single pass """
+        """ check the status of a single pass by using slurm commands """
         status = {}
 
         # check whether slurm job has been initialized
-        pid_file = os.path.join(self.folder, 'pass%d_job_id.txt' % pass_id)
+        pid_file = os.path.join(self.folder, self.job_id_file % pass_id)
         try:
             pids = open(pid_file).readlines()
         except IOError:
@@ -116,7 +124,7 @@ class ProjectSingleSlurm(HPCProjectBase):
                 status['elapsed'] = chunks[2].strip()
 
                 # check output for error
-                log_file = 'log_pass%d_%s.txt' % (pass_id, pid)
+                log_file = self.log_file % (pass_id, pid)
                 log_error = self.check_log_for_error(log_file)
                 if log_error is not None:
                     status['state'] = log_error
@@ -137,6 +145,26 @@ class ProjectSingleSlurm(HPCProjectBase):
             
         return status
 
+
+    def get_pass_status(self, pass_id):
+        """ check the status of a single pass """
+        cache_file_name = self.status_cache_file % pass_id
+        try:
+            # try loading the status from the cache file
+            with open(cache_file_name, 'r') as infile:
+                status = yaml.load(infile)
+                
+        except OSError:
+            # determine the status by querying slurm
+            status = self.check_pass_status(pass_id)
+            
+            # save the status to the cache file if the pass has finished
+            if status in self.status_pass_finished: 
+                with open(cache_file_name, 'w') as outfile:
+                    yaml.dump(status, outfile)
+            
+        return status
+        
 
     def get_status(self):
         """ check the status of the project """

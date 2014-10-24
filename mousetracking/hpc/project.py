@@ -20,7 +20,7 @@ class HPCProjectBase(object):
     
     files_job = tuple()      #< files that need to be set up for the project
     files_cleanup = tuple()  #< files that need to be deleted to clean the work folder
-    default_passes = 3
+    default_passes = 4
     
     def __init__(self, folder, name=None, parameters=None, passes=None):
         """ initializes a project with all necessary information """
