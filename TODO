@@ -19,6 +19,10 @@
 	Burrow finding of first pass can be removed altogether (if third pass gets sufficiently nice results)
 * First pass might want to construct a binary image of all the area that was explored by any moving object
 	- This mask could be saved in the hdf file and than used later to restrict the mouse movement
+* Refine the centerline by moving the points more toward the actual center
+	- this could be done by segmenting the current centerline in equally spaced segments
+	- each inner point on this center line can be put at the midpoint between the outlines
+		to prevent problems, the point should be displaced by at most 0.5*burrow_width
 
 Performance improvements:
 -------------------------

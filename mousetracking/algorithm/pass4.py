@@ -336,7 +336,7 @@ class FourthPass(DataHandler):
     #===========================================================================
 
 
-    def get_ground_mask(self):
+    def get_ground_mask(self, fill_value=255):
         """ returns a binary mask distinguishing the ground from the sky """
         # build a mask with potential burrows
         width, height = self.video.size
@@ -349,7 +349,8 @@ class FourthPass(DataHandler):
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
         ground_points[-1, :] = (0, ground_points[0, 1])
-        cv2.fillPoly(mask_ground, np.array([ground_points], np.int32), color=255)
+        cv2.fillPoly(mask_ground, np.array([ground_points], np.int32),
+                     color=fill_value)
 
         return mask_ground
 
@@ -398,7 +399,7 @@ class FourthPass(DataHandler):
     def update_burrow_mask(self, frame):
         """ determines a mask of all the burrows """
         # initialize masks for this frame
-        ground_mask = self.get_ground_mask()
+        ground_mask = self.get_ground_mask(fill_value=1)
         mask = self._cache['image_uint8']
         
         # determine the difference between this frame and the background
