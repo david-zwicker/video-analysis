@@ -164,7 +164,11 @@ class ThirdPass(DataHandler):
                 self.debug['video'].set_frame(frame, copy=False)
             
             # retrieve data for current frame
-            self.mouse_pos = mouse_track.pos[self.frame_id, :]
+            try:
+                self.mouse_pos = mouse_track.pos[self.frame_id, :]
+            except IndexError:
+                # Sometimes the mouse trail has not been calculated till the end
+                self.mouse_pos = (np.nan, np.nan)
             self.ground = ground_profile.get_ground_profile(self.frame_id)
 
             # find out where the mouse currently is        
