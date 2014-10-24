@@ -201,11 +201,11 @@ class FourthPass(DataHandler):
         return exits
     
     
-    def _get_burrow_centerline_exit1(self, burrow, p_ground):
+    def _get_burrow_centerline_exit1(self, burrow, point_start, point_end=None):
         """ determine the centerline of a burrow with one exit """
 
         # find the point in the burrow that is closest to the ground point
-        rel_points = burrow.outline - np.asarray(p_ground)
+        rel_points = burrow.outline - np.asarray(point_start)
         ring = np.r_[rel_points, [rel_points[0]]]
 
         # get the burrow outline point that is closest to p_ground
@@ -216,32 +216,49 @@ class FourthPass(DataHandler):
         # take the closest
         ring = curves.make_curve_equidistant(ring, 2)
         k = np.argmin(np.linalg.norm(ring, axis=1))
-        p_exit = ring[k] + np.asarray(p_ground)
+        p_start = ring[k] + np.asarray(point_start)
 
         # get a binary image of the burrow
         mask, shift = burrow.get_mask(margin=2, dtype=np.int32, ret_shift=True)
-        p_exit_a = (int(p_exit[0] - shift[0]),
-                    int(p_exit[1] - shift[1]))
-        mask[p_exit_a[1], p_exit_a[0]] = 1
+        p_start = (int(p_start[0] - shift[0]),
+                   int(p_start[1] - shift[1]))
+        mask[p_start[1], p_start[0]] = 1
+        
+        if point_end is None:
+            # end point is not given and will thus be determined automatically
+            
+            # calculate the distance from the start point 
+            regions.distance_fill(mask.T, [p_start])
+            
+            # find the second point by locating the farthest point
+            _, dist, _, p_end = cv2.minMaxLoc(mask)
+        
+        else:
+            # prepare the end point if present
+            k = np.argmin(np.linalg.norm(ring, axis=1))
+            p_end = ring[k] + np.asarray(point_end)
+            p_end = (int(p_end[0] - shift[0]),
+                     int(p_end[1] - shift[1]))
+            mask[p_end[1], p_end[0]] = 1
 
-        # calculate the distance from the 
-        regions.distance_fill(mask.T, [p_exit_a])
-        
-        # find the second exit points having the maximal distance from p_exit
-        _, dist, _, p_exit_b = cv2.minMaxLoc(mask)
-        dist = int(dist)
-        
+            # calculate the distance from the start point 
+            regions.distance_fill(mask.T, [p_start], [p_end])
+            
+            # get the distance between the start and the end point
+            dist = mask[p_end[1], p_end[0]]
+
         # find an estimate for the centerline from the shortest distance between
-        # the two points
+        # the two points p_start and p_end
         points = []
         xmax = mask.shape[1] - 1
         ymax = mask.shape[0] - 1
-        x, y = p_exit_b
-        d = dist
+        x, y = p_end
+        d = int(dist)
         while d > 1:
             points.append((x, y))
             d -= 1
             
+            # test diagonal steps
             if x > 0 and y > 0 and mask[y - 1, x - 1] == d - 1:
                 x -= 1
                 y -= 1
@@ -259,7 +276,7 @@ class FourthPass(DataHandler):
                 y += 1
                 d -= 1 
             
-            # test linear steps
+            # test horizontal and vertical steps
             elif x > 0 and mask[y, x - 1] == d:
                 x -= 1
             elif x < xmax and mask[y, x + 1] == d:
@@ -268,18 +285,27 @@ class FourthPass(DataHandler):
                 y -= 1
             elif y < ymax and mask[y + 1, x] == d:
                 y += 1
-        points.append(p_exit_a)
+        points.append(p_start)
                 
 #         debug.show_shape(geometry.LineString(points),
-#                          geometry.Point(p_exit_a), geometry.Point(p_exit_b),
+#                          geometry.Point(p_start), geometry.Point(p_exit_b),
 #                          background=mask)
 
         # simplify the curve        
         #points = curves.simplify_curve(points, epsilon=1)
         
+        # translate the points back to global coordinates 
         centerline = curves.translate_points(points, shift[0], shift[1])
-        centerline.append(p_ground)
-        burrow.centerline = centerline[::-1] 
+        # save centerline such that burrow exit is first point
+        centerline = centerline[::-1]
+        
+        # add points that might be outside of the burrow outline 
+        centerline.insert(0, point_start)
+        if point_end is not None:
+            centerline.append(point_end)
+            
+        # save the centerline in the burrow structure
+        burrow.centerline = centerline
             
 
     def determine_burrow_centerline(self, burrow):
@@ -293,7 +319,7 @@ class FourthPass(DataHandler):
         elif len(exits) == 1:
             self._get_burrow_centerline_exit1(burrow, exits[0])
         elif len(exits) == 2:
-            pass
+            self._get_burrow_centerline_exit1(burrow, exits[0], exits[1])
         else:
             self.logger.warn('%d: Found burrow with more than 2 exits at %s',
                              self.frame_id, burrow.position)

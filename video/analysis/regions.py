@@ -331,16 +331,23 @@ def triangle_area(a, b, c):
 
 
 
-def distance_fill(data, start_points):
+def distance_fill(data, start_points, end_points=None):
     """
     fills a binary region of the array `data` with new values.
     The values are based on the distance to the start points `start_points`,
     which must lie in the domain.
+    If end_points are supplied, the functions stops when any of these
+    points is reached
     """
+    if end_points is None:
+        end_points = set()
+    else:
+        end_points = set(end_points)
+    
     # initialize the shape
     xmax = data.shape[0] - 1
     ymax = data.shape[1] - 1
-    stack = set(start_points)
+    stack = set(start_points) #< initialize the set with the start points
 
     # the outer loop iterates through all possible distances from the start point    
     # the inner loop iterates through all points with a given distance `dist`
@@ -354,6 +361,12 @@ def distance_fill(data, start_points):
             x, y = stack.pop()
             if data[x, y] == 1:
                 data[x, y] = dist
+                
+                # finish if we found an end point
+                if (x, y) in end_points:
+                    return 
+                
+                # add all surrounding points to the stack
                 if x > 0:
                     stack_next.add((x - 1, y))
                 if x < xmax:
@@ -362,4 +375,5 @@ def distance_fill(data, start_points):
                     stack_next.add((x, y - 1))
                 if y < ymax:
                     stack_next.add((x, y + 1))
+                    
         stack = stack_next
