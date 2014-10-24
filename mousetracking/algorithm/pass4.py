@@ -201,11 +201,15 @@ class FourthPass(DataHandler):
         return exits
     
     
-    def _get_burrow_centerline_exit1(self, burrow, p_exit):
+    def _get_burrow_centerline_exit1(self, burrow, p_ground):
         """ determine the centerline of a burrow with one exit """
 
+        # find the point in the burrow that is closest to the ground point
+        points = burrow.outline
+        p_exit = curves.get_projection_point(np.r_[points, [points[0]]], p_ground)
+
         # get a binary image of the burrow
-        mask, shift = burrow.get_mask(margin=5, dtype=np.int32, ret_shift=True)
+        mask, shift = burrow.get_mask(margin=2, dtype=np.int32, ret_shift=True)
         p_exit_a = (int(p_exit[0] - shift[0]),
                     int(p_exit[1] - shift[1]))
         mask[p_exit_a[1], p_exit_a[0]] = 1
@@ -255,7 +259,7 @@ class FourthPass(DataHandler):
             elif y < ymax and mask[y + 1, x] == d:
                 y += 1
         points.append(p_exit_a)
-        
+                
 #         debug.show_shape(geometry.LineString(points),
 #                          geometry.Point(p_exit_a), geometry.Point(p_exit_b),
 #                          background=mask)
@@ -263,7 +267,9 @@ class FourthPass(DataHandler):
         # simplify the curve        
         points = curves.simplify_curve(points, epsilon=1)
         
-        burrow.centerline = curves.translate_points(points, shift[0], shift[1]) 
+        centerline = curves.translate_points(points, shift[0], shift[1])
+        centerline.append(p_ground)
+        burrow.centerline = centerline[::-1] 
             
 
     def determine_burrow_centerline(self, burrow):
