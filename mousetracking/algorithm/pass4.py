@@ -205,8 +205,18 @@ class FourthPass(DataHandler):
         """ determine the centerline of a burrow with one exit """
 
         # find the point in the burrow that is closest to the ground point
-        points = burrow.outline
-        p_exit = curves.get_projection_point(np.r_[points, [points[0]]], p_ground)
+        rel_points = burrow.outline - np.asarray(p_ground)
+        ring = np.r_[rel_points, [rel_points[0]]]
+
+        # get the burrow outline point that is closest to p_ground
+        # In principle, we could use         
+        #     p_exit = curves.get_projection_point(ring, (0, 0))
+        # but this is too slow.
+        # We thus test many different points on the outline and just
+        # take the closest
+        ring = curves.make_curve_equidistant(ring, 2)
+        k = np.argmin(np.linalg.norm(ring, axis=1))
+        p_exit = ring[k] + np.asarray(p_ground)
 
         # get a binary image of the burrow
         mask, shift = burrow.get_mask(margin=2, dtype=np.int32, ret_shift=True)
@@ -265,7 +275,7 @@ class FourthPass(DataHandler):
 #                          background=mask)
 
         # simplify the curve        
-        points = curves.simplify_curve(points, epsilon=1)
+        #points = curves.simplify_curve(points, epsilon=1)
         
         centerline = curves.translate_points(points, shift[0], shift[1])
         centerline.append(p_ground)
