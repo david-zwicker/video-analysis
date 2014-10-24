@@ -111,7 +111,8 @@ class ProjectSingleSlurm(HPCProjectBase):
                 except IndexError:
                     self.logger.warn(res)
                     chunks = ['unknown', 'nan', 'nan', 'nan']
-                status['state'] = chunks[0].strip().lower()
+                state = chunks[0].strip().lower()
+                status['state'] = state.replace('completed', 'done')
                 status['elapsed'] = chunks[2].strip()
 
                 # check output for error
