@@ -227,7 +227,7 @@ class FourthPass(DataHandler):
         p_start = ring[k] + np.asarray(point_start)
 
         # get a binary image of the burrow
-        mask, shift = burrow.get_mask(margin=2, dtype=np.int32, ret_shift=True)
+        mask, shift = burrow.get_mask(margin=3, dtype=np.int32, ret_shift=True)
         p_start = (int(p_start[0] - shift[0]),
                    int(p_start[1] - shift[1]))
         mask[p_start[1], p_start[0]] = 1
