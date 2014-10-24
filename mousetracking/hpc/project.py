@@ -54,7 +54,8 @@ class HPCProjectBase(object):
         else:
             files_to_delete = []
             for p in self.passes:
-                files_to_delete.extend(self.files_job[p] + self.files_cleanup[p])
+                files_to_delete.extend(self.files_job[p])
+                files_to_delete.extend(self.files_cleanup[p])
             
         # iteratively delete these files
         for pattern in files_to_delete:
