@@ -291,9 +291,6 @@ class FourthPass(DataHandler):
 #                          geometry.Point(p_start), geometry.Point(p_exit_b),
 #                          background=mask)
 
-        # simplify the curve        
-        #points = curves.simplify_curve(points, epsilon=1)
-        
         # translate the points back to global coordinates 
         centerline = curves.translate_points(points, shift[0], shift[1])
         # save centerline such that burrow exit is first point
@@ -304,8 +301,12 @@ class FourthPass(DataHandler):
         if point_end is not None:
             centerline.append(point_end)
             
+        # simplify the curve        
+        centerline = cv2.approxPolyDP(np.array(centerline, np.int),
+                                      epsilon=1, closed=False)
+            
         # save the centerline in the burrow structure
-        burrow.centerline = centerline
+        burrow.centerline = centerline[:, 0, :]
             
 
     def determine_burrow_centerline(self, burrow):
