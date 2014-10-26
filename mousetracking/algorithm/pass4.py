@@ -496,6 +496,8 @@ class FourthPass(DataHandler):
                         contour_max = contour
                 contour = contour_max
             
+            contour = regions.regularize_contour_points(contour)
+            
             # save the contour line as a burrow
             if len(contour) > 2:
                 burrow_chunks.append(contour)
@@ -507,7 +509,7 @@ class FourthPass(DataHandler):
         """ extends the burrow outline such that it connects to the ground line 
         or to other burrows """
 
-        outline = regions.regularize_polygon(geometry.Polygon(contour))
+        outline = geometry.Polygon(contour)
 
         # determine burrow points close to the ground
         dist = structure.distance(outline)
