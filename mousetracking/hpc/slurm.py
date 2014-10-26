@@ -77,7 +77,7 @@ class ProjectSingleSlurm(HPCProjectBase):
         uri = os.path.join(self.folder, log_file)
         log = sp.check_output(['tail', '-n', '10', uri])
         if 'exceeded memory limit' in log:
-            return 'exceeded-memory'
+            return 'memory-error'
         elif 'FFmpeg encountered the following error' in log:
             return 'ffmpeg-error'
         elif 'Error' in log:

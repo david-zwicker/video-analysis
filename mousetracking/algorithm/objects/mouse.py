@@ -143,11 +143,11 @@ class MouseTrack(object):
         if ground_idx is not None:
             self.ground_idx = np.asarray(ground_idx, np.double)
         else:
-            self.ground_idx = np.empty(len(trajectory), np.double) + np.nan
+            self.ground_idx = np.zeros(len(trajectory), np.double) + np.nan
         if ground_dist is not None:
             self.ground_dist = np.asarray(ground_dist, np.double)
         else:
-            self.ground_dist = np.empty(len(trajectory), np.double) + np.nan
+            self.ground_dist = np.zeros(len(trajectory), np.double) + np.nan
     
         
     def __repr__(self):
