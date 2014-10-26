@@ -509,12 +509,14 @@ class FourthPass(DataHandler):
 
         outline = regions.regularize_polygon(geometry.Polygon(contour))
 
-        dist = structure.distance(outline)        
-        dist_max = dist + self.params['burrows/width']/2
-
         # determine burrow points close to the ground
-        exit_points = [point for point in contour
-                       if structure.distance(geometry.Point(point)) < dist_max]
+        dist = structure.distance(outline)
+        exit_points = []
+        while len(exit_points) == 0:
+            dist += self.params['burrows/width']/2
+            exit_points = [point for point in contour
+                           if structure.distance(geometry.Point(point)) < dist]
+        
         exit_points = np.array(exit_points)
 
         # cluster the points to detect multiple connections 
