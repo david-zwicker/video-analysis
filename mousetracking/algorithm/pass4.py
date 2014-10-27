@@ -182,7 +182,8 @@ class FourthPass(DataHandler):
         """ determines the exits of a burrow """
         
         ground_line = self.ground.linestring
-        dist_max = self.params['burrows/ground_point_distance']
+        dist_max = (self.params['burrows/ground_point_distance'] 
+                    + self.params['burrows/width'])
         
         # determine burrow points close to the ground
         exit_points = [point for point in outline
@@ -515,28 +516,28 @@ class FourthPass(DataHandler):
 
         outline = geometry.Polygon(contour)
 
-        # determine burrow points close to the ground
+        # determine burrow points close to the structure
         dist = structure.distance(outline)
-        exit_points = []
-        while len(exit_points) == 0:
+        conn_points = []
+        while len(conn_points) == 0:
             dist += self.params['burrows/width']/2
-            exit_points = [point for point in contour
+            conn_points = [point for point in contour
                            if structure.distance(geometry.Point(point)) < dist]
         
-        exit_points = np.array(exit_points)
+        conn_points = np.array(conn_points)
 
         # cluster the points to detect multiple connections 
         # this is important when a burrow has multiple exits to the ground
-        if len(exit_points) >= 2:
+        if len(conn_points) >= 2:
             dist_max = self.params['burrows/width']
-            data = cluster.hierarchy.fclusterdata(exit_points, dist_max,
+            data = cluster.hierarchy.fclusterdata(conn_points, dist_max,
                                                   method='single', 
                                                   criterion='distance')
         else:
             data = np.ones(1, np.int)
             
         for cluster_id in np.unique(data):
-            p_exit = exit_points[data == cluster_id].mean(axis=0)
+            p_exit = conn_points[data == cluster_id].mean(axis=0)
             p_ground = curves.get_projection_point(structure, p_exit)
             
             line = geometry.LineString((p_exit, p_ground))
