@@ -197,6 +197,7 @@ class FourthPass(DataHandler):
         # this is important when a burrow has multiple exits to the ground
         dist_max = self.params['burrows/width']
         data = cluster.hierarchy.fclusterdata(exit_points, dist_max,
+                                              method='single', 
                                               criterion='distance')
         
         exits = []
@@ -529,6 +530,7 @@ class FourthPass(DataHandler):
         if len(exit_points) >= 2:
             dist_max = self.params['burrows/width']
             data = cluster.hierarchy.fclusterdata(exit_points, dist_max,
+                                                  method='single', 
                                                   criterion='distance')
         else:
             data = np.ones(1, np.int)
