@@ -95,7 +95,7 @@ class ProjectSingleSlurm(HPCProjectBase):
         try:
             pids = open(pid_file).readlines()
         except IOError:
-            status['state'] = 'not-started'
+            status['state'] = 'pending'
             return status
         else:
             status['state'] = 'started'
