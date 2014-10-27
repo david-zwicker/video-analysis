@@ -188,8 +188,8 @@ class FourthPass(DataHandler):
         exit_points = [point for point in outline
                        if ground_line.distance(geometry.Point(point)) < dist_max]
 
-        if len(exit_points) == 0:
-            return []
+        if len(exit_points) < 2:
+            return exit_points
         
         exit_points = np.array(exit_points)
 
@@ -523,9 +523,13 @@ class FourthPass(DataHandler):
 
         # cluster the points to detect multiple connections 
         # this is important when a burrow has multiple exits to the ground
-        dist_max = self.params['burrows/width']
-        data = cluster.hierarchy.fclusterdata(exit_points, dist_max,
-                                              criterion='distance')
+        if len(exit_points) >= 2:
+            dist_max = self.params['burrows/width']
+            data = cluster.hierarchy.fclusterdata(exit_points, dist_max,
+                                                  criterion='distance')
+        else:
+            data = np.ones(1, np.int)
+            
         for cluster_id in np.unique(data):
             p_exit = exit_points[data == cluster_id].mean(axis=0)
             p_ground = curves.get_projection_point(structure, p_exit)
