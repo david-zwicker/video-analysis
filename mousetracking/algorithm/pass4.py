@@ -614,6 +614,8 @@ class FourthPass(DataHandler):
         if len(burrow_chunks) == 0:
             return []
         
+        dist_max = self.params['burrows/chunk_dist_max']
+        
         # calculate distances to ground
         ground_dist = []
         for contour in burrow_chunks:
@@ -663,6 +665,9 @@ class FourthPass(DataHandler):
             # find chunks which is closest to all the others
             dist = burrow_dist[disconnected, :][:, connected]
             k1, k2 = np.unravel_index(dist.argmin(), dist.shape)
+            if dist[k1, k2] > dist_max:
+                # don't connect structures that are too far from each other
+                break
             c1, c2 = disconnected[k1], connected[k2]
             # k1 is chunk to connect, k2 is closest chunk to connect it to
 
