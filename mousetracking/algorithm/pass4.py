@@ -73,12 +73,29 @@ class FourthPass(DataHandler):
     def process(self):
         """ processes the entire video """
         self.log_event('Pass 4 - Started initializing the video analysis.')
+
+        # do several runs with increasing thresholds until we succeed
+        self.result['burrows/detection_threshold'] = 0
+        pass_finished = False
+        try:
+            while not pass_finished:
+                self.result['burrows/detection_threshold'] += 1
+                pass_finished = self.process_run()
+        except (KeyboardInterrupt, SystemExit):
+            pass
         
+        # write out results
+        self.write_data()
+
+
+    def process_run(self):
         self.setup_processing()
         self.debug_setup()
 
-        self.log_event('Pass 4 - Started iterating through the video with %d frames.' %
-                       self.video.frame_count)
+        self.log_event('Pass 4 - Started iterating through video with %d '
+                       'frames at threshold %d.'
+                       % (self.video.frame_count,
+                          self.result['burrows/detection_threshold']))
         self.data['analysis-status'] = 'Initialized video analysis'
         start_time = time.time()            
         
@@ -93,13 +110,13 @@ class FourthPass(DataHandler):
             self.data['analysis-status'] = 'Partly finished third pass'
             
         else:
-            # finished analysis successfully
-
-            # finalize all active burrow tracks
-            self.add_burrows_to_tracks(self.active_burrows())
-            
-            self.log_event('Pass 4 - Finished iterating through the frames.')
-            self.data['analysis-status'] = 'Finished third pass'
+            # finished analysis successfully or aborted
+            if not self.abort_iteration:
+                # finalize all active burrow tracks
+                self.add_burrows_to_tracks(self.active_burrows())
+                
+                self.log_event('Pass 4 - Finished iterating through the frames.')
+                self.data['analysis-status'] = 'Finished third pass'
             
         finally:
             # cleanup in all cases 
@@ -108,7 +125,12 @@ class FourthPass(DataHandler):
             # cleanup and write out of data
             self.video.close()
             self.debug_finalize()
-            self.write_data()
+
+        if self.abort_iteration:
+            # pass has not been finished
+            return False
+        else:
+            return True            
 
             
     def add_processing_statistics(self, time):
@@ -131,6 +153,8 @@ class FourthPass(DataHandler):
         
         # initialize data structures
         self.frame_id = -1
+        self.abort_iteration = False
+        self.result['burrows/mask_overflow'] = 0
         self.background_avg = None
 
         self.result['burrows/tracks'] = BurrowTrackList()
@@ -165,6 +189,9 @@ class FourthPass(DataHandler):
             # find the changes in the background
             if background_id >= 0*1/adaptation_rate:
                 self.find_burrows(frame)
+
+            if self.abort_iteration:
+                break
 
             # store some debug information
             self.debug_process_frame(frame)
@@ -330,8 +357,8 @@ class FourthPass(DataHandler):
         
         # check the different number of possible exits
         if len(exits) == 0:
-            self.logger.warn('%d: Found burrow with no exit at %s',
-                             self.frame_id, burrow.position)
+            self.logger.debug('%d: Found burrow with no exit at %s',
+                              self.frame_id, burrow.position)
             return
         elif len(exits) == 1:
             self._get_burrow_centerline(burrow, exits[0])
@@ -454,23 +481,24 @@ class FourthPass(DataHandler):
     def update_burrow_mask(self, frame):
         """ determines a mask of all the burrows """
         # initialize masks for this frame
-        ground_margin = self.params['burrows/ground_point_distance']/2
+        ground_margin = self.params['burrows/ground_point_distance']
         ground_mask = self.get_ground_mask(y_displacement=ground_margin,
-                                           margin=50,
+                                           #margin=50,
                                            fill_value=1)
         #mask = self._cache['image_uint8']
         
         burrow_width = int(self.params['burrows/width'])
         
         #frame = frame.copy()
-        frame[ground_mask == 0] = self.data['pass1/colors/sand']
+        color = frame[ground_mask == 1].mean()
+        frame[ground_mask == 0] = color
         
         # adaptive thresholding
-        self.burrow_mask = cv2.adaptiveThreshold(frame, 1,
-                                                 cv2.THRESH_BINARY,
-                                                 cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                                 2*burrow_width + 1,
-                                                 C=8)
+        mask = cv2.adaptiveThreshold(frame, 1,
+                                     cv2.THRESH_BINARY,
+                                     cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                     2*burrow_width + 1,
+                                     C=self.result['burrows/detection_threshold'])
         
 #         # shrink burrows
 #         mask[:] = (diff > change_threshold)
@@ -480,25 +508,38 @@ class FourthPass(DataHandler):
 #         self.burrow_mask[mask == 1] = 0
 
         # enlarge burrows with excavated regions
-#         if mask.sum() > 0.1*ground_mask.sum():
-#             # there is way too much change
-#             # This can happen when the light flickers
-#             # => we ignore these frames and return immediately
-#             return
+        if mask.sum() > 0.15*ground_mask.sum():
+            # The mask covers too much area!
+            # There are two cases in which this can happen:
+            # 1) the light flickers => we ignore these frames and return
+            # 2) wrong threshold => restart iteration with new threshold
+            # We distinguish these two cases by counting how the mask
+            # covers too much area. In case 1, we expect this to be rarely
+            # the case, while in the case 2 almost every frame should
+            # be too bright
+            self.result['burrows/mask_overflow'] += 1
+            if self.result['burrows/mask_overflow'] > 5:
+                # completely abort 
+                self.abort_iteration = True
+            return
+        else:
+            self.result['burrows/mask_overflow'] = 0
         
         
         # remove small changes, which are likely due to noise
         kernel1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (burrow_width//2, burrow_width//2))
-        self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_OPEN, kernel1)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel1)
         # add the regions to the burrow mask
         #self.burrow_mask[mask == 1] = 1
         # combine nearby burrow chunks by closing the mask
         kernel1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*burrow_width, 2*burrow_width))
-        self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel1)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel1)
+        
+        self.burrow_mask = mask
         
         # ensure that all points above ground are not burrow chunks
-        #self.burrow_mask[ground_mask == 0] = 0
-        #debug.show_image(self.burrow_mask)
+        #qself.burrow_mask[ground_mask == 0] = 0
+        #debug.show_image(self.burrow_mask, frame)
 
 
     def get_burrow_chunks(self, frame):
@@ -643,7 +684,7 @@ class FourthPass(DataHandler):
         for k in xrange(len(burrow_chunks)):
             if ground_dist[k] < np.min(burrow_dist[k]):
                 # burrow is closest to ground
-                if ground_dist[k] > 1:
+                if 1 < ground_dist[k] < dist_max:
                     burrow_chunks[k] = \
                         self._connect_burrow_to_structure(burrow_chunks[k],
                                                           self.ground.linestring)
@@ -652,19 +693,19 @@ class FourthPass(DataHandler):
                 disconnected.append(k)
                 
         # make sure that at least one chunk is connected to the ground
-        if len(connected) == 0:
-            # find the structure closest to the ground
-            k = np.argmin(ground_dist)
-            burrow_chunks[k] = \
-                self._connect_burrow_to_structure(burrow_chunks[k],
-                                                  self.ground.linestring)
-            connected.append(k)
-            disconnected.remove(k)
+#         if len(connected) == 0:
+#             # find the structure closest to the ground
+#             k = np.argmin(ground_dist)
+#             burrow_chunks[k] = \
+#                 self._connect_burrow_to_structure(burrow_chunks[k],
+#                                                   self.ground.linestring)
+#             connected.append(k)
+#             disconnected.remove(k)
                 
         assert (set(connected) | set(disconnected)) == set(range(len(burrow_chunks)))
         
         # handle all remaining chunks, which need to be connected to other chunks
-        while disconnected:
+        while connected and disconnected:
             # find chunks which is closest to all the others
             dist = burrow_dist[disconnected, :][:, connected]
             k1, k2 = np.unravel_index(dist.argmin(), dist.shape)
@@ -703,7 +744,8 @@ class FourthPass(DataHandler):
 
         # return the unique burrow structures
         burrows = []
-        for outline in unique_based_on_id(burrow_chunks):
+        connected_chunks = (burrow_chunks[k] for k in connected) 
+        for outline in unique_based_on_id(connected_chunks):
             outline = regions.regularize_contour_points(outline)
             try:
                 burrow = Burrow(outline)

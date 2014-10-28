@@ -306,7 +306,7 @@ PARAMETER_LIST = [
               'be proper burrows. The color threshold is calculated as '
               '  thresh = fraction*color_sand + (1 - fraction)*color_sky   '
               'where fraction is the value set here.'),
-    Parameter('burrows/chunk_dist_max', 50, UNIT.LENGTH_PIXEL,
+    Parameter('burrows/chunk_dist_max', 30, UNIT.LENGTH_PIXEL,
               'Maximal distance between a burrow chunk and another structure '
               '(either another chunk or the ground line), such that the chunk '
               'is connected to the other structure.'),
