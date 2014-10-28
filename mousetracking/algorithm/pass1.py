@@ -268,7 +268,7 @@ class FirstPass(DataHandler):
         
         # find an enclosing rectangle, which usually overestimates the cage bounding box
         rect_large = regions.find_bounding_box(cage_mask)
-        self.debug['cage']['rect_large'] = rect_large
+        self.debug['cage']['approx_rect1'] = rect_large
         self.logger.debug('The cage is estimated to be contained in the '
                           'rectangle %s', rect_large)
          
@@ -351,8 +351,8 @@ class FirstPass(DataHandler):
         # return the rectangle defined by two corner points
         p1 = (rect_large[0] + left,  rect_large[1] + top)
         p2 = (rect_large[0] + right, rect_large[1] + bottom)
-        cage_rect = regions.corners_to_rect(p1, p2)
-        self.debug['cage']['rect_cage'] = cage_rect
+        cage_rect = regions.Rectangle.from_points(p1, p2)
+        self.debug['cage']['approx_rect2'] = cage_rect.data
         
         if ret_binarized:
             binarized[binarized > 0] = 1
@@ -361,6 +361,72 @@ class FirstPass(DataHandler):
             return cage_rect, binarized_frame
         else:
             return cage_rect
+
+
+    def find_cage_by_fitting(self, frame, rect):
+        """ determines the cage by fitting the boundaries """
+        
+        scan_length = self.params['cage/linescan_length']
+        points = []
+
+        # enlarge rectangle to make sure that the border lies inside
+        rect.buffer(int(self.params['cage/rectangle_buffer']))
+
+        # do vertical line scans
+        dx = rect.width // 10
+        xs = np.r_[rect.left:rect.right - dx:dx, rect.right][1:-1]
+        yt1, yt2 = rect.top, rect.top + scan_length
+        yb1, yb2 = rect.bottom, rect.bottom - scan_length
+        yts, ybs = [], []
+        for x1, x2 in zip(xs[:-1], xs[1:]):
+            # top
+            r = regions.Rectangle.from_points((x1, yt1), (x2, yt2))
+            s = r.slices
+            profile = frame[s[1], s[0]].mean(axis=1) # average over x-axis
+            y = image.get_steepest_point(profile, direction=-1)
+            points.append((0.5*(x1 + x2), y + yt1))
+            yts.append(y + yt1)
+
+            # bottom
+            r = regions.Rectangle.from_points((x1, yb1), (x2, yb2))
+            s = r.slices
+            profile = frame[s[1], s[0]].mean(axis=1) # average over x-axis
+            y = image.get_steepest_point(profile, direction=1)
+            points.append((0.5*(x1 + x2), yb2 + y))
+            ybs.append(yb2 + y)
+            
+        # do horizontal line scans
+        dy = rect.height // 7
+        ys = np.r_[rect.top:rect.bottom - dy:dy, rect.bottom][1:-1]
+        xl1, xl2 = rect.left, rect.left + scan_length
+        xr1, xr2 = rect.right, rect.right - scan_length
+        xls, xrs = [], []
+        for y1, y2 in zip(ys[:-1], ys[1:]):
+            # left
+            r = regions.Rectangle.from_points((xl1, y1), (xl2, y2))
+            s = r.slices
+            profile = frame[s[1], s[0]].mean(axis=0) # average over y-axis
+            x = image.get_steepest_point(profile, direction=-1)
+            points.append((x + xl1, 0.5*(y1 + y2)))
+            xls.append(x + xl1)
+
+            # right
+            r = regions.Rectangle.from_points((xr1, y1), (xr2, y2))
+            s = r.slices
+            profile = frame[s[1], s[0]].mean(axis=0) # average over y-axis
+            x = image.get_steepest_point(profile, direction=1)
+            points.append((x + xr2, 0.5*(y1 + y2)))        
+            xrs.append(x + xr2)
+
+        # build the rectangle describing the cage        
+        cage_rect = regions.Rectangle.from_points((np.mean(xls), np.mean(yts)),
+                                                  (np.mean(xrs), np.mean(ybs)))
+        
+        # save debug information
+        self.debug['cage']['fit_rect'] = cage_rect.data_int
+        self.debug['cage']['fit_points'] = points
+        
+        return cage_rect
 
 
     def produce_cage_debug_image(self, frame, frame_binarized):
@@ -378,14 +444,24 @@ class FirstPass(DataHandler):
         frame = cv2.merge((b, g, r))
 
         # add the cropping rectangle
-        rect_large = self.debug['cage']['rect_large']
+        rect_large = self.debug['cage']['approx_rect1']
         p1, p2 = regions.rect_to_corners(rect_large)
         cv2.rectangle(frame, p1, p2, color=(0, 0, 0), thickness=2)
         
-        # add the rectangle on top
-        rect_cage = self.debug['cage']['rect_cage']
+        # add the refined rectangle on top
+        rect_cage = self.debug['cage']['approx_rect2']
+        p1, p2 = regions.rect_to_corners(rect_cage)
+        cv2.rectangle(frame, p1, p2, color=(128, 128, 128), thickness=3)
+
+        # add the rectangle resulting from fitting
+        rect_cage = self.debug['cage']['fit_rect']
         p1, p2 = regions.rect_to_corners(rect_cage)
         cv2.rectangle(frame, p1, p2, color=(255, 255, 255), thickness=4)
+
+        # add the fitting points
+        points = self.debug['cage']['fit_points']
+        for p in points:
+            cv2.circle(frame, (int(p[0]), int(p[1])), 3, (0, 0, 255), thickness=-1)
 
         # save the image
         filename = self.get_filename('cage_estimate.jpg', 'debug')
@@ -405,24 +481,26 @@ class FirstPass(DataHandler):
         rect_cage, frame_binarized = self.find_cage_approximately(blurred_frame,
                                                                   ret_binarized=True)
         
-        # determine the rectangle of the cage in global coordinates
-        width = rect_cage[2] - rect_cage[2] % 2   # make sure its divisible by 2
-        height = rect_cage[3] - rect_cage[3] % 2  # make sure its divisible by 2
-        # Video dimensions should be divisible by two for some codecs
-        rect_cage = (rect_cage[0], rect_cage[1], width, height)
+        rect_cage = self.find_cage_by_fitting(blurred_frame, rect_cage)
+        
+        # make sure that the cage rectangle is dividable by 2, because video
+        # dimensions should be divisible by two for some codecs
+        rect_cage.width = rect_cage.width - rect_cage.width % 2
+        rect_cage.height = rect_cage.height - rect_cage.height % 2
 
         if 'cage_estimate' in self.params['debug/output']:
             self.produce_cage_debug_image(frame, frame_binarized)
 
-        if not (self.params['cage/width_min'] < width < self.params['cage/width_max'] and
-                self.params['cage/height_min'] < height < self.params['cage/height_max']):
+        if not (self.params['cage/width_min'] < rect_cage.width < self.params['cage/width_max'] and
+                self.params['cage/height_min'] < rect_cage.height < self.params['cage/height_max']):
             raise RuntimeError('The cage bounding box (%dx%d) is out of the '
-                               'limits.' % (width, height)) 
+                               'limits.' % (rect_cage.width, rect_cage.height)) 
         
-        self.logger.debug('The cage was determined to lie in the rectangle %s', rect_cage)
+        self.logger.debug('The cage was determined to lie in %s', rect_cage)
         
         # crop the video to the cage region
-        return FilterCrop(video, rect_cage), rect_cage
+        rect = rect_cage.data_int
+        return FilterCrop(video, rect), rect
             
             
     #===========================================================================

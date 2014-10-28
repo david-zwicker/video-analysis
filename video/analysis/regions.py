@@ -24,13 +24,19 @@ def corners_to_rect(p1, p2):
     return (xmin, ymin, xmax - xmin + 1, ymax - ymin + 1)
 
 
-def rect_to_corners(rect):
-    """ returns two corner points for a rectangle.
-    Both these points are included in the rectangle.
+def rect_to_corners(rect, count=2):
+    """ returns `count` corner points for a rectangle.
+    These points are included in the rectangle.
+    count determines the number of corners. 2 and 4 are allowed values.
     """
     p1 = (rect[0], rect[1])
     p2 = (rect[0] + rect[2] - 1, rect[1] + rect[3] - 1)
-    return p1, p2
+    if count == 2:
+        return p1, p2
+    elif count == 4:
+        return p1, (p2[0], p1[1]), p2, (p1[0], p2[1])
+    else:
+        raise ValueError('count must be 2 or 4 (cannot be %d)' % count)
 
 
 def rect_to_slices(rect):
@@ -377,3 +383,114 @@ def distance_fill(data, start_points, end_points=None):
                     stack_next.add((x, y + 1))
                     
         stack = stack_next
+
+
+
+class Rectangle(object):
+    """ a class for handling rectangles """
+    def __init__(self, x, y, width, height):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        
+    @classmethod
+    def from_points(cls, p1, p2):
+        x1, x2 = min(p1[0], p2[0]), max(p1[0], p2[0])
+        y1, y2 = min(p1[1], p2[1]), max(p1[1], p2[1])
+        return cls(x1, y1, x2 - x1, y2 - y1)
+    
+    def copy(self):
+        return self.__class__(self.x, self.y, self.width, self.height)
+        
+    def __repr__(self):
+        return ("Rectangle(x=%g, y=%g, width=%g, height=%g)"
+                % (self.x, self.y, self.width, self.height))
+            
+    @property
+    def data(self):
+        return self.x, self.y, self.width, self.height
+    
+    @property
+    def data_int(self):
+        return (int(self.x), int(self.y),
+                int(self.width), int(self.height))
+    
+    @property
+    def left(self):
+        return self.x
+    @left.setter
+    def left(self, value):
+        self.x = value
+    
+    @property
+    def right(self):
+        return self.x + self.width
+    @right.setter
+    def right(self, value):
+        self.width = value - self.x
+    
+    @property
+    def top(self):
+        return self.y
+    @top.setter
+    def top(self, value):
+        self.y = value
+    
+    @property
+    def bottom(self):
+        return self.y + self.height
+    @bottom.setter
+    def bottom(self, value):
+        self.height = value - self.y        
+
+    def set_corners(self, p1, p2):
+        x1, x2 = min(p1[0], p2[0]), max(p1[0], p2[0])
+        y1, y2 = min(p1[1], p2[1]), max(p1[1], p2[1])
+        self.x = x1
+        self.y = y1
+        self.width = x2 - x1
+        self.height = y2 - y1     
+            
+    @property
+    def corners(self):
+        return (self.x, self.y), (self.x + self.width, self.y + self.height)
+    @corners.setter
+    def corners(self, ps):
+        self.set_corners(ps[0], ps[1])
+    
+    @property
+    def outline(self):
+        x2, y2 = self.x + self.width, self.y + self.height
+        return ((self.x, self.y), (x2, self.y),
+                (x2, y2), (self.x, y2))
+    
+    @property
+    def slices(self):
+        slice_x = slice(self.x, self.x + self.width + 1)
+        slice_y = slice(self.y, self.y + self.height + 1)
+        return slice_x, slice_y
+
+    @property
+    def p1(self):
+        return (self.x, self.y)
+    @p1.setter
+    def p1(self, p):
+        self.set_corners(p, self.p2)
+           
+    @property
+    def p2(self):
+        return (self.x + self.width, self.y + self.height)
+    @p2.setter
+    def p2(self, p):
+        self.set_corners(self.p1, p)
+        
+    def buffer(self, amount):
+        self.x -= amount
+        self.y -= amount
+        self.width += 2*amount
+        self.height += 2*amount
+    
+    @property
+    def area(self):
+        return self.width * self.height

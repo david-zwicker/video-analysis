@@ -123,20 +123,27 @@ PARAMETER_LIST = [
               'Thresholds for the boundary detection algorithm. The four values '
               'are the fraction of bright pixels necessary to define the '
               'boundary for [left, top, right, bottom], respectively.'),
-    Parameter('cage/width_min', 600, UNIT.LENGTH_PIXEL,
+    Parameter('cage/width_min', 550, UNIT.LENGTH_PIXEL,
               'Minimal width of the cage. This is only used to make a '
               'plausibility test of the results'),
     Parameter('cage/width_max', 800, UNIT.LENGTH_PIXEL,
               'Maximal width of the cage. This is only used to make a '
               'plausibility test of the results'),
-    Parameter('cage/height_min', 350, UNIT.LENGTH_PIXEL,
+    Parameter('cage/height_min', 300, UNIT.LENGTH_PIXEL,
               'Minimal height of the cage. This is only used to make a '
               'plausibility test of the results'),
     Parameter('cage/height_max', 500, UNIT.LENGTH_PIXEL,
               'Maximal height of the cage. This is only used to make a '
               'plausibility test of the results'),
+    Parameter('cage/rectangle_buffer', 5, UNIT.LENGTH_PIXEL,
+              'Margin by which the estimated cage rectangle is enlarged '
+              'before it is located by fitting.'),
+    Parameter('cage/linescan_length', 50, UNIT.LENGTH_PIXEL,
+              'Length of the line scan that is used to determine the cage '
+              'boundary.'),
     Parameter('cage/linescan_width', 30, UNIT.LENGTH_PIXEL,
-              'Width of the line scan use to detect the cage frame'),
+              'Width of the line scan use to extend the ground line to the '
+              'cage frame.'),
     Parameter('cage/linescan_smooth', 5, UNIT.LENGTH_PIXEL,
               'Standard deviation used for smoothing the line scan profile'),
                 

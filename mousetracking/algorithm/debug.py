@@ -116,6 +116,10 @@ def show_shape(*shapes, **kwargs):
         if isinstance(shape, geometry.Point):
             ax.plot(shape.x, shape.y, 'o', color=color, ms=20)
         
+        if isinstance(shape, geometry.MultiPoint):
+            coords = np.array([(p.x, p.y) for p in shape])
+            ax.plot(coords[:, 0], coords[:, 1], 'o', color=color, ms=10)
+        
         elif isinstance(shape, geometry.Polygon):
             patch = descartes.PolygonPatch(shape,
                                            ec=kwargs.get('ec', 'none'),
