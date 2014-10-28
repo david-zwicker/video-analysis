@@ -456,11 +456,14 @@ class FourthPass(DataHandler):
         # initialize masks for this frame
         ground_margin = self.params['burrows/ground_point_distance']/2
         ground_mask = self.get_ground_mask(y_displacement=ground_margin,
-                                           margin=25,
+                                           margin=50,
                                            fill_value=1)
         #mask = self._cache['image_uint8']
         
         burrow_width = int(self.params['burrows/width'])
+        
+        #frame = frame.copy()
+        frame[ground_mask == 0] = self.data['pass1/colors/sand']
         
         # adaptive thresholding
         self.burrow_mask = cv2.adaptiveThreshold(frame, 1,
@@ -494,7 +497,7 @@ class FourthPass(DataHandler):
         self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel1)
         
         # ensure that all points above ground are not burrow chunks
-        self.burrow_mask[ground_mask == 0] = 0
+        #self.burrow_mask[ground_mask == 0] = 0
         #debug.show_image(self.burrow_mask)
 
 
