@@ -439,7 +439,7 @@ class FourthPass(DataHandler):
                 self.burrow_mask[label == labels] = 0
                     
 
-    def update_burrow_mask_old(self, frame):
+    def update_burrow_mask_first(self, frame):
         """ determines a mask of all the burrows """
         # initialize masks for this frame
         ground_margin = self.params['burrows/ground_point_distance']/2
@@ -478,7 +478,7 @@ class FourthPass(DataHandler):
         self.burrow_mask[ground_mask == 0] = 0
 
 
-    def update_burrow_mask(self, frame):
+    def update_burrow_mask_second(self, frame):
         """ determines a mask of all the burrows """
         # initialize masks for this frame
         ground_margin = self.params['burrows/ground_point_distance']
@@ -540,6 +540,77 @@ class FourthPass(DataHandler):
         # ensure that all points above ground are not burrow chunks
         #qself.burrow_mask[ground_mask == 0] = 0
         #debug.show_image(self.burrow_mask, frame)
+
+
+    def update_burrow_mask(self, frame):
+        
+        change_count = np.inf
+        iterations = 0
+
+        # start with the ground mask
+        ground_mask = self.get_ground_mask(fill_value=1)
+        self.burrow_mask[ground_mask == 0] = 1
+        
+        while change_count > 10 and iterations < 50:
+            iterations += 1
+             
+            # get masks
+            mask_sand = (self.burrow_mask == 0)
+            mask_sky = (self.burrow_mask == 1)
+            
+            def gaussian_stat(img, mask, x, y, w=50):
+                xs = slice(max(x - w, 0), min(x + w, img.shape[0]))
+                ys = slice(max(y - w, 0), min(y + w, img.shape[1]))
+                roi = img[xs, ys][mask[xs, ys]]
+                mean = roi.mean()
+                # faster implementation of variance calculation from
+                # http://stackoverflow.com/a/19391264/932593
+                c = roi - mean
+                var = np.dot(c, c)/roi.size
+                #assert np.abs(var - roi.var()) < 1e-10
+                return np.exp(-(0.5*mean - img[x, y])**2/var)
+            
+            new_points = np.ones_like(self.burrow_mask)
+            change_count = 0
+            
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(3, 3))
+            
+            # check for new burrow points
+            mask = mask_sky.astype(np.uint8)
+            mask = cv2.dilate(mask, kernel, iterations=1) - mask
+            points = np.nonzero(mask == 1)
+            for x, y in zip(*points):
+                p_sand = gaussian_stat(frame, mask_sand, x, y)
+                p_sky = gaussian_stat(frame, mask_sky, x, y)
+#                 print p_sand/p_sky
+                if p_sand/p_sky > 10:
+                    self.burrow_mask[x, y] = 1
+                    change_count += 1
+                    new_points[x, y] = 2
+            
+            # check for obsolete burrow points
+            mask = mask_sand.astype(np.uint8)
+            mask = cv2.dilate(mask, kernel, iterations=1) - mask
+            points = np.nonzero(mask == 1)
+            for x, y in zip(*points):
+                if ground_mask[x, y] == 1:
+                    p_sand = gaussian_stat(frame, mask_sand, x, y)
+                    p_sky = gaussian_stat(frame, mask_sky, x, y)
+                    if p_sky/p_sand > 10:
+                        self.burrow_mask[x, y] = 0
+                        change_count += 1
+                        new_points[x, y] = 0
+                    
+#             cv2.imshow('mask', self.burrow_mask*255)
+#             cv2.waitKey(1)
+#                     
+# #             debug.show_image(frame, self.burrow_mask, wait_for_key=False)
+#             print change_count 
+        
+        self.burrow_mask[ground_mask == 0] = 0
+        
+#         debug.show_image(frame, self.burrow_mask)
+#         exit()        
 
 
     def get_burrow_chunks(self, frame):

@@ -23,6 +23,11 @@
 	- this could be done by segmenting the current centerline in equally spaced segments
 	- each inner point on this center line can be put at the midpoint between the outlines
 		to prevent problems, the point should be displaced by at most 0.5*burrow_width
+* New idea for burrow finding:
+	- evolve sky/sand mask over time
+	- start with ground line dividing sky from sand
+	- locally update the mask in the region where the mouse has been
+	- use grabCut to determine changes
 
 Performance improvements:
 -------------------------

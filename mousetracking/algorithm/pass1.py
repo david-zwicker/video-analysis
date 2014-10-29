@@ -2118,6 +2118,9 @@ class FirstPass(DataHandler):
                 else:
                     self.output['video.show'].show()
                 
+        if 'background.video' in self.output:
+            self.output['background.video'].set_frame(self.background)
+
         if 'difference.video' in self.output:
             diff = frame.astype(int, copy=False) - self.background + 128
             diff = np.clip(diff, 0, 255).astype(np.uint8, copy=False)
@@ -2125,11 +2128,6 @@ class FirstPass(DataHandler):
             self.output['difference.video'].add_text(str(self.frame_id),
                                                      (20, 20), anchor='top')   
                 
-        if 'background.video' in self.output:
-            self.output['background.video'].set_frame(self.background)
-            self.output['background.video'].add_text(str(self.frame_id),
-                                                     (20, 20), anchor='top')   
-
         if 'explored_area.video' in self.output:
             debug_video = self.output['explored_area.video']
              
