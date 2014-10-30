@@ -171,6 +171,9 @@ class FourthPass(DataHandler):
 
         # iterate over the video and analyze it
         for background_id, frame in enumerate(display_progress(self.video)):
+#             if background_id > 10:
+#                 break
+            
             self.frame_id = background_id * self.params['output/video/period'] 
             
             # adapt the background to current frame
@@ -196,7 +199,7 @@ class FourthPass(DataHandler):
             # store some debug information
             self.debug_process_frame(frame)
             
-            if self.frame_id % 100000 == 0:
+            if background_id % 1000 == 0:
                 self.logger.debug('Analyzed frame %d', self.frame_id)
 
     
@@ -543,12 +546,17 @@ class FourthPass(DataHandler):
 
 
     def update_burrow_mask(self, frame):
-        
+        """
+        updates the burrow mask based on the color of the current frame.
+        TODO: This function can be sped up significantly, if we only consider
+        points close to where the mouse has been recently 
+        """
         change_count = np.inf
         iterations = 0
 
         # start with the ground mask
         ground_mask = self.get_ground_mask(fill_value=1)
+        
         self.burrow_mask[ground_mask == 0] = 1
         
         while change_count > 10 and iterations < 50:
@@ -556,7 +564,58 @@ class FourthPass(DataHandler):
              
             # get masks
             mask_sand = (self.burrow_mask == 0)
-            mask_sky = (self.burrow_mask == 1)
+            mask_back = (self.burrow_mask == 1)
+
+            import matplotlib.pyplot as plt
+            
+            # get statistics
+            def get_statistics(img, mask, w=50):
+                """ calculate mean and variance in a window around a point, 
+                excluding the point itself """
+                
+                #kernel = cv2.getStructuringElement(cv2.MORPH_RECT, ksize=(2*w+1, 2*w+1))
+                img_m = np.zeros_like(img, np.double)
+                img_m[mask] = img[mask]
+                
+                # calculate how many on pixel there are 
+                ksize = 2*w + 1
+                
+                mask_area = cv2.boxFilter(mask.astype(np.int),
+                                          -1, (ksize, ksize),
+                                          normalize=False,
+                                          borderType=cv2.BORDER_CONSTANT)
+#                 mask_area = mask_area - 1 #< exclude the central point
+                mask_area[mask_area < 2] = 2
+                
+#                 mask_test = cv2.sepFilter2D(mask.astype(np.uint16), -1,
+#                                             np.ones(ksize, np.uint16), np.ones(ksize, np.uint16),
+#                                             )
+#                 
+#                 debug.show_image(mask_area, mask_test)
+#                 exit()
+                
+                # calculate the local sums and squared sums
+                mean = cv2.boxFilter(img_m, -1, (ksize, ksize),
+                                     normalize=False, borderType=cv2.BORDER_CONSTANT)
+#                 var = cv2.boxFilter(img_m**2, -1, (ksize, ksize),
+#                                     normalize=False, borderType=cv2.BORDER_CONSTANT)
+                mean = mean - img_m  #< exclude the central point
+#                 var = var - img_m**2 #< exclude the central point
+                
+                # scale by number of mask pixels
+                mean = mean/mask_area
+#                 var = (var - mean**2*mask_area)/(mask_area - 1)
+#                 debug.show_image(img_m, mask_area, mean, var)
+
+                var = np.ones_like(mean)
+
+                return mean, var
+            
+            mean_sand, var_sand = get_statistics(frame, mask_sand)
+            mean_back, var_back = get_statistics(frame, mask_back)
+
+#             debug.show_image(mean_sand, np.sqrt(var_sand), mean_back, np.sqrt(var_back))
+#             exit()
             
             def gaussian_stat(img, mask, x, y, w=50):
                 xs = slice(max(x - w, 0), min(x + w, img.shape[0]))
@@ -568,22 +627,35 @@ class FourthPass(DataHandler):
                 c = roi - mean
                 var = np.dot(c, c)/roi.size
                 #assert np.abs(var - roi.var()) < 1e-10
-                return np.exp(-(0.5*mean - img[x, y])**2/var)
+                
+                print mean_sand[x, y], mean
+                print var_sand[x, y], var
+                exit()
+                
+                return np.exp(-0.5*(mean - img[x, y])**2/var)
             
             new_points = np.ones_like(self.burrow_mask)
             change_count = 0
             
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(3, 3))
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
+            
+            p_sand = np.exp(-0.5*(frame - mean_sand)**2/var_sand)
+            p_back = np.exp(-0.5*(frame - mean_back)**2/var_back)
+
+#             debug.show_image(frame, p_back - p_sand, p_sand, p_back)
+#             exit()
             
             # check for new burrow points
-            mask = mask_sky.astype(np.uint8)
+            mask = mask_back.astype(np.uint8)
             mask = cv2.dilate(mask, kernel, iterations=1) - mask
             points = np.nonzero(mask == 1)
             for x, y in zip(*points):
-                p_sand = gaussian_stat(frame, mask_sand, x, y)
-                p_sky = gaussian_stat(frame, mask_sky, x, y)
-#                 print p_sand/p_sky
-                if p_sand/p_sky > 10:
+#                 p_sand = gaussian_stat(frame, mask_sand, x, y)
+#                 p_back = gaussian_stat(frame, mask_back, x, y)
+                p_sand = np.exp(-0.5*(frame[x, y] - mean_sand[x, y])**2/var_sand[x, y])
+                p_back = np.exp(-0.5*(frame[x, y] - mean_back[x, y])**2/var_back[x, y])
+
+                if p_back/p_sand > 1:
                     self.burrow_mask[x, y] = 1
                     change_count += 1
                     new_points[x, y] = 2
@@ -594,19 +666,22 @@ class FourthPass(DataHandler):
             points = np.nonzero(mask == 1)
             for x, y in zip(*points):
                 if ground_mask[x, y] == 1:
-                    p_sand = gaussian_stat(frame, mask_sand, x, y)
-                    p_sky = gaussian_stat(frame, mask_sky, x, y)
-                    if p_sky/p_sand > 10:
+                    p_sand = np.exp(-0.5*(frame[x, y] - mean_sand[x, y])**2/var_sand[x, y])
+                    p_back = np.exp(-0.5*(frame[x, y] - mean_back[x, y])**2/var_back[x, y])
+#                     p_sand = gaussian_stat(frame, mask_sand, x, y)
+#                     p_back = gaussian_stat(frame, mask_back, x, y)
+                    if p_sand/p_back > 1:
                         self.burrow_mask[x, y] = 0
                         change_count += 1
                         new_points[x, y] = 0
                     
-#             cv2.imshow('mask', self.burrow_mask*255)
-#             cv2.waitKey(1)
+            cv2.imshow('mask', self.burrow_mask*255)
+            cv2.waitKey(1)
 #                     
 # #             debug.show_image(frame, self.burrow_mask, wait_for_key=False)
 #             print change_count 
         
+        # there are no burrows above the ground by definition
         self.burrow_mask[ground_mask == 0] = 0
         
 #         debug.show_image(frame, self.burrow_mask)

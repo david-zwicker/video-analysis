@@ -54,9 +54,24 @@ def show_image(*images, **kwargs):
     else:
         vmin, vmax = None, None    
     
+    # see if all the images have the same dimensions
+    if len(set(image.shape[:2] for image in images)) == 1:
+        share_axes = True
+    else:
+        share_axes = False
+    
     # plot all the images
     for k, image in enumerate(images):
-        plt.subplot(num_rows, num_cols, k + 1)
+        if share_axes:
+            # share axes with the first subplot
+            if k == 0:
+                share_axes = plt.subplot(num_rows, num_cols, k + 1)
+            else:
+                plt.subplot(num_rows, num_cols, k + 1,
+                            sharex=share_axes, sharey=share_axes)
+        else:
+            plt.subplot(num_rows, num_cols, k + 1)
+            
         plt.imshow(image, interpolation='nearest', vmin=vmin, vmax=vmax)
         plt.gray()
         
