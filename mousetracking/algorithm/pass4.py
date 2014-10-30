@@ -758,7 +758,7 @@ class FourthPass(DataHandler):
         
         self.burrow_mask[ground_mask == 0] = 1
         
-        while change_count > 10 and iterations < 50:
+        while iterations < 1:
             iterations += 1
              
             # get masks
@@ -795,21 +795,34 @@ class FourthPass(DataHandler):
 
 #                 debug.show_image(img_m, count, s1, s2, mean, var, wait_for_key=False)
 
-                return mean
+                return count, mean
             
-            mean_sand = get_statistics(frame, mask_sand)
-            mean_back = get_statistics(frame, mask_back)
+            count_sand, mean_sand = get_statistics(frame, mask_sand)
+            count_back, mean_back = get_statistics(frame, mask_back)
 
             # build the mask of the region we consider
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
-            mask = cv2.morphologyEx(mask_back.astype(np.uint8),
-                                    cv2.MORPH_GRADIENT, kernel).astype(np.bool)
+#             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
+#             mask = cv2.morphologyEx(mask_back.astype(np.uint8),
+#                                     cv2.MORPH_GRADIENT, kernel).astype(np.bool)
+            mask = (count_sand > 0.1*50**2) & (count_back > 0.1*50**2)  
             mask[ground_mask == 0] = False
+            
+#             debug.show_image(frame, mask)
+#             exit()
             
             # determine points that have to be changed
             burrow_points = (frame[mask] < 0.5*(mean_sand[mask] + mean_back[mask]))
-            change_count = (mask_sand[mask] ^ burrow_points).sum() #< count points that get changed
+#             change_count = (mask_sand[mask] ^ burrow_points).sum() #< count points that get changed
             self.burrow_mask[mask] = burrow_points
+
+            # remove chunks close to the ground line 
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(11, 11))
+            mask = cv2.erode(ground_mask, kernel)
+            self.burrow_mask[ground_mask - mask == 1] = 0 
+                   
+            # connect chunks
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(21, 21)) 
+            self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel)
                     
 #             cv2.imshow('mask', self.burrow_mask*255)
 #             cv2.waitKey(1)
