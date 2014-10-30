@@ -53,6 +53,11 @@ def show_image(*images, **kwargs):
             vmax = max(vmax, image.max())
     else:
         vmin, vmax = None, None    
+        
+    # apply mask if requested
+    mask = kwargs.pop('mask', None)
+    if mask is not None:
+        images = [np.ma.array(image, mask=~mask) for image in images]
     
     # see if all the images have the same dimensions
     if len(set(image.shape[:2] for image in images)) == 1:
