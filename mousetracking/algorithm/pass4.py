@@ -632,10 +632,10 @@ class FourthPass(DataHandler):
 #         exit()
 
         # restrict the mask to points where the distributions differ significantly
-        dist = stat_sand.distance(stat_back)
+#         dist = stat_sand.distance(stat_back)
         #p_value = stat_sand.welch_test(stat_back)
 
-        mask[mask] = (dist[mask] > 0.1)
+#         mask[mask] = (dist[mask] > 0.1)
          
 #         debug.show_image(stat_sand.mean, stat_back.mean, p_value,
 #                          stat_sand.var, stat_back.var, dist, mask=mask)
