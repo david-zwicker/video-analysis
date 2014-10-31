@@ -16,7 +16,6 @@ import numpy as np
 from scipy import stats
 
 from video.analysis.utils import cached_property
-from sphinx.directives import other
 
 
 
