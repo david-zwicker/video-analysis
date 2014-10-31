@@ -13,6 +13,7 @@ import logging
 import os
 
 import numpy as np
+from scipy import stats
 
 from video.analysis.utils import cached_property
 
@@ -96,11 +97,25 @@ class NormalDistribution(object):
         """ return standard deviation """
         return np.sqrt(self.var)
         
+    
+#     @cached_property
+#     def scipy_rvs(self):
+#         return stats.norm.rvs(loc=self.mean, scale=self.std, size=self.count)
         
-    def probability(self, value):
+        
+    def probability(self, value, mask=None):
         """ return probability of value """
-        return NORMAL_DISTRIBUTION_NORMALIZATION/self.std \
-                *np.exp(-0.5*(value - self.mean)**2/self.var)
+        if mask is None:
+            mean = self.mean
+            var = self.var
+            std = self.std
+        else:
+            mean = self.mean[mask]
+            var = self.var[mask]
+            std = self.std[mask]
+        
+        return NORMAL_DISTRIBUTION_NORMALIZATION/std \
+                *np.exp(-0.5*(value - mean)**2/var)
                 
                 
     def add_observation(self, value):
@@ -124,6 +139,35 @@ class NormalDistribution(object):
             dist = 0.5*(np.log(other.var/self.var) 
                         + (self.var + (self.mean - self.mean)**2)/other.var 
                         - 1)
+            
+        elif kind == 'bhattacharyya':
+            var_ratio = self.var/other.var
+            term1 = np.log(0.25*(var_ratio + 1/var_ratio + 2))
+            term2 = (self.mean - other.mean)**2/(self.var + other.var)
+            dist = 0.25*(term1 + term2)
+            
+        elif kind == 'hellinger':
+            dist_b = self.distance(other, kind='bhattacharyya')
+            dist = np.sqrt(1 - np.exp(-dist_b))
+            
         else:
             raise ValueError('Unknown distance `%s`' % kind)
+        
         return dist
+    
+    
+    def welch_test(self, other):
+        """ performs Welch's t-test of two normal distributions """
+        # calculate the degrees of freedom
+        s1, s2 = self.var/self.count, other.var/other.count
+        nu1, nu2 = self.count - 1, other.count - 1
+        dof = (s1 + s2)**2/(s1**2/nu1 + s2**2/nu2)
+
+        # calculate the welch t-value
+        t = (self.mean - other.mean)/np.sqrt(s1 + s2)
+        
+        # calculate the probability using the Student's T distribution 
+        prob = stats.t.sf(np.abs(t), dof) * 2
+        return prob
+    
+

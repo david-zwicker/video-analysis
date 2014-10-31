@@ -8,6 +8,7 @@ Module that contains the class responsible for the third pass of the algorithm
 
 from __future__ import division
 
+import functools
 import time
 
 import cv2
@@ -546,128 +547,111 @@ class FourthPass(DataHandler):
         #debug.show_image(self.burrow_mask, frame)
 
 
-    def _get_image_statistics(self, img, mask, w=50):
+    def _get_image_statistics(self, img, mask, window=50, prior=128, kernel='box'):
         """ calculate mean and variance in a window around a point, 
         excluding the point itself
-        Be aware of maxint=9223372036854775807 given by np.iinfo(np.int)
-        or np.int32 max 2147483647
-        => max ksize should be 181, max w=90
+        window denotes the window size use for calculating statistics
+        prior denotes a value that is subtracted from the frame before
+            calculating statistics. This is necessary for numerical stability.
+            The prior should be close to the mean of the values.
         """
-        K = 128 #< prior to increase stability of the algorithm
+        # calculate the window size
+        ksize = 2*window + 1
+        # check for possible integer overflow (very conservatively)
+        if np.iinfo(np.int).max < (ksize*max(prior, 255 - prior))**2:
+            raise RuntimeError('Window is too large and an integer overflow '
+                               'could happen.')
+
+        # prepare the function that does the actual filtering
+        if kernel == 'box':
+            filter_image = functools.partial(cv2.boxFilter, ddepth=-1,
+                                             ksize=(ksize, ksize), normalize=False,
+                                             borderType=cv2.BORDER_CONSTANT)
         
-        #kernel = cv2.getStructuringElement(cv2.MORPH_RECT, ksize=(2*w+1, 2*w+1))
+        elif kernel == 'ellipse' or kernel == 'circle':        
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
+                                               ksize=(ksize, ksize))
+            filter_image = functools.partial(cv2.filter2D, ddepth=-1,
+                                             kernel=kernel,
+                                             borderType=cv2.BORDER_CONSTANT)
+            
+        else:
+            raise ValueError('Unknown filter kernel `%s`' % kernel)
+
+        # create the image from which the statistics will be calculated             
         img_m = np.zeros_like(img, np.int)
-        img_m[mask] = img[mask].astype(np.int) - K
+        img_m[mask] = img[mask].astype(np.int) - prior
         
-        # calculate how many on pixel there are 
-        ksize = 2*w + 1
-        
+        # calculate how many on pixel there are in each region
         mask = np.asarray(mask, np.int)
-        count = cv2.boxFilter(mask, -1, (ksize, ksize),
-                              normalize=False, borderType=cv2.BORDER_CONSTANT)
+        count = filter_image(mask)
         count = count - mask #< exclude the central point if it was in the mask
-        count[count < 2] = 2
+        count[count < 2] = 2 #< limit the minimal count to avoid division by zero
         
-#                 count_test = cv2.sepFilter2D(mask.astype(np.uint16), -1,
-#                                             np.ones(ksize, np.uint16), np.ones(ksize, np.uint16),
-#                                             )
-#                 
-#                 debug.show_image(count, count_test)
-#                 exit()
-        
-        # calculate the local sums and squared sums
+        # calculate the local sums and sums of squares
         img_m2 = img_m**2
-        s1 = cv2.boxFilter(img_m, -1, (ksize, ksize),
-                           normalize=False, borderType=cv2.BORDER_CONSTANT)
-        s2 = cv2.boxFilter(img_m2, -1, (ksize, ksize),
-                           normalize=False, borderType=cv2.BORDER_CONSTANT)
-        s1 = s1 - mask*img_m  #< exclude the central point
-        s2 = s2 - mask*img_m2 #< exclude the central point
+        s1 = filter_image(img_m)
+        s2 = filter_image(img_m2)
+        s1 -= mask*img_m  #< exclude the central point
+        s2 -= mask*img_m2 #< exclude the central point
         
-        # scale by number of mask pixels
+        # scale by number of pixels in the region
         var = (s2 - s1**2/count)/(count - 1)
-        mean = s1/count + K
+        mean = s1/count + prior
 
-#                 var = np.ones_like(mean)
-#                 debug.show_image(img_m, count, s1, s2, mean, var, wait_for_key=False)
-
+        # return the associated normal distribution
         return NormalDistribution(mean, var, count)
 
 
     def update_burrow_mask(self, frame):
         """
         updates the burrow mask based on the color of the current frame.
-        TODO: restrict calculation to ROI 
         """
-        iterations = 0
-
-        # start with the ground mask
+        # get the current ground model
         ground_mask = self.get_ground_mask(fill_value=1)
-        
+        # add the sky region to the burrow mask (since it is also background)
         self.burrow_mask[ground_mask == 0] = 1
         
-        while iterations < 1:
-            iterations += 1
-             
-            # get masks
-            mask_sand = (self.burrow_mask == 0)
-            mask_back = (self.burrow_mask == 1)
+        # get masks for the region of the sand and the background
+        mask_sand = (self.burrow_mask == 0)
+        mask_back = (self.burrow_mask == 1)
 
-            # get statistics
-            stat_sand = self._get_image_statistics(frame, mask_sand)
-            stat_back = self._get_image_statistics(frame, mask_back)
+        # get statistics of these two regions
+        stat_sand = self._get_image_statistics(frame, mask_sand)
+        stat_back = self._get_image_statistics(frame, mask_back)
 
 #             debug.show_image(mean_sand, np.sqrt(var_sand), mean_back, np.sqrt(var_back))
 #             exit()
-            
-            prob_sand = stat_sand.probability(frame)
-            prob_back = stat_back.probability(frame)
-
-#             debug.show_image(frame, p_back - p_sand, p_sand, p_back)
-#             exit()
-
-#             discriminate = -0.5*(  (frame - mean_sand)**2/var_sand
-#                                  - (frame - mean_back)**2/var_back
-#                                  + np.log(var_sand) - np.log(var_back))
-            
-#             debug.show_image(discriminate > 0, discriminate > 0, mask=roi)
-#             exit()
-
-#             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
-#             mask = cv2.morphologyEx(mask_back.astype(np.uint8), cv2.MORPH_GRADIENT, kernel).astype(np.bool)
-#             mask[ground_mask == 0] = False
-#             
-#             burrow_points = (discriminate[mask] < 0)
-#             change_count = (mask_sand[mask] ^ burrow_points).sum() #< count points that get changed
-#             self.burrow_mask[mask] = burrow_points
-            
-            # build the mask of the region we consider
+        
+        # build the mask of the region we consider
 #             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
 #             mask = cv2.morphologyEx(mask_back.astype(np.uint8),
 #                                     cv2.MORPH_GRADIENT, kernel).astype(np.bool)
-            mask = (stat_sand.count > 0.2*50**2) & (stat_back.count > 0.2*50**2)  
-            mask[ground_mask == 0] = False
-            
-            # determine points that belong to burrows
-            #burrow_points = (frame[mask] < 0.5*(mean_sand[mask] + mean_back[mask]))
-            burrow_points = (prob_back[mask] > prob_sand[mask])
-#             change_count = (mask_sand[mask] ^ burrow_points).sum() #< count points that get changed
-            self.burrow_mask[mask] = burrow_points
+        mask = (stat_sand.count > 0.2*50**2) & (stat_back.count > 0.2*50**2)  
+        mask[ground_mask == 0] = False
+        
+        # determine the probabilities 
+        prob_sand = stat_sand.probability(frame[mask], mask)
+        prob_back = stat_back.probability(frame[mask], mask)
 
-            # remove chunks close to the ground line 
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(21, 21))
-            mask = cv2.erode(ground_mask, kernel)
-            self.burrow_mask[ground_mask - mask == 1] = 0 
-                   
-            # connect chunks
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(21, 21)) 
-            self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel)
-            
-            cv2.imshow('mask', self.burrow_mask*255)
-            cv2.waitKey(1)
-#                     
+        # determine points in the mask that belong to burrows
+        burrow_points = (prob_back > prob_sand)
+#             change_count = (mask_sand[mask] ^ burrow_points).sum() #< count points that get changed
+        self.burrow_mask[mask] = burrow_points
+
+        # remove chunks close to the ground line 
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(21, 21))
+        mask = cv2.erode(ground_mask, kernel)
+        self.burrow_mask[ground_mask - mask == 1] = 0 
+               
+        # connect chunks
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(21, 21)) 
+        self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel)
+        
+#         cv2.imshow('mask', self.burrow_mask*255)
+#         cv2.waitKey(1)
+
 # #             debug.show_image(frame, self.burrow_mask, wait_for_key=False)
-#             print change_count 
         
         # there are no burrows above the ground by definition
         self.burrow_mask[ground_mask == 0] = 0
