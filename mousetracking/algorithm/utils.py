@@ -186,4 +186,7 @@ class NormalDistribution(object):
             return 2*stats.norm.cdf(-0.5*delta)
 
         else:
+            # here, we would have to integrate numerically
             raise NotImplementedError
+        
+        

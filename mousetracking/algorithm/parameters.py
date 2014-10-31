@@ -256,8 +256,10 @@ PARAMETER_LIST = [
     # Burrows
     Parameter('burrows/enabled_pass1', False, UNIT.BOOLEAN,
               'Whether burrows should be located in the first pass'),
-    Parameter('burrows/enabled_pass3', True, UNIT.BOOLEAN,
+    Parameter('burrows/enabled_pass3', False, UNIT.BOOLEAN,
               'Whether burrows should be located in the third pass'),
+    Parameter('burrows/enabled_pass4', True, UNIT.BOOLEAN,
+              'Whether burrows should be located in the fourth pass'),
     Parameter('burrows/adaptation_interval', 100, UNIT.TIME_FRAMES,
               'How often are the burrow shapes adapted'),
     Parameter('burrows/cage_margin', 30, UNIT.LENGTH_PIXEL,

@@ -76,8 +76,8 @@ class ThirdPass(DataHandler):
         self.setup_processing()
         self.debug_setup()
 
-        self.log_event('Pass 3 - Started iterating through the video with %d frames.' %
-                       self.video.frame_count)
+        self.log_event('Pass 3 - Started iterating through the video with '
+                       '%d frames.' % self.video.frame_count)
         self.data['analysis-status'] = 'Initialized video analysis'
         start_time = time.time()            
         
