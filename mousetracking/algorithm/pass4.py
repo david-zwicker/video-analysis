@@ -545,12 +545,11 @@ class FourthPass(DataHandler):
         #debug.show_image(self.burrow_mask, frame)
 
 
-    def update_burrow_mask_using_var(self, frame):
+    def update_burrow_mask(self, frame):
         """
         updates the burrow mask based on the color of the current frame.
         TODO: restrict calculation to ROI 
         """
-        change_count = np.inf
         iterations = 0
 
         # start with the ground mask
@@ -558,15 +557,13 @@ class FourthPass(DataHandler):
         
         self.burrow_mask[ground_mask == 0] = 1
         
-        while change_count > 10 and iterations < 50:
+        while iterations < 1:
             iterations += 1
              
             # get masks
             mask_sand = (self.burrow_mask == 0)
             mask_back = (self.burrow_mask == 1)
 
-            import matplotlib.pyplot as plt
-            
             # get statistics
             def get_statistics(img, mask, w=50):
                 """ calculate mean and variance in a window around a point, 
@@ -610,13 +607,13 @@ class FourthPass(DataHandler):
                 var = (s2 - s1**2/count)/(count - 1)
                 mean = s1/count + K
 
-                var = np.ones_like(mean)
+#                 var = np.ones_like(mean)
 #                 debug.show_image(img_m, count, s1, s2, mean, var, wait_for_key=False)
 
                 return count, mean, var
             
-            cnt_sand, mean_sand, var_sand = get_statistics(frame, mask_sand)
-            cnt_back, mean_back, var_back = get_statistics(frame, mask_back)
+            count_sand, mean_sand, var_sand = get_statistics(frame, mask_sand)
+            count_back, mean_back, var_back = get_statistics(frame, mask_back)
 
 #             debug.show_image(mean_sand, np.sqrt(var_sand), mean_back, np.sqrt(var_back))
 #             exit()
@@ -647,8 +644,8 @@ class FourthPass(DataHandler):
             
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
             
-            p_sand = np.clip(np.exp(-0.5*(frame - mean_sand)**2/var_sand), 0, 1)
-            p_back = np.clip(np.exp(-0.5*(frame - mean_back)**2/var_back), 0, 1)
+            p_sand = np.exp(-0.5*(frame - mean_sand)**2/var_sand)/np.sqrt(var_sand)
+            p_back = np.exp(-0.5*(frame - mean_back)**2/var_back)/np.sqrt(var_back)
 
 #             debug.show_image(frame, p_back - p_sand, p_sand, p_back)
 #             exit()
@@ -665,10 +662,10 @@ class FourthPass(DataHandler):
                 M2 = M2 + delta*(x - mean)
                 return mean, M2/(count - 1)
             
-            dist_sand = distribution_add(cnt_sand, mean_sand, var_sand, frame)
-            dist_back = distribution_add(cnt_back, mean_back, var_back, frame)
-            
-            roi = (cnt_sand > 50) & (cnt_back > 50)  
+#             dist_sand = distribution_add(cnt_sand, mean_sand, var_sand, frame)
+#             dist_back = distribution_add(cnt_back, mean_back, var_back, frame)
+#             
+#             roi = (cnt_sand > 50) & (cnt_back > 50)  
             
 #             debug.show_image(mean_sand, dist_sand[0],
 #                              mean_back, dist_back[0], mask=roi)
@@ -686,19 +683,40 @@ class FourthPass(DataHandler):
 #             debug.show_image(dist1, dist2, np.clip(dist1 - dist2, -0.1, 0.1))
 #             exit()
 
-            discriminate = -0.5*(  (frame - mean_sand)**2/var_sand
-                                 - (frame - mean_back)**2/var_back
-                                 + np.log(var_sand) - np.log(var_back))
+#             discriminate = -0.5*(  (frame - mean_sand)**2/var_sand
+#                                  - (frame - mean_back)**2/var_back
+#                                  + np.log(var_sand) - np.log(var_back))
             
 #             debug.show_image(discriminate > 0, discriminate > 0, mask=roi)
 #             exit()
 
-            mask = cv2.morphologyEx(mask_back.astype(np.uint8), cv2.MORPH_GRADIENT, kernel).astype(np.bool)
+#             mask = cv2.morphologyEx(mask_back.astype(np.uint8), cv2.MORPH_GRADIENT, kernel).astype(np.bool)
+#             mask[ground_mask == 0] = False
+#             
+#             burrow_points = (discriminate[mask] < 0)
+#             change_count = (mask_sand[mask] ^ burrow_points).sum() #< count points that get changed
+#             self.burrow_mask[mask] = burrow_points
+            
+            # build the mask of the region we consider
+#             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
+#             mask = cv2.morphologyEx(mask_back.astype(np.uint8),
+#                                     cv2.MORPH_GRADIENT, kernel).astype(np.bool)
+            mask = (count_sand > 0.1*50**2) & (count_back > 0.1*50**2)  
             mask[ground_mask == 0] = False
             
-            burrow_points = (discriminate[mask] < 0)
-            change_count = (mask_sand[mask] ^ burrow_points).sum() #< count points that get changed
+            # determine points that belong to burrows
+            burrow_points = (frame[mask] < 0.5*(mean_sand[mask] + mean_back[mask]))
+#             change_count = (mask_sand[mask] ^ burrow_points).sum() #< count points that get changed
             self.burrow_mask[mask] = burrow_points
+
+            # remove chunks close to the ground line 
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(11, 11))
+            mask = cv2.erode(ground_mask, kernel)
+            self.burrow_mask[ground_mask - mask == 1] = 0 
+                   
+            # connect chunks
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(21, 21)) 
+            self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel)
             
             if False:
                 # check for new burrow points
@@ -745,12 +763,11 @@ class FourthPass(DataHandler):
 #         exit()        
 
 
-    def update_burrow_mask(self, frame):
+    def update_burrow_mask_only_mean(self, frame):
         """
         updates the burrow mask based on the color of the current frame.
         TODO: restrict calculation to ROI 
         """
-        change_count = np.inf
         iterations = 0
 
         # start with the ground mask
@@ -810,7 +827,7 @@ class FourthPass(DataHandler):
 #             debug.show_image(frame, mask)
 #             exit()
             
-            # determine points that have to be changed
+            # determine points that belong to burrows
             burrow_points = (frame[mask] < 0.5*(mean_sand[mask] + mean_back[mask]))
 #             change_count = (mask_sand[mask] ^ burrow_points).sum() #< count points that get changed
             self.burrow_mask[mask] = burrow_points
