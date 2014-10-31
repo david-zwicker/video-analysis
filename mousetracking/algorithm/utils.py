@@ -12,6 +12,10 @@ import contextlib
 import logging
 import os
 
+import numpy as np
+
+from video.analysis.utils import cached_property
+
 
 
 def get_loglevel_from_name(name_or_int):
@@ -66,3 +70,60 @@ def unique_based_on_id(data):
             seen.add(id(item))
     return result
 
+
+
+NORMAL_DISTRIBUTION_NORMALIZATION = 1/np.sqrt(2*np.pi)
+
+class NormalDistribution(object):
+    """ class representing normal distributions """ 
+    
+    def __init__(self, mean, var, count=None):
+        """ normal distributions are described by their mean and variance.
+        Additionally, count denotes how many observations were used to
+        estimate the parameters. All values can also be numpy arrays to
+        represent many distributions efficiently """ 
+        self.mean = mean
+        self.var = var
+        self.count = count
+        
+        
+    def copy(self):
+        return self.__class__(self.mean, self.var, self.count)
+        
+        
+    @cached_property
+    def std(self):
+        """ return standard deviation """
+        return np.sqrt(self.var)
+        
+        
+    def probability(self, value):
+        """ return probability of value """
+        return NORMAL_DISTRIBUTION_NORMALIZATION/self.std \
+                *np.exp(-0.5*(value - self.mean)**2/self.var)
+                
+                
+    def add_observation(self, value):
+        """ add an observed value and adjust mean and variance of the
+        distribution. This returns a new distribution and only works if
+        count was set """
+        if self.count is None:
+            return self.copy()
+        else:
+            M2 = self.var*(self.count - 1)
+            count = self.count + 1
+            delta = value - self.mean
+            mean = self.mean + delta/count
+            M2 = M2 + delta*(value - mean)
+            return NormalDistribution(mean, M2/(count - 1), count)
+                
+                
+    def distance(self, other, kind='kullback-leibler'):
+        """ return the distance between two normal distributions """
+        if kind == 'kullback-leibler':
+            dist = 0.5*(np.log(other.var/self.var) 
+                        + (self.var + (self.mean - self.mean)**2)/other.var 
+                        - 1)
+        else:
+            raise ValueError('Unknown distance `%s`' % kind)
+        return dist

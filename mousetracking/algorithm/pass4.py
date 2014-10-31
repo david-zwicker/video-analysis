@@ -25,6 +25,7 @@ from video.utils import display_progress
 from video.composer import VideoComposer
 
 import debug  # @UnusedImport
+from mousetracking.algorithm.utils import NormalDistribution
 
 
 class FourthPass(DataHandler):
@@ -545,6 +546,54 @@ class FourthPass(DataHandler):
         #debug.show_image(self.burrow_mask, frame)
 
 
+    def _get_image_statistics(self, img, mask, w=50):
+        """ calculate mean and variance in a window around a point, 
+        excluding the point itself
+        Be aware of maxint=9223372036854775807 given by np.iinfo(np.int)
+        or np.int32 max 2147483647
+        => max ksize should be 181, max w=90
+        """
+        K = 128 #< prior to increase stability of the algorithm
+        
+        #kernel = cv2.getStructuringElement(cv2.MORPH_RECT, ksize=(2*w+1, 2*w+1))
+        img_m = np.zeros_like(img, np.int)
+        img_m[mask] = img[mask].astype(np.int) - K
+        
+        # calculate how many on pixel there are 
+        ksize = 2*w + 1
+        
+        mask = np.asarray(mask, np.int)
+        count = cv2.boxFilter(mask, -1, (ksize, ksize),
+                              normalize=False, borderType=cv2.BORDER_CONSTANT)
+        count = count - mask #< exclude the central point if it was in the mask
+        count[count < 2] = 2
+        
+#                 count_test = cv2.sepFilter2D(mask.astype(np.uint16), -1,
+#                                             np.ones(ksize, np.uint16), np.ones(ksize, np.uint16),
+#                                             )
+#                 
+#                 debug.show_image(count, count_test)
+#                 exit()
+        
+        # calculate the local sums and squared sums
+        img_m2 = img_m**2
+        s1 = cv2.boxFilter(img_m, -1, (ksize, ksize),
+                           normalize=False, borderType=cv2.BORDER_CONSTANT)
+        s2 = cv2.boxFilter(img_m2, -1, (ksize, ksize),
+                           normalize=False, borderType=cv2.BORDER_CONSTANT)
+        s1 = s1 - mask*img_m  #< exclude the central point
+        s2 = s2 - mask*img_m2 #< exclude the central point
+        
+        # scale by number of mask pixels
+        var = (s2 - s1**2/count)/(count - 1)
+        mean = s1/count + K
+
+#                 var = np.ones_like(mean)
+#                 debug.show_image(img_m, count, s1, s2, mean, var, wait_for_key=False)
+
+        return NormalDistribution(mean, var, count)
+
+
     def update_burrow_mask(self, frame):
         """
         updates the burrow mask based on the color of the current frame.
@@ -565,122 +614,16 @@ class FourthPass(DataHandler):
             mask_back = (self.burrow_mask == 1)
 
             # get statistics
-            def get_statistics(img, mask, w=50):
-                """ calculate mean and variance in a window around a point, 
-                excluding the point itself
-                Be aware of maxint=9223372036854775807 given by np.iinfo(np.int)
-                or np.int32 max 2147483647
-                => max ksize should be 181, max w=90
-                """
-                K = 128 #< prior to increase stability of the algorithm
-                
-                #kernel = cv2.getStructuringElement(cv2.MORPH_RECT, ksize=(2*w+1, 2*w+1))
-                img_m = np.zeros_like(img, np.int)
-                img_m[mask] = img[mask].astype(np.int) - K
-                
-                # calculate how many on pixel there are 
-                ksize = 2*w + 1
-                
-                mask = np.asarray(mask, np.int)
-                count = cv2.boxFilter(mask, -1, (ksize, ksize),
-                                      normalize=False, borderType=cv2.BORDER_CONSTANT)
-                count = count - mask #< exclude the central point if it was in the mask
-                count[count < 2] = 2
-                
-#                 count_test = cv2.sepFilter2D(mask.astype(np.uint16), -1,
-#                                             np.ones(ksize, np.uint16), np.ones(ksize, np.uint16),
-#                                             )
-#                 
-#                 debug.show_image(count, count_test)
-#                 exit()
-                
-                # calculate the local sums and squared sums
-                img_m2 = img_m**2
-                s1 = cv2.boxFilter(img_m, -1, (ksize, ksize),
-                                   normalize=False, borderType=cv2.BORDER_CONSTANT)
-                s2 = cv2.boxFilter(img_m2, -1, (ksize, ksize),
-                                   normalize=False, borderType=cv2.BORDER_CONSTANT)
-                s1 = s1 - mask*img_m  #< exclude the central point
-                s2 = s2 - mask*img_m2 #< exclude the central point
-                
-                # scale by number of mask pixels
-                var = (s2 - s1**2/count)/(count - 1)
-                mean = s1/count + K
-
-#                 var = np.ones_like(mean)
-#                 debug.show_image(img_m, count, s1, s2, mean, var, wait_for_key=False)
-
-                return count, mean, var
-            
-            count_sand, mean_sand, var_sand = get_statistics(frame, mask_sand)
-            count_back, mean_back, var_back = get_statistics(frame, mask_back)
+            stat_sand = self._get_image_statistics(frame, mask_sand)
+            stat_back = self._get_image_statistics(frame, mask_back)
 
 #             debug.show_image(mean_sand, np.sqrt(var_sand), mean_back, np.sqrt(var_back))
 #             exit()
             
-            def gaussian_stat(img, mask, x, y, w=50):
-                xs = slice(max(x - w, 0), min(x + w, img.shape[0]))
-                ys = slice(max(y - w, 0), min(y + w, img.shape[1]))
-                # exclude current pixel from the calculation
-                m = mask[x, y]
-                mask[x, y] = 0
-                roi = img[xs, ys][mask[xs, ys]]
-                mask[x, y] = m
-                mean = roi.mean()
-                # faster implementation of variance calculation from
-                # http://stackoverflow.com/a/19391264/932593
-                c = roi - mean
-                var = np.dot(c, c)/(roi.size - 1)
-                #assert np.abs(var - roi.var()) < 1e-10
-                
-                print mean_sand[x, y], mean
-                print var_sand[x, y], var
-                exit()
-                
-                return np.exp(-0.5*(mean - img[x, y])**2/var)
-
-            new_points = np.ones_like(self.burrow_mask)
-            change_count = 0
-            
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
-            
-            p_sand = np.exp(-0.5*(frame - mean_sand)**2/var_sand)/np.sqrt(var_sand)
-            p_back = np.exp(-0.5*(frame - mean_back)**2/var_back)/np.sqrt(var_back)
+            prob_sand = stat_sand.probability(frame)
+            prob_back = stat_back.probability(frame)
 
 #             debug.show_image(frame, p_back - p_sand, p_sand, p_back)
-#             exit()
-            
-            def dist_kullback_leibler((mean1, var1), (mean2, var2)):
-                dist = np.log(var2/var1) + (var1 + (mean1 - mean2)**2)/var2 - 1
-                return 0.5*dist
-
-            def distribution_add(count, mean, var, x):
-                M2 = var*(count - 1)
-                count += 1
-                delta = x - mean
-                mean = mean + delta/count
-                M2 = M2 + delta*(x - mean)
-                return mean, M2/(count - 1)
-            
-#             dist_sand = distribution_add(cnt_sand, mean_sand, var_sand, frame)
-#             dist_back = distribution_add(cnt_back, mean_back, var_back, frame)
-#             
-#             roi = (cnt_sand > 50) & (cnt_back > 50)  
-            
-#             debug.show_image(mean_sand, dist_sand[0],
-#                              mean_back, dist_back[0], mask=roi)
-#              
-#             debug.show_image(var_sand, dist_sand[1],
-#                              var_back, dist_back[1], mask=roi)  
-#             exit()
-                      
-#             dist1 = dist_kullback_leibler((mean_sand, var_sand), dist_back)
-#             dist2 = dist_kullback_leibler(dist_sand, (mean_back, var_back))
-#             dist1 = dist_kullback_leibler((mean_sand, var_sand), dist_sand)
-#             dist2 = dist_kullback_leibler(dist_back, (mean_back, var_back))
-#             dist1[~roi] = np.nan
-#             dist2[~roi] = np.nan
-#             debug.show_image(dist1, dist2, np.clip(dist1 - dist2, -0.1, 0.1))
 #             exit()
 
 #             discriminate = -0.5*(  (frame - mean_sand)**2/var_sand
@@ -690,6 +633,7 @@ class FourthPass(DataHandler):
 #             debug.show_image(discriminate > 0, discriminate > 0, mask=roi)
 #             exit()
 
+#             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
 #             mask = cv2.morphologyEx(mask_back.astype(np.uint8), cv2.MORPH_GRADIENT, kernel).astype(np.bool)
 #             mask[ground_mask == 0] = False
 #             
@@ -701,11 +645,12 @@ class FourthPass(DataHandler):
 #             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
 #             mask = cv2.morphologyEx(mask_back.astype(np.uint8),
 #                                     cv2.MORPH_GRADIENT, kernel).astype(np.bool)
-            mask = (count_sand > 0.1*50**2) & (count_back > 0.1*50**2)  
+            mask = (stat_sand.count > 0.1*50**2) & (stat_back.count > 0.1*50**2)  
             mask[ground_mask == 0] = False
             
             # determine points that belong to burrows
-            burrow_points = (frame[mask] < 0.5*(mean_sand[mask] + mean_back[mask]))
+            #burrow_points = (frame[mask] < 0.5*(mean_sand[mask] + mean_back[mask]))
+            burrow_points = (prob_back[mask] > prob_sand[mask])
 #             change_count = (mask_sand[mask] ^ burrow_points).sum() #< count points that get changed
             self.burrow_mask[mask] = burrow_points
 
@@ -718,38 +663,6 @@ class FourthPass(DataHandler):
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(21, 21)) 
             self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel)
             
-            if False:
-                # check for new burrow points
-                mask = mask_back.astype(np.uint8)
-                mask = cv2.dilate(mask, kernel, iterations=1) - mask
-                points = np.nonzero(mask == 1)
-                for x, y in zip(*points):
-    #                 p_sand = gaussian_stat(frame, mask_sand, x, y)
-    #                 p_back = gaussian_stat(frame, mask_back, x, y)
-    #                 exit()
-                    p_sand = np.exp(-0.5*(frame[x, y] - mean_sand[x, y])**2/var_sand[x, y])
-                    p_back = np.exp(-0.5*(frame[x, y] - mean_back[x, y])**2/var_back[x, y])
-                    
-                    if p_back/p_sand > 1:
-                        self.burrow_mask[x, y] = 1
-                        change_count += 1
-                        new_points[x, y] = 2
-                
-                # check for obsolete burrow points
-                mask = mask_sand.astype(np.uint8)
-                mask = cv2.dilate(mask, kernel, iterations=1) - mask
-                points = np.nonzero(mask == 1)
-                for x, y in zip(*points):
-                    if ground_mask[x, y] == 1:
-                        p_sand = np.exp(-0.5*(frame[x, y] - mean_sand[x, y])**2/var_sand[x, y])
-                        p_back = np.exp(-0.5*(frame[x, y] - mean_back[x, y])**2/var_back[x, y])
-    #                     p_sand = gaussian_stat(frame, mask_sand, x, y)
-    #                     p_back = gaussian_stat(frame, mask_back, x, y)
-                        if p_sand/p_back > 1:
-                            self.burrow_mask[x, y] = 0
-                            change_count += 1
-                            new_points[x, y] = 0
-                    
             cv2.imshow('mask', self.burrow_mask*255)
             cv2.waitKey(1)
 #                     
