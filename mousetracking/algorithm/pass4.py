@@ -435,10 +435,18 @@ class FourthPass(DataHandler):
         ground_mask = self.get_ground_mask(fill_value=1)
         # add the sky region to the burrow mask (since it is also background)
         self.burrow_mask[ground_mask == 0] = 1
+
+        # define the region where the frame of the cage is
+        left, right = self.ground.points[0, 0], self.ground.points[-1, 0]
+        def disable_frame_region(img):
+            """ helper function setting the region of the cage frame to False """
+            img[:, :left] = False
+            img[:, right:] = False
+            return img
         
         # get masks for the region of the sand and the background
-        mask_sand = (self.burrow_mask == 0)
-        mask_back = (self.burrow_mask == 1)
+        mask_sand = disable_frame_region(self.burrow_mask == 0)
+        mask_back = disable_frame_region(self.burrow_mask == 1)
 
         # get statistics of these two regions
         stat_sand = self._get_image_statistics(frame, mask_sand)
@@ -448,7 +456,8 @@ class FourthPass(DataHandler):
         count_min = 0.02*stat_back.count.max()
         mask = (stat_sand.count > count_min) & (stat_back.count > count_min)  
         mask[ground_mask == 0] = False
-
+        mask = disable_frame_region(mask)
+        
 #         debug.show_image(stat_sand.mean, np.sqrt(stat_sand.var),
 #                          stat_back.mean, np.sqrt(stat_back.var),
 #                          mask=mask)
@@ -757,7 +766,8 @@ class FourthPass(DataHandler):
             self.debug['video'] = VideoComposer(debug_file, size=self.video.size,
                                                 fps=self.video.fps, is_color=True,
                                                 output_period=video_output_period,
-                                                codec=video_codec, bitrate=video_bitrate)
+                                                codec=video_codec,
+                                                bitrate=video_bitrate)
             
             if 'video.show' in self.debug_output:
                 name = self.name if self.name else ''
@@ -786,8 +796,9 @@ class FourthPass(DataHandler):
                 for burrow in self.active_burrows():
                     debug_video.add_line(burrow.outline, 'r')
                     if burrow.centerline is not None:
-                        debug_video.add_line(burrow.centerline, 'r', is_closed=False,
-                                             width=2, mark_points=True)
+                        debug_video.add_line(burrow.centerline, 'r',
+                                             is_closed=False, width=2,
+                                             mark_points=True)
                 
             # add additional debug information
             if 'video.show' in self.debug:

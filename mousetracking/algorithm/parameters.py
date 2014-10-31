@@ -302,12 +302,6 @@ PARAMETER_LIST = [
     Parameter('burrows/simplification_threshold_area', 50, UNIT.AREA_PIXEL,
               'Burrow outline points are removed when the resulting effective '
               'change is below this threshold'),
-    Parameter('burrows/color_threshold_fraction', 0.9, None,
-              'Parameter that is used to determine the color threshold above '
-              'which burrows are disregarded, because they are too bright to '
-              'be proper burrows. The color threshold is calculated as '
-              '  thresh = fraction*color_sand + (1 - fraction)*color_sky   '
-              'where fraction is the value set here.'),
     Parameter('burrows/chunk_dist_max', 30, UNIT.LENGTH_PIXEL,
               'Maximal distance between a burrow chunk and another structure '
               '(either another chunk or the ground line), such that the chunk '
