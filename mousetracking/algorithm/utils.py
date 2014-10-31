@@ -16,6 +16,7 @@ import numpy as np
 from scipy import stats
 
 from video.analysis.utils import cached_property
+from sphinx.directives import other
 
 
 
@@ -166,4 +167,24 @@ class NormalDistribution(object):
         prob = stats.t.sf(np.abs(t), dof) * 2
         return prob
     
+    
+    def overlap(self, other, common_variance=True):
+        """ estimates the amount of overlap between two distributions """
+        if common_variance:
+            if self.count is None:
+                if other.count is None: # neither is sampled
+                    S = np.sqrt(0.5*(self.var + other.var))
+                else: # other is sampled
+                    S = self.std
+            else: 
+                if other.count is None:  # self is sampled
+                    S = other.std
+                else: # both are sampled
+                    expr = (self.count - 1)*self.var + (other.count - 1)*other.var
+                    S = np.sqrt(expr/(self.count + other.count - 2))
 
+            delta = np.abs(self.mean - other.mean)/S
+            return 2*stats.norm.cdf(-0.5*delta)
+
+        else:
+            raise NotImplementedError

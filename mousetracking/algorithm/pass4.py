@@ -628,7 +628,7 @@ class FourthPass(DataHandler):
         stat_back = self._get_image_statistics(frame, mask_back)
 
         # build the mask of the region we consider
-        count_min = 0.05*stat_back.count.max()
+        count_min = 0.02*stat_back.count.max()
         mask = (stat_sand.count > count_min) & (stat_back.count > count_min)  
         mask[ground_mask == 0] = False
 
@@ -638,6 +638,9 @@ class FourthPass(DataHandler):
 #         exit()
 
         # restrict the mask to points where the distributions differ significantly
+        overlap = stat_sand.overlap(stat_back)
+        mask[mask] = (overlap[mask] < 0.5)
+
 #         dist = stat_sand.distance(stat_back)
         #p_value = stat_sand.welch_test(stat_back)
 
@@ -676,6 +679,18 @@ class FourthPass(DataHandler):
         
 #         debug.show_image(frame, self.burrow_mask)
 #         exit()        
+
+        # Label all features to remove the small, bright ones
+        labels, num_features = ndimage.measurements.label(self.burrow_mask)
+
+#         # calculate the overlap between the probability distributions
+#         overlap = stat_sand.overlap(stat_back)
+# 
+#         for label in xrange(1, num_features + 1):
+#             mask = (labels == label)
+#             # remove burrows with too little overlap
+#             if np.mean(overlap[mask]) > 0.5:
+#                 self.burrow_mask[mask] = 0
 
 
     def update_burrow_mask_only_mean(self, frame):
