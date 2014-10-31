@@ -645,7 +645,7 @@ class FourthPass(DataHandler):
 #             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
 #             mask = cv2.morphologyEx(mask_back.astype(np.uint8),
 #                                     cv2.MORPH_GRADIENT, kernel).astype(np.bool)
-            mask = (stat_sand.count > 0.1*50**2) & (stat_back.count > 0.1*50**2)  
+            mask = (stat_sand.count > 0.2*50**2) & (stat_back.count > 0.2*50**2)  
             mask[ground_mask == 0] = False
             
             # determine points that belong to burrows
@@ -655,7 +655,7 @@ class FourthPass(DataHandler):
             self.burrow_mask[mask] = burrow_points
 
             # remove chunks close to the ground line 
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(11, 11))
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(21, 21))
             mask = cv2.erode(ground_mask, kernel)
             self.burrow_mask[ground_mask - mask == 1] = 0 
                    
