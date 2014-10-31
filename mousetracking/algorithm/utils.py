@@ -63,7 +63,8 @@ def change_directory(path):
 
 def unique_based_on_id(data):
     """ returns a list with only unique items, where the uniqueness
-    is determined from the id of the items """
+    is determined from the id of the items. This can be useful in the
+    case where the items cannot be hashed and a set can thus not be used. """
     result, seen = [], set()
     for item in data:
         if id(item) not in seen:

@@ -214,7 +214,7 @@ class FourthPass(DataHandler):
         """ determines the exits of a burrow """
         
         ground_line = self.ground.linestring
-        dist = self.params['burrows/ground_point_distance']
+        dist = self.params['burrows/ground_point_distance']/2
         dist_max = dist + self.params['burrows/width']
         
         outline = curves.make_curve_equidistant(outline, spacing=dist)
@@ -248,7 +248,7 @@ class FourthPass(DataHandler):
     def _get_burrow_centerline(self, burrow, point_start, point_end=None):
         """ determine the centerline of a burrow with one exit """
 
-        def get_closest_point(point):
+        def get_closest_points(point):
             """ get point closest to the burrow outline """
             rel_points = burrow.outline - np.asarray(point)
             contour = np.r_[rel_points, [rel_points[0]]]
@@ -258,42 +258,48 @@ class FourthPass(DataHandler):
             # but this is too slow.
             # We thus test many different points on the outline and just
             # take the closest
-            contour = curves.make_curve_equidistant(contour, 2)
-            k = np.argmin(np.linalg.norm(contour, axis=1))
-            return contour[k] + np.asarray(point)
+            contour = np.array(curves.make_curve_equidistant(contour, 2))
+            
+            dist = np.linalg.norm(contour, axis=1)
+            dist_tresh = dist.min() + self.params['burrows/ground_point_distance']/2
+            contour = contour[dist <= dist_tresh, :]
+            return contour + np.asarray(point)
             
         # find the point in the burrow that is closest to the ground point
-        p_start = get_closest_point(point_start)
+        p_start = get_closest_points(point_start)
 
         # get a binary image of the burrow
         mask, shift = burrow.get_mask(margin=3, dtype=np.int32, ret_shift=True)
-        p_start = (int(p_start[0] - shift[0]),
-                   int(p_start[1] - shift[1]))
-        mask[p_start[1], p_start[0]] = 1
+        p_start = curves.translate_points(p_start, -shift[0], -shift[1])
+        for p in p_start:
+            mask[p[1], p[0]] = 1
         
         if point_end is None:
             # end point is not given and will thus be determined automatically
             
             # calculate the distance from the start point 
-            regions.distance_fill(mask.T, [p_start])
+            regions.distance_fill(mask.T, p_start)
             
             # find the second point by locating the farthest point
             _, dist, _, p_end = cv2.minMaxLoc(mask)
         
         else:
             # prepare the end point if present
-            p_end = get_closest_point(point_end)
+            p_end = get_closest_points(point_end)
             # translate that point to the mask frame
-            p_end = (int(p_end[0] - shift[0]),
-                     int(p_end[1] - shift[1]))
-            mask[p_end[1], p_end[0]] = 1
+            p_end = curves.translate_points(p_end, -shift[0], -shift[1])
+            for p in p_start:
+                mask[p[1], p[0]] = 1
 
             # calculate the distance from the start point 
-            regions.distance_fill(mask.T, [p_start], [p_end])
+            regions.distance_fill(mask.T, p_start, p_end)
             
             # get the distance between the start and the end point
-            dist = mask[p_end[1], p_end[0]]
-
+            dists = [mask[p[1], p[0]] for p in p_end]
+            best_endpoint = np.argmin(dists)
+            p_end = p_end[best_endpoint]
+            dist = dists[best_endpoint]
+            
         # find an estimate for the centerline from the shortest distance between
         # the two points p_start and p_end
         points = []
@@ -332,7 +338,7 @@ class FourthPass(DataHandler):
                 y -= 1
             elif y < ymax and mask[y + 1, x] == d:
                 y += 1
-        points.append(p_start)
+#        points.append(p_start)
                 
 #         debug.show_shape(geometry.LineString(points),
 #                          geometry.Point(p_start), geometry.Point(p_exit_b),
@@ -764,12 +770,12 @@ class FourthPass(DataHandler):
 
     def get_burrow_chunks(self, frame):
         """ determines regions under ground that belong to burrows """     
-        ground_line = self.ground.linestring
+#         ground_line = self.ground.linestring
 
-        color_sand = self.data['pass1/colors/sand']
-        color_sky = self.data['pass1/colors/sky']
-        fraction = self.params['burrows/color_threshold_fraction']
-        color_thresh = fraction*color_sand + (1 - fraction)*color_sky
+#         color_sand = self.data['pass1/colors/sand']
+#         color_sky = self.data['pass1/colors/sky']
+#         fraction = self.params['burrows/color_threshold_fraction']
+#         color_thresh = fraction*color_sand + (1 - fraction)*color_sky
 
         labels, num_features = ndimage.measurements.label(self.burrow_mask)
 
@@ -780,16 +786,16 @@ class FourthPass(DataHandler):
             if props.area < self.params['burrows/area_min']:
                 continue
             
-            # check whether the burrow is sufficiently underground
-            dist = ground_line.distance(geometry.Point(props.centroid))
-            if dist < self.params['burrows/ground_point_distance']/2:
-                continue
+#             # check whether the burrow is sufficiently underground
+#             dist = ground_line.distance(geometry.Point(props.centroid))
+#             if dist < self.params['burrows/ground_point_distance']/2:
+#                 continue
             
-            # check mean color of the burrow
-            color_avg = frame[labels == label].mean()
-            if color_avg > color_thresh:
-                self.burrow_mask[labels == label] = 0
-                continue
+#             # check mean color of the burrow
+#             color_avg = frame[labels == label].mean()
+#             if color_avg > color_thresh:
+#                 self.burrow_mask[labels == label] = 0
+#                 continue
             
             # extend the contour to the ground line
             contours, _ = cv2.findContours(np.asarray(labels == label, np.uint8),
