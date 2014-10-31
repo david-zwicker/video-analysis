@@ -65,6 +65,13 @@ def show_image(*images, **kwargs):
     else:
         share_axes = False
     
+    if kwargs.pop('lognorm', False):
+        from matplotlib.colors import LogNorm
+        vmin = max(vmin, 1e-4)
+        norm = LogNorm(vmin, vmax)
+    else:
+        norm = None
+    
     # plot all the images
     for k, image in enumerate(images):
         if share_axes:
@@ -77,7 +84,8 @@ def show_image(*images, **kwargs):
         else:
             plt.subplot(num_rows, num_cols, k + 1)
             
-        plt.imshow(image, interpolation='nearest', vmin=vmin, vmax=vmax)
+        plt.imshow(image, interpolation='nearest',
+                   vmin=vmin, vmax=vmax, norm=norm)
         plt.gray()
         
         if image.min() != image.max():

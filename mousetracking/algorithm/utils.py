@@ -98,13 +98,8 @@ class NormalDistribution(object):
         return np.sqrt(self.var)
         
     
-#     @cached_property
-#     def scipy_rvs(self):
-#         return stats.norm.rvs(loc=self.mean, scale=self.std, size=self.count)
-        
-        
-    def probability(self, value, mask=None):
-        """ return probability of value """
+    def pdf(self, value, mask=None):
+        """ return probability density function at value """
         if mask is None:
             mean = self.mean
             var = self.var

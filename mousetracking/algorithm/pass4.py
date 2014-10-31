@@ -592,8 +592,9 @@ class FourthPass(DataHandler):
         img_m2 = img_m**2
         s1 = filter_image(img_m)
         s2 = filter_image(img_m2)
-        s1 -= mask*img_m  #< exclude the central point
-        s2 -= mask*img_m2 #< exclude the central point
+        s1 = s1 - mask*img_m  #< exclude the central point
+        s2 = s2 - mask*img_m2 #< exclude the central point
+        # don't use -= here, since s1 seems to be int32 only 
         
         # scale by number of pixels in the region
         var = (s2 - s1**2/count)/(count - 1)
@@ -620,19 +621,28 @@ class FourthPass(DataHandler):
         stat_sand = self._get_image_statistics(frame, mask_sand)
         stat_back = self._get_image_statistics(frame, mask_back)
 
-#             debug.show_image(mean_sand, np.sqrt(var_sand), mean_back, np.sqrt(var_back))
-#             exit()
-        
         # build the mask of the region we consider
-#             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(5, 5))
-#             mask = cv2.morphologyEx(mask_back.astype(np.uint8),
-#                                     cv2.MORPH_GRADIENT, kernel).astype(np.bool)
-        mask = (stat_sand.count > 0.2*50**2) & (stat_back.count > 0.2*50**2)  
+        count_min = 0.05*stat_back.count.max()
+        mask = (stat_sand.count > count_min) & (stat_back.count > count_min)  
         mask[ground_mask == 0] = False
+
+#         debug.show_image(stat_sand.mean, np.sqrt(stat_sand.var),
+#                          stat_back.mean, np.sqrt(stat_back.var),
+#                          mask=mask)
+#         exit()
+
+        # restrict the mask to points where the distributions differ significantly
+        dist = stat_sand.distance(stat_back)
+
+#         mask[mask] = (dist[mask] > 0.1)
+#         
+#         debug.show_image(stat_sand.mean, stat_back.mean, 
+#                          stat_sand.var, stat_back.var, dist, mask=mask)
+#         exit()
         
         # determine the probabilities 
-        prob_sand = stat_sand.probability(frame[mask], mask)
-        prob_back = stat_back.probability(frame[mask], mask)
+        prob_sand = stat_sand.pdf(frame[mask], mask)
+        prob_back = stat_back.pdf(frame[mask], mask)
 
         # determine points in the mask that belong to burrows
         burrow_points = (prob_back > prob_sand)
