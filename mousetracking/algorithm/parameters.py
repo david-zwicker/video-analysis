@@ -310,6 +310,9 @@ PARAMETER_LIST = [
               'Maximal distance between a burrow chunk and another structure '
               '(either another chunk or the ground line), such that the chunk '
               'is connected to the other structure.'),
+    Parameter('burrows/image_statistics_window', 50, UNIT.LENGTH_PIXEL,
+              'Half of the size of the window over which the statistics of '
+              'the image are calculated.'),
                   
     Parameter('factor_length', 1, UNIT.FACTOR,
               'A factor by which all length scales will be scaled'),

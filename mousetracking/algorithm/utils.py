@@ -158,7 +158,7 @@ class NormalDistribution(object):
         nu1, nu2 = self.count - 1, other.count - 1
         dof = (s1 + s2)**2/(s1**2/nu1 + s2**2/nu2)
 
-        # calculate the welch t-value
+        # calculate the Welch t-value
         t = (self.mean - other.mean)/np.sqrt(s1 + s2)
         
         # calculate the probability using the Student's T distribution 

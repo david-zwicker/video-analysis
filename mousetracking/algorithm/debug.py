@@ -8,6 +8,7 @@ module that contains several functions useful when debugging the algorithm
 
 from __future__ import division
 
+import functools
 import itertools
 
 import numpy as np
@@ -34,6 +35,18 @@ def get_subplot_shape(num_plots=1):
         num_rows = 4    
     num_cols = int(np.ceil(num_plots/num_rows))
     return num_rows, num_cols
+
+
+
+def _ax_format_coord(x, y, image):
+    """ returns a string usable for formating the status line """ 
+    col = int(x + 0.5)
+    row = int(y + 0.5)
+    if 0 <= col < image.shape[1] and 0 <= row < image.shape[0]:
+        z = image[row, col]
+        return 'x=%1.2f, y=%1.2f, z=%1.5g' % (x, y, z)
+    else:
+        return 'x=%1.2f, y=%1.2f' % (x, y)
 
 
 
@@ -65,6 +78,8 @@ def show_image(*images, **kwargs):
     else:
         share_axes = False
     
+    # choose the color map and color scaling
+    plt.gray()
     if kwargs.pop('lognorm', False):
         from matplotlib.colors import LogNorm
         vmin = max(vmin, 1e-4)
@@ -74,30 +89,36 @@ def show_image(*images, **kwargs):
     
     # plot all the images
     for k, image in enumerate(images):
+        # create the axes
         if share_axes:
             # share axes with the first subplot
             if k == 0:
-                share_axes = plt.subplot(num_rows, num_cols, k + 1)
+                ax = plt.subplot(num_rows, num_cols, k + 1)
+                share_axes = ax
             else:
-                plt.subplot(num_rows, num_cols, k + 1,
-                            sharex=share_axes, sharey=share_axes)
+                ax = plt.subplot(num_rows, num_cols, k + 1,
+                                 sharex=share_axes, sharey=share_axes)
         else:
-            plt.subplot(num_rows, num_cols, k + 1)
+            ax = plt.subplot(num_rows, num_cols, k + 1)
             
-        plt.imshow(image, interpolation='nearest',
-                   vmin=vmin, vmax=vmax, norm=norm)
-        plt.gray()
+        # plot the image
+        img = ax.imshow(image, interpolation='nearest',
+                        vmin=vmin, vmax=vmax, norm=norm)
         
+        # add the colorbar
         if image.min() != image.max():
             # recipe from http://stackoverflow.com/a/18195921/932593
             from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport
             divider = make_axes_locatable(plt.gca())
             cax = divider.append_axes("right", size="5%", pad=0.05)
             try:
-                plt.colorbar(cax=cax)
+                plt.colorbar(img, cax=cax)
             except DeprecationWarning:
                 # we don't care about these in the debug module
                 pass
+            
+        # adjust the mouse over effects
+        ax.format_coord = functools.partial(_ax_format_coord, image=image)
         
     # show the images and wait for user input
     plt.show()

@@ -547,15 +547,15 @@ class FourthPass(DataHandler):
         #debug.show_image(self.burrow_mask, frame)
 
 
-    def _get_image_statistics(self, img, mask, window=50, prior=128, kernel='box'):
+    def _get_image_statistics(self, img, mask, prior=128, kernel='box'):
         """ calculate mean and variance in a window around a point, 
         excluding the point itself
-        window denotes the window size use for calculating statistics
         prior denotes a value that is subtracted from the frame before
             calculating statistics. This is necessary for numerical stability.
             The prior should be close to the mean of the values.
         """
         # calculate the window size
+        window = int(self.params['burrows/image_statistics_window'])
         ksize = 2*window + 1
         # check for possible integer overflow (very conservatively)
         if np.iinfo(np.int).max < (ksize*max(prior, 255 - prior))**2:
@@ -633,10 +633,11 @@ class FourthPass(DataHandler):
 
         # restrict the mask to points where the distributions differ significantly
         dist = stat_sand.distance(stat_back)
+        #p_value = stat_sand.welch_test(stat_back)
 
-#         mask[mask] = (dist[mask] > 0.1)
-#         
-#         debug.show_image(stat_sand.mean, stat_back.mean, 
+        mask[mask] = (dist[mask] > 0.1)
+         
+#         debug.show_image(stat_sand.mean, stat_back.mean, p_value,
 #                          stat_sand.var, stat_back.var, dist, mask=mask)
 #         exit()
         
@@ -650,12 +651,13 @@ class FourthPass(DataHandler):
         self.burrow_mask[mask] = burrow_points
 
         # remove chunks close to the ground line 
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(21, 21))
+        w = 2*int(self.params['burrows/width']/2) + 1
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(w, w))
         mask = cv2.erode(ground_mask, kernel)
         self.burrow_mask[ground_mask - mask == 1] = 0 
                
         # connect chunks
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(21, 21)) 
+#         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(21, 21)) 
         self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel)
         
 #         cv2.imshow('mask', self.burrow_mask*255)
