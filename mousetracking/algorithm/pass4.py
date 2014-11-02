@@ -201,6 +201,7 @@ class FourthPass(DataHandler):
             point = points.mean(axis=0)
             point_ground = curves.get_projection_point(ground_line, point)
             exits.append(point_ground)
+            # TODO: keep burrow points and pass these to _get_burrow_centerline
             
         return exits
     
