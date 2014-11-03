@@ -364,6 +364,7 @@ class FourthPass(DataHandler):
         ground_points[-2, :] = (margin, height - margin)
         ground_points[-1, :] = (margin, ground_points[0, 1])
         
+        # create the mask
         cv2.fillPoly(mask_ground, np.array([ground_points], np.int32),
                      color=fill_value)
 
@@ -420,11 +421,11 @@ class FourthPass(DataHandler):
         s2 = s2 - mask*img_m2 #< exclude the central point
         # don't use -= here, since s1 seems to be int32 only 
         
-        # scale by number of pixels in the region
-        var = (s2 - s1**2/count)/(count - 1)
+        # calculate mean and variance
         mean = s1/count + prior
+        var = (s2 - s1**2/count)/(count - 1)
 
-        # return the associated normal distribution
+        # return the associated normal distributions
         return NormalDistribution(mean, var, count)
 
 
@@ -432,7 +433,7 @@ class FourthPass(DataHandler):
         """
         updates the burrow mask based on the current frame.
         """
-        # get the current ground model
+        # get the mask of the current ground
         ground_mask = self.get_ground_mask(fill_value=1)
         # add the sky region to the burrow mask (since it is also background)
         self.burrow_mask[ground_mask == 0] = 1
@@ -450,27 +451,27 @@ class FourthPass(DataHandler):
         mask_back = disable_frame_region(self.burrow_mask == 1)
 
         # get statistics of these two regions
-        stat_sand = self._get_image_statistics(frame, mask_sand)
-        stat_back = self._get_image_statistics(frame, mask_back)
+        stats_sand = self._get_image_statistics(frame, mask_sand)
+        stats_back = self._get_image_statistics(frame, mask_back)
 
         # build the mask of the region we consider
-        count_min = 0.02*stat_back.count.max()
-        mask = (stat_sand.count > count_min) & (stat_back.count > count_min)  
+        count_min = 0.02*stats_back.count.max()
+        mask = (stats_sand.count > count_min) & (stats_back.count > count_min)  
         mask[ground_mask == 0] = False
         mask = disable_frame_region(mask)
         
-#         debug.show_image(stat_sand.mean, np.sqrt(stat_sand.var),
-#                          stat_back.mean, np.sqrt(stat_back.var),
+#         debug.show_image(stats_sand.mean, np.sqrt(stats_sand.var),
+#                          stats_back.mean, np.sqrt(stats_back.var),
 #                          mask=mask)
 #         exit()
 
         # restrict the mask to points where the distributions differ significantly
-#         overlap = stat_sand.overlap(stat_back)
-#         mask[mask] = (overlap[mask] < 0.5)
+        overlap = stats_sand.overlap(stats_back)
+        mask[mask] = (overlap[mask] < 0.5)
         
         # determine the probabilities 
-        prob_sand = stat_sand.pdf(frame[mask], mask)
-        prob_back = stat_back.pdf(frame[mask], mask)
+        prob_sand = stats_sand.pdf(frame[mask], mask)
+        prob_back = stats_back.pdf(frame[mask], mask)
 
         # determine points in the mask that belong to burrows
         burrow_points = (prob_back > prob_sand)
@@ -491,19 +492,19 @@ class FourthPass(DataHandler):
 #         debug.show_image(frame, self.burrow_mask)
 #         exit()        
 
-        # Label all features to remove the small, bright ones
-        labels, num_features = ndimage.measurements.label(self.burrow_mask)
-
-        # calculate the overlap between the probability distributions
-        overlap = stat_sand.overlap(stat_back)
- 
-        for label in xrange(1, num_features + 1):
-            mask = (labels == label)
-            # remove burrows with too little overlap
-            # we can't really tell burrow and sand apart
-            # it's safer to assume there is no burrow
-            if np.mean(overlap[mask]) > 0.5:
-                self.burrow_mask[mask] = 0
+#         # Label all features to remove the small, bright ones
+#         labels, num_features = ndimage.measurements.label(self.burrow_mask)
+#
+#         # calculate the overlap between the probability distributions
+#         overlap = stats_sand.overlap(stats_back)
+#  
+#         for label in xrange(1, num_features + 1):
+#             mask = (labels == label)
+#             # remove burrows with too little overlap
+#             # we can't really tell burrow and sand apart
+#             # it's safer to assume there is no burrow
+#             if np.mean(overlap[mask]) > 0.5:
+#                 self.burrow_mask[mask] = 0
 
 
     def get_burrow_chunks(self, frame):

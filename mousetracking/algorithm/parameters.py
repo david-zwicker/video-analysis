@@ -194,7 +194,7 @@ PARAMETER_LIST = [
               'Determines the maximal energy the snake is allowed to have'),
     Parameter('ground/slope_max', 3, UNIT.FRACTION,
               'Maximal slope of the side ridges'),
-    Parameter('ground/frame_margin', 100, UNIT.LENGTH_PIXEL,
+    Parameter('ground/frame_margin', 50, UNIT.LENGTH_PIXEL,
               'Width of the margin to the frame in which the ground profile is '
               'not determined'),
     Parameter('ground/grabcut_uncertainty_margin', 50, UNIT.LENGTH_PIXEL,
