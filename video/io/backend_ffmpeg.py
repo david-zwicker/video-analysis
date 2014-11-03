@@ -214,9 +214,12 @@ class VideoFFmpeg(VideoBase):
     def close(self):
         """ close the process reading the video """
         if self.proc is not None:
-            self.proc.terminate()
-            self.proc.stdout.close()
-            self.proc.stderr.close()
+            try:
+                self.proc.terminate()
+                self.proc.stdout.close()
+                self.proc.stderr.close()
+            except IOError:
+                pass
             self.proc = None
     
     
@@ -383,7 +386,10 @@ class VideoWriterFFmpeg(object):
     def close(self):
         """ finishes the process, which should also make the video available """
         if self.proc is not None:
-            self.proc.communicate()
+            try:
+                self.proc.communicate()
+            except IOError:
+                pass
             logger.info('Wrote video to file `%s`', self.filename)
             self.proc = None
     

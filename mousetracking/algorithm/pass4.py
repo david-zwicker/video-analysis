@@ -481,6 +481,8 @@ class FourthPass(DataHandler):
          
         labels, num_features = ndimage.measurements.label(self.burrow_mask)
 
+        self.debug['video.mark.text1'] += '#chunks: %d' % num_features
+
         burrow_chunks = []
         for label in xrange(1, num_features + 1):
             # check whether the burrow is large enough
@@ -713,7 +715,7 @@ class FourthPass(DataHandler):
         # identify chunks from the burrow mask
         burrow_chunks = self.get_burrow_chunks(frame)
         
-        self.debug['video.mark.text1'] = '#chunks: %d' % len(burrow_chunks)
+        self.debug['video.mark.text1'] += ', %d' % len(burrow_chunks)
 
         # get the burrows by connecting chunks
         burrows = self.connect_burrow_chunks(burrow_chunks)
