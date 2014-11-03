@@ -207,7 +207,7 @@ class Burrow(object):
 
         # draw the burrow into the mask
         outline = np.asarray(self.outline, np.int)
-        offset = (margin - rect[0], margin - rect[1])
+        offset = (-rect[0], -rect[1])
         cv2.fillPoly(mask, [outline], color=1, offset=offset)
         
         if ret_shift:

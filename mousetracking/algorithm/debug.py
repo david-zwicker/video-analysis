@@ -167,7 +167,7 @@ def show_shape(*shapes, **kwargs):
         
         elif isinstance(shape, geometry.MultiPoint):
             coords = np.array([(p.x, p.y) for p in shape])
-            ax.plot(coords[:, 0], coords[:, 1], 'o', color=color, ms=10)
+            ax.plot(coords[:, 0], coords[:, 1], 'o', color=color, ms=4)
         
         elif isinstance(shape, geometry.Polygon):
             patch = descartes.PolygonPatch(shape,
