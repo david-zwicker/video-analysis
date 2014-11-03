@@ -171,13 +171,17 @@ class FourthPass(DataHandler):
 
 
     def _get_burrow_exits(self, outline):
-        """ determines the exits of a burrow """
+        """ determines the exits of a burrow.
+        Returns a list of exits, where each exit is described by a list of
+        points lying on the burrow outline
+        """
         
         ground_line = self.ground.linestring
-        dist = self.params['burrows/ground_point_distance']/2
-        dist_max = dist + self.params['burrows/width']
+        dist_max = self.params['burrows/ground_point_distance']
+        #/2
+#         dist_max = dist + self.params['burrows/width']
         
-        outline = curves.make_curve_equidistant(outline, spacing=dist)
+        outline = curves.make_curve_equidistant(outline, spacing=2)
         
         # determine burrow points close to the ground
         exit_points = [point for point in outline
@@ -195,18 +199,20 @@ class FourthPass(DataHandler):
                                               method='single', 
                                               criterion='distance')
         
-        exits = []
-        for cluster_id in np.unique(data):
-            points = exit_points[data == cluster_id]
-            point = points.mean(axis=0)
-            point_ground = curves.get_projection_point(ground_line, point)
-            exits.append(point_ground)
-            # TODO: keep burrow points and pass these to _get_burrow_centerline
+        exits = [exit_points[data == cluster_id]
+                 for cluster_id in np.unique(data)]
+        
+#         exits = []
+#         for cluster_id in np.unique(data):
+#             points = exit_points[data == cluster_id]
+#             point = points.mean(axis=0)
+#             point_ground = curves.get_projection_point(ground_line, point)
+#             exits.append(point_ground)
             
         return exits
     
     
-    def _get_burrow_centerline(self, burrow, point_start, point_end=None):
+    def _get_burrow_centerline(self, burrow, points_start, points_end=None):
         """ determine the centerline of a burrow with one exit """
 
         def get_closest_points(point):
@@ -225,40 +231,70 @@ class FourthPass(DataHandler):
             dist_tresh = dist.min() + self.params['burrows/ground_point_distance']/2
             contour = contour[dist <= dist_tresh, :]
             return contour + np.asarray(point)
+        
+        
+        def find_ground_point(points):
+            
+            # determine distance from ground
+            ground_line = self.ground.linestring
+            dist = [ground_line.distance(geometry.Point(p))
+                    for p in points]
+            
+            # find closest point
+            point_b = points[np.argmin(dist)]
+            point_g = curves.get_projection_point(ground_line, point_b)
+            
+            return point_g
+        
+#         ground_start = find_ground_point(points_start)
+#         if points_end is None:
+#             ground_end = None
+#         else:
+#             ground_end = find_ground_point(points_end)
+            
+        ground_line = self.ground.linestring
             
         # find the point in the burrow that is closest to the ground point
-        p_start = get_closest_points(point_start)
+        #p_start = get_closest_points(point_start)
 
         # get a binary image of the burrow
         mask, shift = burrow.get_mask(margin=3, dtype=np.int32, ret_shift=True)
-        p_start = curves.translate_points(p_start, -shift[0], -shift[1])
-        for p in p_start:
+        
+        # mark the start points according to their distance to the ground line
+#         dists_g = [ground_line.distance(geometry.Point(p))
+#                    for p in points_start]
+        points_start = curves.translate_points(points_start, -shift[0], -shift[1])
+        for p in points_start:
             mask[p[1], p[0]] = 1
         
-        if point_end is None:
+        if points_end is None:
             # end point is not given and will thus be determined automatically
-            
+
+#             debug.show_shape(geometry.MultiPoint(points_start),
+#                              background=mask)
+
             # calculate the distance from the start point 
-            regions.distance_fill(mask.T, p_start)
+            regions.distance_fill(mask.T, points_start)
+            
             
             # find the second point by locating the farthest point
             _, dist, _, p_end = cv2.minMaxLoc(mask)
         
         else:
             # prepare the end point if present
-            p_end = get_closest_points(point_end)
+
             # translate that point to the mask frame
-            p_end = curves.translate_points(p_end, -shift[0], -shift[1])
-            for p in p_start:
+            points_end = curves.translate_points(points_end, -shift[0], -shift[1])
+            for p in points_end:
                 mask[p[1], p[0]] = 1
 
             # calculate the distance from the start point 
-            regions.distance_fill(mask.T, p_start, p_end)
+            regions.distance_fill(mask.T, points_start, points_end)
             
             # get the distance between the start and the end point
-            dists = [mask[p[1], p[0]] for p in p_end]
+            dists = [mask[p[1], p[0]] for p in points_end]
             best_endpoint = np.argmin(dists)
-            p_end = p_end[best_endpoint]
+            p_end = points_end[best_endpoint]
             dist = dists[best_endpoint]
             
         # find an estimate for the centerline from the shortest distance between
@@ -299,21 +335,28 @@ class FourthPass(DataHandler):
                 y -= 1
             elif y < ymax and mask[y + 1, x] == d:
                 y += 1
+                
+            else:
+                break
+                
 #        points.append(p_start)
                 
-#         debug.show_shape(geometry.LineString(points),
-#                          geometry.Point(p_start), geometry.Point(p_exit_b),
+#         debug.show_shape(geometry.MultiPoint(points_start),
+#                          geometry.Point(p_end),
 #                          background=mask)
+#         exit()
 
         # translate the points back to global coordinates 
         centerline = curves.translate_points(points, shift[0], shift[1])
         # save centerline such that burrow exit is first point
         centerline = centerline[::-1]
         
-        # add points that might be outside of the burrow outline 
-        centerline.insert(0, point_start)
-        if point_end is not None:
-            centerline.append(point_end)
+        # add points that might be outside of the burrow outline
+        ground_start = curves.get_projection_point(ground_line, centerline[0]) 
+        centerline.insert(0, ground_start)
+        if points_end is not None:
+            ground_end = curves.get_projection_point(ground_line, centerline[-1]) 
+            centerline.append(ground_end)
             
         # simplify the curve        
         centerline = cv2.approxPolyDP(np.array(centerline, np.int),

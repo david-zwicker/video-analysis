@@ -18,9 +18,11 @@ from shapely import geometry
 from lib.simplify_polygon_rdp import rdp as simplify_curve # @UnusedImport
 
 
+
 def point_distance(p1, p2):
     """ calculates the distance between point p1 and p2 """
     return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
+
 
 
 def angle_between_points(p1, p2, p3):
@@ -43,9 +45,11 @@ def angle_between_points(p1, p2, p3):
     return angle
 
 
+
 def translate_points(points, xoff, yoff):
     """ translate points by a certain offset """
     return [(p[0] + xoff, p[1] + yoff) for p in points]
+
 
 
 def curve_length(points):
@@ -55,6 +59,7 @@ def curve_length(points):
     else:
         return np.sum(point_distance(p1, p2)
                       for p1, p2 in itertools.izip(points, points[1:]))
+
 
 
 def make_curve_equidistant(points, spacing=None, count=None):
@@ -105,12 +110,14 @@ def make_curve_equidistant(points, spacing=None, count=None):
     return result
 
 
+
 def get_projection_point(line, point):
     """ determines the point on the line closest to `point` """
     point = geometry.asPoint(point)
     line = geometry.asLineString(line)
     point = line.interpolate(line.project(point))
     return (point.x, point.y)
+
 
 
 def average_normalized_functions(profiles):

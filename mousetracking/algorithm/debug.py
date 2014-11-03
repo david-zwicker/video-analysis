@@ -162,10 +162,10 @@ def show_shape(*shapes, **kwargs):
         color = kwargs.get('color', colors.next())
         line_width = kwargs.get('lw', 3)
         
-        if isinstance(shape, geometry.Point):
+        if isinstance(shape, (geometry.Point, geometry.point.Point)):
             ax.plot(shape.x, shape.y, 'o', color=color, ms=20)
         
-        if isinstance(shape, geometry.MultiPoint):
+        elif isinstance(shape, geometry.MultiPoint):
             coords = np.array([(p.x, p.y) for p in shape])
             ax.plot(coords[:, 0], coords[:, 1], 'o', color=color, ms=10)
         
