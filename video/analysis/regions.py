@@ -386,6 +386,54 @@ def distance_fill(data, start_points, end_points=None):
 
 
 
+def shortest_path_in_distance_map(data, end_point):
+    """ finds and returns the shortest path in the distance map `data` that
+    leads from the given `end_point` to a start point (defined by having the
+    shortest distance) """
+    
+    xmax = data.shape[1] - 1
+    ymax = data.shape[0] - 1
+    x, y = end_point
+    d = int(data[y, x])
+    points = []
+    while d > 1:
+        points.append((x, y))
+        d -= 1
+        
+        # test diagonal steps
+        if x > 0 and y > 0 and data[y - 1, x - 1] == d - 1:
+            x -= 1
+            y -= 1
+            d -= 1
+        elif x > 0 and y < ymax and data[y + 1, x - 1] == d - 1:
+            x -= 1
+            y += 1
+            d -= 1
+        elif x < xmax and y > 0 and data[y - 1, x + 1] == d - 1:
+            x += 1
+            y -= 1
+            d -= 1
+        elif x < xmax and y < ymax and data[y + 1, x + 1] == d - 1:
+            x += 1
+            y += 1
+            d -= 1 
+        
+        # test horizontal and vertical steps
+        elif x > 0 and data[y, x - 1] == d:
+            x -= 1
+        elif x < xmax and data[y, x + 1] == d:
+            x += 1
+        elif y > 0 and data[y - 1, x] == d:
+            y -= 1
+        elif y < ymax and data[y + 1, x] == d:
+            y += 1
+            
+        else:
+            break
+        
+    return points
+
+
 class Rectangle(object):
     """ a class for handling rectangles """
     def __init__(self, x, y, width, height):

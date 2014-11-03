@@ -214,49 +214,9 @@ class FourthPass(DataHandler):
     
     def _get_burrow_centerline(self, burrow, points_start, points_end=None):
         """ determine the centerline of a burrow with one exit """
-
-        def get_closest_points(point):
-            """ get point closest to the burrow outline """
-            rel_points = burrow.outline - np.asarray(point)
-            contour = np.r_[rel_points, [rel_points[0]]]
-    
-            # In principle, we could use         
-            #     return curves.get_projection_point(contour, (0, 0))
-            # but this is too slow.
-            # We thus test many different points on the outline and just
-            # take the closest
-            contour = np.array(curves.make_curve_equidistant(contour, 2))
-            
-            dist = np.linalg.norm(contour, axis=1)
-            dist_tresh = dist.min() + self.params['burrows/ground_point_distance']/2
-            contour = contour[dist <= dist_tresh, :]
-            return contour + np.asarray(point)
-        
-        
-        def find_ground_point(points):
-            
-            # determine distance from ground
-            ground_line = self.ground.linestring
-            dist = [ground_line.distance(geometry.Point(p))
-                    for p in points]
-            
-            # find closest point
-            point_b = points[np.argmin(dist)]
-            point_g = curves.get_projection_point(ground_line, point_b)
-            
-            return point_g
-        
-#         ground_start = find_ground_point(points_start)
-#         if points_end is None:
-#             ground_end = None
-#         else:
-#             ground_end = find_ground_point(points_end)
             
         ground_line = self.ground.linestring
             
-        # find the point in the burrow that is closest to the ground point
-        #p_start = get_closest_points(point_start)
-
         # get a binary image of the burrow
         mask, shift = burrow.get_mask(margin=2, dtype=np.int32, ret_shift=True)
         
@@ -270,15 +230,12 @@ class FourthPass(DataHandler):
         if points_end is None:
             # end point is not given and will thus be determined automatically
 
-#             debug.show_shape(geometry.MultiPoint(points_start),
-#                              background=mask)
-
             # calculate the distance from the start point 
             regions.distance_fill(mask.T, points_start)
             
             
             # find the second point by locating the farthest point
-            _, dist, _, p_end = cv2.minMaxLoc(mask)
+            _, _, _, p_end = cv2.minMaxLoc(mask)
         
         else:
             # prepare the end point if present
@@ -295,52 +252,11 @@ class FourthPass(DataHandler):
             dists = [mask[p[1], p[0]] for p in points_end]
             best_endpoint = np.argmin(dists)
             p_end = points_end[best_endpoint]
-            dist = dists[best_endpoint]
             
-        # find an estimate for the centerline from the shortest distance between
-        # the two points p_start and p_end
-        points = []
-        xmax = mask.shape[1] - 1
-        ymax = mask.shape[0] - 1
-        x, y = p_end
-        d = int(dist)
-        while d > 1:
-            points.append((x, y))
-            d -= 1
-            
-            # test diagonal steps
-            if x > 0 and y > 0 and mask[y - 1, x - 1] == d - 1:
-                x -= 1
-                y -= 1
-                d -= 1
-            elif x > 0 and y < ymax and mask[y + 1, x - 1] == d - 1:
-                x -= 1
-                y += 1
-                d -= 1
-            elif x < xmax and y > 0 and mask[y - 1, x + 1] == d - 1:
-                x += 1
-                y -= 1
-                d -= 1
-            elif x < xmax and y < ymax and mask[y + 1, x + 1] == d - 1:
-                x += 1
-                y += 1
-                d -= 1 
-            
-            # test horizontal and vertical steps
-            elif x > 0 and mask[y, x - 1] == d:
-                x -= 1
-            elif x < xmax and mask[y, x + 1] == d:
-                x += 1
-            elif y > 0 and mask[y - 1, x] == d:
-                y -= 1
-            elif y < ymax and mask[y + 1, x] == d:
-                y += 1
-                
-            else:
-                break
-                
-#        points.append(p_start)
-                
+        # find an estimate for the centerline from the shortest distance from
+        # the end point to the burrow exit
+        points = regions.shortest_path_in_distance_map(mask, p_end)
+
 #         debug.show_shape(geometry.MultiPoint(points_start),
 #                          geometry.Point(p_end),
 #                          background=mask)
@@ -551,14 +467,25 @@ class FourthPass(DataHandler):
 
 
     def get_burrow_chunks(self, frame):
-        """ determines regions under ground that belong to burrows """     
+        """ determines regions under ground that belong to burrows """
+
+#         # remove too small burrows
+#         ksize = 2*int(self.params['burrows/width_min']) + 1
+#         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
+#         mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_OPEN, kernel)
+# 
+#         # connect burrow chunks        
+#         ksize = 2*int(self.params['burrows/chunk_dist_max']) + 1
+#         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
+#         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+         
         labels, num_features = ndimage.measurements.label(self.burrow_mask)
 
         burrow_chunks = []
         for label in xrange(1, num_features + 1):
             # check whether the burrow is large enough
             props = image.regionprops(labels == label)
-            if props.area < self.params['burrows/area_min']:
+            if props.area < self.params['burrows/chunk_area_min']:
                 continue
             
             # extend the contour to the ground line
@@ -569,9 +496,11 @@ class FourthPass(DataHandler):
             if len(contours) == 1:
                 # a single contour has been found
                 contour = np.squeeze(np.asarray(contours, np.double))
+                
             elif len(contours) == 0:
                 # no contour has been found
                 continue
+            
             else:
                 # multiple contours have been found
                 # => return the one with the largest area
@@ -733,7 +662,8 @@ class FourthPass(DataHandler):
             except ValueError:
                 continue
             else:
-                burrows.append(burrow)
+                if burrow.area >= self.params['burrows/area_min']:
+                    burrows.append(burrow)
         
         return burrows
 

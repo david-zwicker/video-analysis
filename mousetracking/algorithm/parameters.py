@@ -268,6 +268,9 @@ PARAMETER_LIST = [
               'Typical width of a burrow'),
     Parameter('burrows/width_min', 10, UNIT.LENGTH_PIXEL,
               'Minimal width of a burrow'),
+    Parameter('burrows/chunk_area_min', 50, UNIT.AREA_PIXEL,
+              'Minimal area a burrow chunk needs to have in order to be '
+              'considered.'),
     Parameter('burrows/area_min', 400, UNIT.AREA_PIXEL,
               'Minimal area a burrow cross section has to have'),
     Parameter('burrows/ground_point_distance', 10, UNIT.LENGTH_PIXEL,
