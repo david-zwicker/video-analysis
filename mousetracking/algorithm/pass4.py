@@ -712,6 +712,8 @@ class FourthPass(DataHandler):
 
         # identify chunks from the burrow mask
         burrow_chunks = self.get_burrow_chunks(frame)
+        
+        self.debug['video.mark.text1'] = '#chunks: %d' % len(burrow_chunks)
 
         # get the burrows by connecting chunks
         burrows = self.connect_burrow_chunks(burrow_chunks)
@@ -774,6 +776,12 @@ class FourthPass(DataHandler):
                         debug_video.add_line(burrow.centerline, 'r',
                                              is_closed=False, width=2,
                                              mark_points=True)
+                        
+                # additional values
+                debug_video.add_text(self.debug.get('video.mark.text1', ''),
+                                     (300, 20), anchor='top')
+                debug_video.add_text(self.debug.get('video.mark.text2', ''),
+                                     (300, 50), anchor='top')
                 
             # add additional debug information
             if 'video.show' in self.debug:
