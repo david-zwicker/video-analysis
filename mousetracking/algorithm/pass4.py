@@ -424,9 +424,15 @@ class FourthPass(DataHandler):
 #                          mask=mask)
 #         exit()
 
-        # restrict the mask to points where the distributions differ significantly
+        # remove burrows at points where the distinction between foreground
+        # and background is significant
         overlap = stats_sand.overlap(stats_back)
+        self.burrow_mask[overlap > 0.5] = 0
+        
+        # restrict the mask to points where the distinction is significant
         mask[mask] = (overlap[mask] < 0.5)
+
+
         
         # determine the probabilities 
         prob_sand = stats_sand.pdf(frame[mask], mask)
