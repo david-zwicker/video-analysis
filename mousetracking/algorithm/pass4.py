@@ -492,17 +492,23 @@ class FourthPass(DataHandler):
             if len(contour) <= 2:
                 continue
 
-            # check whether the burrow is large enough
+            # check whether the burrow chunk is large enough
             props = image.regionprops(contour=contour)
             if props.area < self.params['burrows/chunk_area_min']:
                 continue
 
             # remove problematic parts of the outline
-            contour = regions.regularize_contour_points(contour[:, 0, :])
+            polygon = geometry.Polygon(np.array(contour[:, 0, :], np.double))
+            polygon_buffered = polygon.buffer(0)
+            if isinstance(polygon_buffered, geometry.Polygon):
+                polygon_buffered = [polygon_buffered]
+                
+            #contour = regions.regularize_contour_points(contour[:, 0, :])
             
             # save the contour line as a burrow
-            if len(contour) > 2:
-                burrow_chunks.append(contour)
+            for polygon in polygon_buffered:
+                if len(polygon.exterior.coords) > 2:
+                    burrow_chunks.append(polygon.exterior.coords)
                 
         return burrow_chunks
 
@@ -564,19 +570,17 @@ class FourthPass(DataHandler):
             return []
         
         dist_max = self.params['burrows/chunk_dist_max']
+
+        # build the contour profiles of the burrow chunks        
+        linear_rings = [geometry.LinearRing(c) for c in burrow_chunks]
         
         # calculate distances to ground
-        ground_dist = []
-        for contour in burrow_chunks:
-            # measure distance to ground
-            outline = geometry.LinearRing(contour)
-            dist = self.ground.linestring.distance(outline)
-            ground_dist.append(dist)
+        dist_func = self.ground.linestring.distance
+        ground_dist = [dist_func(ring) for ring in linear_rings]
             
         # calculate distances to other burrows
-        burrow_dist = np.zeros([len(burrow_chunks)]*2)
+        burrow_dist = np.empty([len(burrow_chunks)]*2)
         np.fill_diagonal(burrow_dist, np.inf)
-        linear_rings = [geometry.LinearRing(c) for c in burrow_chunks]
         for x, contour1 in enumerate(linear_rings):
             for y, contour2 in enumerate(linear_rings[x+1:], x+1):
                 dist = contour1.distance(contour2)
@@ -584,11 +588,10 @@ class FourthPass(DataHandler):
                 burrow_dist[y, x] = dist
         
         # handle all burrows close to the ground
-        connected = []
-        disconnected = []
+        connected, disconnected = [], []
         for k in xrange(len(burrow_chunks)):
             if ground_dist[k] < np.min(burrow_dist[k]):
-                # burrow is closest to ground
+                # burrow is closer to ground than to any other burrow
                 if 1 < ground_dist[k] < dist_max:
                     burrow_chunks[k] = \
                         self._connect_burrow_to_structure(burrow_chunks[k],
