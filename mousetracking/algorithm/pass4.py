@@ -13,7 +13,7 @@ import time
 
 import cv2
 import numpy as np
-from scipy import cluster, ndimage
+from scipy import cluster
 from shapely import geometry
 
 from .objects.burrow import Burrow, BurrowTrackList
@@ -479,43 +479,26 @@ class FourthPass(DataHandler):
 #         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
 #         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
          
-        labels, num_features = ndimage.measurements.label(self.burrow_mask)
+        #labels, num_features = ndimage.measurements.label(self.burrow_mask)
+        # extend the contour to the ground line
+        contours, _ = cv2.findContours(self.burrow_mask,
+                                       cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_SIMPLE)
 
-        self.debug['video.mark.text1'] += '#chunks: %d' % num_features
+        self.debug['video.mark.text1'] = '#chunks: %d' % len(contours)
 
         burrow_chunks = []
-        for label in xrange(1, num_features + 1):
+        for contour in contours:
+            if len(contour) <= 2:
+                continue
+
             # check whether the burrow is large enough
-            props = image.regionprops(labels == label)
+            props = image.regionprops(contour=contour)
             if props.area < self.params['burrows/chunk_area_min']:
                 continue
-            
-            # extend the contour to the ground line
-            contours, _ = cv2.findContours(np.asarray(labels == label, np.uint8),
-                                           cv2.RETR_EXTERNAL,
-                                           cv2.CHAIN_APPROX_SIMPLE)
 
-            if len(contours) == 1:
-                # a single contour has been found
-                contour = np.squeeze(np.asarray(contours, np.double))
-                
-            elif len(contours) == 0:
-                # no contour has been found
-                continue
-            
-            else:
-                # multiple contours have been found
-                # => return the one with the largest area
-                contour_max, area_max = None, 0
-                for contour in contours:
-                    contour = np.squeeze(np.asarray(contour, np.double))
-                    props = image.regionprops(contour=contour)
-                    if props.area > area_max:
-                        area_max = props.area
-                        contour_max = contour
-                contour = contour_max
-            
-            contour = regions.regularize_contour_points(contour)
+            # remove problematic parts of the outline
+            contour = regions.regularize_contour_points(contour[:, 0, :])
             
             # save the contour line as a burrow
             if len(contour) > 2:

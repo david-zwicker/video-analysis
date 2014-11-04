@@ -197,7 +197,7 @@ def regularize_linear_ring(linear_ring):
 def regularize_contour_points(contour):
     """ regularize a list of points defining a contour """
     if len(contour) >= 3:
-        polygon = geometry.Polygon(contour)
+        polygon = geometry.Polygon(np.asarray(contour, np.double))
         regular_polygon = regularize_polygon(polygon)
         if regular_polygon.is_empty:
             return [] #< empty polygon
