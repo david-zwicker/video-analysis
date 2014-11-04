@@ -6,6 +6,7 @@ Created on Aug 4, 2014
 
 from __future__ import division
 
+from collections import defaultdict
 import operator
 
 import numpy as np
@@ -337,7 +338,8 @@ def triangle_area(a, b, c):
 
 
 
-def distance_fill(data, start_points, end_points=None):
+SQRT2 = np.sqrt(2)
+def make_distance_map(data, start_points, end_points=None):
     """
     fills a binary region of the array `data` with new values.
     The values are based on the distance to the start points `start_points`,
@@ -345,27 +347,26 @@ def distance_fill(data, start_points, end_points=None):
     If end_points are supplied, the functions stops when any of these
     points is reached
     """
+    data[data != 0] = np.iinfo(data.dtype).max
+    
     if end_points is None:
         end_points = set()
     else:
         end_points = set(end_points)
     
     # initialize the shape
-    xmax = data.shape[0] - 1
-    ymax = data.shape[1] - 1
-    stack = set(start_points) #< initialize the set with the start points
+    xmax, ymax = data.shape[0], data.shape[1]
+    stack = defaultdict(set)
+    stack[2] = set(start_points) #< initialize the dictionary with the start points
 
-    # the outer loop iterates through all possible distances from the start point    
-    # the inner loop iterates through all points with a given distance `dist`
-    # `stack` is a set of all points with distance `dist`
-    # `stack_next` is a set of all points with distance `dist + 1` 
-    dist = 1
+    # loop until all points are filled
     while stack:
-        dist += 1
-        stack_next = set()
-        while stack:
-            x, y = stack.pop()
-            if data[x, y] == 1:
+        # get next distance to consider
+        dist = min(stack.keys())
+        # iterate through all points with the minimal distance
+        for x, y in stack.pop(dist):
+            # check whether x, y is a valid point that can be filled
+            if 0 <= x < xmax and 0 <= y < ymax and data[x, y] > dist:
                 data[x, y] = dist
                 
                 # finish if we found an end point
@@ -373,65 +374,40 @@ def distance_fill(data, start_points, end_points=None):
                     return 
                 
                 # add all surrounding points to the stack
-                if x > 0:
-                    stack_next.add((x - 1, y))
-                if x < xmax:
-                    stack_next.add((x + 1, y))
-                if y > 0:
-                    stack_next.add((x, y - 1))
-                if y < ymax:
-                    stack_next.add((x, y + 1))
-                    
-        stack = stack_next
+                stack[dist + 1] |= set(((x - 1, y), (x + 1, y),
+                                        (x, y - 1), (x, y + 1)))
+
+                stack[dist + SQRT2] |= set(((x - 1, y - 1), (x + 1, y - 1),
+                                            (x - 1, y + 1), (x + 1, y + 1)))
 
 
+
+MASK = np.zeros((3, 3))
+MASK[1, :] = MASK[:, 1] = 1
+MASK[0, 0] = MASK[2, 0] = MASK[0, 2] = MASK[2, 2] = SQRT2
 
 def shortest_path_in_distance_map(data, end_point):
     """ finds and returns the shortest path in the distance map `data` that
     leads from the given `end_point` to a start point (defined by having the
     shortest distance) """
     
+    data[data == 0] = np.iinfo(data.dtype).max
+    
     xmax = data.shape[1] - 1
     ymax = data.shape[0] - 1
     x, y = end_point
-    d = int(data[y, x])
     points = []
-    while d > 1:
-        points.append((x, y))
-        d -= 1
-        
-        # test diagonal steps
-        if x > 0 and y > 0 and data[y - 1, x - 1] == d - 1:
-            x -= 1
-            y -= 1
-            d -= 1
-        elif x > 0 and y < ymax and data[y + 1, x - 1] == d - 1:
-            x -= 1
-            y += 1
-            d -= 1
-        elif x < xmax and y > 0 and data[y - 1, x + 1] == d - 1:
-            x += 1
-            y -= 1
-            d -= 1
-        elif x < xmax and y < ymax and data[y + 1, x + 1] == d - 1:
-            x += 1
-            y += 1
-            d -= 1 
-        
-        # test horizontal and vertical steps
-        elif x > 0 and data[y, x - 1] == d:
-            x -= 1
-        elif x < xmax and data[y, x + 1] == d:
-            x += 1
-        elif y > 0 and data[y - 1, x] == d:
-            y -= 1
-        elif y < ymax and data[y + 1, x] == d:
-            y += 1
-            
-        else:
-            break
+    data_min = data.min()
+    while data[y, x] > data_min:
+        if 0 < x < xmax and 0 < y < ymax:
+            surrounding = data[y-1:y+2, x-1:x+2] / MASK
+            dy, dx = np.unravel_index(surrounding.argmin(), surrounding.shape)
+            y += dy - 1
+            x += dx - 1
+            points.append((x, y))
         
     return points
+
 
 
 class Rectangle(object):
