@@ -19,7 +19,7 @@ from shapely import geometry
 from .objects.burrow import Burrow, BurrowTrackList
 from .data_handler import DataHandler
 from .utils import unique_based_on_id
-from video.analysis import image, curves, regions
+from video.analysis import curves, regions
 from video.io import ImageWindow, VideoFile
 from video.filters import FilterMonochrome
 from video.utils import display_progress
@@ -231,7 +231,7 @@ class FourthPass(DataHandler):
             # end point is not given and will thus be determined automatically
 
             # calculate the distance from the start point 
-            regions.distance_fill(mask.T, points_start)
+            regions.make_distance_map(mask.T, points_start)
             
             
             # find the second point by locating the farthest point
@@ -246,7 +246,7 @@ class FourthPass(DataHandler):
                 mask[p[1], p[0]] = 1
 
             # calculate the distance from the start point 
-            regions.distance_fill(mask.T, points_start, points_end)
+            regions.make_distance_map(mask.T, points_start, points_end)
             
             # get the distance between the start and the end point
             dists = [mask[p[1], p[0]] for p in points_end]
@@ -493,8 +493,8 @@ class FourthPass(DataHandler):
                 continue
 
             # check whether the burrow chunk is large enough
-            props = image.regionprops(contour=contour)
-            if props.area < self.params['burrows/chunk_area_min']:
+            area = cv2.contourArea(contour)
+            if area < self.params['burrows/chunk_area_min']:
                 continue
 
             # remove problematic parts of the outline
@@ -507,7 +507,7 @@ class FourthPass(DataHandler):
             
             # save the contour line as a burrow
             for polygon in polygon_buffered:
-                if len(polygon.exterior.coords) > 2:
+                if polygon.is_valid and not polygon.is_empty:
                     burrow_chunks.append(polygon.exterior.coords)
                 
         return burrow_chunks
@@ -670,7 +670,7 @@ class FourthPass(DataHandler):
         # get currently active tracks
         active_tracks = [track for track in burrow_tracks
                          if track.active]
-
+        
         # check each burrow that has been found
         tracks_extended = set()
         for burrow in burrows:
