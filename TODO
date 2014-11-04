@@ -7,16 +7,9 @@
 	- this could be implemented via helper functions in mousetracking.simple that configure python + parameters
 * Determine absolute times by checking when the lights go on
 	- this does only seem to be visible outside the cage
-* Get precise cage dimensions:
-	- Do line scans at border in all directions and determine cage edge
-	- Think about getting a more precise estimate of the cage
 * Gather more statistics about why certain parts of the algorithm failed
 * Distinguish mouse position at burrow apex from positions at other points in burrow
 	- Analyze excavated burrow space (after mouse has been active)
-* Third pass burrow finding:
-	If mouse is in burrow, burrow shape could be the union of grab cut (with mouse present)
-	and the explored area
-	Burrow finding of first pass can be removed altogether (if third pass gets sufficiently nice results)
 * First pass might want to construct a binary image of all the area that was explored by any moving object
 	- This mask could be saved in the hdf file and than used later to restrict the mouse movement
 * Refine the centerline by moving the points more toward the actual center

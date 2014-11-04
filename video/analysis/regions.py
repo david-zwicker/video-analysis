@@ -345,10 +345,8 @@ def make_distance_map(data, start_points, end_points=None):
     The values are based on the distance to the start points `start_points`,
     which must lie in the domain.
     If end_points are supplied, the functions stops when any of these
-    points is reached
+    points is reached    
     """
-    data[data != 0] = np.iinfo(data.dtype).max
-    
     if end_points is None:
         end_points = set()
     else:
@@ -366,7 +364,11 @@ def make_distance_map(data, start_points, end_points=None):
         # iterate through all points with the minimal distance
         for x, y in stack.pop(dist):
             # check whether x, y is a valid point that can be filled
-            if 0 <= x < xmax and 0 <= y < ymax and data[x, y] > dist:
+            # Note that we only write and check each point once. This is valid
+            # since we fill points one after another and can thus ensure that
+            # we write the closest points first. We tested that changing the
+            # condition to data[x, y] > dist does not change the result
+            if 0 <= x < xmax and 0 <= y < ymax and data[x, y] == 1:
                 data[x, y] = dist
                 
                 # finish if we found an end point
