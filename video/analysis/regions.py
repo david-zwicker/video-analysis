@@ -397,15 +397,33 @@ def shortest_path_in_distance_map(data, end_point):
     ymax = data.shape[0] - 1
     x, y = end_point
     points = []
-    data_min = data.min()
-    while data[y, x] > data_min:
+    d = data[y, x]
+    # iterate through path until we reached the minimum
+    while True:
         if 0 < x < xmax and 0 < y < ymax:
+            # find point with minimal distance in surrounding
             surrounding = data[y-1:y+2, x-1:x+2] / MASK
             dy, dx = np.unravel_index(surrounding.argmin(), surrounding.shape)
+            # get new coordinates
             y += dy - 1
             x += dx - 1
+            # check whether the new point is viable
+            if data[y, x] < d:
+                # distance decreased
+                d = data[y, x]
+            elif data[y, x] == d:
+                # distance stayed constant
+                if (x, y) in points:
+                    # we already saw this point
+                    break
+            else:
+                # we reached a minimum and will thus stop
+                break            
             points.append((x, y))
-        
+        else:
+            # we reached the border
+            break
+    
     return points
 
 

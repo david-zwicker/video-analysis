@@ -485,8 +485,6 @@ class FourthPass(DataHandler):
                                        cv2.RETR_EXTERNAL,
                                        cv2.CHAIN_APPROX_SIMPLE)
 
-        self.debug['video.mark.text1'] = '#chunks: %d' % len(contours)
-
         burrow_chunks = []
         for contour in contours:
             if len(contour) <= 2:
@@ -590,8 +588,6 @@ class FourthPass(DataHandler):
                 
         assert (set(connected) | set(disconnected)) == set(range(len(burrow_chunks)))
 
-        self.debug['video.mark.text1'] += ', (%d, %d)' % (len(connected), len(disconnected))
-
         # calculate distances to other burrows
         burrow_dist = np.empty([len(burrow_chunks)]*2)
         np.fill_diagonal(burrow_dist, np.inf)
@@ -638,8 +634,6 @@ class FourthPass(DataHandler):
             # mark the cluster as connected
             del disconnected[k1]
             connected.append(c1)
-
-        self.debug['video.mark.text1'] += ', (%d, %d)' % (len(connected), len(disconnected))
 
         # return the unique burrow structures
         burrows = []
@@ -702,8 +696,6 @@ class FourthPass(DataHandler):
         # identify chunks from the burrow mask
         burrow_chunks = self.get_burrow_chunks(frame)
         
-        self.debug['video.mark.text1'] += ', %d' % len(burrow_chunks)
-
         # get the burrows by connecting chunks
         burrows = self.connect_burrow_chunks(burrow_chunks)
         
