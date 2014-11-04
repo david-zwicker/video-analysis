@@ -507,7 +507,7 @@ class FourthPass(DataHandler):
             
             # save the contour line as a burrow
             for polygon in polygon_buffered:
-                if len(polygon.exterior.coords) > 2:
+                if polygon.is_valid and not polygon.is_empty:
                     burrow_chunks.append(polygon.exterior.coords)
                 
         return burrow_chunks
@@ -574,25 +574,13 @@ class FourthPass(DataHandler):
         # build the contour profiles of the burrow chunks        
         linear_rings = [geometry.LinearRing(c) for c in burrow_chunks]
         
-        # calculate distances to ground
-        dist_func = self.ground.linestring.distance
-        ground_dist = [dist_func(ring) for ring in linear_rings]
-            
-        # calculate distances to other burrows
-        burrow_dist = np.empty([len(burrow_chunks)]*2)
-        np.fill_diagonal(burrow_dist, np.inf)
-        for x, contour1 in enumerate(linear_rings):
-            for y, contour2 in enumerate(linear_rings[x+1:], x+1):
-                dist = contour1.distance(contour2)
-                burrow_dist[x, y] = dist
-                burrow_dist[y, x] = dist
-        
         # handle all burrows close to the ground
         connected, disconnected = [], []
-        for k in xrange(len(burrow_chunks)):
-            if ground_dist[k] < np.min(burrow_dist[k]):
-                # burrow is closer to ground than to any other burrow
-                if 1 < ground_dist[k] < dist_max:
+        for k, ring in enumerate(linear_rings):
+            ground_dist = self.ground.linestring.distance(ring)
+            if ground_dist < dist_max:
+                # burrow is close to ground
+                if 1 < ground_dist:
                     burrow_chunks[k] = \
                         self._connect_burrow_to_structure(burrow_chunks[k],
                                                           self.ground.linestring)
@@ -601,6 +589,17 @@ class FourthPass(DataHandler):
                 disconnected.append(k)
                 
         assert (set(connected) | set(disconnected)) == set(range(len(burrow_chunks)))
+
+        self.debug['video.mark.text1'] += ', (%d, %d)' % (len(connected), len(disconnected))
+
+        # calculate distances to other burrows
+        burrow_dist = np.empty([len(burrow_chunks)]*2)
+        np.fill_diagonal(burrow_dist, np.inf)
+        for x, contour1 in enumerate(linear_rings):
+            for y, contour2 in enumerate(linear_rings[x+1:], x+1):
+                dist = contour1.distance(contour2)
+                burrow_dist[x, y] = dist
+                burrow_dist[y, x] = dist
         
         # handle all remaining chunks, which need to be connected to other chunks
         while connected and disconnected:
@@ -639,6 +638,8 @@ class FourthPass(DataHandler):
             # mark the cluster as connected
             del disconnected[k1]
             connected.append(c1)
+
+        self.debug['video.mark.text1'] += ', (%d, %d)' % (len(connected), len(disconnected))
 
         # return the unique burrow structures
         burrows = []
@@ -766,6 +767,7 @@ class FourthPass(DataHandler):
                                              mark_points=True)
                         
                 # additional values
+                debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
                 debug_video.add_text(self.debug.get('video.mark.text1', ''),
                                      (300, 20), anchor='top')
                 debug_video.add_text(self.debug.get('video.mark.text2', ''),
