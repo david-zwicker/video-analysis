@@ -278,7 +278,7 @@ class VideoWriterFFmpeg(object):
         self.is_color = is_color
         self.debug = debug        
 
-        if size[0]%2 != 0 or size[1]%2 != 0:
+        if size[0] % 2 != 0 or size[1] % 2 != 0:
             raise ValueError('Both dimensions of the video must be even for '
                              'the video codec to work properly')
 
@@ -303,10 +303,9 @@ class VideoWriterFFmpeg(object):
 
             # http://trac.FFmpeg.org/ticket/658
             + (['-pix_fmt', 'yuv420p']
-                  if ((codec == 'libx264') and
-                     (size[0]%2 == 0) and
-                     (size[1]%2 == 0))
-                     
+               if ((codec == 'libx264') and
+                   (size[0] % 2 == 0) and
+                   (size[1] % 2 == 0))
                else [])
 
             + ['-r', "%d" % fps, filename]

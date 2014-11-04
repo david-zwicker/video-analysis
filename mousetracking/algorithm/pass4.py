@@ -431,8 +431,6 @@ class FourthPass(DataHandler):
         
         # restrict the mask to points where the distinction is significant
         mask[mask] = (overlap[mask] < 0.5)
-
-
         
         # determine the probabilities 
         prob_sand = stats_sand.pdf(frame[mask], mask)

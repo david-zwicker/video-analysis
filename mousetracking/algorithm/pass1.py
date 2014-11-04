@@ -108,7 +108,7 @@ class FirstPass(DataHandler):
         video_info['cropping_cage'] = cropping_rect
         video_info['frame_count'] = self.video.frame_count
         video_info['size'] = '%d x %d' % tuple(self.video.size),
-            
+        
         self.debug_setup()
         self.setup_processing()
 
