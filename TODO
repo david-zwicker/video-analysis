@@ -17,7 +17,8 @@
 	- each inner point on this center line can be put at the midpoint between the outlines
 		to prevent problems, the point should be displaced by at most 0.5*burrow_width
 	- Alternatively, find centerline by using active snake guided by current centerline and distance map
-* Use images of final burrow cast to locate burrows (by analyzing the video in reverse) 	
+* Use images of final burrow cast to locate burrows (by analyzing the video in reverse)
+* Automatically reduce z-score threshold if too many moving objects have been detected  	
 
 Performance improvements:
 -------------------------

@@ -597,13 +597,16 @@ class FirstPass(DataHandler):
     #===========================================================================
       
     
-    def find_moving_features(self, frame):
+    def find_moving_features(self, frame, threshold=None):
         """ finds moving features in a frame.
         This works by building a model of the current background and subtracting
         this from the current frame. Everything that deviates significantly from
         the background must be moving. Here, we additionally only focus on 
         features that become brighter, i.e. move forward.
         """
+        if threshold is None:
+            threshold = self.params['mouse/intensity_threshold']
+
         # use internal cache to avoid allocating memory
         mask_moving = self._cache['image_uint8']
 
@@ -613,7 +616,7 @@ class FirstPass(DataHandler):
         # to zero. However, we only need the positive differences.
         
         # find movement by comparing the difference to a threshold 
-        moving_threshold = self.params['mouse/intensity_threshold']*self.result['colors/sky_std']
+        moving_threshold = threshold*self.result['colors/sky_std']
         cv2.threshold(mask_moving, moving_threshold, 255, cv2.THRESH_BINARY,
                       dst=mask_moving)
         
@@ -757,31 +760,40 @@ class FirstPass(DataHandler):
     def find_objects(self, frame):
         """ adapts the current mouse position, if enough information is available """
 
-        # find a binary image that indicates movement in the frame
-        moving_objects = self.find_moving_features(frame)
-    
-        # find all distinct features and label them
-        try:
-            num_features = ndimage.measurements.label(moving_objects,
-                                                      output=moving_objects)
-        except RuntimeError:
-            # in some rare cases the function wants to store data in a data
-            # format with more bits, where it has to create a new array
-            moving_objects, num_features = ndimage.measurements.label(moving_objects)
+        threshold = self.params['mouse/intensity_threshold']
+        num_features = np.inf
+        while num_features > self.params['tracking/object_count_max']:
+            # find a binary image that indicates movement in the frame
+            moving_objects = self.find_moving_features(frame, threshold)
+        
+            # find all distinct features and label them
+            try:
+                num_features = ndimage.measurements.label(moving_objects,
+                                                          output=moving_objects)
+            except RuntimeError:
+                # in some rare cases the function wants to store data in a data
+                # format with more bits, where it has to create a new array
+                # This only happens if there are too many features and we thus
+                # have to iterate again anyway
+                num_features = np.inf
+                #moving_objects, num_features = ndimage.measurements.label(moving_objects)
+                
+            threshold *= 1.1 #< increase threshold to find less features
+
         self.debug['object_count'] = num_features
         
         if num_features == 0:
             # no features found => end all current tracks
             self._end_current_tracks()
-            
-        elif num_features > self.params['tracking/object_count_max']:
-            # too many features found => end all current tracks
-            self._end_current_tracks()
-            
-            self.result['objects/too_many_objects'] += 1
-            self.logger.debug('%d: Discarding object information from this frame, '
-                              'too many (%d) features were detected.',
-                              self.frame_id, num_features)
+
+#         elif num_features > self.params['tracking/object_count_max']:
+#             # too many features found => end all current tracks
+#             self._end_current_tracks()
+#             
+#             self.result['objects/too_many_objects'] += 1
+#             self.logger.debug('%d: Discarding object information from this frame, '
+#                               'too many (%d) features were detected.',
+#                               self.frame_id, num_features)
             
         else:
             # some moving features have been found => handle these 
