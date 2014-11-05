@@ -73,7 +73,6 @@ class FirstPass(DataHandler):
         self.explored_area = None      # region the mouse has explored yet
         self.frame_id = 0              # id of the current frame
         self.result['objects/moved_first_in_frame'] = None
-        self.result['objects/too_many_objects'] = 0
         if self.params['debug/output'] is None:
             self.params['debug/output'] = []
         self.log_event('Pass 1 - Initialized the first pass analysis.')
@@ -757,8 +756,7 @@ class FirstPass(DataHandler):
         """ adapts the current mouse position, if enough information is available """
 
         threshold = self.params['mouse/intensity_threshold']
-        num_features = np.inf
-        while num_features > self.params['tracking/object_count_max']:
+        while True:
             # find a binary image that indicates movement in the frame
             moving_objects = self.find_moving_features(frame, threshold)
         
@@ -774,9 +772,21 @@ class FirstPass(DataHandler):
                 num_features = np.inf
                 #moving_objects, num_features = ndimage.measurements.label(moving_objects)
                 
-            threshold *= 1.1 #< increase threshold to find less features
+            if num_features > self.params['tracking/object_count_max']:
+                threshold *= 1.1 #< increase threshold to find less features
+            else:
+                break
 
         self.debug['object_count'] = num_features
+
+        # save statistics about the threshold 
+        threshold_count = self.result.get('statistics/tracking_moving_threshold_count', 0)
+        threshold_mean =  self.result.get('statistics/tracking_moving_threshold_mean', 0)
+        threshold_count += 1
+        threshold_mean += (threshold - threshold_mean)/threshold_count
+        self.result['statistics/tracking_moving_threshold_count'] = threshold_count
+        self.result['statistics/tracking_moving_threshold_mean'] = threshold_mean
+        
         # plot the contour of the movement if debug video is enabled
         if 'video' in self.output:
             self.output['video'].add_contour(moving_objects, color='g', copy=True)
@@ -784,15 +794,6 @@ class FirstPass(DataHandler):
         if num_features == 0:
             # no features found => end all current tracks
             self._end_current_tracks()
-
-#         elif num_features > self.params['tracking/object_count_max']:
-#             # too many features found => end all current tracks
-#             self._end_current_tracks()
-#             
-#             self.result['objects/too_many_objects'] += 1
-#             self.logger.debug('%d: Discarding object information from this frame, '
-#                               'too many (%d) features were detected.',
-#                               self.frame_id, num_features)
             
         else:
             # some moving features have been found => handle these 
