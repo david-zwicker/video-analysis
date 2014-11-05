@@ -626,10 +626,6 @@ class FirstPass(DataHandler):
         # perform morphological closing to join distinct features
         cv2.morphologyEx(mask_moving, cv2.MORPH_CLOSE, kernel, dst=mask_moving)
 
-        # plot the contour of the movement if debug video is enabled
-        if 'video' in self.output:
-            self.output['video'].add_contour(mask_moving, color='g', copy=True)
-
         return mask_moving
 
 
@@ -781,6 +777,9 @@ class FirstPass(DataHandler):
             threshold *= 1.1 #< increase threshold to find less features
 
         self.debug['object_count'] = num_features
+        # plot the contour of the movement if debug video is enabled
+        if 'video' in self.output:
+            self.output['video'].add_contour(moving_objects, color='g', copy=True)
         
         if num_features == 0:
             # no features found => end all current tracks
