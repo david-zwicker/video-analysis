@@ -208,17 +208,12 @@ class FirstPass(DataHandler):
     def _iterate_over_video(self, video):
         """ internal function doing the heavy lifting by iterating over the video """
 
-        blur_sigma = self.params['video/blur_radius']
-        blur_sigma_color = self.params['video/blur_sigma_color']
-
         # iterate over the video and analyze it
         analyzed_never = True
         for self.frame_id, frame in enumerate(display_progress(video)):
             # remove noise using a bilateral filter
-            frame_blurred = cv2.bilateralFilter(frame, d=int(blur_sigma),
-                                                sigmaColor=blur_sigma_color,
-                                                sigmaSpace=blur_sigma)
-            
+            frame_blurred = self.blur_image(frame)
+
             # copy frame to debug video
             if 'video' in self.output:
                 self.output['video'].set_frame(frame, copy=False)
@@ -2026,7 +2021,7 @@ class FirstPass(DataHandler):
                                                  fps=self.video.fps, is_color=True,
                                                  output_period=video_output_period,
                                                  codec=video_codec, bitrate=video_bitrate,
-                                                 debug=self.debug_run)
+                                                 debug=self.debug_enabled)
             
             if 'video.show' in debug_output:
                 name = self.name if self.name else ''
@@ -2046,7 +2041,7 @@ class FirstPass(DataHandler):
                 video_writer = VideoComposer(debug_file, self.video.size, self.video.fps,
                                              is_color=False, output_period=video_output_period,
                                              codec=video_codec, bitrate=video_bitrate,
-                                             debug=self.debug_run)
+                                             debug=self.debug_enabled)
                 self.output[identifier + '.video'] = video_writer
         
 

@@ -694,6 +694,8 @@ class FourthPass(DataHandler):
 
     def find_burrows(self, frame):
         """ finds burrows from the current frame """
+        frame = self.blur_image(frame)
+        
         # find regions of possible burrows            
         self.update_burrow_mask(frame)
 

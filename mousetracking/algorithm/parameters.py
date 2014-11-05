@@ -46,7 +46,7 @@ PARAMETER_LIST = [
               'Number of initial frames to skip during analysis'),
     Parameter('video/blur_radius', 3, UNIT.LENGTH_PIXEL,
               'Radius of the blur filter to remove noise'),
-    Parameter('video/blur_sigma_color', 10, UNIT.COLOR,
+    Parameter('video/blur_sigma_color', 0, UNIT.COLOR,
               'Standard deviation in color space of the bilateral filter'),
     Parameter('video/frames', None, None,
               'Frames of the video which are analyzed [start and end index should be given]'),

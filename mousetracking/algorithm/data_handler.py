@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 
+import cv2
 import yaml
 
 from .parameters import PARAMETERS_DEFAULT, scale_parameters
@@ -165,8 +166,26 @@ class DataHandler(object):
             LazyHDFValue.compression = hdf5_compression
             
             
+    def blur_image(self, image):
+        """ returns a blurred version of the image """
+        blur_sigma = self.params['video/blur_radius']
+        blur_sigma_color = self.params['video/blur_sigma_color']
+
+        if blur_sigma_color == 0:
+            image_blurred = cv2.GaussianBlur(image, ksize=(0, 0),
+                                             sigmaX=blur_sigma,
+                                             borderType=cv2.BORDER_REPLICATE)
+        
+        else:
+            image_blurred = cv2.bilateralFilter(image, d=int(blur_sigma),
+                                                sigmaColor=blur_sigma_color,
+                                                sigmaSpace=blur_sigma)
+            
+        return image_blurred
+            
+            
     @property
-    def debug_run(self):
+    def debug_enabled(self):
         """ return True if this is a debug run """
         return self.logger.isEnabledFor(logging.DEBUG)
             
@@ -393,7 +412,7 @@ class DataHandler(object):
     
     def __del__(self):
         self.close()
-
+        
 
 
 class DataDict(collections.MutableMapping):

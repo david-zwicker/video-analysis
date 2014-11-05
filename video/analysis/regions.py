@@ -338,7 +338,6 @@ def triangle_area(a, b, c):
 
 
 
-SQRT2 = np.sqrt(2)
 def make_distance_map(data, start_points, end_points=None):
     """
     fills a binary region of the array `data` with new values.
@@ -351,6 +350,8 @@ def make_distance_map(data, start_points, end_points=None):
         end_points = set()
     else:
         end_points = set(end_points)
+
+    SQRT2 = np.sqrt(2)
     
     # initialize the shape
     xmax, ymax = data.shape[0], data.shape[1]
@@ -386,7 +387,7 @@ def make_distance_map(data, start_points, end_points=None):
 
 MASK = np.zeros((3, 3))
 MASK[1, :] = MASK[:, 1] = 1
-MASK[0, 0] = MASK[2, 0] = MASK[0, 2] = MASK[2, 2] = SQRT2
+MASK[0, 0] = MASK[2, 0] = MASK[0, 2] = MASK[2, 2] = np.sqrt(2)
 
 def shortest_path_in_distance_map(data, end_point):
     """ finds and returns the shortest path in the distance map `data` that

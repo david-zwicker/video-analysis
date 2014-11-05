@@ -16,8 +16,8 @@
 	- this could be done by segmenting the current centerline in equally spaced segments
 	- each inner point on this center line can be put at the midpoint between the outlines
 		to prevent problems, the point should be displaced by at most 0.5*burrow_width
-* Add extra check to see whether ffmpeg failed and restart scan in case of broken pipe error
-* Find centerline by using active snake guided by current centerline and distance map	
+	- Alternatively, find centerline by using active snake guided by current centerline and distance map
+* Use images of final burrow cast to locate burrows (by analyzing the video in reverse) 	
 
 Performance improvements:
 -------------------------
