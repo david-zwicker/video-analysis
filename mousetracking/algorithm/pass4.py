@@ -426,13 +426,14 @@ class FourthPass(DataHandler):
 
         # remove burrows at points where the distinction between foreground
         # and background is significant
+        overlap_threshold = self.params['burrows/image_statistics_overlap_threshold']
         overlap = stats_sand.overlap(stats_back)
-        self.burrow_mask[overlap > 0.5] = 0
+        self.burrow_mask[overlap >= overlap_threshold] = 0
         
         # restrict the mask to points where the distinction is significant
-        mask[mask] = (overlap[mask] < 0.5)
+        mask[mask] = (overlap[mask] < overlap_threshold)
         
-        # determine the probabilities 
+        # determine the probabilities
         prob_sand = stats_sand.pdf(frame[mask], mask)
         prob_back = stats_back.pdf(frame[mask], mask)
 

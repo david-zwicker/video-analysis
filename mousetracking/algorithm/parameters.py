@@ -312,6 +312,11 @@ PARAMETER_LIST = [
     Parameter('burrows/image_statistics_window', 50, UNIT.LENGTH_PIXEL,
               'Half of the size of the window over which the statistics of '
               'the image are calculated.'),
+    Parameter('burrows/image_statistics_overlap_threshold', 0.5, UNIT.FRACTION,
+              'The threshold value of the allowed overlap of the background '
+              'and foreground statistics. If the distributions overlap more '
+              'than this value the point is considered to be background since '
+              'it cannot be discriminated reliably.'),
                   
     Parameter('factor_length', 1, UNIT.FACTOR,
               'A factor by which all length scales will be scaled'),

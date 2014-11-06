@@ -22,7 +22,7 @@ from __future__ import division
 import math
 import os
 import time
-from collections import defaultdict 
+from collections import defaultdict, Counter
 
 import numpy as np
 from scipy import ndimage, optimize, signal, spatial
@@ -183,6 +183,7 @@ class FirstPass(DataHandler):
         )  
         
         self._cache['mouse.template'] = mouse_template
+        self.result['statistics/tracking_moving_threshold'] = Counter()
         
         # prepare kernels for morphological operations
         self._cache['find_moving_features.kernel'] = \
@@ -780,12 +781,7 @@ class FirstPass(DataHandler):
         self.debug['object_count'] = num_features
 
         # save statistics about the threshold 
-        threshold_count = self.result.get('statistics/tracking_moving_threshold_count', 0)
-        threshold_mean =  self.result.get('statistics/tracking_moving_threshold_mean', 0)
-        threshold_count += 1
-        threshold_mean += (threshold - threshold_mean)/threshold_count
-        self.result['statistics/tracking_moving_threshold_count'] = threshold_count
-        self.result['statistics/tracking_moving_threshold_mean'] = threshold_mean
+        self.result['statistics/tracking_moving_threshold'][threshold] += 1
         
         # plot the contour of the movement if debug video is enabled
         if 'video' in self.output:
