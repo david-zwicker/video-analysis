@@ -274,7 +274,8 @@ class FirstPass(DataHandler):
         # initialize the rect coordinates
         left_est, top_est = 0, 0 # start in top right corner
         height_est, width_est = frame.shape
-        bottom_est = int(0.95*height_est - 1)
+        bottom_ratio = self.params['cage/boundary_detection_bottom_estimate']
+        bottom_est = int(bottom_ratio*height_est - 1)
         right_est = width_est - 1
         # the magic 0.95 factor tries to circumvent some problems with the
         # stands underneath each cage
@@ -366,12 +367,15 @@ class FirstPass(DataHandler):
 
         # enlarge rectangle to make sure that the border lies inside
         rect.buffer(int(self.params['cage/rectangle_buffer']))
+        rect_frame = regions.Rectangle(0, 0, frame.shape[1], frame.shape[0])
+        rect = rect.intersection(rect_frame)
 
         # do vertical line scans
         dx = rect.width // 10
         xs = np.r_[rect.left:rect.right - dx:dx, rect.right][1:-1]
         yt1, yt2 = rect.top, rect.top + scan_length
         yb1, yb2 = rect.bottom, rect.bottom - scan_length
+
         yts, ybs = [], []
         for x1, x2 in zip(xs[:-1], xs[1:]):
             # top
@@ -416,7 +420,7 @@ class FirstPass(DataHandler):
         # build the rectangle describing the cage        
         cage_rect = regions.Rectangle.from_points((np.mean(xls), np.mean(yts)),
                                                   (np.mean(xrs), np.mean(ybs)))
-        
+
         # save debug information
         self.debug['cage']['fit_rect'] = cage_rect.data_int
         self.debug['cage']['fit_points'] = points

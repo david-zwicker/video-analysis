@@ -495,7 +495,7 @@ class Rectangle(object):
         self.x = x1
         self.y = y1
         self.width = x2 - x1
-        self.height = y2 - y1     
+        self.height = y2 - y1 
             
     @property
     def corners(self):
@@ -531,11 +531,20 @@ class Rectangle(object):
         self.set_corners(self.p1, p)
         
     def buffer(self, amount):
+        """ dilate the rectangle by a certain amount in all directions """
         self.x -= amount
         self.y -= amount
         self.width += 2*amount
         self.height += 2*amount
     
+    def intersection(self, other):
+        """ return the intersection between this rectangle and the other """
+        left = max(self.left, other.left) 
+        right = min(self.right, other.right)
+        top = max(self.top, other.top)
+        bottom = min(self.bottom, other.bottom)
+        return Rectangle.from_points((left, top), (right, bottom))
+        
     @property
     def area(self):
         return self.width * self.height

@@ -119,6 +119,9 @@ PARAMETER_LIST = [
               'threshold is calculated according to the formula '
               'thresh = img_mean - factor*img_std, where factor is the factor'
               'determined here.'),
+    Parameter('cage/boundary_detection_bottom_estimate', 0.95, UNIT.FRACTION,
+              'Fraction of the image height that is used to estimate the '
+              'position of the bottom of the frame'),
     Parameter('cage/boundary_detection_thresholds', [0.7, 0.3, 0.7, 0.9], None,
               'Thresholds for the boundary detection algorithm. The four values '
               'are the fraction of bright pixels necessary to define the '
