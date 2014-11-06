@@ -180,7 +180,7 @@ class FourthPass(DataHandler):
         
         # extract the mouse track since the last frame
         trail_length = self.params['output/video/period'] + 1
-        trail_width = int(self.params['mouse/model_radius'])
+        trail_width = int(2*self.params['mouse/model_radius'])
         time_start = max(0, self.frame_id - trail_length)
         track = mouse_track.pos[time_start:self.frame_id, :].astype(np.int32)
 
@@ -189,7 +189,6 @@ class FourthPass(DataHandler):
         indices = contiguous_regions(track[:, 0] > 0)
         
         for start, end in indices:
-            # add the line
             cv2.polylines(self.mouse_mask, [track[start:end, :]],
                           isClosed=False, color=255, thickness=trail_width)
         
