@@ -812,6 +812,12 @@ class FourthPass(DataHandler):
 
     def debug_finalize(self):
         """ close the video streams when done iterating """
+        
+        # save the mask of the explored area of the mouse
+        if 'explored_area_mask' in self.params['debug/output']:
+            filename = self.get_filename('explored_area_mask.png', 'debug')
+            cv2.imwrite(filename, self.mouse_mask)
+        
         # close the window displaying the video
         if 'video.show' in self.debug:
             self.debug['video.show'].close()
