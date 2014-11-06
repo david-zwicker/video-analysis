@@ -22,7 +22,7 @@ from .utils import unique_based_on_id
 from video.analysis import curves, regions
 from video.io import ImageWindow, VideoFile
 from video.filters import FilterMonochrome
-from video.utils import display_progress
+from video.utils import display_progress, contiguous_regions
 from video.composer import VideoComposer
 
 import debug  # @UnusedImport
@@ -130,6 +130,7 @@ class FourthPass(DataHandler):
         
         # initialize data structures
         self.frame_id = -1
+        self.mouse_mask = np.zeros(self.video.shape[1:], np.uint8)
 
         if self.params['burrows/enabled_pass4']:
             self.result['burrows/tracks'] = BurrowTrackList()
@@ -154,6 +155,9 @@ class FourthPass(DataHandler):
             # retrieve data for current frame
             self.ground = ground_profile.get_ground_profile(self.frame_id)
 
+            # write the mouse trail to the mouse mask
+            self.update_mouse_mask()
+
             # find the changes in the background
             if self.params['burrows/enabled_pass4']:
                 self.find_burrows(frame)
@@ -165,6 +169,31 @@ class FourthPass(DataHandler):
                 self.logger.debug('Analyzed frame %d', self.frame_id)
 
     
+    #===========================================================================
+    # HANDLE MOUSE MOVEMENT
+    #===========================================================================
+
+
+    def update_mouse_mask(self):
+        """ updates the internal mask that tells us where the mouse has been """
+        mouse_track = self.data['pass2/mouse_trajectory']
+        
+        # extract the mouse track since the last frame
+        trail_length = self.params['output/video/period'] + 1
+        trail_width = int(self.params['mouse/model_radius'])
+        time_start = max(0, self.frame_id - trail_length)
+        track = mouse_track.pos[time_start:self.frame_id, :].astype(np.int32)
+
+        # find the regions where the points are finite
+        # Here, we compare to 0 to capture nans in the int32 array
+        indices = contiguous_regions(track[:, 0] > 0)
+        
+        for start, end in indices:
+            # add the line
+            cv2.polylines(self.mouse_mask, [track[start:end, :]],
+                          isClosed=False, color=255, thickness=trail_width)
+        
+
     #===========================================================================
     # DETERMINE THE BURROW CENTERLINES
     #===========================================================================
@@ -449,7 +478,9 @@ class FourthPass(DataHandler):
                
         # connect burrow chunks
         self.burrow_mask = cv2.morphologyEx(self.burrow_mask, cv2.MORPH_CLOSE, kernel)
-        
+
+        # burrows can only be where the mouse has been        
+        self.burrow_mask[self.mouse_mask == 0] = 0
         # there are no burrows above the ground by definition
         self.burrow_mask[ground_mask == 0] = 0
         

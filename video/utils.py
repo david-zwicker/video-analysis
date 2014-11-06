@@ -66,7 +66,9 @@ def contiguous_regions(condition):
     second column is the end index
     Taken from http://stackoverflow.com/a/4495197/932593
     """
-
+    if len(condition) == 0:
+        return []
+    
     # Find the indices of changes in "condition"
     d = np.diff(condition.astype(int))
     idx, = d.nonzero() 
