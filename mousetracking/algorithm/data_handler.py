@@ -443,12 +443,12 @@ class DataDict(collections.MutableMapping):
         """ returns the item identified by `key`.
         If load_data is True, a potential LazyHDFValue gets loaded """
         try:
-            if self.sep in key:
+            if isinstance(key, basestring) and self.sep in key:
                 # sub-data is accessed
                 child, grandchildren = key.split(self.sep, 1)
                 value = self.data[child].get_item(grandchildren, load_data)
             else:
-                value = self.data[key] 
+                value = self.data[key]
         except KeyError:
             raise KeyError(key)
 
@@ -476,7 +476,7 @@ class DataDict(collections.MutableMapping):
         
     def __setitem__(self, key, value):
         """ writes the item into the dictionary """
-        if self.sep in key:
+        if isinstance(key, basestring) and self.sep in key:
             # sub-data is written
             child, grandchildren = key.split(self.sep, 1)
             try:
@@ -494,7 +494,7 @@ class DataDict(collections.MutableMapping):
     def __delitem__(self, key):
         """ deletes the item identified by key """
         try:
-            if self.sep in key:
+            if isinstance(key, basestring) and self.sep in key:
                 # sub-data is deleted
                 child, grandchildren = key.split(self.sep, 1)
                 del self.data[child][grandchildren]
@@ -507,7 +507,7 @@ class DataDict(collections.MutableMapping):
 
     def __contains__(self, key):
         """ returns True if the item identified by key is contained in the data """
-        if self.sep in key:
+        if isinstance(key, basestring) and self.sep in key:
             child, grandchildren = key.split(self.sep, 1)
             return child in self.data and grandchildren in self.data[child]
 
@@ -543,7 +543,11 @@ class DataDict(collections.MutableMapping):
             for key, value in self.data.iteritems():
                 if isinstance(value, DataDict):
                     # recurse into sub dictionary
-                    prefix = key + self.sep
+                    try:
+                        prefix = key + self.sep
+                    except TypeError:
+                        raise TypeError('Keys for DataDict must be strings '
+                                        '(`%s` is invalid)' % key)
                     for k in value.iterkeys(flatten=True):
                         yield prefix + k
                 else:
@@ -559,7 +563,11 @@ class DataDict(collections.MutableMapping):
         for key, value in self.data.iteritems():
             if flatten and isinstance(value, DataDict):
                 # recurse into sub dictionary
-                prefix = key + self.sep
+                try:
+                    prefix = key + self.sep
+                except TypeError:
+                    raise TypeError('Keys for DataDict must be strings '
+                                    '(`%s` is invalid)' % key)
                 for k, v in value.iteritems(flatten=True):
                     yield prefix + k, v
             else:
@@ -611,7 +619,11 @@ class DataDict(collections.MutableMapping):
                 value = value.to_dict(flatten)
                 if flatten:
                     for k, v in value.iteritems():
-                        res[key + self.sep + k] = v
+                        try:
+                            res[key + self.sep + k] = v
+                        except TypeError:
+                            raise TypeError('Keys for DataDict must be strings '
+                                            '(`%s` or `%s` is invalid)' % (key, k))
                 else:
                     res[key] = value
             else:
