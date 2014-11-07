@@ -614,8 +614,11 @@ class FirstPass(DataHandler):
         # use internal cache to avoid allocating memory
         mask_moving = self._cache['image_uint8']
 
+        # blur the background to be able to compare it to the current frame
+        background_blurred = self.blur_image(self.background)
+
         # calculate the difference to the current background model
-        cv2.subtract(frame, self.background, dtype=cv2.CV_8U, dst=mask_moving)
+        cv2.subtract(frame, background_blurred, dtype=cv2.CV_8U, dst=mask_moving)
         # Note that all points where the difference would be negative are set
         # to zero. However, we only need the positive differences.
         
