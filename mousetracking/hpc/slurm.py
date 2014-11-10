@@ -48,6 +48,7 @@ class ProjectSingleSlurm(HPCProjectBase):
     
     # file name patterns used here
     job_id_file = 'pass%d_job_id.txt'
+    job_ids_file = 'job_ids.txt'
     log_file = 'log_pass%d_%s.txt'
     status_cache_file = 'status_pass%d.yaml'
     pass_finished_states = {'done', 'ffmpeg-error'}
@@ -56,19 +57,22 @@ class ProjectSingleSlurm(HPCProjectBase):
     def submit(self):
         """ submit the tracking job using slurm """
         with change_directory(self.folder):
-            pid_prev = None #< pid of the previous process
+            job_id = None #< job_id of the previous process
             
             for pass_id in self.passes:
                 # create job command
                 cmd = ['sbatch']
-                if pid_prev is not None:
-                    cmd.append('--dependency=afterok:%d' % pid_prev)
+                if job_id is not None:
+                    cmd.append('--dependency=afterok:%d' % job_id)
                 cmd.append(self.files_job[pass_id][0])
 
-                # submit command and fetch pid from output
+                # submit command and fetch job_id from output
                 res = sp.check_output(cmd)
-                pid_prev = int(res.split()[-1])
-                self.logger.info('Job id of pass %d: %d', pass_id, pid_prev)
+                job_id = int(res.split()[-1])
+                # save job_id to file
+                with open(self.job_ids_file, 'a') as f:
+                    f.write('pass %d - %d\n' % (pass_id, job_id))
+                self.logger.info('Job id of pass %d: %d', pass_id, job_id)
 
 
     def check_log_for_error(self, log_file):
