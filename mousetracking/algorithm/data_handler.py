@@ -301,10 +301,11 @@ class DataHandler(object):
 
         # restrict the analysis to an interval of frames
         frames = self.data.get('parameters/video/frames', None)
-        if frames is not None:
+        frames_skip = self.data.get('parameters/video/frames_skip', 0)
+        if frames is None:
+            frames = (frames_skip, self.video.frame_count)
+        if 0 < frames[0] or frames[1] < self.video.frame_count:
             self.video = self.video[frames[0]:frames[1]]
-        else:
-            frames = (0, self.video.frame_count)
             
         video_info['frames'] = frames
 

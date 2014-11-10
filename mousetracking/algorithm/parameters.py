@@ -49,7 +49,12 @@ PARAMETER_LIST = [
     Parameter('video/blur_sigma_color', 0, UNIT.COLOR,
               'Standard deviation in color space of the bilateral filter'),
     Parameter('video/frames', None, None,
-              'Frames of the video which are analyzed [start and end index should be given]'),
+              'Frames of the video which are analyzed [start and end index '
+              'should be given]'),
+    Parameter('video/frames_skip', None, UNIT.TIME_FRAMES,
+              'Number of frames that are skipped before starting the '
+              'analysis. This value is only considered if video/frames '
+              'is None.'),
     Parameter('video/cropping_rect', None, None,
               "Rectangle to which the video is cropped. This can be either four "
               "numbers [left, top, width, height] or some string like "
