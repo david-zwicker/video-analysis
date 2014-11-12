@@ -152,6 +152,8 @@ class ThirdPass(DataHandler):
         mouse_track = self.data['pass2/mouse_trajectory']
         ground_profile = self.data['pass2/ground_profile']
         frame_offset = self.result['video/frames'][0]
+        if frame_offset is None:
+            frame_offset = 0
 
         # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video), frame_offset):

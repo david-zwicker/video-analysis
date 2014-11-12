@@ -208,14 +208,16 @@ class FirstPass(DataHandler):
     def _iterate_over_video(self, video):
         """ internal function doing the heavy lifting by iterating over the video """
 
-        # iterate over the video and analyze it
         analyzed_never = True
         frame_offset = self.result['video/frames'][0]
+        if frame_offset is None:
+            frame_offset = 0
         if self.params['video/initial_adaptation_frames'] is None:
             analyze_start = frame_offset
         else:
             analyze_start = frame_offset + self.params['video/initial_adaptation_frames']
         
+        # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video), frame_offset):
             # remove noise using a bilateral filter
             frame_blurred = self.blur_image(frame)
