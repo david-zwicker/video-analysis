@@ -211,7 +211,10 @@ class FirstPass(DataHandler):
         # iterate over the video and analyze it
         analyzed_never = True
         frame_offset = self.result['video/frames'][0]
-        analyze_start = frame_offset + self.params['video/initial_adaptation_frames']
+        if self.params['video/initial_adaptation_frames'] is None:
+            analyze_start = frame_offset
+        else:
+            analyze_start = frame_offset + self.params['video/initial_adaptation_frames']
         
         for self.frame_id, frame in enumerate(display_progress(video), frame_offset):
             # remove noise using a bilateral filter
