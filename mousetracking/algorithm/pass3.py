@@ -151,9 +151,10 @@ class ThirdPass(DataHandler):
         # load data from previous passes
         mouse_track = self.data['pass2/mouse_trajectory']
         ground_profile = self.data['pass2/ground_profile']
+        frame_offset = self.result['video/frames'][0]
 
         # iterate over the video and analyze it
-        for self.frame_id, frame in enumerate(display_progress(video)):
+        for self.frame_id, frame in enumerate(display_progress(video), frame_offset):
             
             # adapt the background to current frame 
             adaptation_rate = self.params['background/adaptation_rate']

@@ -276,7 +276,8 @@ class VideoWriterFFmpeg(object):
         self.ext = self.filename.split(".")[-1]
         self.size = size
         self.is_color = is_color
-        self.debug = debug        
+        self.debug = debug
+        self.frames_written = 0   
 
         if size[0] % 2 != 0 or size[1] % 2 != 0:
             raise ValueError('Both dimensions of the video must be even for '
@@ -371,6 +372,9 @@ class VideoWriterFFmpeg(object):
                   "was too high or too low for the video codec.")
             
             raise IOError(error)
+
+        else:
+            self.frames_written += 1   
         
         # check for extra output in debug mode
         if self.debug:

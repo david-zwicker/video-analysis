@@ -210,7 +210,10 @@ class FirstPass(DataHandler):
 
         # iterate over the video and analyze it
         analyzed_never = True
-        for self.frame_id, frame in enumerate(display_progress(video)):
+        frame_offset = self.result['video/frames'][0]
+        analyze_start = frame_offset + self.params['video/initial_adaptation_frames']
+        
+        for self.frame_id, frame in enumerate(display_progress(video), frame_offset):
             # remove noise using a bilateral filter
             frame_blurred = self.blur_image(frame)
 
@@ -219,7 +222,7 @@ class FirstPass(DataHandler):
                 self.output['video'].set_frame(frame, copy=False)
             
             # do the main analysis after an initial wait period
-            do_analysis = (self.frame_id >= self.params['video/initial_adaptation_frames'])
+            do_analysis = (self.frame_id >= analyze_start)
             do_colors = (self.frame_id % self.params['colors/adaptation_interval'] == 0)
             do_ground = (self.frame_id % self.params['ground/adaptation_interval'] == 0)
             do_burrows = (self.frame_id % self.params['burrows/adaptation_interval'] == 0)
@@ -2129,7 +2132,10 @@ class FirstPass(DataHandler):
                     self.output['video.show'].show()
                 
         if 'background.video' in self.output:
-            self.output['background.video'].set_frame(self.background)
+            video = self.output['background.video'] 
+            if video.frames_written == 0:
+                self.result['video/background_frame_offset'] = self.frame_id
+            video.set_frame(self.background)
 
         if 'difference.video' in self.output:
             diff = frame.astype(int, copy=False) - self.background + 128

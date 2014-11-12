@@ -179,7 +179,8 @@ class VideoWriterOpenCV(object):
         self.filename = filename
         self.size = size
         self.is_color = is_color
-    
+        self.frames_written = 0   
+
         if codec is None:
             # detect format from file ending
             file_ext = os.path.splitext(filename)[1].lower()
@@ -207,6 +208,7 @@ class VideoWriterOpenCV(object):
 
     def write_frame(self, frame):
         self._writer.write(cv2.convertScaleAbs(frame))
+        self.frames_written += 1   
         
         
     def close(self):

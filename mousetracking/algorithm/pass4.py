@@ -81,17 +81,17 @@ class FourthPass(DataHandler):
         self.debug_setup()
 
         self.log_event('Pass 4 - Started iterating through the video with '
-                       '%d frames.' % self.video.frame_count)
+                       '%d frames.' % self.background_video.frame_count)
         self.data['analysis-status'] = 'Initialized video analysis'
         start_time = time.time()            
         
         try:
             # skip the first frame, since it has already been analyzed
-            self._iterate_over_video(self.video)
+            self._iterate_over_video(self.background_video)
                 
         except (KeyboardInterrupt, SystemExit):
             # abort the video analysis
-            self.video.abort_iteration()
+            self.background_video.abort_iteration()
             self.log_event('Pass 4 - Analysis run has been interrupted.')
             self.data['analysis-status'] = 'Partly finished third pass'
             
@@ -108,7 +108,7 @@ class FourthPass(DataHandler):
             self.add_processing_statistics(time.time() - start_time)        
                         
             # cleanup and write out of data
-            self.video.close()
+            self.background_video.close()
             self.debug_finalize()
             self.write_data()
 
@@ -126,15 +126,15 @@ class FourthPass(DataHandler):
         # load the video
         video_extension = self.params['output/video/extension']
         filename = self.get_filename('background' + video_extension, 'debug')
-        self.video = FilterMonochrome(VideoFile(filename))
+        self.background_video = FilterMonochrome(VideoFile(filename))
         
         # initialize data structures
         self.frame_id = -1
-        self.mouse_mask = np.zeros(self.video.shape[1:], np.uint8)
+        self.mouse_mask = np.zeros(self.background_video.shape[1:], np.uint8)
 
         if self.params['burrows/enabled_pass4']:
             self.result['burrows/tracks'] = BurrowTrackList()
-            self.burrow_mask = np.zeros(self.video.shape[1:], np.uint8)
+            self.burrow_mask = np.zeros(self.background_video.shape[1:], np.uint8)
 
         
     def _iterate_over_video(self, video):
@@ -142,11 +142,13 @@ class FourthPass(DataHandler):
         
         # load data from previous passes
         ground_profile = self.data['pass2/ground_profile']
+        background_frame_offset = self.data['pass1/video/background_frame_offset']
 
         # iterate over the video and analyze it
-        for background_id, frame in enumerate(display_progress(self.video)):
+        for background_id, frame in enumerate(display_progress(self.background_video)):
             # calculate frame id in the original video
-            self.frame_id = background_id * self.params['output/video/period'] 
+            self.frame_id = (background_frame_offset 
+                             + background_id * self.params['output/video/period']) 
             
             # copy frame to debug video
             if 'video' in self.debug:
@@ -337,7 +339,7 @@ class FourthPass(DataHandler):
     def get_ground_mask(self, y_displacement=0, margin=0, fill_value=255):
         """ returns a binary mask distinguishing the ground from the sky """
         # build a mask with potential burrows
-        width, height = self.video.size
+        width, height = self.background_video.size
         mask_ground = np.zeros((height, width), np.uint8)
         
         # create a mask for the region below the current mask_ground profile
@@ -758,8 +760,8 @@ class FourthPass(DataHandler):
         if 'video' in self.debug_output or 'video.show' in self.debug_output:
             # initialize the writer for the debug video
             debug_file = self.get_filename('pass4' + video_extension, 'debug')
-            self.debug['video'] = VideoComposer(debug_file, size=self.video.size,
-                                                fps=self.video.fps, is_color=True,
+            self.debug['video'] = VideoComposer(debug_file, size=self.background_video.size,
+                                                fps=self.background_video.fps, is_color=True,
                                                 output_period=video_output_period,
                                                 codec=video_codec,
                                                 bitrate=video_bitrate)
