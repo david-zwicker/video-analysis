@@ -244,21 +244,30 @@ class SecondPass(DataHandler):
         trajectory = np.empty((self.data['pass1/video/frames_analyzed'], 2))
         trajectory.fill(np.nan)
         
-        time, obj = None, None        
+        time_last, obj_last = None, None        
         for track in path:
-            # interpolate between the last track and the current one
-            if obj is not None:
-                # time, obj contain data from previous object
+            # check the connection between the previous point and the current one
+            if obj_last is not None:
                 time_now, obj_now = track.start, track.first
-                if time_now - time < self.params['tracking/maximal_gap']:
-                    obj_dist = curves.point_distance(obj.pos, obj_now.pos)
-                    if obj_dist < self.params['tracking/maximal_jump']: 
-                        frames = np.arange(time + 1, time_now)
-                        times = np.linspace(0, 1, len(frames) + 2)[1:-1]
-                        x1, x2 = obj.pos[0], obj_now.pos[0]
-                        trajectory[frames, 0] = x1 + (x2 - x1)*times
-                        y1, y2 = obj.pos[1], obj_now.pos[1]
-                        trajectory[frames, 1] = y1 + (y2 - y1)*times
+                time_gap = time_now - time_last
+                small_gap = (time_gap < self.params['tracking/maximal_gap'])
+                obj_dist = curves.point_distance(obj_last.pos, obj_now.pos)
+                small_jump = (obj_dist < self.params['tracking/maximal_jump'])
+                
+                # check whether we should interpolate 
+                if small_gap and small_jump:
+                    frames = np.arange(time_last + 1, time_now)
+                    ratio = np.linspace(0, 1, len(frames) + 2)[1:-1]
+                    x1, x2 = obj_last.pos[0], obj_now.pos[0]
+                    trajectory[frames, 0] = x1 + (x2 - x1)*ratio
+                    y1, y2 = obj_last.pos[1], obj_now.pos[1]
+                    trajectory[frames, 1] = y1 + (y2 - y1)*ratio
+                    
+                # check whether the tracking went wrong
+                if time_gap <= 1 and not small_jump:
+                    # make sure that there is a gap indicated by nan between
+                    # the two chunks 
+                    trajectory[time_now - 1:time_last + 1, :] = np.nan
             
             # add the data of this track directly
             for time, obj in track:
@@ -267,6 +276,8 @@ class SecondPass(DataHandler):
                     trajectory[time, :] = (trajectory[time, :] + obj.pos)/2
                 else:
                     trajectory[time, :] = obj.pos
+                    
+            time_last, obj_last = time, obj
         
         self.data['pass2/mouse_trajectory'] = MouseTrack(trajectory)
     
