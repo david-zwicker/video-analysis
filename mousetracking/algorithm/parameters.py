@@ -51,7 +51,7 @@ PARAMETER_LIST = [
     Parameter('video/frames', None, None,
               'Frames of the video which are analyzed [start and end index '
               'should be given]'),
-    Parameter('video/frames_skip', None, UNIT.TIME_FRAMES,
+    Parameter('video/frames_skip', 0, UNIT.TIME_FRAMES,
               'Number of frames that are skipped before starting the '
               'analysis. This value is only considered if video/frames '
               'is None.'),
