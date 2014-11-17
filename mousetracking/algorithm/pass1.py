@@ -1288,11 +1288,11 @@ class FirstPass(DataHandler):
             if len(points) == 0 or candidate[0] > points[-1][0]:
                 points.append(candidate)
                 
-            # there is an overhanging part
-            elif candidate[1] < points[-1][0]:
+            # there is an overhanging part, since candidate[0] <= points[-1][0]:
+            elif candidate[1] < points[-1][1]:
                 # current point is above previous point
                 # => replace the previous candidate point
-                points[-1] = candidate 
+                points[-1] = candidate
                 
             else:
                 # current point is below previous point
