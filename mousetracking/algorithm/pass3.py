@@ -196,23 +196,40 @@ class ThirdPass(DataHandler):
 
     def extend_mouse_trail(self):
         """ extends the mouse trail using the current mouse position """
-        # check points starting from the back of the trail
-        last_point = len(self.mouse_trail) - 1
-        while last_point >= 1:
-            p2 = self.mouse_trail[last_point-1] 
-            p1 = self.mouse_trail[last_point]
-            angle = curves.angle_between_points(p2, p1, self.mouse_pos)
-            if np.abs(angle) < np.pi/2:
-                # we found the last point to keep
-                dist = curves.point_distance(p2, self.mouse_pos)
-                if dist > self.params['burrows/centerline_segment_length']:
-                    last_point += 1
-                break
-            else:
-                # remove this point from the mouse trail
-                last_point -= 1
-    
-        del self.mouse_trail[max(1, last_point):]
+        ground_line = self.ground.linestring
+        
+        if self.mouse_trail:
+            spacing = self.params['burrows/centerline_segment_length']
+            trail = np.array(self.mouse_trail)
+            
+            # get distance between the current point and the previous ones
+            dist = np.hypot(trail[:, 0] - self.mouse_pos[0],
+                            trail[:, 1] - self.mouse_pos[1])
+            points_close = (dist < spacing)
+                
+            # delete obsolete points
+            if np.any(points_close):
+                i = np.nonzero(points_close)[0][0]
+                del self.mouse_trail[i:]
+           
+        if self.mouse_trail:
+            # move first point to ground
+            ground_point = curves.get_projection_point(ground_line,
+                                                       self.mouse_trail[0])
+            self.mouse_trail[0] = ground_point
+
+            # check whether a separate point needs to be inserted
+            p1, p2 = self.mouse_trail[-1], self.mouse_pos
+            if curves.point_distance(p1, p2) > spacing:
+                mid_point = (0.5*(p1[0] + p2[0]), 0.5*(p1[1] + p2[1]))
+                self.mouse_trail.append(mid_point)
+            
+        else:
+            # insert the ground point
+            ground_point = curves.get_projection_point(ground_line, self.mouse_pos)
+            self.mouse_trail.append(ground_point)
+            
+        # append the current point
         self.mouse_trail.append(self.mouse_pos)
 
 
@@ -746,7 +763,7 @@ class ThirdPass(DataHandler):
                                              mark_points=False, width=1)
                             
             elif self.mouse_trail:
-                debug_video.add_line(self.mouse_trail, '0.5', is_closed=False,
+                debug_video.add_line(self.mouse_trail, 'b', is_closed=False,
                                      mark_points=True, width=2)
                 
             # indicate the mouse state

@@ -255,6 +255,23 @@ class Analyzer(DataHandler):
         
         plt.sca(ax)
         return ax
+
+    
+    def find_problems(self):
+        """ checks for certain common problems in the results and returns a
+        dictionary with identified problems """
+        problems = {}
+        
+        # check for ground line that went up to the roof
+        ground_profile = self.data['pass2/ground_profile']
+        if np.max(ground_profile.profiles[-1, :, 1]) < 2:
+            problems['ground_through_roof'] = True
+        
+        return problems
+    
+        
+
+
                     
                 
                     
