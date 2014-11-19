@@ -24,6 +24,7 @@ class UNIT(object):
     SUBFOLDER = 4
     COLOR = 5
     BOOLEAN = 6
+    INTEGER = 7
     LENGTH_PIXEL = 11
     LENGTH_CM = 12
     AREA_PIXEL = 15
@@ -36,12 +37,13 @@ class UNIT(object):
     converter['FACTOR'] = float
     converter['FRACTION'] = float
     converter['BOOLEAN'] = bool
-    converter['LENGTH_PIXEL'] = 11
-    converter['LENGTH_CM'] = 12
-    converter['AREA_PIXEL'] = 15
-    converter['TIME_FRAMES'] = 20
-    converter['RATE_FRAMES'] = 21
-    converter['SPEED_PIXEL_FRAME'] = 30
+    converter['INTEGER'] = int
+    converter['LENGTH_PIXEL'] = float
+    converter['LENGTH_CM'] = float
+    converter['AREA_PIXEL'] = float
+    converter['TIME_FRAMES'] = float
+    converter['RATE_FRAMES'] = float
+    converter['SPEED_PIXEL_FRAME'] = float
     
 
 Parameter = namedtuple('Parameter', ['key', 'default_value', 'unit', 'description'])
@@ -252,7 +254,7 @@ PARAMETER_LIST = [
               'Number of consecutive frames used for motion detection'),
     Parameter('tracking/moving_threshold', 1, UNIT.SPEED_PIXEL_FRAME,
               'Threshold speed above which an object is said to be moving'),
-    Parameter('tracking/object_count_max', 7, None,
+    Parameter('tracking/object_count_max', 7, UNIT.INTEGER,
               'Maximal number of objects allowed in a single frame. If there are '
               'more objects, the entire frame is discarded'),
     Parameter('tracking/time_scale', 10, UNIT.TIME_FRAMES,
@@ -349,16 +351,16 @@ PARAMETER_LIST = [
               'Email address of the user to be notified in case of problems.'),
     Parameter('resources/slurm_partition', 'general', None,
               'Name of the slurm partition to use for submitting jobs'),              
-    Parameter('resources/pass1/cores', 2, None, 'Number of cores for pass 1'),
+    Parameter('resources/pass1/cores', 2, UNIT.INTEGER, 'Number of cores for pass 1'),
     Parameter('resources/pass1/time', 50*60, None, 'Maximal computation minutes for pass 1'),
     Parameter('resources/pass1/memory', 1000, None, 'Maximal RAM per core for pass 1 [in MB]'),
-    Parameter('resources/pass2/cores', 1, None, 'Number of cores for pass 2'),
+    Parameter('resources/pass2/cores', 1, UNIT.INTEGER, 'Number of cores for pass 2'),
     Parameter('resources/pass2/time', 20*60, None, 'Maximal computation minutes for pass 2'),
     Parameter('resources/pass2/memory', 8000, None, 'Maximal RAM per core for pass 2 [in MB]'),
-    Parameter('resources/pass3/cores', 2, None, 'Number of cores for pass 3'),
+    Parameter('resources/pass3/cores', 2, UNIT.INTEGER, 'Number of cores for pass 3'),
     Parameter('resources/pass3/time', 30*60, None, 'Maximal computation minutes for pass 3'),
     Parameter('resources/pass3/memory', 1000, None, 'Maximal RAM per core for pass 3 [in MB]'),
-    Parameter('resources/pass4/cores', 2, None, 'Number of cores for pass 4'),
+    Parameter('resources/pass4/cores', 2, UNIT.INTEGER, 'Number of cores for pass 4'),
     Parameter('resources/pass4/time', 20*60, None, 'Maximal computation minutes for pass 4'),
     Parameter('resources/pass4/memory', 1000, None, 'Maximal RAM per core for pass 4 [in MB]'),
 ]
