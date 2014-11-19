@@ -1224,9 +1224,7 @@ class FirstPass(DataHandler):
                 continue
 
             plen = len(profile)
-            xs = np.linspace(-plen/2 + 0.5,
-                              plen/2 - 0.5,
-                              plen)
+            xs = np.linspace(-plen/2 + 0.5, plen/2 - 0.5, plen)
         
             def energy_image((pos, model_mean, model_std)):
                 """ part of the energy related to the line scan """
@@ -1235,7 +1233,7 @@ class FirstPass(DataHandler):
                 img_diff = profile - model_std*model - model_mean
                 squared_diff = np.sum(img_diff**2)
                 return energy_factor_last*squared_diff
-                # energy_img has units of color^2
+                # energy_image has units of color^2
                 
             def energy_curvature(pos):
                 """ part of the energy related to the curvature of the ground line """

@@ -264,7 +264,7 @@ PARAMETER_LIST = [
     # Burrows
     Parameter('burrows/enabled_pass1', False, UNIT.BOOLEAN,
               'Whether burrows should be located in the first pass'),
-    Parameter('burrows/enabled_pass3', False, UNIT.BOOLEAN,
+    Parameter('burrows/enabled_pass3', True, UNIT.BOOLEAN,
               'Whether burrows should be located in the third pass'),
     Parameter('burrows/enabled_pass4', True, UNIT.BOOLEAN,
               'Whether burrows should be located in the fourth pass'),

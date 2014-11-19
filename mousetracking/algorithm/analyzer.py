@@ -50,7 +50,7 @@ class Analyzer(DataHandler):
             self.time_scale *= self.units.second
             self.length_scale *= self.units.centimeter
         
-    
+        
     def get_burrow_lengths(self):
         """ returns a list of burrows containing their length over time """
         burrow_tracks = self.data['pass1/burrows/tracks']

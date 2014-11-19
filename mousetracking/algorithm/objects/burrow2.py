@@ -115,6 +115,16 @@ class Burrow(object):
         self._cache = {}
         
 
+    def merge(self, other):
+        """ merge this burrow with another one """
+        polygon = self.polygon.union(other.polygon)
+        self.outline = regions.get_enclosing_outline(polygon)
+        
+        # update the centerline if the mouse trail is longer
+        if other.length > self.length:
+            self.centerline = other.centerline
+
+
     @cached_property
     def outline_ring(self):
         """ return the linear ring of the burrow outline """
