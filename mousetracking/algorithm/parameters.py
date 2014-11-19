@@ -10,7 +10,7 @@ parameters.
 
 from __future__ import division
 
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import warnings
 
 import numpy as np
@@ -30,6 +30,18 @@ class UNIT(object):
     TIME_FRAMES = 20
     RATE_FRAMES = 21
     SPEED_PIXEL_FRAME = 30
+    
+    # create dictionary with converter function
+    converter = defaultdict(lambda: lambda val: val)
+    converter['FACTOR'] = float
+    converter['FRACTION'] = float
+    converter['BOOLEAN'] = bool
+    converter['LENGTH_PIXEL'] = 11
+    converter['LENGTH_CM'] = 12
+    converter['AREA_PIXEL'] = 15
+    converter['TIME_FRAMES'] = 20
+    converter['RATE_FRAMES'] = 21
+    converter['SPEED_PIXEL_FRAME'] = 30
     
 
 Parameter = namedtuple('Parameter', ['key', 'default_value', 'unit', 'description'])

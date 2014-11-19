@@ -20,6 +20,7 @@ class HPCProjectBase(object):
     
     files_job = tuple()      #< files that need to be set up for the project
     files_cleanup = tuple()  #< files that need to be deleted to clean the work folder
+    file_parameters = '%s_results.yaml' #< pattern for the file where the parameters are stored 
     default_passes = 4
     
     def __init__(self, folder, name=None, parameters=None, passes=None):
@@ -70,7 +71,7 @@ class HPCProjectBase(object):
 
     @classmethod
     def create(cls, video_file, result_folder, video_name=None,
-               parameters=None, passes=None, prepare_workfolder='auto' ):
+               parameters=None, passes=None, prepare_workfolder='auto'):
         """ creates a new project from data
         video_file is the filename of the video to scan
         result_folder is a general folder in which the results will be stored.
@@ -85,6 +86,7 @@ class HPCProjectBase(object):
             increasing amounts of files that will be deleted before creating
             the project. If it is set to 'auto', the folder will be purged
             if a first pass run is requested.
+        specific_parameters are extra parameters that 
         """
         video_file = os.path.abspath(video_file)
 
@@ -117,7 +119,8 @@ class HPCProjectBase(object):
                   'JOB_DIRECTORY': project.folder,
                   'NAME': project.name,
                   'VIDEO_FILE': video_file,
-                  'TRACKING_PARAMETERS': pprint.pformat(tracking_parameters)}
+                  'TRACKING_PARAMETERS': pprint.pformat(tracking_parameters),
+                  'SPECIFIC_PARAMETERS': pprint.pformat(parameters)}
         
         # setup job resources
         resource_iter = project.parameters['resources'].iteritems(flatten=True)

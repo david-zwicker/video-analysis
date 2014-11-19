@@ -20,6 +20,7 @@
 * Use images of final burrow cast to locate burrows (by analyzing the video in reverse)
 * Think about method to remove the water bottle
 	- could develop an image of the bottle (basically the top right region above the ground), which can then be subtracted from the background
+* Add code to slurm job scripts to automatically restart analysis if ffmpeg error occurred 
   	
 
 Performance improvements:

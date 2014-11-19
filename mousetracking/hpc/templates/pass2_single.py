@@ -9,15 +9,18 @@ sys.path.append(os.path.expanduser("{FOLDER_CODE}"))
 
 from numpy import array  # @UnusedImport
 
-from mousetracking.algorithm import SecondPass
+from mousetracking.algorithm.pass2 import SecondPass
 
 # configure basic logging, which will be overwritten later
 logging.basicConfig()
 
+# set specific parameters for this job
+parameters = {SPECIFIC_PARAMETERS}  # @UndefinedVariable
+
 # set job parameters
-parameters = {{'base_folder': "{JOB_DIRECTORY}",
-               'logging/folder': ".",
-               'output/folder': ".",}}
+parameters.update({{'base_folder': "{JOB_DIRECTORY}",
+                    'logging/folder': ".",
+                    'output/folder': ".",}})
 
 # do the second pass scan
 pass2 = SecondPass("{NAME}", parameters=parameters, read_data=True)

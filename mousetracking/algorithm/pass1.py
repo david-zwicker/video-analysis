@@ -1276,7 +1276,7 @@ class FirstPass(DataHandler):
                 candidate_points[k] = (int(p_x), int(p_y))
 
         # filter points, where the fit did not work
-        # FIXME: fix overhanging ridge detection (changed sign of comparison recently)
+        # FIXME: fix overhanging ridge detection (changed sign of comparison Oct. 27)
         points = []
         for candidate in candidate_points:
             if candidate is None:

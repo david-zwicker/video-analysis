@@ -751,6 +751,8 @@ class ThirdPass(DataHandler):
             for track_id in reversed(in_burrows[1:]):
                 burrow_mouse.merge(burrow_tracks[track_id].last)
                 del burrow_tracks[track_id][-1]
+                
+            burrow_mouse.simplify_outline(tolerance=0.01)
 
         else:
             # create the burrow, since we don't know it yet
@@ -810,6 +812,11 @@ class ThirdPass(DataHandler):
                 debug_video.add_line(track, '0.5', is_closed=False)
                 debug_video.add_circle(track[-1], self.params['mouse/model_radius'],
                                        'w', thickness=1)
+            
+            # indicate the current mouse trail    
+            if self.mouse_trail:
+                debug_video.add_line(self.mouse_trail, 'b', is_closed=False,
+                                     mark_points=True, width=2)                
                 
             # indicate the currently active burrow shapes
             if self.params['burrows/enabled_pass3']:
@@ -825,10 +832,6 @@ class ThirdPass(DataHandler):
                     if burrow.outline is not None:
                         debug_video.add_line(burrow.outline, burrow_color, is_closed=True,
                                              mark_points=False, width=1)
-                            
-            elif self.mouse_trail:
-                debug_video.add_line(self.mouse_trail, 'b', is_closed=False,
-                                     mark_points=True, width=2)
                 
             # indicate the mouse state
             mouse_state = mouse_track.states[self.frame_id]

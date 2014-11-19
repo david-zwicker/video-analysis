@@ -14,10 +14,13 @@ from mousetracking.algorithm.pass4 import FourthPass
 # configure basic logging, which will be overwritten later
 logging.basicConfig()
 
+# set specific parameters for this job
+parameters = {SPECIFIC_PARAMETERS}  # @UndefinedVariable
+
 # set job parameters
-parameters = {{'base_folder': "{JOB_DIRECTORY}",
-               'logging/folder': ".",
-               'output/folder': ".",}}
+parameters.update({{'base_folder': "{JOB_DIRECTORY}",
+                    'logging/folder': ".",
+                    'output/folder': ".",}})
 
 # do the second pass scan
 pass4 = FourthPass("{NAME}", parameters=parameters, read_data=True)
