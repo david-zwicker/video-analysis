@@ -752,13 +752,19 @@ class ThirdPass(DataHandler):
                 burrow_mouse.merge(burrow_tracks[track_id].last)
                 del burrow_tracks[track_id][-1]
                 
-            burrow_mouse.simplify_outline(tolerance=0.01)
-
         else:
             # create the burrow, since we don't know it yet
-            burrow = Burrow(self.mouse_trail[:])
-            burrow_track = BurrowTrack(self.frame_id, burrow)
+            trail_width = 0.5*self.params['mouse/model_radius']
+            mouse_trail = geometry.LineString(self.mouse_trail)
+            mouse_trail = mouse_trail.buffer(trail_width)
+            outline = mouse_trail.boundary.coords
+
+            burrow_mouse = Burrow(self.mouse_trail[:], outline)
+            burrow_track = BurrowTrack(self.frame_id, burrow_mouse)
             burrow_tracks.append(burrow_track)
+
+        # simplify the burrow outline
+        burrow_mouse.simplify_outline(tolerance=0.01)
 
                                         
     #===========================================================================
