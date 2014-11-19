@@ -102,6 +102,9 @@ class FirstPass(DataHandler):
             self.video, cropping_rect = self.crop_video_to_cage(self.video)
         else:
             cropping_rect = None
+          
+        # locate the water bottle in the frame
+        self.water_bottle_rect = self.find_water_bottle(self.video[0])
             
         video_info = self.data['pass1/video']
         video_info['cropping_cage'] = cropping_rect
@@ -203,6 +206,10 @@ class FirstPass(DataHandler):
         self.explored_area = np.zeros(video_shape, np.double)
         self._cache['image_uint8'] = np.empty(video_shape, np.uint8)
         self._cache['image_double'] = np.empty(video_shape, np.double)
+        
+        if self.water_bottle_rect:
+            shape = (self.water_bottle_rect.width, self.water_bottle_rect.height)
+            self.water_bottle_img = np.zeros(shape, np.uint8)
   
 
     def _iterate_over_video(self, video):
@@ -219,6 +226,10 @@ class FirstPass(DataHandler):
         
         # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video), frame_offset):
+            # see whether we can handle the water bottle
+            if self.water_bottle_rect:
+                frame = self.remove_water_bottle(frame.copy())
+            
             # remove noise using a bilateral filter
             frame_blurred = self.blur_image(frame)
 
@@ -514,6 +525,50 @@ class FirstPass(DataHandler):
     # BACKGROUND MODEL AND COLOR ESTIMATES
     #===========================================================================
                
+               
+    def find_water_bottle(self, frame):
+        """ locates the water bottle in the image such that it can be removed
+        from the background estimate later """
+        
+        # load the template
+        filename = self.params['background/water_bottle_template']
+        path = os.path.join(os.path.dirname(__file__), 'assets', filename)
+        if not os.path.isfile(path):
+            return None
+        bottle = cv2.imread(path)[:, :, 0]
+
+        # find the bottle in the image
+        res = cv2.matchTemplate(frame, bottle, cv2.TM_CCOEFF)
+        _, _, _, max_loc = cv2.minMaxLoc(res)
+        self.logger.debug('Located water bottle at position (%d, %d)' % max_loc)
+        
+        # determine the rectangle of the water bottle
+        bottle_rect = regions.Rectangle(max_loc[0], max_loc[1],
+                                        bottle.shape[1], bottle.shape[0])
+        self.result['background/water_bottle_rect'] = bottle_rect.to_list()
+        return bottle_rect
+        
+        
+    def remove_water_bottle(self, frame):
+        """ returns a copy of the frame in which the water bottle has been
+        removed """
+        # extract the region of the water bottle
+        wb_x, wb_y = self.water_bottle_rect.slices
+        wb = frame[wb_y, wb_x]
+        wb_median = np.median(wb)
+        
+        # subtract extreme areas from water bottle area
+        factor = 1.5*self.params['mouse/intensity_threshold']
+        try:
+            color_std = factor*self.result['colors/sky_std']
+        except KeyError:
+            color_std = factor*self.params['colors/std_min']
+        f_min = wb_median - color_std
+        f_max = wb_median + color_std
+        frame[wb_y, wb_x] = np.clip(frame[wb_y, wb_x], f_min, f_max)
+        return frame
+    
+
     def estimate_sky_and_sand_regions(self, image):
         """ returns estimates for masks that definitely contain sky and sand
         regions, respectively """
@@ -578,7 +633,7 @@ class FirstPass(DataHandler):
                 
     def update_background_model(self, frame):
         """ updates the background model using the current frame """
-        
+            
         if self.background is None:
             self.background = frame.astype(np.double, copy=True)
         
@@ -597,7 +652,7 @@ class FirstPass(DataHandler):
                 adaptation_rate[i_s[0], i_s[1]] *= 1 - template[t_s[0], t_s[1]]
                 
         else:
-            # disable the adaptation_rate if no mouse is known
+            # use the default adaptation rate everywhere when mouse is unknown
             adaptation_rate = self.params['background/adaptation_rate']
 
         # adapt the background to current frame, but only inside the adaptation_rate 

@@ -516,6 +516,12 @@ class FourthPass(DataHandler):
 #         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
 #         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
          
+        # make sure that the burrow chunks do not touch the borders
+        self.burrow_mask[ 0, :] = 0
+        self.burrow_mask[-1, :] = 0
+        self.burrow_mask[:,  0] = 0
+        self.burrow_mask[:, -1] = 0
+         
         #labels, num_features = ndimage.measurements.label(self.burrow_mask)
         # extend the contour to the ground line
         contours, _ = cv2.findContours(self.burrow_mask,

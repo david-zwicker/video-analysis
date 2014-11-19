@@ -445,6 +445,13 @@ class Rectangle(object):
         y1, y2 = min(p1[1], p2[1]), max(p1[1], p2[1])
         return cls(x1, y1, x2 - x1, y2 - y1)
     
+    @classmethod
+    def from_list(cls, data):
+        return cls(*data)
+
+    def to_list(self):
+        return [self.x, self.y, self.width, self.height]
+    
     def copy(self):
         return self.__class__(self.x, self.y, self.width, self.height)
         

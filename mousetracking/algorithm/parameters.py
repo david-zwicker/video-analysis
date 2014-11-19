@@ -180,6 +180,9 @@ PARAMETER_LIST = [
     # Background and explored area                             
     Parameter('background/adaptation_rate', 1e-2, UNIT.RATE_FRAMES,
               'Rate at which the background is adapted'),
+    Parameter('background/water_bottle_template', 'water_bottle.png', None,
+              'Name of the template for removing the water bottle from the '
+              'background estimate.'),
     Parameter('explored_area/adaptation_rate_outside', 1e-3, UNIT.RATE_FRAMES,
               'Rate at which the explored area is adapted outside of burrows'),
     Parameter('explored_area/adaptation_rate_burrows', 0, UNIT.RATE_FRAMES,
