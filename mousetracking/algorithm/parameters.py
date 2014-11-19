@@ -75,6 +75,12 @@ PARAMETER_LIST = [
               "Rectangle to which the video is cropped. This can be either four "
               "numbers [left, top, width, height] or some string like "
               "'upper left', 'lower right', etc."),
+    Parameter('video/remove_water_bottle', True, UNIT.BOOLEAN,
+              'Flag that indicates whether the water bottle should be removed '
+              'from the video'),
+    Parameter('video/water_bottle_template', 'water_bottle.png', None,
+              'Name of the template for removing the water bottle from the '
+              'background estimate.'),
           
     # Logging
     Parameter('logging/enabled',  True, UNIT.BOOLEAN,
@@ -180,9 +186,6 @@ PARAMETER_LIST = [
     # Background and explored area                             
     Parameter('background/adaptation_rate', 1e-2, UNIT.RATE_FRAMES,
               'Rate at which the background is adapted'),
-    Parameter('background/water_bottle_template', 'water_bottle.png', None,
-              'Name of the template for removing the water bottle from the '
-              'background estimate.'),
     Parameter('explored_area/adaptation_rate_outside', 1e-3, UNIT.RATE_FRAMES,
               'Rate at which the explored area is adapted outside of burrows'),
     Parameter('explored_area/adaptation_rate_burrows', 0, UNIT.RATE_FRAMES,

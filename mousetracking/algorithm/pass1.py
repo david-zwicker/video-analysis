@@ -103,9 +103,6 @@ class FirstPass(DataHandler):
         else:
             cropping_rect = None
           
-        # locate the water bottle in the frame
-        self.water_bottle_rect = self.find_water_bottle(self.video[0])
-            
         video_info = self.data['pass1/video']
         video_info['cropping_cage'] = cropping_rect
         video_info['frame_count'] = self.video.frame_count
@@ -206,11 +203,7 @@ class FirstPass(DataHandler):
         self.explored_area = np.zeros(video_shape, np.double)
         self._cache['image_uint8'] = np.empty(video_shape, np.uint8)
         self._cache['image_double'] = np.empty(video_shape, np.double)
-        
-        if self.water_bottle_rect:
-            shape = (self.water_bottle_rect.width, self.water_bottle_rect.height)
-            self.water_bottle_img = np.zeros(shape, np.uint8)
-  
+          
 
     def _iterate_over_video(self, video):
         """ internal function doing the heavy lifting by iterating over the video """
@@ -227,7 +220,7 @@ class FirstPass(DataHandler):
         # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video), frame_offset):
             # see whether we can handle the water bottle
-            if self.water_bottle_rect:
+            if self.params['video/remove_water_bottle']:
                 frame = self.remove_water_bottle(frame.copy())
             
             # remove noise using a bilateral filter
@@ -531,7 +524,7 @@ class FirstPass(DataHandler):
         from the background estimate later """
         
         # load the template
-        filename = self.params['background/water_bottle_template']
+        filename = self.params['video/water_bottle_template']
         path = os.path.join(os.path.dirname(__file__), 'assets', filename)
         if not os.path.isfile(path):
             return None
@@ -552,8 +545,14 @@ class FirstPass(DataHandler):
     def remove_water_bottle(self, frame):
         """ returns a copy of the frame in which the water bottle has been
         removed """
+        # get the rectangle locating the water bottle
+        if 'water_bottle_rect' not in self._cache:
+            # locate the water bottle in the frame
+            self._cache['water_bottle_rect'] = self.find_water_bottle(frame)
+        water_bottle_rect = self._cache['water_bottle_rect']
+        
         # extract the region of the water bottle
-        wb_x, wb_y = self.water_bottle_rect.slices
+        wb_x, wb_y = water_bottle_rect.slices
         wb = frame[wb_y, wb_x]
         wb_median = np.median(wb)
         
