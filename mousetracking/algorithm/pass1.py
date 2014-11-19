@@ -530,9 +530,18 @@ class FirstPass(DataHandler):
             return None
         bottle = cv2.imread(path)[:, :, 0]
 
+        # crop the image to the ROI
+        points = self.params['video/water_bottle_region']
+        x_min = int(points[0]*frame.shape[1])
+        x_max = int(points[1]*frame.shape[1])
+        y_min = int(points[2]*frame.shape[0])
+        y_max = int(points[3]*frame.shape[0])
+        frame_roi = frame[y_min:y_max+1, x_min:x_max+1]
+
         # find the bottle in the image
-        res = cv2.matchTemplate(frame, bottle, cv2.TM_CCOEFF)
+        res = cv2.matchTemplate(frame_roi, bottle, cv2.TM_CCOEFF)
         _, _, _, max_loc = cv2.minMaxLoc(res)
+        max_loc = (max_loc[0] + x_min, max_loc[1] + y_min)
         self.logger.debug('Located water bottle at position (%d, %d)' % max_loc)
         
         # determine the rectangle of the water bottle

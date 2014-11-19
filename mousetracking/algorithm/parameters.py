@@ -81,6 +81,12 @@ PARAMETER_LIST = [
     Parameter('video/water_bottle_template', 'water_bottle.png', None,
               'Name of the template for removing the water bottle from the '
               'background estimate.'),
+    Parameter('video/water_bottle_region', [0.8, 1., 0., 0.3], None,
+              'Defines the region [x_min, x_max, y_min, y_max] in which the '
+              'upper left corner of the water bottle rectangle lies. The '
+              'coordinates are given relative to the cage width and height. '
+              'This is used to restrict the template matching to a sensible '
+              'region.'),
           
     # Logging
     Parameter('logging/enabled',  True, UNIT.BOOLEAN,
