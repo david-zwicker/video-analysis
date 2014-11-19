@@ -34,16 +34,18 @@ class UNIT(object):
     
     # create dictionary with converter function
     converter = defaultdict(lambda: lambda val: val)
-    converter['FACTOR'] = float
-    converter['FRACTION'] = float
-    converter['BOOLEAN'] = bool
-    converter['INTEGER'] = int
-    converter['LENGTH_PIXEL'] = float
-    converter['LENGTH_CM'] = float
-    converter['AREA_PIXEL'] = float
-    converter['TIME_FRAMES'] = float
-    converter['RATE_FRAMES'] = float
-    converter['SPEED_PIXEL_FRAME'] = float
+
+# initialize converters
+UNIT.converter[UNIT.FACTOR] = float
+UNIT.converter[UNIT.FRACTION] = float
+UNIT.converter[UNIT.BOOLEAN] = bool
+UNIT.converter[UNIT.INTEGER] = int
+UNIT.converter[UNIT.LENGTH_PIXEL] = float
+UNIT.converter[UNIT.LENGTH_CM] = float
+UNIT.converter[UNIT.AREA_PIXEL] = float
+UNIT.converter[UNIT.TIME_FRAMES] = float
+UNIT.converter[UNIT.RATE_FRAMES] = float
+UNIT.converter[UNIT.SPEED_PIXEL_FRAME] = float
     
 
 Parameter = namedtuple('Parameter', ['key', 'default_value', 'unit', 'description'])
