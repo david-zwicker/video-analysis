@@ -198,6 +198,7 @@ class ThirdPass(DataHandler):
         """ extends the mouse trail using the current mouse position """
         ground_line = self.ground.linestring
         
+        # remove points which are in front of the mouse
         if self.mouse_trail:
             spacing = self.params['burrows/centerline_segment_length']
             trail = np.array(self.mouse_trail)
@@ -212,6 +213,7 @@ class ThirdPass(DataHandler):
                 i = np.nonzero(points_close)[0][0]
                 del self.mouse_trail[i:]
            
+        # check the two ends of the mouse trail
         if self.mouse_trail:
             # move first point to ground
             ground_point = curves.get_projection_point(ground_line,
@@ -223,14 +225,21 @@ class ThirdPass(DataHandler):
             if curves.point_distance(p1, p2) > spacing:
                 mid_point = (0.5*(p1[0] + p2[0]), 0.5*(p1[1] + p2[1]))
                 self.mouse_trail.append(mid_point)
+
+            # append the current point
+            self.mouse_trail.append(self.mouse_pos)
+            ground_dist = curves.curve_length(self.mouse_trail)
             
         else:
-            # insert the ground point
+            # create a mouse trail if it is not too far from the ground
+            # the latter can happen, when the mouse suddenly appears underground
             ground_point = curves.get_projection_point(ground_line, self.mouse_pos)
-            self.mouse_trail.append(ground_point)
-            
-        # append the current point
-        self.mouse_trail.append(self.mouse_pos)
+            ground_dist = curves.point_distance(ground_point, self.mouse_pos)
+            if ground_dist < self.params['mouse/speed_max']:
+                self.mouse_trail = [ground_point, self.mouse_pos]
+
+        return ground_dist
+
 
 
     def classify_mouse_state(self, mouse_track):
@@ -251,18 +260,10 @@ class ThirdPass(DataHandler):
             state['underground'] = True
             
             # handle mouse trail
-            if self.mouse_trail is None:
-                # start a new mouse trail and initialize it with the                         
-                # ground point closest to the mouse       
-                ground_point = curves.get_projection_point(self.ground.linestring,
-                                                           self.mouse_pos)
-                self.mouse_trail = [ground_point, self.mouse_pos]
-
-            else:
-                self.extend_mouse_trail()
-                
-            # get distance the mouse is under ground
-            ground_dist = -curves.curve_length(self.mouse_trail)
+            ground_dist = self.extend_mouse_trail()
+            
+            # store the ground distance as a negative number 
+            ground_dist *= -1 
             
             # score the burrow based on its entry point
             if self.ground_idx is None:
@@ -295,14 +296,14 @@ class ThirdPass(DataHandler):
             if self.mouse_pos[1] > self.ground.get_y(self.mouse_pos[0]):
                 ground_dist *= -1
             
-            # check whether the mouse left the burrow at the point where it entered it
-            if self.mouse_trail is not None:
-                dist = mouse_point.distance(geometry.Point(self.mouse_trail[0]))
-                if (dist > 5*self.params['burrows/width']
-                    and self.params['burrows/enabled_pass3']):
-                    # mouse left the burrow at the point where it entered it
-                    self.mouse_trail.append(self.mouse_pos)
-                    self.find_burrows(two_exits=True)
+#             # check whether the mouse left the burrow at the point where it entered it
+#             if self.mouse_trail is not None:
+#                 dist = mouse_point.distance(geometry.Point(self.mouse_trail[0]))
+#                 if (dist > 5*self.params['burrows/width']
+#                     and self.params['burrows/enabled_pass3']):
+#                     # mouse left the burrow at the point where it entered it
+#                     self.mouse_trail.append(self.mouse_pos)
+#                     self.find_burrows(two_exits=True)
                 
             # reset the mouse trail since the mouse is over the ground
             self.mouse_trail = None
@@ -616,7 +617,7 @@ class ThirdPass(DataHandler):
         
         # check whether the mouse is in a burrow
         if self.mouse_trail is None:
-            # mouse is above ground => all burrows are without mice 
+            # mouse trail is unknown => we don't have enough information 
             burrow_with_mouse = -1
         
         else:
@@ -712,7 +713,7 @@ class ThirdPass(DataHandler):
             burrow.centerline = self.mouse_trail
     
                 
-    def find_burrows(self, two_exits=False):
+    def find_burrows(self):
         """ locates burrows based on current mouse trail """
         burrow_tracks = self.result['burrows/tracks']
         
@@ -722,7 +723,7 @@ class ThirdPass(DataHandler):
         
         # check whether the mouse is in a burrow
         if self.mouse_trail is None:
-            # mouse is above ground => all burrows are without mice 
+            # mouse trail is unknown => we don't have enough information 
             return
         
         # check whether we already know this burrow
