@@ -554,28 +554,36 @@ class FirstPass(DataHandler):
     def remove_water_bottle(self, frame):
         """ returns a copy of the frame in which the water bottle has been
         removed """
-        # get the rectangle locating the water bottle
+        # get variables from cache
         if 'water_bottle_rect' not in self._cache:
             # locate the water bottle in the frame
-            self._cache['water_bottle_rect'] = self.find_water_bottle(frame)
-        water_bottle_rect = self._cache['water_bottle_rect']
+            wb_rect = self.find_water_bottle(frame)
+            shape = (wb_rect.width, wb_rect.height)
+            wb_img = np.zeros(shape, np.double)
+            
+            # store in cache
+            self._cache['water_bottle_rect'] = wb_rect
+            self._cache['water_bottle_img'] = wb_img
+            
+        else:
+            # load from cache
+            wb_rect = self._cache['water_bottle_rect']
+            wb_img = self._cache['water_bottle_img']
         
         # extract the region of the water bottle
-        wb_x, wb_y = water_bottle_rect.slices
+        wb_x, wb_y = wb_rect.slices
         wb = frame[wb_y, wb_x]
-        wb_median = np.median(wb)
         
-        # subtract extreme areas from water bottle area
-        # don't subtract too much, since we still want to be able to
-        # detect movements in the area
-        factor = 1.5*self.params['mouse/intensity_threshold']
-        try:
-            color_std = factor*self.result['colors/sky_std']
-        except KeyError:
-            color_std = factor*self.params['colors/std_min']
-        f_min = wb_median - color_std
-        f_max = wb_median + color_std
-        frame[wb_y, wb_x] = np.clip(frame[wb_y, wb_x], f_min, f_max)
+        # adapt the water bottle image to current frame 
+        adaptation_rate = self.params['background/adaptation_rate']
+        wb_img += adaptation_rate*(wb - wb_img)
+        
+        # remove the background and add the median of it instead
+        # this removes extreme colors from the region
+        w = wb_rect.width//2
+        wb[:, w:] += np.median(wb_img[:, w:]) - wb_img[:, w:]
+        wb[:, :w] += np.median(wb_img[:, :w]) - wb_img[:, :w]
+        
         return frame
     
 

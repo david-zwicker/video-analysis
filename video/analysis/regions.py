@@ -519,8 +519,8 @@ class Rectangle(object):
     
     @property
     def slices(self):
-        slice_x = slice(self.x, self.x + self.width + 1)
-        slice_y = slice(self.y, self.y + self.height + 1)
+        slice_x = slice(self.x, self.x + self.width)
+        slice_y = slice(self.y, self.y + self.height)
         return slice_x, slice_y
 
     @property

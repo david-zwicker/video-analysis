@@ -317,12 +317,10 @@ class ThirdPass(DataHandler):
     #===========================================================================
 
 
-    def get_ground_mask(self):
-        """ returns a binary mask distinguishing the ground from the sky """
-        # build a mask with potential burrows
+    def get_ground_polygon_points(self):
+        """ returns a list of points marking the ground region """
         width, height = self.video.size
-        mask_ground = np.zeros((height, width), np.uint8)
-        
+
         # create a mask for the region below the current mask_ground profile
         ground_points = np.empty((len(self.ground) + 4, 2), np.int32)
         ground_points[:-4, :] = self.ground.points
@@ -330,6 +328,18 @@ class ThirdPass(DataHandler):
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
         ground_points[-1, :] = (0, ground_points[0, 1])
+        
+        return ground_points
+
+
+    def get_ground_mask(self):
+        """ returns a binary mask distinguishing the ground from the sky """
+        # build a mask with potential burrows
+        width, height = self.video.size
+        mask_ground = np.zeros((height, width), np.uint8)
+        
+        # create a mask for the region below the current mask_ground profile
+        ground_points = self.get_ground_polygon_points()
         cv2.fillPoly(mask_ground, np.array([ground_points], np.int32), color=255)
 
         return mask_ground
@@ -698,6 +708,7 @@ class ThirdPass(DataHandler):
     def store_burrows(self):
         """ associates the current burrows with burrow tracks """
         burrow_tracks = self.result['burrows/tracks']
+        ground_polygon = geometry.Polygon(self.get_ground_polygon_points())
         
         # check whether we already know this burrow
         # the burrows in self.burrows will always be larger than the burrows
@@ -731,6 +742,10 @@ class ThirdPass(DataHandler):
                 # create the burrow track, since we don't know it yet
                 burrow_track = BurrowTrack(self.frame_id, burrow_now)
                 burrow_tracks.append(burrow_track)
+                
+            # store only parts underneath ground
+            polygon = burrow_now.polygon.intersection(ground_polygon)
+            burrow_now.outline = regions.get_enclosing_outline(polygon)
                 
         # use the new set of burrows in the next iterations
         self.burrows = [b.copy() for _, b in self.active_burrows(time_interval=0)]
@@ -878,10 +893,14 @@ class ThirdPass(DataHandler):
                                              mark_points=False, width=1)
                 
             # indicate the mouse state
-            mouse_state = mouse_track.states[self.frame_id]
-            if mouse_state in mouse.STATES_SHORT:
-                debug_video.add_text(mouse.STATES_SHORT[mouse_state],
-                                     (120, 20), anchor='top')
+            try:
+                mouse_state = mouse_track.states[self.frame_id]
+            except IndexError:
+                pass
+            else:
+                if mouse_state in mouse.STATES_SHORT:
+                    debug_video.add_text(mouse.STATES_SHORT[mouse_state],
+                                         (120, 20), anchor='top')
                 
             # add additional debug information
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
