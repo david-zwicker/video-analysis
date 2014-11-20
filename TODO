@@ -19,11 +19,16 @@
 	- Alternatively, find centerline by using active snake guided by current centerline and distance map
 * Use images of final burrow cast to locate burrows (by analyzing the video in reverse)
 * Think about method to remove the water bottle
-	- could develop an image of the bottle (basically the top right region above the ground), which can then be subtracted from the background
+	- keep an image of the water bottle (similar to how we get an image of the background)
+	- subtract that image from the frame, but add back its median
+	=> this should remove the water bottle, but keep fluctuations
+		this might cause troubles if the mouse stays too long in the region,
+		although this should typically not be the case 
 * Add code to automatically restart analysis if ffmpeg error occurred
 	- implement `process` function in data_handler, which repeatedly calls a `process_video` function until no ffmpeg error occurs
 	- the `process_video` function contains the code which is currently in the `process` functions
-* Pass4: connect two burrows that face each other (which happens for burrows with two exits) 
+* Pass4:
+	- connect two burrows that face each other (which happens for burrows with two exits) 
   	
 
 Performance improvements:

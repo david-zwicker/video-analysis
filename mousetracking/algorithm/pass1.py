@@ -566,6 +566,8 @@ class FirstPass(DataHandler):
         wb_median = np.median(wb)
         
         # subtract extreme areas from water bottle area
+        # don't subtract too much, since we still want to be able to
+        # detect movements in the area
         factor = 1.5*self.params['mouse/intensity_threshold']
         try:
             color_std = factor*self.result['colors/sky_std']

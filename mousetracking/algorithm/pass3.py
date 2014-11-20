@@ -140,6 +140,7 @@ class ThirdPass(DataHandler):
         self.background = first_frame.astype(np.double)
         self.ground_idx = None  #< index of the ground point where the mouse entered the burrow
         self.mouse_trail = None #< line from this point to the mouse (along the burrow)
+        self.burrows = []       #< list of current burrows
         
         if self.params['burrows/enabled_pass3']:
             self.result['burrows/tracks'] = BurrowTrackList()
@@ -177,8 +178,7 @@ class ThirdPass(DataHandler):
             # find out where the mouse currently is        
             self.classify_mouse_state(mouse_track)
             
-            if (self.params['burrows/enabled_pass3'] and 
-                self.frame_id % self.params['burrows/adaptation_interval'] == 0):
+            if self.params['burrows/enabled_pass3']:
                 # find the burrow from the mouse trail
                 self.find_burrows()
 
@@ -695,11 +695,51 @@ class ThirdPass(DataHandler):
                     self.logger.debug('Delete overlapping burrow at %s',
                                       burrow.position)
                         
+    def store_burrows(self):
+        """ associates the current burrows with burrow tracks """
+        burrow_tracks = self.result['burrows/tracks']
+        
+        # check whether we already know this burrow
+        # the burrows in self.burrows will always be larger than the burrows
+        # in self.active_burrows. Consequently, it can happen that a current
+        # burrow overlaps two older burrows, but the reverse cannot be true
+        for burrow_now in self.burrows:
+            track_ids = [track_id 
+                         for track_id, burrow_last in self.active_burrows()
+                         if burrow_last.intersects(burrow_now)]
+            
+            if len(track_ids) > 1:
+                # merge all burrows to a single track and keep the largest one
+                
+                track_longest, length_max = None, 0
+                for track_id in track_ids:
+                    burrow_last = burrow_tracks[track_id].last
+                    # find track with longest burrow
+                    if burrow_last.length > length_max:
+                        track_longest, length_max = track_id, burrow_last.length
+                    # merge the burrows
+                    burrow_now = burrow_now.merge(burrow_last)
+                        
+                # merge all burrows
+                burrow_tracks[track_longest].append(self.frame_id, burrow_now)
+                    
+            elif len(track_ids) == 1:
+                # add the burrow to the matching track
+                burrow_tracks[track_ids[0]].append(self.frame_id, burrow_now)
+
+            else:
+                # create the burrow track, since we don't know it yet
+                burrow_track = BurrowTrack(self.frame_id, burrow_now)
+                burrow_tracks.append(burrow_track)
+                
+        # use the new set of burrows in the next iterations
+        self.burrows = [b.copy() for _, b in self.active_burrows(time_interval=0)]
+                
           
     def extend_burrow_by_mouse_trail(self, burrow):
         """ takes a burrow shape and extends it using the current mouse trail """
         # get the buffered mouse trail
-        trail_width = 0.5*self.params['mouse/model_radius']
+        trail_width = self.params['burrows/width_min']
         mouse_trail = geometry.LineString(self.mouse_trail)
         mouse_trail_len = mouse_trail.length 
         mouse_trail = mouse_trail.buffer(trail_width)
@@ -715,11 +755,9 @@ class ThirdPass(DataHandler):
                 
     def find_burrows(self):
         """ locates burrows based on current mouse trail """
-        burrow_tracks = self.result['burrows/tracks']
-        
-        # copy all burrows to the this frame
-        for burrow_id, burrow in self.active_burrows():
-            burrow_tracks[burrow_id].append(self.frame_id, burrow)
+
+        if self.frame_id % self.params['burrows/adaptation_interval'] == 0:
+            self.store_burrows()
         
         # check whether the mouse is in a burrow
         if self.mouse_trail is None:
@@ -727,10 +765,10 @@ class ThirdPass(DataHandler):
             return
         
         # check whether we already know this burrow
-        in_burrows = []
-        for burrow_id, burrow in self.active_burrows(time_interval=0):
+        burrows_with_mouse = []
+        trail_line = geometry.LineString(self.mouse_trail)
+        for burrow_id, burrow in enumerate(self.burrows):
             # determine whether we are inside this burrow
-            trail_line = geometry.LineString(self.mouse_trail)
             if burrow.outline is not None:
                 dist = burrow.polygon.distance(trail_line)
                 mouse_is_close = (dist < self.params['burrows/width']) 
@@ -741,17 +779,17 @@ class ThirdPass(DataHandler):
                 mouse_is_close = (dist < 2*self.params['burrows/width']) 
                  
             if mouse_is_close:
-                in_burrows.append(burrow_id)
+                burrows_with_mouse.append(burrow_id)
 
-        if in_burrows:
+        if burrows_with_mouse:
             # extend the burrow in which the mouse is
-            burrow_mouse = burrow_tracks[in_burrows[0]].last
+            burrow_mouse = self.burrows[burrows_with_mouse[0]]
             self.extend_burrow_by_mouse_trail(burrow_mouse)
             
             # merge all the other burrows into this one
-            for track_id in reversed(in_burrows[1:]):
-                burrow_mouse.merge(burrow_tracks[track_id].last)
-                del burrow_tracks[track_id][-1]
+            for burrow_id in reversed(burrows_with_mouse[1:]):
+                burrow_mouse.merge(self.burrows[burrow_id])
+                del self.burrows[burrow_id][-1]
                 
         else:
             # create the burrow, since we don't know it yet
@@ -761,11 +799,10 @@ class ThirdPass(DataHandler):
             outline = mouse_trail.boundary.coords
 
             burrow_mouse = Burrow(self.mouse_trail[:], outline)
-            burrow_track = BurrowTrack(self.frame_id, burrow_mouse)
-            burrow_tracks.append(burrow_track)
+            self.burrows.append(burrow_mouse)
 
         # simplify the burrow outline
-        burrow_mouse.simplify_outline(tolerance=0.01)
+        burrow_mouse.simplify_outline(tolerance=0.001)
 
                                         
     #===========================================================================
