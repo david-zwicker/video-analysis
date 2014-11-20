@@ -1344,7 +1344,7 @@ class FirstPass(DataHandler):
                 # save final energy for determining the energy scale later
                 energies_image.append(energy_image(res))
 
-                pos, _, model_std = res 
+                pos, _, model_std = res
                 p_x, p_y = p[0] + pos*dy, p[1] - pos*dx
                 candidate_points[k] = (int(p_x), int(p_y))
 
@@ -1374,8 +1374,8 @@ class FirstPass(DataHandler):
         energy_factor_last /= np.mean(energies_image)
         self.result['ground/energy_factor_last'] = energy_factor_last
 
-        if len(points) < 2:
-            # refinement failed => return original ground
+        if len(points) < 0.5*num_points:
+            # refinement failed for too many points => return original ground
             self.logger.debug('%d: Ground profile shortened too much.',
                               self.frame_id)
             return ground

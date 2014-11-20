@@ -180,9 +180,9 @@ class LazyHDFCollection(LazyHDFValue):
             if data:
                 result = self.data_cls(item_cls.create_from_array(data[index][:])
                                        for index in sorted(data.keys()))
+                # here, we have to use sorted() to iterate in the correct order 
             else: # empty dataset
                 result = self.data_cls()
-            # here, we have to use sorted() to iterate in the correct order 
                 
         return result
 
