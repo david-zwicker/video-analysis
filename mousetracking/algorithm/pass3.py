@@ -804,7 +804,7 @@ class ThirdPass(DataHandler):
             # merge all the other burrows into this one
             for burrow_id in reversed(burrows_with_mouse[1:]):
                 burrow_mouse.merge(self.burrows[burrow_id])
-                del self.burrows[burrow_id][-1]
+                del self.burrows[burrow_id]
                 
         else:
             # create the burrow, since we don't know it yet
