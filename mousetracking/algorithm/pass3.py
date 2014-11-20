@@ -729,7 +729,7 @@ class ThirdPass(DataHandler):
                     if burrow_last.length > length_max:
                         track_longest, length_max = track_id, burrow_last.length
                     # merge the burrows
-                    burrow_now = burrow_now.merge(burrow_last)
+                    burrow_now.merge(burrow_last)
                         
                 # merge all burrows
                 burrow_tracks[track_longest].append(self.frame_id, burrow_now)
