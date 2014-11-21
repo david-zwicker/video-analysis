@@ -81,17 +81,28 @@ class Analyzer(DataHandler):
                                'before the transitions can be analyzed.')
             
         if states is None:
-            states = mouse.STATES.keys()
+            states = ('.A.', '.H.', '.V.', '.D.', '.B ', '.BE', '...')
+            
+        # cluster mouse states according to the defined states here
+        state_cat = []
+        for state in mouse_state:
+            for k, pattern in enumerate(states):
+                if mouse.state_symbols_match(pattern, state):
+                    state_cat.append(k)
+                    break
+            else:
+                state_cat.append(-1)
             
         # get transitions
         transitions = collections.defaultdict(list)
         last_trans = 0
-        for k in np.nonzero(np.diff(mouse_state) != 0)[0]:
-            trans = (mouse_state[k], mouse_state[k + 1])
+        for k in np.nonzero(np.diff(state_cat) != 0)[0]:
+            if state_cat[k] < 0 or state_cat[k + 1] < 0:
+                # this transition involves uncategorized states
+                continue
             duration = (k - last_trans)*self.time_scale
-            if (trans[0] in states and trans[1] in states
-                and duration > len_threshold):
-                
+            if duration > len_threshold:
+                trans = (states[state_cat[k]], states[state_cat[k + 1]])
                 transitions[trans].append(duration)
             last_trans = k
             
@@ -136,8 +147,8 @@ class Analyzer(DataHandler):
         nodes = collections.defaultdict(int)
         for trans, lengths in transitions.iteritems():
             # get node names 
-            u = mouse.STATES[trans[0]]
-            v = mouse.STATES[trans[1]]
+            u = mouse.state_converter.symbols_repr(trans[0])
+            v = mouse.state_converter.symbols_repr(trans[1])
 
             # get statistics            
             rate = 1/np.mean(lengths)

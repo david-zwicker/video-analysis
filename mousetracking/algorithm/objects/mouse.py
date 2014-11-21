@@ -6,124 +6,138 @@ Created on Sep 11, 2014
 
 from __future__ import division
 
+import itertools
+
 import numpy as np
 
 from utils import LazyHDFValue
 
 
 
-STATE_ENCODING_DOCUMENTATION = """
-The location is encoded in the last two digits
-0      = mouse location is unknown
-
-10..19 = mouse is overground
-    11 = mouse is in the air
-    12 = mouse is on either hill
-    13 = mouse is in the valley
-
-20..29 = mouse is underground
-    21 = mouse is in a burrow
-    22 = mouse is in a dimple
-"""
-
-STATES = { 0:'unknown',
-          11:'air',
-          12:'hill',
-          13:'valley',
-          20:'sand',
-          21:'burrow',
-          22:'dimple'}
-
-STATES_SHORT = { 0: 'U',
-                11: 'A',
-                12: 'H',
-                13: 'V',
-                20: 'S',
-                21: 'B',
-                22: 'D'}
-
-
-def state_to_int(state):
-    """ calculate the integer representing the mouse state """
-    value = 0
+class MouseStateCategory(object):
+    """ class that organizes a single category of states """
     
-    # investigate the mouse position
-    # Note that underground can also be None and we thus have to
-    # explicitly compare with True/False
-    underground = state.pop('underground', None)
-    if underground == False:
-        value += 10
-        location = state.pop('location')
-        if  location == 'air':
-            value += 1
-        elif location == 'hill':
-            value += 2
-        elif location == 'valley':
-            value += 3
+    def __init__(self, name, symbols, states, length=None):
+        """ initializes the category.
+        name denotes the name of the category
+        symbols is a string with a unique symbol per state
+        states is a list of descriptions of the states
+        length is an integer indicating the maximal capacity of the category
+            This can be used to reserve room for adding additional states later
+            without disturbing already calculated states. """ 
+        # prepare data
+        self.name = name
+        symbols = '?' + symbols
+        states = ('?',) + tuple(states)
+        
+        # determine the length and do some checks
+        assert len(symbols) == len(states)
+        if length is None:
+            self.length = len(symbols)
         else:
-            state['location'] = location
-            
-    elif underground == True:
-        value += 20
-        location = state.pop('location')
-        if location == 'burrow':
-            value += 1
-        elif location == 'dimple':
-            value += 2
-        else:
-            state['location'] = location
-
-    if state:
-        raise RuntimeError('Some state information cannot be interpreted: %s' % state)
-
-    return value
-
-
-
-def int_to_state(value):
-    """ reconstruct the state dictionary from an integer """
-    state = {}
+            self.length = length + 1
+        assert len(symbols) <= self.length
+        
+        # create look up tables
+        self.symbols = symbols.ljust(self.length, '?')
+        self.states = {k: s for k, s in enumerate(states)}
+        self.states.update({k: '?' for k in range(len(states), self.length)})
+        self.states.update({sym: state for sym, state in zip(symbols, states)})
+        self.ids = {s: k for k, s in enumerate(symbols)}
+        self.ids.update({s: k for k, s in enumerate(states)})
     
-    value_loc = (value % 10)
-    if 10 <= value_loc < 20:
-        state['underground'] = False
-        if value_loc == 11:
-            state['location'] = 'air'
-        elif value_loc == 12:
-            state['location'] = 'hill'
-        elif value_loc == 13:
-            state['location'] = 'valley'
-            
-    elif 20 <= value_loc < 30:
-        state['underground'] = True
-        if value_loc == 21:
-            state['location'] = 'burrow'
-        elif value_loc == 22:
-            state['location'] = 'dimple'
     
-    return state
+        
+class MouseStateConverter(object):
+    """ class that manages the mapping of mouse states between different
+    representations """
+    
+    def __init__(self, categories):
+        """ initializes the converted.
+        categories initializes the categories supported by the converted """
+        self.categories = []
+        self.factors = []
+        self.max_id = 1
+        for data in categories:
+            category = MouseStateCategory(**data)
+            self.categories.append(category)
+            self.factors.append(self.max_id)
+            self.max_id *= category.length
+        
+        
+    def symbols_to_int(self, symbols):
+        """ converts the symbol representation to the integer representation """
+        return sum(fac * cat.ids.get(sym, 0)
+                   for fac, cat, sym in itertools.izip(self.factors,
+                                                       self.categories,
+                                                       symbols))
 
 
-def query_state(states, query):
-    """ returns a boolean value/array where query is True """
-    if query == 'underground':
-        return (10 <= states) & (states < 20)
-    elif query == 'in_air':
-        return states == 11
-    elif query == 'on_hill':
-        return states == 12
-    elif query == 'in_valley':
-        return states == 13
-    elif query == 'underground':
-        return (20 <= states) & (states < 30)
-    elif query == 'in_burrow':
-        return states == 21
-    elif query == 'in_dimple':
-        return states == 22
-    else:
-        raise ValueError('Unknown query `%s`' % query)
+    def int_to_symbols(self, value):
+        """ converts the integer representation to the symbol representation """
+        res = ''
+        for cat in self.categories:
+            res += cat.symbols[value % cat.length]
+            value //= cat.length
+        return res
+    
+    
+    def dict_to_int(self, state):
+        """ converts the dictionary representation to the integer representation """
+        res = 0
+        for fac, cat in itertools.izip(self.factors, self.categories):
+            if cat.name in state:
+                res += fac * cat.ids.get(state.pop(cat.name), 0)
+                
+        if state:
+            raise RuntimeError('Not all information inside the state dictionary '
+                               'could be converted to the other state '
+                               'representation. Left over: %s' % state)
+        return res
+    
+    
+    def int_to_dict(self, value):
+        """ converts the integer representation to the dictionary representation """
+        res = {}
+        for cat in self.categories:
+            res[cat.name] = cat.states[value % cat.length]
+            value //= cat.length
+        return res
+    
+    
+    def symbols_repr(self, symbols):
+        """ returns a readable representation for the symbols """
+        return ''.join(cat.states[sym]
+                       for cat, sym in itertools.izip(self.categories, symbols)
+                       if sym != '.' and sym != '?')
+    
+    
+        
+# create the mouse states used in this module
+state_converter = MouseStateConverter((
+    {'name': 'pos_horizontal',
+        'symbols': 'LR',
+        'states': ('left', 'right'),
+        'length': 5},
+    {'name': 'location',
+        'symbols': 'AHVDB',
+        'states': ('air', 'hill', 'valley', 'dimple', 'burrow'),
+        'length': 10},
+    {'name': 'pos_burrow',
+        'symbols': ' E',
+        'states': ('mid', 'end'),
+        'length': 5}
+))
 
 
+    
+def state_symbols_match(pattern, value):
+    """ returns True if the value matches the pattern, where '.' can be used
+    as placeholders that match every state """
+    return all(a == '.' or a == b
+               for a, b in zip(pattern, value))
+            
+        
 
 class MouseTrack(object):
     """ class that describes the mouse track """
@@ -157,15 +171,11 @@ class MouseTrack(object):
     def set_state(self, frame_id, state=None, ground_idx=None, ground_dist=None):
         """ sets the state of the mouse in frame frame_id """
         if state is not None:
-            self.states[frame_id] = state_to_int(state)
+            self.states[frame_id] = state_converter.dict_to_int(state)
         if ground_idx is not None:
             self.ground_idx[frame_id] = ground_idx
         if ground_dist is not None:
             self.ground_dist[frame_id] = ground_dist
-    
-    
-    def query_state(self, query):
-        return query_state(self.states, query)
     
     
     def to_array(self):
@@ -196,10 +206,19 @@ class MouseTrack(object):
 
 def test_state_conversion():
     """ simple test function for the state conversion """
-    for value in xrange(0, 100):
-        state = int_to_state(value)
-        if state and value != state_to_int(state):
-            raise AssertionError('Failed: %d != %s' % (value, state))
+    for value in xrange(0, state_converter.max_id):
+        # test conversion to symbol string
+        symbols = state_converter.int_to_symbols(value)
+        val = state_converter.symbols_to_int(symbols)
+        if symbols != state_converter.int_to_symbols(val):
+            raise AssertionError('Wrong symbol representation: %d != %s' % (value, symbols))
+
+        # test conversion to dictionary
+        state = state_converter.int_to_dict(value)
+        val = state_converter.dict_to_int(state)
+        if state != state_converter.int_to_dict(val):
+            raise AssertionError('Wrong symbol representation: %d != %s' % (value, state))
+        
     print('The test was successful.') 
 
 

@@ -25,6 +25,7 @@ from video.utils import display_progress
 from video.composer import VideoComposer
 
 import debug  # @UnusedImport
+from __builtin__ import True
 
 
 class ThirdPass(DataHandler):
@@ -254,11 +255,16 @@ class ThirdPass(DataHandler):
         # initialize variables
         state = {}
         margin = self.params['mouse/model_radius']/2
+        mouse_radius = self.params['mouse/model_radius']
+        
+        # check the horizontal position
+        if self.mouse_pos[0] > self.background.shape[1]//2:
+            state['pos_horizontal'] = 'right'
+        else:
+            state['pos_horizontal'] = 'left'
                 
         # compare y value of mouse and ground (y-axis points down)
         if self.mouse_pos[1] > self.ground.get_y(self.mouse_pos[0]) + margin:
-            state['underground'] = True
-            
             # handle mouse trail
             ground_dist = self.extend_mouse_trail()
             
@@ -275,10 +281,17 @@ class ThirdPass(DataHandler):
                 state['location'] = 'burrow'
             else:
                 state['location'] = 'dimple'
+                
+            # check whether we are at the end of the burrow
+            for burrow in self.burrows:
+                dist = curves.point_distance(burrow.end_point, self.mouse_pos)
+                if dist < mouse_radius:
+                    state['pos_burrow'] = 'end'
+                    break
+            else:
+                state['pos_burrow'] = 'mid'
 
         else: 
-            state['underground'] = False
-            mouse_radius = self.params['mouse/model_radius']
             if self.mouse_pos[1] + 2*mouse_radius < self.ground.get_y(self.mouse_pos[0]):
                 state['location'] = 'air'
             elif self.mouse_pos[1] < self.ground.midline:
@@ -898,9 +911,8 @@ class ThirdPass(DataHandler):
             except IndexError:
                 pass
             else:
-                if mouse_state in mouse.STATES_SHORT:
-                    debug_video.add_text(mouse.STATES_SHORT[mouse_state],
-                                         (120, 20), anchor='top')
+                debug_video.add_text(mouse.state_converter.int_to_symbols(mouse_state),
+                                     (120, 20), anchor='top')
                 
             # add additional debug information
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   

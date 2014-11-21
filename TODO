@@ -21,6 +21,10 @@
 * Add code to automatically restart analysis if ffmpeg error occurred
 	- implement `process` function in data_handler, which repeatedly calls a `process_video` function until no ffmpeg error occurs
 	- the `process_video` function contains the code which is currently in the `process` functions
+* Pass2:
+	- break graph based tracking into multiple steps separated by tracks where we are sure that they belong to a mouse
+		These are long tracks where we detect enough movement.
+		This should both speed up the tracking and more importantly reduce memory footprint
 * Pass4:
 	- connect two burrows that face each other (which happens for burrows with two exits) 
   	

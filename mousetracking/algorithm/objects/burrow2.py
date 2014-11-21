@@ -157,6 +157,12 @@ class Burrow(object):
     def entry_point(self):
         return self.centerline[0]
     
+    
+    @property
+    def end_point(self):
+        return self.centerline[-1]
+    
+    
     @property
     def is_valid(self):
         return len(self._outline) > 3
