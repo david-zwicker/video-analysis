@@ -264,9 +264,9 @@ class ThirdPass(DataHandler):
         
         # check the horizontal position
         if self.mouse_pos[0] > self.background.shape[1]//2:
-            state['pos_horizontal'] = 'right'
+            state['position_horizontal'] = 'right'
         else:
-            state['pos_horizontal'] = 'left'
+            state['position_horizontal'] = 'left'
                 
         # compare y value of mouse and ground (y-axis points down)
         if self.mouse_pos[1] > self.ground.get_y(self.mouse_pos[0]) + margin:

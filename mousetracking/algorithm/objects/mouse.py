@@ -121,18 +121,21 @@ class MouseStateConverter(object):
 
     def get_state_description(self):
         """ returns a string with a description of the different states """
-        res = ['The state is a sum of integers with the following interpretation:']
+        res = ['The state is a sum of integers with the following '
+               'interpretation:']
         for fac, cat in itertools.izip(self.factors, self.categories):
-            for key, state in cat.states.iteritems():
+            res.append('%s:' % cat.name)
+            for key in sorted(cat.states.iterkeys()):
+                state = cat.states[key]
                 if isinstance(key, int) and state != '?':
-                    res.append('%d - %s' % (fac*key, state))
+                    res.append('  %d - %s' % (fac*key, state))
         return '\n'.join(res)
     
     
 
 # create the mouse states used in this module
 state_converter = MouseStateConverter((
-    {'name': 'pos_horizontal',
+    {'name': 'position_horizontal',
         'symbols': 'LR',
         'states': ('left', 'right'),
         'length': 9},
