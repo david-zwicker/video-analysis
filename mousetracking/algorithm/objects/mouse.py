@@ -26,7 +26,12 @@ class MouseStateCategory(object):
         states is a list of descriptions of the states
         length is an integer indicating the maximal capacity of the category
             This can be used to reserve room for adding additional states later
-            without disturbing already calculated states. """ 
+            without disturbing already calculated states.
+        
+        Note that we automatically add an extra symbol `?` which denotes an
+        unknown state. This will be added as the first symbol and thus gets 
+        the id zero.    
+        """ 
         # prepare data
         self.name = name
         symbols = '?' + symbols
@@ -106,37 +111,47 @@ class MouseStateConverter(object):
             value //= cat.length
         return res
     
-    
+
     def symbols_repr(self, symbols):
         """ returns a readable representation for the symbols """
         return ''.join(cat.states[sym]
                        for cat, sym in itertools.izip(self.categories, symbols)
                        if sym != '.' and sym != '?')
+
+
+    def get_state_description(self):
+        """ returns a string with a description of the different states """
+        res = ['The state is a sum of integers with the following interpretation:']
+        for fac, cat in itertools.izip(self.factors, self.categories):
+            for key, state in cat.states.iteritems():
+                if isinstance(key, int) and state != '?':
+                    res.append('%d - %s' % (fac*key, state))
+        return '\n'.join(res)
     
     
-        
+
 # create the mouse states used in this module
 state_converter = MouseStateConverter((
     {'name': 'pos_horizontal',
         'symbols': 'LR',
         'states': ('left', 'right'),
-        'length': 10},
+        'length': 9},
     {'name': 'location',
         'symbols': 'AHVDB',
         'states': ('air', 'hill', 'valley', 'dimple', 'burrow'),
-        'length': 10},
+        'length': 9},
     {'name': 'location_detail',
         'symbols': ' E',
         'states': ('general', 'end point'),
-        'length': 10},
+        'length': 9},
     {'name': 'dynamics',
         'symbols': 'SM',
         'states': ('stationary', 'moving'),
-        'length': 10},
+        'length': 9},
 ))
 
 
-    
+
 def state_symbols_match(pattern, value):
     """ returns True if the value matches the pattern, where '.' can be used
     as placeholders that match every state """
@@ -148,9 +163,10 @@ def state_symbols_match(pattern, value):
 class MouseTrack(object):
     """ class that describes the mouse track """
     
-    hdf_attributes = {'column_names': ('Position X', 'Position Y', 'Status',
+    hdf_attributes = {'column_names': ('Position X', 'Position Y', 'Mouse State',
                                        'Index of closest ground point',
-                                       'Distance from ground')}
+                                       'Distance from ground'),
+                      'mouse_states': state_converter.get_state_description()}
     storage_class = LazyHDFValue
     
     def __init__(self, trajectory, states=None, ground_idx=None, ground_dist=None):
