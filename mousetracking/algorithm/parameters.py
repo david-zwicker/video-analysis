@@ -258,6 +258,12 @@ PARAMETER_LIST = [
               'Mean area of a mouse, which is used to score the mouse'),
     Parameter('mouse/speed_max', 30, UNIT.SPEED_PIXEL_FRAME,
               'Maximal speed of the mouse'),
+    Parameter('mouse/speed_smoothing_window', 25, UNIT.TIME_FRAMES,
+              'The number of frames over which the mouse position is smoothed '
+              'in order to calculate its velocity'),
+    Parameter('mouse/moving_threshold', 10, UNIT.SPEED_PIXEL_FRAME,
+              'The threshold value of the speed above which the mouse is '
+              'considered to be moving'),
     Parameter('mouse/max_rel_area_change', 0.5, UNIT.FACTOR,
               'Maximal area change allowed between consecutive frames'),
                   

@@ -9,8 +9,10 @@ from __future__ import division
 import itertools
 
 import numpy as np
+from scipy.ndimage import filters
 
 from utils import LazyHDFValue
+from video.utils import contiguous_regions
 
 
 
@@ -118,15 +120,19 @@ state_converter = MouseStateConverter((
     {'name': 'pos_horizontal',
         'symbols': 'LR',
         'states': ('left', 'right'),
-        'length': 5},
+        'length': 10},
     {'name': 'location',
         'symbols': 'AHVDB',
         'states': ('air', 'hill', 'valley', 'dimple', 'burrow'),
         'length': 10},
-    {'name': 'pos_burrow',
+    {'name': 'location_detail',
         'symbols': ' E',
-        'states': ('mid', 'end'),
-        'length': 5}
+        'states': ('general', 'end point'),
+        'length': 10},
+    {'name': 'dynamics',
+        'symbols': 'SM',
+        'states': ('stationary', 'moving'),
+        'length': 10},
 ))
 
 
@@ -149,6 +155,8 @@ class MouseTrack(object):
     
     def __init__(self, trajectory, states=None, ground_idx=None, ground_dist=None):
         self.pos = trajectory
+        self.velocity = None
+        
         # initialize arrays
         if states is not None:
             self.states = np.asarray(states, np.int)
@@ -163,9 +171,27 @@ class MouseTrack(object):
         else:
             self.ground_dist = np.zeros(len(trajectory), np.double) + np.nan
     
-        
+    
     def __repr__(self):
         return '%s(frames=%d)' % (self.__class__.__name__, len(self.pos))
+
+    
+    def calculate_velocities(self, dt, sigma):
+        """ calculates the velocity from smoothed positions """
+        velocity = np.zeros_like(self.pos)
+        velocity.fill(np.nan)
+        
+        indices = contiguous_regions(self.pos[:, 0] > 0)
+        for start, end in indices:
+            # smooth position
+            pos = filters.gaussian_filter1d(self.pos[start:end, :],
+                                            sigma,  #< std of the filter
+                                            axis=0, #< time axis
+                                            mode='nearest')
+            velocity[start:end, 0] = np.gradient(pos[:, 0], dt)
+            velocity[start:end, 1] = np.gradient(pos[:, 1], dt)
+        
+        self.velocity = velocity
     
     
     def set_state(self, frame_id, state=None, ground_idx=None, ground_dist=None):

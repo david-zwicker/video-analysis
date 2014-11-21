@@ -76,7 +76,7 @@ class ThirdPass(DataHandler):
         
         self.setup_processing()
         self.debug_setup()
-
+        
         self.log_event('Pass 3 - Started iterating through the video with '
                        '%d frames.' % self.video.frame_count)
         self.data['analysis-status'] = 'Initialized video analysis'
@@ -142,6 +142,11 @@ class ThirdPass(DataHandler):
         self.ground_idx = None  #< index of the ground point where the mouse entered the burrow
         self.mouse_trail = None #< line from this point to the mouse (along the burrow)
         self.burrows = []       #< list of current burrows
+
+        # calculate mouse velocities        
+        sigma = self.params['mouse/speed_smoothing_window']
+        dt = 1/self.video.fps
+        self.data['pass2/mouse_trajectory'].calculate_velocities(dt, sigma=sigma)
         
         if self.params['burrows/enabled_pass3']:
             self.result['burrows/tracks'] = BurrowTrackList()
@@ -286,10 +291,10 @@ class ThirdPass(DataHandler):
             for burrow in self.burrows:
                 dist = curves.point_distance(burrow.end_point, self.mouse_pos)
                 if dist < mouse_radius:
-                    state['pos_burrow'] = 'end'
+                    state['location_detail'] = 'end point'
                     break
             else:
-                state['pos_burrow'] = 'mid'
+                state['location_detail'] = 'general'
 
         else: 
             if self.mouse_pos[1] + 2*mouse_radius < self.ground.get_y(self.mouse_pos[0]):
@@ -298,6 +303,7 @@ class ThirdPass(DataHandler):
                 state['location'] = 'hill'
             else:
                 state['location'] = 'valley'
+            state['location_detail'] = 'general'
 
             # get index of the ground line
             dist = np.linalg.norm(self.ground.points - self.mouse_pos[None, :], axis=1)
@@ -309,17 +315,16 @@ class ThirdPass(DataHandler):
             if self.mouse_pos[1] > self.ground.get_y(self.mouse_pos[0]):
                 ground_dist *= -1
             
-#             # check whether the mouse left the burrow at the point where it entered it
-#             if self.mouse_trail is not None:
-#                 dist = mouse_point.distance(geometry.Point(self.mouse_trail[0]))
-#                 if (dist > 5*self.params['burrows/width']
-#                     and self.params['burrows/enabled_pass3']):
-#                     # mouse left the burrow at the point where it entered it
-#                     self.mouse_trail.append(self.mouse_pos)
-#                     self.find_burrows(two_exits=True)
-                
             # reset the mouse trail since the mouse is over the ground
             self.mouse_trail = None
+            
+        # TODO: check the dynamics of the mouse
+        velocity = self.data['pass2/mouse_trajectory'].velocity[self.frame_id, :]
+        speed = np.hypot(velocity[0], velocity[1])
+        if speed > self.params['mouse/moving_threshold']:
+            state['dynamics'] = 'moving'
+        else:
+            state['dynamics'] = 'stationary'
             
         # set the mouse state
         mouse_track.set_state(self.frame_id, state, self.ground_idx, ground_dist)
