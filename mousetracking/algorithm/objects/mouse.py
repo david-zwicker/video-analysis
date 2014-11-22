@@ -200,15 +200,17 @@ class MouseTrack(object):
         velocity = np.zeros_like(self.pos)
         velocity.fill(np.nan)
         
-        indices = contiguous_regions(self.pos[:, 0] > 0)
+        indices = contiguous_regions(np.isfinite(self.pos[:, 0]))
         for start, end in indices:
-            # smooth position
-            pos = filters.gaussian_filter1d(self.pos[start:end, :],
-                                            sigma,  #< std of the filter
-                                            axis=0, #< time axis
-                                            mode='nearest')
-            velocity[start:end, 0] = np.gradient(pos[:, 0], dt)
-            velocity[start:end, 1] = np.gradient(pos[:, 1], dt)
+            if end - start > 1:
+                # smooth position
+                pos = filters.gaussian_filter1d(self.pos[start:end, :],
+                                                sigma,  #< std of the filter
+                                                axis=0, #< time axis
+                                                mode='nearest')
+                # differentiate to get velocity
+                velocity[start:end, 0] = np.gradient(pos[:, 0], dt)
+                velocity[start:end, 1] = np.gradient(pos[:, 1], dt)
         
         self.velocity = velocity
     

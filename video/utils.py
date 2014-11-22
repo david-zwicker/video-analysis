@@ -19,7 +19,7 @@ try:
 except ImportError:
     tqdm = None
     logger.warn('Package tqdm could not be imported and progress bars are '
-                 'thus not available.')
+                'thus not available.')
 
 
 def ensure_directory_exists(folder):
