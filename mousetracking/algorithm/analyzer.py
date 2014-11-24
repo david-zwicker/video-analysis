@@ -15,6 +15,7 @@ import networkx as nx
 
 from .data_handler import DataHandler
 from .objects import mouse
+from video.utils import contiguous_int_regions_iter
 
 try:
     import pint
@@ -64,14 +65,51 @@ class Analyzer(DataHandler):
         return results
     
     
-    def get_mouse_state_transitions(self, states=None, len_threshold=0,
+    
+    def get_mouse_state_durations(self, states=None, ret_states=False):
+        """ returns the durations the mouse spends in each state 
+        
+        If a list of `states` is given, only these states are included in
+        the result.
+        """
+        try:
+            mouse_state = self.data['pass2/mouse_trajectory'].states
+        except KeyError:
+            raise RuntimeError('The mouse trajectory has to be determined '
+                               'before the transitions can be analyzed.')
+
+        # set the default list of states if it not already set
+        if states is None:
+            states = ('.A.', '.H.', '.V.', '.D.', '.B ', '.BE', '...')
+            
+        # cluster mouse states according to the defined states
+        lut = mouse.state_converter.get_state_lookup_table(states)
+        state_cat = [-1 if lut[state] is None else lut[state]
+                     for state in mouse_state]
+            
+        # get durations
+        durations = collections.defaultdict(list)
+        for state, start, end in contiguous_int_regions_iter(state_cat):
+            durations[state].append(end - start)
+            
+        # convert to numpy arrays and add units
+        durations = {states[key]: np.array(value) * self.time_scale
+                     for key, value in durations.iteritems()}
+            
+        if ret_states:
+            return durations, states
+        else:
+            return durations
+    
+    
+    def get_mouse_state_transitions(self, states=None, duration_threshold=0,
                                     ret_states=False):
         """ returns the durations the mouse spends in each state before 
         transitioning to another state
         
         If a list of `states` is given, only these states are included in
         the result.
-        Transitions with a duration [in seconds] below len_threshold will
+        Transitions with a duration [in seconds] below duration_threshold will
         not be included in the results.
         """
         try:
@@ -79,19 +117,19 @@ class Analyzer(DataHandler):
         except KeyError:
             raise RuntimeError('The mouse trajectory has to be determined '
                                'before the transitions can be analyzed.')
-            
+
+        # set the default list of states if it not already set
         if states is None:
             states = ('.A.', '.H.', '.V.', '.D.', '.B ', '.BE', '...')
             
-        # cluster mouse states according to the defined states here
-        state_cat = []
-        for state in mouse_state:
-            for k, pattern in enumerate(states):
-                if mouse.state_symbols_match(pattern, state):
-                    state_cat.append(k)
-                    break
-            else:
-                state_cat.append(-1)
+        # add a unit to the duration threshold if it does not have any
+        if self.use_units and isinstance(duration_threshold, self.units.Quantity):
+            duration_threshold /= self.units.second
+
+        # cluster mouse states according to the defined states
+        lut = mouse.state_converter.get_state_lookup_table(states)
+        state_cat = [-1 if lut[state] is None else lut[state]
+                     for state in mouse_state]
             
         # get transitions
         transitions = collections.defaultdict(list)
@@ -100,11 +138,15 @@ class Analyzer(DataHandler):
             if state_cat[k] < 0 or state_cat[k + 1] < 0:
                 # this transition involves uncategorized states
                 continue
-            duration = (k - last_trans)*self.time_scale
-            if duration > len_threshold:
+            duration = (k - last_trans)
+            if duration > duration_threshold:
                 trans = (states[state_cat[k]], states[state_cat[k + 1]])
                 transitions[trans].append(duration)
             last_trans = k
+            
+        # convert to numpy arrays and add units
+        transitions = {key: np.array(value) * self.time_scale
+                       for key, value in transitions.iteritems()}
             
         if ret_states:
             return transitions, states

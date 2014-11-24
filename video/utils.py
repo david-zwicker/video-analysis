@@ -22,6 +22,7 @@ except ImportError:
                 'thus not available.')
 
 
+
 def ensure_directory_exists(folder):
     """ creates a folder if it not already exists """
     try:
@@ -29,6 +30,7 @@ def ensure_directory_exists(folder):
     except OSError:
         # assume that the directory already exists
         pass
+
 
 
 def get_color_range(dtype):
@@ -47,6 +49,7 @@ def get_color_range(dtype):
     else:
         raise ValueError('Unsupported data type `%r`' % dtype)
    
+   
     
 def homogenize_arraylist(data):
     """ stores a list of arrays of different length in a single array.
@@ -60,7 +63,8 @@ def homogenize_arraylist(data):
     return result
 
 
-def contiguous_regions(condition):
+    
+def contiguous_true_regions(condition):
     """ Finds contiguous True regions of the boolean array "condition". Returns
     a 2D array where the first column is the start index of the region and the
     second column is the end index
@@ -90,6 +94,30 @@ def contiguous_regions(condition):
     return idx
 
 
+
+def contiguous_int_regions_iter(data):
+    """ Finds contiguous regions of the integer array "data". Regions that
+    have falsey (0 or False) values are not returned.
+    Returns three values (value, start, end), denoting the value and the pairs
+    of indices and indicating the start index and end index of the region.
+    """
+    data = np.asarray(data, int)
+    
+    # Find the indices of changes in "data"
+    d = np.diff(data)
+    idx, = d.nonzero() 
+
+    last_k = 0
+    for k in idx:
+        yield data[k], last_k, k + 1
+        last_k = k + 1
+
+    # yield last data point
+    if len(data) > 0:
+        yield data[-1], last_k, data.size
+
+
+
 def safe_typecast(data, dtype):
     """
     truncates the data such that it fits within the supplied dtype.
@@ -97,6 +125,7 @@ def safe_typecast(data, dtype):
     """
     info = np.iinfo(dtype)
     return np.clip(data, info.min, info.max).astype(dtype)
+    
     
 
 def display_progress(iterator, total=None):
@@ -107,6 +136,7 @@ def display_progress(iterator, total=None):
         return tqdm(iterator, total=total, leave=True)
     else:
         return iterator
+    
     
     
 def get_color(color):

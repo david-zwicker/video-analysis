@@ -22,7 +22,7 @@ from .utils import unique_based_on_id
 from video.analysis import curves, regions
 from video.io import ImageWindow, VideoFile
 from video.filters import FilterMonochrome
-from video.utils import display_progress, contiguous_regions
+from video.utils import display_progress, contiguous_true_regions
 from video.composer import VideoComposer
 
 import debug  # @UnusedImport
@@ -188,7 +188,7 @@ class FourthPass(DataHandler):
 
         # find the regions where the points are finite
         # Here, we compare to 0 to capture nans in the int32 array
-        indices = contiguous_regions(track[:, 0] > 0)
+        indices = contiguous_true_regions(track[:, 0] > 0)
         
         for start, end in indices:
             cv2.polylines(self.mouse_mask, [track[start:end, :]],

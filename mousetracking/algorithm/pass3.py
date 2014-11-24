@@ -142,6 +142,7 @@ class ThirdPass(DataHandler):
         self.ground_idx = None  #< index of the ground point where the mouse entered the burrow
         self.mouse_trail = None #< line from this point to the mouse (along the burrow)
         self.burrows = []       #< list of current burrows
+        self._cache = {}
 
         # calculate mouse velocities        
         sigma = self.params['mouse/speed_smoothing_window']
@@ -206,7 +207,7 @@ class ThirdPass(DataHandler):
         
         # remove points which are in front of the mouse
         if self.mouse_trail:
-            spacing = self.params['burrows/centerline_segment_length']
+            spacing = self.params['mouse/model_radius']
             trail = np.array(self.mouse_trail)
             
             # get distance between the current point and the previous ones
@@ -775,14 +776,24 @@ class ThirdPass(DataHandler):
           
     def extend_burrow_by_mouse_trail(self, burrow):
         """ takes a burrow shape and extends it using the current mouse trail """
+        if 'cage_interior_rectangle' in self._cache:
+            cage_interior_rect = self._cache['cage_interior_rectangle']
+        else:
+            w, h = self.video.size
+            points = [[1, 1], [w - 1, 1], [w - 1, h - 1], [1, h - 1]]
+            cage_interior_rect = geometry.Polygon(points)
+            self._cache['cage_interior_rectangle'] = cage_interior_rect
+        
         # get the buffered mouse trail
         trail_width = self.params['burrows/width_min']
         mouse_trail = geometry.LineString(self.mouse_trail)
         mouse_trail_len = mouse_trail.length 
         mouse_trail = mouse_trail.buffer(trail_width)
         
-        # extend the burrow outline by the mouse trail
+        # extend the burrow outline by the mouse trail and restrict it to the
+        # cage interior
         polygon = burrow.polygon.union(mouse_trail)
+        polygon = polygon.intersection(cage_interior_rect)
         burrow.outline = regions.get_enclosing_outline(polygon)
         
         # update the centerline if the mouse trail is longer

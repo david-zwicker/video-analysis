@@ -9,7 +9,7 @@ from __future__ import division
 import numpy as np
 import cv2
 
-from .utils import get_color, contiguous_regions
+from .utils import get_color, contiguous_true_regions
 from .analysis.regions import rect_to_corners
 from .io.file import VideoFileWriter
 
@@ -179,7 +179,7 @@ class VideoComposer(VideoFileWriter):
         
         # find the regions where the points are finite
         # Here, we compare to 0 to capture nans in the int32 array 
-        indices = contiguous_regions(points[:, 0] > 0)
+        indices = contiguous_true_regions(points[:, 0] > 0)
         
         for start, end in indices:
             # add the line

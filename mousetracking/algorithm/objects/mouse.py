@@ -7,12 +7,13 @@ Created on Sep 11, 2014
 from __future__ import division
 
 import itertools
+import re
 
 import numpy as np
 from scipy.ndimage import filters
 
 from utils import LazyHDFValue
-from video.utils import contiguous_regions
+from video.utils import contiguous_true_regions
 
 
 
@@ -132,6 +133,27 @@ class MouseStateConverter(object):
         return '\n'.join(res)
     
     
+    def get_state_lookup_table(self, states):
+        """ returns a dictionary that maps all possible mouse states onto the
+        the a integer. That integer gives the index in the list of supplied
+        `states` patterns supplied to this function """ 
+        re_states = [re.compile(pattern) for pattern in states]
+        
+        possible_states = [c.symbols for c in self.categories]
+        lut = {}
+        for state in itertools.product(*possible_states):
+            key_symbols = ''.join(state)
+            key_int = self.symbols_to_int(key_symbols)
+            for k, pattern in enumerate(re_states):
+                if pattern.match(key_symbols):
+                    lut[key_int] = k
+                    break
+            else:
+                lut[key_int] = None
+                
+        return lut
+
+    
 
 # create the mouse states used in this module
 state_converter = MouseStateConverter((
@@ -200,7 +222,7 @@ class MouseTrack(object):
         velocity = np.zeros_like(self.pos)
         velocity.fill(np.nan)
         
-        indices = contiguous_regions(np.isfinite(self.pos[:, 0]))
+        indices = contiguous_true_regions(np.isfinite(self.pos[:, 0]))
         for start, end in indices:
             if end - start > 1:
                 # smooth position
