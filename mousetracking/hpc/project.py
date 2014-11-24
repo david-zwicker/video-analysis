@@ -10,9 +10,38 @@ import glob
 import logging
 import os
 import pprint
+import time
+
+import numpy as np
 
 from ..algorithm.parameters import PARAMETERS_DEFAULT
 from ..algorithm.data_handler import DataDict
+
+
+
+def process_trials(logfile, max_iterations=10):
+    """ returns an generator which yields the current trial number until the
+    processing is finished. The finish condition is based on analyzing the
+    logfile.
+    max_iterations determines how many iterations are done at most"""
+    for trial in xrange(max_iterations):
+        yield trial
+
+        # check for an error in the logfile
+        processing_finished = True
+        try:
+            for line in open(logfile, "r"):
+                if 'FFmpeg encountered the following error while writing file' in line:
+                    # sleep up to two minutes to get around weird race conditions
+                    time.sleep(np.random.randint(120))
+                    processing_finished = False
+        except IOError:
+            # file likely does not exist => we assume no error 
+            pass
+        
+        if processing_finished:
+            break
+
 
 
 class HPCProjectBase(object):
@@ -138,6 +167,8 @@ class HPCProjectBase(object):
             # add job files to parameters
             for k, filename in enumerate(cls.files_job[pass_id]):
                 params['JOB_FILE_%d' % k] = filename
+            params['LOG_FILE'] = os.path.join(project.folder,
+                                              "log_pass%d_%%d.log" % pass_id)
         
             # create the job scripts
             for filename in cls.files_job[pass_id]:

@@ -21,6 +21,6 @@ source ~/.profile
 # change to job directory
 cd {JOB_DIRECTORY}
 # run python script
-python {JOB_FILE_1}
+python {JOB_FILE_1} %j
 
 echo "Ended job with id $SLURM_JOB_ID"

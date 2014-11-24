@@ -18,6 +18,7 @@ logging.basicConfig()
 parameters = {SPECIFIC_PARAMETERS}  # @UndefinedVariable
 
 # set job parameters
+job_id = sys.argv[1]
 parameters.update({{'base_folder': "{JOB_DIRECTORY}",
                     'logging/folder': ".",
                     'output/folder': ".",}})

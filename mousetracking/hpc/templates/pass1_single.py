@@ -10,6 +10,7 @@ sys.path.append(os.path.expanduser("{FOLDER_CODE}"))
 from numpy import array  # @UnusedImport
 
 from mousetracking import scan_video
+from mousetracking.hpc.project import process_trials
 
 # configure basic logging, which will be overwritten later
 logging.basicConfig()
@@ -18,6 +19,7 @@ logging.basicConfig()
 parameters = {TRACKING_PARAMETERS}  # @UndefinedVariable
 
 # set job parameters
+job_id = sys.argv[1]
 parameters.update({{
     'video/filename_pattern': "{VIDEO_FILE}",
     'base_folder': "{JOB_DIRECTORY}",
@@ -28,4 +30,5 @@ parameters.update({{
 }})
 
 # do the first pass scan
-scan_video("{NAME}", parameters=parameters, passes=1)
+for trial in process_trials("{LOG_FILE}" % job_id, 10):
+    scan_video("{NAME}", parameters=parameters, passes=1)
