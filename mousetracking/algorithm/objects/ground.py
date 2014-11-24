@@ -49,7 +49,7 @@ class GroundProfile(object):
         """ returns the length of the profile """
         return curves.curve_length(self.points)
     
-    
+
     @cached_property
     def linestring(self):
         """ returns a shapely line string corresponding to the ground """

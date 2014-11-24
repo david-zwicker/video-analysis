@@ -332,7 +332,7 @@ class ThirdPass(DataHandler):
 
     
     #===========================================================================
-    # BURROW TRACKING
+    # GROUND HANDELING
     #===========================================================================
 
 
@@ -362,6 +362,11 @@ class ThirdPass(DataHandler):
         cv2.fillPoly(mask_ground, np.array([ground_points], np.int32), color=255)
 
         return mask_ground
+
+
+    #===========================================================================
+    # BURROW TRACKING
+    #===========================================================================
 
 
     def get_burrow_contour_from_mask(self, mask, offset=None):
@@ -724,6 +729,7 @@ class ThirdPass(DataHandler):
                     self.logger.debug('Delete overlapping burrow at %s',
                                       burrow.position)
                         
+                        
     def store_burrows(self):
         """ associates the current burrows with burrow tracks """
         burrow_tracks = self.result['burrows/tracks']
@@ -793,9 +799,28 @@ class ThirdPass(DataHandler):
         polygon = polygon.intersection(cage_interior_rect)
         burrow.outline = regions.get_enclosing_outline(polygon)
         
-        # update the centerline if the mouse trail is longer
-        if mouse_trail_len > burrow.length:
+        # make sure that the burrow centerline lies within the ground region
+        ground_poly = geometry.Polygon(self.get_ground_polygon_points())
+        line = burrow.linestring.intersection(ground_poly)
+        if isinstance(line, geometry.multilinestring.MultiLineString):
+            # pick the longest line if there are multiple
+            index_longest = np.argmax(l.length for l in line)
+            line = line[index_longest]
+            
+        # adjust the burrow centerline to reach to the ground line
+        if line.is_empty:
             burrow.centerline = self.mouse_trail
+        else:
+            # it could be that the whole line was underground
+            # => move the first data point onto the ground line
+            line = np.array(line, np.double)
+            line[0] = curves.get_projection_point(self.ground.linestring, line[0])
+            # set the updated burrow centerline
+            burrow.centerline = line
+        
+            # update the centerline if the mouse trail is longer
+            if mouse_trail_len > burrow.length:
+                burrow.centerline = self.mouse_trail
     
                 
     def find_burrows(self):
