@@ -168,7 +168,7 @@ class HPCProjectBase(object):
             for k, filename in enumerate(cls.files_job[pass_id]):
                 params['JOB_FILE_%d' % k] = filename
             params['LOG_FILE'] = os.path.join(project.folder,
-                                              "log_pass%d_%%d.log" % pass_id)
+                                              "log_pass%d_%%s.log" % pass_id)
         
             # create the job scripts
             for filename in cls.files_job[pass_id]:
