@@ -103,14 +103,18 @@ class Burrow(object):
     
     @outline.setter 
     def outline(self, point_list):
+        """ set the outline of the burrow.
+        `point_list` can be a list/array of points or a shapely LinearRing
+        """ 
         if point_list is None:
             self._outline = None
         else:
-            point_list = np.array(point_list, np.double)
             # make sure that the outline is given in clockwise direction
             if geometry.LinearRing(point_list).is_ccw:
-                point_list = point_list[::-1]
-            self._outline = point_list
+                point_list = np.array(point_list, np.double)
+                self._outline = point_list[::-1]
+            else:
+                self._outline = np.array(point_list, np.double)
             
         self._cache = {}
         

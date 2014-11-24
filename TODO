@@ -25,6 +25,10 @@
 	- break graph based tracking into multiple steps separated by tracks where we are sure that they belong to a mouse
 		These are long tracks where we detect enough movement.
 		This should both speed up the tracking and more importantly reduce memory footprint
+* Pass3:
+    - mouse trail processing:
+        - intersect mouse trail with ground polygon to adapt it to moving ground
+        - if mouse trail gets cut into two parts, keep the longer part (and check its orientation!)
 * Pass4:
 	- connect two burrows that face each other (which happens for burrows with two exits) 
   	

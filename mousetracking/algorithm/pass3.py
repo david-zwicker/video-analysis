@@ -738,8 +738,8 @@ class ThirdPass(DataHandler):
                          for track_id, burrow_last in self.active_burrows()
                          if burrow_last.intersects(burrow_now)]
             
+            # merge all burrows to a single track and keep the largest one
             if len(track_ids) > 1:
-                # merge all burrows to a single track and keep the largest one
                 track_longest, length_max = None, 0
                 for track_id in track_ids:
                     burrow_last = burrow_tracks[track_id].last
@@ -749,24 +749,21 @@ class ThirdPass(DataHandler):
                     # merge the burrows
                     burrow_now.merge(burrow_last)
                         
-                # store only parts underneath ground
-                polygon = burrow_now.polygon.intersection(ground_polygon)
-                if not polygon.is_empty:
-                    burrow_now.outline = regions.get_enclosing_outline(polygon)
+            # keep the burrow parts that are below the ground line
+            polygon = burrow_now.polygon.intersection(ground_polygon)
+            if polygon.is_empty:
+                continue
+            burrow_now.outline = regions.get_enclosing_outline(polygon)
+            
+            # store the burrow if it is valid    
+            if burrow_now.is_valid:
+                if len(track_ids) > 1:
                     burrow_tracks[track_longest].append(self.frame_id, burrow_now)
-                    
-            elif len(track_ids) == 1:
-                # add the burrow to the matching track if it has parts under ground
-                polygon = burrow_now.polygon.intersection(ground_polygon)
-                if not polygon.is_empty:
-                    burrow_now.outline = regions.get_enclosing_outline(polygon)
+                elif len(track_ids) == 1:
+                # add the burrow to the matching track if it is valid
                     burrow_tracks[track_ids[0]].append(self.frame_id, burrow_now)
-
-            else:
-                # create the burrow track if it has parts under ground
-                polygon = burrow_now.polygon.intersection(ground_polygon)
-                if not polygon.is_empty:
-                    burrow_now.outline = regions.get_enclosing_outline(polygon)
+                else:
+                # create the burrow track if it is valid
                     burrow_track = BurrowTrack(self.frame_id, burrow_now)
                     burrow_tracks.append(burrow_track)
                 

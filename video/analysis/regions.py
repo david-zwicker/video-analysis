@@ -162,7 +162,11 @@ def get_largest_region(mask, ret_area=False):
 def get_enclosing_outline(polygon):
     """ gets the enclosing outline of a (possibly complex) polygon """
     # get the outline
-    outline = polygon.boundary
+    try:
+        outline = polygon.boundary
+    except ValueError:
+        # return empty feature since `polygon` was not a valid polygon
+        return geometry.LinearRing()
     
     if isinstance(outline, geometry.multilinestring.MultiLineString):
         largest_polygon = None
