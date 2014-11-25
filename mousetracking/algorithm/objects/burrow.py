@@ -171,8 +171,8 @@ class Burrow(object):
     
     def simplify_outline(self, tolerance=0.1):
         """ simplifies the outline """
-        outline = geometry.asLineString(self.outline)
-        tolerance = tolerance*outline.length
+        outline = geometry.LineString(self.outline)
+        tolerance *= outline.length
         outline = outline.simplify(tolerance, preserve_topology=True)
         self.outline = outline.coords
     

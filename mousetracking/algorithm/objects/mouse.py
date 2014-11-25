@@ -37,6 +37,7 @@ class MouseStateCategory(object):
         self.name = name
         symbols = '?' + symbols
         states = ('?',) + tuple(states)
+        self.possible_states = states
         
         # determine the length and do some checks
         assert len(symbols) == len(states)
@@ -71,6 +72,12 @@ class MouseStateConverter(object):
             self.categories.append(category)
             self.factors.append(self.max_id)
             self.max_id *= category.length
+        
+        
+    def get_categories(self):
+        """ return the the categories and their possible states """ 
+        return [(c.name, c.possible_states[1:])
+                for c in self.categories]
         
         
     def symbols_to_int(self, symbols):
@@ -135,7 +142,7 @@ class MouseStateConverter(object):
     
     def get_state_lookup_table(self, states):
         """ returns a dictionary that maps all possible mouse states onto the
-        the a integer. That integer gives the index in the list of supplied
+        an integer. That integer gives the index in the list of supplied
         `states` patterns supplied to this function """ 
         re_states = [re.compile(pattern) for pattern in states]
         

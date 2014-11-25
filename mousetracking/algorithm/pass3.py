@@ -8,6 +8,7 @@ Module that contains the class responsible for the third pass of the algorithm
 
 from __future__ import division
 
+import csv
 import math
 import time
 
@@ -21,11 +22,12 @@ from .objects.burrow2 import Burrow, BurrowTrack, BurrowTrackList
 from video.analysis import curves, regions
 from video.filters import FilterCrop
 from video.io import ImageWindow
-from video.utils import display_progress
+from video.utils import display_progress, contiguous_int_regions_iter
 from video.composer import VideoComposer
 
 import debug  # @UnusedImport
 from __builtin__ import True
+
 
 
 class ThirdPass(DataHandler):
@@ -194,6 +196,34 @@ class ThirdPass(DataHandler):
             
             if self.frame_id % 1000 == 0:
                 self.logger.debug('Analyzed frame %d', self.frame_id)
+
+
+    def write_mouse_state(self):
+        """ write out the mouse state as a comma separated value file """
+        mouse_state = self.data['pass2/mouse_trajectory'].states
+        mouse_state_file = self.get_filename('mouse_state.csv', 'results')
+        with open(mouse_state_file, 'w') as fp:
+            csv_file = csv.writer(fp, delimiter=',')
+            
+            # write header
+            header = ['%s (%s)' % (name, ', '.join(states))
+                      for name, states in mouse.state_converter.get_categories()]
+            header.append('Duration [sec]')
+            csv_file.writerow(header)
+            
+            # write data
+            frame_duration = 1/self.result['video/fps']
+            for state, start, end in contiguous_int_regions_iter(mouse_state):
+                data = [c for c in mouse.state_converter.int_to_symbols(state)]
+                data.append(frame_duration * (end - start)) 
+                csv_file.writerow(data)
+
+
+    def write_data(self):
+        """ write out all the data from this pass """
+        # write out the data in the usual format
+        super(ThirdPass, self).write_data()
+        self.write_mouse_state()
 
     
     #===========================================================================

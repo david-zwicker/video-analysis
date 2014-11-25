@@ -29,7 +29,9 @@
 * Pass4:
 	- connect two burrows that face each other (which happens for burrows with two exits) 
 * Move 'get_code_status' into the __init__ file of the tracking program, which will produce
-    more accurate results for code which restarts tracking frequently 
+    more accurate results for code which restarts tracking frequently
+* Combine burrow.py and burrow2.py -- use burrow2.py as base
+* Scan full video (all four quadrants) and determine mean intensity over time to estimate when the lights go on
  
 
 Performance improvements:

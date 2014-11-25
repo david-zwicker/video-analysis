@@ -45,7 +45,7 @@ class Burrow(object):
     """
     
     storage_class = LazyHDFCollection
-    array_columns = ('Outline X', 'Outline Y', 
+    array_columns = ('Outline X', 'Outline Y',
                      'Burrow length + Centerline X',
                      'Flag if burrow was refined + Centerline Y')
     
@@ -129,7 +129,7 @@ class Burrow(object):
         polygon = self.polygon.union(other.polygon)
         self.outline = regions.get_enclosing_outline(polygon)
         
-        # update the centerline if the mouse trail is longer
+        # set the centerline to the longest of the two
         if other.length > self.length:
             self.centerline = other.centerline
 
