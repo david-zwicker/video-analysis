@@ -783,12 +783,13 @@ class ThirdPass(DataHandler):
             # store the burrow if it is valid    
             if burrow.is_valid:
                 if len(track_ids) > 1:
+                    # add the burrow to the longest track
                     burrow_tracks[track_longest].append(self.frame_id, burrow)
                 elif len(track_ids) == 1:
-                # add the burrow to the matching track if it is valid
+                    # add the burrow to the matching track
                     burrow_tracks[track_ids[0]].append(self.frame_id, burrow)
                 else:
-                # create the burrow track if it is valid
+                    # create the burrow track
                     burrow_track = BurrowTrack(self.frame_id, burrow)
                     burrow_tracks.append(burrow_track)
                 

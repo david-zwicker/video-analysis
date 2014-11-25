@@ -161,6 +161,8 @@ def get_largest_region(mask, ret_area=False):
 
 def get_enclosing_outline(polygon):
     """ gets the enclosing outline of a (possibly complex) polygon """
+    polygon = regularize_polygon(polygon)
+
     # get the outline
     try:
         outline = polygon.boundary
