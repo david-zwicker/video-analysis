@@ -739,10 +739,10 @@ class ThirdPass(DataHandler):
         # the burrows in self.burrows will always be larger than the burrows
         # in self.active_burrows. Consequently, it can happen that a current
         # burrow overlaps two older burrows, but the reverse cannot be true
-        for burrow_now in self.burrows:
+        for burrow in self.burrows:
             track_ids = [track_id 
                          for track_id, burrow_last in self.active_burrows()
-                         if burrow_last.intersects(burrow_now)]
+                         if burrow_last.intersects(burrow)]
             
             # merge all burrows to a single track and keep the largest one
             if len(track_ids) > 1:
@@ -753,24 +753,48 @@ class ThirdPass(DataHandler):
                     if burrow_last.length > length_max:
                         track_longest, length_max = track_id, burrow_last.length
                     # merge the burrows
-                    burrow_now.merge(burrow_last)
+                    burrow.merge(burrow_last)
                         
             # keep the burrow parts that are below the ground line
-            polygon = burrow_now.polygon.intersection(ground_polygon)
+            polygon = burrow.polygon.intersection(ground_polygon)
             if polygon.is_empty:
                 continue
-            burrow_now.outline = regions.get_enclosing_outline(polygon)
+            burrow.outline = regions.get_enclosing_outline(polygon)
+            
+            # make sure that the burrow centerline lies within the ground region
+            ground_poly = geometry.Polygon(self.get_ground_polygon_points())
+            line = burrow.linestring.intersection(ground_poly)
+            if isinstance(line, geometry.multilinestring.MultiLineString):
+                # pick the longest line if there are multiple
+                index_longest = np.argmax(l.length for l in line)
+                line = line[index_longest]
+                
+            # adjust the burrow centerline to reach to the ground line
+            if line.is_empty:
+                burrow.centerline = self.mouse_trail
+            else:
+                # it could be that the whole line was underground
+                # => move the first data point onto the ground line
+                line = np.array(line, np.double)
+                line[0] = curves.get_projection_point(self.ground.linestring, line[0])
+                # set the updated burrow centerline
+                burrow.centerline = line
+            
+                # update the centerline if the mouse trail is longer
+                mouse_trail_len = curves.curve_length(self.mouse_trail)
+                if mouse_trail_len > burrow.length:
+                    burrow.centerline = self.mouse_trail
             
             # store the burrow if it is valid    
-            if burrow_now.is_valid:
+            if burrow.is_valid:
                 if len(track_ids) > 1:
-                    burrow_tracks[track_longest].append(self.frame_id, burrow_now)
+                    burrow_tracks[track_longest].append(self.frame_id, burrow)
                 elif len(track_ids) == 1:
                 # add the burrow to the matching track if it is valid
-                    burrow_tracks[track_ids[0]].append(self.frame_id, burrow_now)
+                    burrow_tracks[track_ids[0]].append(self.frame_id, burrow)
                 else:
                 # create the burrow track if it is valid
-                    burrow_track = BurrowTrack(self.frame_id, burrow_now)
+                    burrow_track = BurrowTrack(self.frame_id, burrow)
                     burrow_tracks.append(burrow_track)
                 
         # use the new set of burrows in the next iterations
@@ -790,7 +814,6 @@ class ThirdPass(DataHandler):
         # get the buffered mouse trail
         trail_width = self.params['burrows/width_min']
         mouse_trail = geometry.LineString(self.mouse_trail)
-        mouse_trail_len = mouse_trail.length 
         mouse_trail = mouse_trail.buffer(trail_width)
         
         # extend the burrow outline by the mouse trail and restrict it to the
@@ -798,29 +821,6 @@ class ThirdPass(DataHandler):
         polygon = burrow.polygon.union(mouse_trail)
         polygon = polygon.intersection(cage_interior_rect)
         burrow.outline = regions.get_enclosing_outline(polygon)
-        
-        # make sure that the burrow centerline lies within the ground region
-        ground_poly = geometry.Polygon(self.get_ground_polygon_points())
-        line = burrow.linestring.intersection(ground_poly)
-        if isinstance(line, geometry.multilinestring.MultiLineString):
-            # pick the longest line if there are multiple
-            index_longest = np.argmax(l.length for l in line)
-            line = line[index_longest]
-            
-        # adjust the burrow centerline to reach to the ground line
-        if line.is_empty:
-            burrow.centerline = self.mouse_trail
-        else:
-            # it could be that the whole line was underground
-            # => move the first data point onto the ground line
-            line = np.array(line, np.double)
-            line[0] = curves.get_projection_point(self.ground.linestring, line[0])
-            # set the updated burrow centerline
-            burrow.centerline = line
-        
-            # update the centerline if the mouse trail is longer
-            if mouse_trail_len > burrow.length:
-                burrow.centerline = self.mouse_trail
     
                 
     def find_burrows(self):
