@@ -728,7 +728,49 @@ class ThirdPass(DataHandler):
                         del burrow1_track[-1]
                     self.logger.debug('Delete overlapping burrow at %s',
                                       burrow.position)
-                        
+              
+              
+    def calculate_burrow_centerline(self, burrow, point_start=None):
+        """ determine the centerline of a burrow with one exit """
+        if point_start is None:
+            point_start = burrow.centerline[0]
+        
+        # get a binary image of the burrow
+        mask, shift = burrow.get_mask(margin=2, dtype=np.int32, ret_shift=True)
+        
+        # move starting point onto ground line
+        ground_line = self.ground.linestring
+        point_start = curves.get_projection_point(ground_line, point_start)
+        point_start = (int(point_start[0]) - shift[0],
+                       int(point_start[1]) - shift[1])
+        mask[point_start[1], point_start[0]]
+
+        # calculate the distance from the start point 
+        regions.make_distance_map(mask.T, [point_start])
+        
+        # find the second point by locating the farthest point
+        _, _, _, p_end = cv2.minMaxLoc(mask)
+        
+        # find an estimate for the centerline from the shortest distance from
+        # the end point to the burrow exit
+        points = regions.shortest_path_in_distance_map(mask, p_end)
+
+        # translate the points back to global coordinates 
+        centerline = curves.translate_points(points, shift[0], shift[1])
+        # save centerline such that burrow exit is first point
+        centerline = centerline[::-1]
+        
+        # add points that might be outside of the burrow outline
+        ground_start = curves.get_projection_point(ground_line, centerline[0]) 
+        centerline.insert(0, ground_start)
+            
+        # simplify the curve        
+        centerline = cv2.approxPolyDP(np.array(centerline, np.int),
+                                      epsilon=1, closed=False)
+            
+        # save the centerline in the burrow structure
+        burrow.centerline = centerline[:, 0, :]
+                                
                         
     def store_burrows(self):
         """ associates the current burrows with burrow tracks """
@@ -768,11 +810,14 @@ class ThirdPass(DataHandler):
                 # pick the longest line if there are multiple
                 index_longest = np.argmax(l.length for l in line)
                 line = line[index_longest]
-                
-            # adjust the burrow centerline to reach to the ground line
+
             if line.is_empty:
-                burrow.centerline = self.mouse_trail
+                # the centerline disappeared
+                # => calculate a new centerline from the burrow outline
+                self.calculate_burrow_centerline(burrow)
+            
             else:
+                # adjust the burrow centerline to reach to the ground line
                 # it could be that the whole line was underground
                 # => move the first data point onto the ground line
                 line = np.array(line, np.double)

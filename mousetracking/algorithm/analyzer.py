@@ -291,7 +291,7 @@ class Analyzer(DataHandler):
                          head_width=0.1,
                          edgecolor='none', facecolor=color)
                 
-        # add a colorbar explaining the colorscheme
+        # add a colorbar explaining the color scheme
         cax = ax.figure.add_axes([0.87, 0.1, 0.03, 0.8])
         norm = colors.Normalize(vmin=0, vmax=1)
         cb = colorbar.ColorbarBase(cax, cmap=colormap, norm=norm,
@@ -319,6 +319,12 @@ class Analyzer(DataHandler):
         ground_profile = self.data['pass2/ground_profile']
         if np.max(ground_profile.profiles[-1, :, 1]) < 2:
             problems['ground_through_roof'] = True
+            
+        # check the number of frames that were analyzed
+        frame_count_1 = self.data['pass1/video/frames_analyzed']
+        frame_count_3 = self.data['pass3/video/frames_analyzed']
+        if frame_count_3 < 0.99*frame_count_1:
+            problems['pass_3_stopped_early'] = True
         
         return problems
     
