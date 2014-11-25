@@ -780,11 +780,6 @@ class ThirdPass(DataHandler):
                 # set the updated burrow centerline
                 burrow.centerline = line
             
-                # update the centerline if the mouse trail is longer
-                mouse_trail_len = curves.curve_length(self.mouse_trail)
-                if mouse_trail_len > burrow.length:
-                    burrow.centerline = self.mouse_trail
-            
             # store the burrow if it is valid    
             if burrow.is_valid:
                 if len(track_ids) > 1:
@@ -814,6 +809,7 @@ class ThirdPass(DataHandler):
         # get the buffered mouse trail
         trail_width = self.params['burrows/width_min']
         mouse_trail = geometry.LineString(self.mouse_trail)
+        mouse_trail_len = mouse_trail.length
         mouse_trail = mouse_trail.buffer(trail_width)
         
         # extend the burrow outline by the mouse trail and restrict it to the
@@ -821,7 +817,11 @@ class ThirdPass(DataHandler):
         polygon = burrow.polygon.union(mouse_trail)
         polygon = polygon.intersection(cage_interior_rect)
         burrow.outline = regions.get_enclosing_outline(polygon)
-    
+            
+        # update the centerline if the mouse trail is longer
+        if mouse_trail_len > burrow.length:
+            burrow.centerline = self.mouse_trail
+
                 
     def find_burrows(self):
         """ locates burrows based on current mouse trail """
