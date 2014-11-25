@@ -38,19 +38,28 @@ class Analyzer(DataHandler):
                              'Please install the `pint` python package.')
 
         # set the dimensions        
-        self.time_scale = 1/self.data['video/fps']
-        self.length_scale = self.data['pass2/pixel_size_cm']
+        self.time_scale_mag = 1/self.data['video/fps']
+        self.length_scale_mag = self.data['pass2/pixel_size_cm']
         
         if self.use_units:
             # use a unit registry to keep track of all units
             self.units = pint.UnitRegistry()
             # define custom units
-            self.units.define('frames = %g * second' % self.time_scale)
-            self.units.define('pixel = %g * centimeter' % self.length_scale)
+            self.units.define('frames = %g * second' % self.time_scale_mag)
+            self.units.define('pixel = %g * centimeter' % self.length_scale_mag)
             # augment the dimension with the appropriate units
-            self.time_scale *= self.units.second
-            self.length_scale *= self.units.centimeter
+            self.time_scale = self.time_scale_mag * self.units.second
+            self.length_scale = self.length_scale_mag * self.units.centimeter
+            
+        else:
+            self.time_scale = self.time_scale_mag
+            self.length_scale = self.length_scale_mag
         
+        
+    #===========================================================================
+    # BURROW STATISTICS
+    #===========================================================================
+
         
     def get_burrow_lengths(self):
         """ returns a list of burrows containing their length over time """
@@ -65,6 +74,22 @@ class Analyzer(DataHandler):
         return results
     
     
+    #===========================================================================
+    # MOUSE STATISTICS
+    #===========================================================================
+
+
+    def get_mouse_velocities(self):
+        """ returns an array with mouse velocities as a function of time """
+        # read data
+        sigma = self.data['parameters/mouse/speed_smoothing_window']
+        mouse_trajectory = self.data['pass2/mouse_trajectory']
+        
+        # calculate and return velocity
+        mouse_trajectory.calculate_velocities(sigma=sigma)
+        velocity = mouse_trajectory.velocity
+        return velocity * self.length_scale / self.time_scale
+
     
     def get_mouse_state_durations(self, states=None, ret_states=False):
         """ returns the durations the mouse spends in each state 

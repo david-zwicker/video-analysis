@@ -224,9 +224,9 @@ class MouseTrack(object):
         return '%s(frames=%d)' % (self.__class__.__name__, len(self.pos))
 
     
-    def calculate_velocities(self, dt, sigma):
+    def calculate_velocities(self, sigma):
         """ calculates the velocity from smoothed positions """
-        velocity = np.zeros_like(self.pos)
+        velocity = np.empty_like(self.pos)
         velocity.fill(np.nan)
         
         indices = contiguous_true_regions(np.isfinite(self.pos[:, 0]))
@@ -238,8 +238,8 @@ class MouseTrack(object):
                                                 axis=0, #< time axis
                                                 mode='nearest')
                 # differentiate to get velocity
-                velocity[start:end, 0] = np.gradient(pos[:, 0], dt)
-                velocity[start:end, 1] = np.gradient(pos[:, 1], dt)
+                velocity[start:end, 0] = np.gradient(pos[:, 0])
+                velocity[start:end, 1] = np.gradient(pos[:, 1])
         
         self.velocity = velocity
     

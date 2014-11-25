@@ -145,12 +145,12 @@ def get_color(color):
     The matplotlib color notation is used.
     """
     
-    if get_color.converter is None:
-        get_color.converter = ColorConverter().to_rgb
+    if get_color.parser is None:
+        get_color.parser = ColorConverter().to_rgb
         
-    return (255*np.array(get_color.converter(color))).astype(int)
+    return (255*np.array(get_color.parser(color))).astype(int)
 
-get_color.converter = None
+get_color.parser = None
 
 
 

@@ -146,10 +146,16 @@ class ThirdPass(DataHandler):
         self.burrows = []       #< list of current burrows
         self._cache = {}
 
-        # calculate mouse velocities        
+        # set up parameters
+        moving_threshold = self.params['mouse/moving_threshold_cm_sec']
+        moving_threshold /= video_info['fps']
+        moving_threshold /= self.data['pass2/pixel_size_cm']
+        self.params['mouse/moving_threshold_pixel_frame'] = moving_threshold
+        print '\n\n\n', moving_threshold, '\n\n\n'
+
+        # calculate mouse velocities    
         sigma = self.params['mouse/speed_smoothing_window']
-        dt = 1/self.video.fps
-        self.data['pass2/mouse_trajectory'].calculate_velocities(dt, sigma=sigma)
+        self.data['pass2/mouse_trajectory'].calculate_velocities(sigma=sigma)
         
         if self.params['burrows/enabled_pass3']:
             self.result['burrows/tracks'] = BurrowTrackList()
@@ -349,10 +355,10 @@ class ThirdPass(DataHandler):
             # reset the mouse trail since the mouse is over the ground
             self.mouse_trail = None
             
-        # TODO: check the dynamics of the mouse
+        # determine whether the mouse is moving or not
         velocity = self.data['pass2/mouse_trajectory'].velocity[self.frame_id, :]
         speed = np.hypot(velocity[0], velocity[1])
-        if speed > self.params['mouse/moving_threshold']:
+        if speed > self.params['mouse/moving_threshold_pixel_frame']:
             state['dynamics'] = 'moving'
         else:
             state['dynamics'] = 'stationary'

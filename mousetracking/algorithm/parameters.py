@@ -31,21 +31,23 @@ class UNIT(object):
     TIME_FRAMES = 20
     RATE_FRAMES = 21
     SPEED_PIXEL_FRAME = 30
+    SPEED_CM_SEC = 31
     
-    # create dictionary with converter function
-    converter = defaultdict(lambda: lambda val: val)
+    # create dictionary with parser functions
+    parser = defaultdict(lambda: lambda val: val)
 
 # initialize converters
-UNIT.converter[UNIT.FACTOR] = float
-UNIT.converter[UNIT.FRACTION] = float
-UNIT.converter[UNIT.BOOLEAN] = bool
-UNIT.converter[UNIT.INTEGER] = int
-UNIT.converter[UNIT.LENGTH_PIXEL] = float
-UNIT.converter[UNIT.LENGTH_CM] = float
-UNIT.converter[UNIT.AREA_PIXEL] = float
-UNIT.converter[UNIT.TIME_FRAMES] = float
-UNIT.converter[UNIT.RATE_FRAMES] = float
-UNIT.converter[UNIT.SPEED_PIXEL_FRAME] = float
+UNIT.parser[UNIT.FACTOR] = float
+UNIT.parser[UNIT.FRACTION] = float
+UNIT.parser[UNIT.BOOLEAN] = bool
+UNIT.parser[UNIT.INTEGER] = int
+UNIT.parser[UNIT.LENGTH_PIXEL] = float
+UNIT.parser[UNIT.LENGTH_CM] = float
+UNIT.parser[UNIT.AREA_PIXEL] = float
+UNIT.parser[UNIT.TIME_FRAMES] = float
+UNIT.parser[UNIT.RATE_FRAMES] = float
+UNIT.parser[UNIT.SPEED_PIXEL_FRAME] = float
+UNIT.parser[UNIT.SPEED_CM_SEC] = float
     
 
 Parameter = namedtuple('Parameter', ['key', 'default_value', 'unit', 'description'])
@@ -258,14 +260,14 @@ PARAMETER_LIST = [
               'Mean area of a mouse, which is used to score the mouse'),
     Parameter('mouse/speed_max', 30, UNIT.SPEED_PIXEL_FRAME,
               'Maximal speed of the mouse'),
+    Parameter('mouse/max_rel_area_change', 0.5, UNIT.FACTOR,
+              'Maximal area change allowed between consecutive frames'),
     Parameter('mouse/speed_smoothing_window', 25, UNIT.TIME_FRAMES,
               'The number of frames over which the mouse position is smoothed '
               'in order to calculate its velocity'),
-    Parameter('mouse/moving_threshold', 10, UNIT.SPEED_PIXEL_FRAME,
+    Parameter('mouse/moving_threshold_cm_sec', 5, UNIT.SPEED_CM_SEC,
               'The threshold value of the speed above which the mouse is '
-              'considered to be moving'),
-    Parameter('mouse/max_rel_area_change', 0.5, UNIT.FACTOR,
-              'Maximal area change allowed between consecutive frames'),
+              'considered to be moving.'),
                   
     Parameter('tracking/weight', 0.5, UNIT.FACTOR,
               'Relative weight of distance vs. size of objects for matching '
@@ -275,8 +277,8 @@ PARAMETER_LIST = [
     Parameter('tracking/moving_threshold', 1, UNIT.SPEED_PIXEL_FRAME,
               'Threshold speed above which an object is said to be moving'),
     Parameter('tracking/object_count_max', 7, UNIT.INTEGER,
-              'Maximal number of objects allowed in a single frame. If there are '
-              'more objects, the entire frame is discarded'),
+              'Maximal number of objects allowed in a single frame. If there '
+              'are more objects, the entire frame is discarded'),
     Parameter('tracking/time_scale', 10, UNIT.TIME_FRAMES,
               'Time duration of not seeing the mouse after which we do not ' 
               'know where it is anymore'),
