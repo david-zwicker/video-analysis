@@ -115,11 +115,9 @@ class Burrow(object):
                 ring = geometry.LinearRing(points)
                 
             # make sure that the outline is given in clockwise direction
+            self._outline = np.array(points, np.double)
             if ring.is_ccw:
-                point_list = np.array(points, np.double)
-                self._outline = point_list[::-1]
-            else:
-                self._outline = np.array(points, np.double)
+                self._outline = self._outline[::-1]
             
         self._cache = {}
         
@@ -137,7 +135,7 @@ class Burrow(object):
     @cached_property
     def outline_ring(self):
         """ return the linear ring of the burrow outline """
-        return geometry.asLinearRing(self.outline)
+        return geometry.LinearRing(self.outline)
     
         
     @cached_property

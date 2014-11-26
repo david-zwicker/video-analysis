@@ -151,7 +151,6 @@ class ThirdPass(DataHandler):
         moving_threshold /= video_info['fps']
         moving_threshold /= self.data['pass2/pixel_size_cm']
         self.params['mouse/moving_threshold_pixel_frame'] = moving_threshold
-        print '\n\n\n', moving_threshold, '\n\n\n'
 
         # calculate mouse velocities    
         sigma = self.params['mouse/speed_smoothing_window']
@@ -891,17 +890,16 @@ class ThirdPass(DataHandler):
         # get the buffered mouse trail
         trail_width = self.params['burrows/width_min']
         mouse_trail = geometry.LineString(self.mouse_trail)
-        mouse_trail_len = mouse_trail.length
-        mouse_trail = mouse_trail.buffer(trail_width)
+        mouse_trail_buffered = mouse_trail.buffer(trail_width)
         
         # extend the burrow outline by the mouse trail and restrict it to the
         # cage interior
-        polygon = burrow.polygon.union(mouse_trail)
+        polygon = burrow.polygon.union(mouse_trail_buffered)
         polygon = polygon.intersection(cage_interior_rect)
         burrow.outline = regions.get_enclosing_outline(polygon)
             
         # update the centerline if the mouse trail is longer
-        if mouse_trail_len > burrow.length:
+        if mouse_trail.length > burrow.length:
             burrow.centerline = self.mouse_trail
 
                 
@@ -921,16 +919,8 @@ class ThirdPass(DataHandler):
         trail_line = geometry.LineString(self.mouse_trail)
         for burrow_id, burrow in enumerate(self.burrows):
             # determine whether we are inside this burrow
-            if burrow.outline is not None:
-                dist = burrow.polygon.distance(trail_line)
-                mouse_is_close = (dist < self.params['burrows/width']) 
-            else:
-                mouse_is_close = False
-            if not mouse_is_close:
-                dist = burrow.linestring.distance(trail_line)
-                mouse_is_close = (dist < 2*self.params['burrows/width']) 
-                 
-            if mouse_is_close:
+            dist = burrow.polygon.distance(trail_line)
+            if dist < self.params['burrows/width']:
                 burrows_with_mouse.append(burrow_id)
 
         if burrows_with_mouse:
@@ -945,12 +935,12 @@ class ThirdPass(DataHandler):
                 
         else:
             # create the burrow, since we don't know it yet
-            trail_width = 0.5*self.params['mouse/model_radius']
             mouse_trail = geometry.LineString(self.mouse_trail)
-            mouse_trail = mouse_trail.buffer(trail_width)
-            outline = mouse_trail.boundary.coords
+            trail_width = self.params['burrows/width_min']
+            mouse_trail_buffered = mouse_trail.buffer(trail_width)
+            outline = mouse_trail_buffered.boundary.coords
 
-            burrow_mouse = Burrow(self.mouse_trail[:], outline)
+            burrow_mouse = Burrow(self.mouse_trail, outline)
             self.burrows.append(burrow_mouse)
 
         # simplify the burrow outline
