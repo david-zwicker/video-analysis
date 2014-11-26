@@ -142,7 +142,15 @@ class VideoOpenCV(VideoBase):
     def close(self):
         self._movie.release()
         self._movie = None
+
                     
+    def __enter__(self):
+        return self
+    
+        
+    def __exit__(self, e_type, e_value, e_traceback):
+        self.close()
+    
                     
     def __del__(self):
         self.close()

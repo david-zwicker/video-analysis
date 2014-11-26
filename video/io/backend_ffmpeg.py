@@ -63,6 +63,11 @@ class VideoFFmpeg(VideoBase):
     """ 
 
     def __init__(self, filename, bufsize=None, pix_fmt="rgb24"):
+        """ initialize a video that will be read with FFmpeg
+        filename is the name of the filename
+        bufsize denotes the size of the pipe buffer used for reading
+        pix_fmt denotes the pixel format
+        """
 
         self.filename = filename
         
@@ -126,6 +131,7 @@ class VideoFFmpeg(VideoBase):
         else:
             i_arg = ['-i', self.filename]
         
+        # build ffmpeg command line
         cmd = ([FFMPEG_BINARY] + 
                i_arg +
                ['-loglevel', 'error', 
@@ -221,7 +227,15 @@ class VideoFFmpeg(VideoBase):
             except IOError:
                 pass
             self.proc = None
+
     
+    def __enter__(self):
+        return self
+    
+        
+    def __exit__(self, e_type, e_value, e_traceback):
+        self.close()
+
     
     def __del__(self):
         self.close()

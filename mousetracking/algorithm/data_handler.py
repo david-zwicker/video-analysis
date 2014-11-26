@@ -23,7 +23,7 @@ import objects
 from objects import burrow2
 from .objects.utils import LazyHDFValue, prepare_data_for_yaml
 from .utils import get_loglevel_from_name, change_directory
-from video.io import VideoFile, VideoFileStack
+from video.io import load_any_video
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists
 
@@ -42,18 +42,6 @@ except ImportError:
 
 
 class LazyLoadError(RuntimeError): pass
-
-
-
-def load_any_video(video_filename_pattern):
-    """ loads either a video file or a video file stack, depending
-    on the video_filename_pattern supplied """
-    if any(c in video_filename_pattern for c in r'*?%'):
-        # contains placeholder => load multiple videos
-        return VideoFileStack(video_filename_pattern, keep_files_open=False)
-    else:
-        # no placeholder => load single video
-        return VideoFile(video_filename_pattern)
 
 
 

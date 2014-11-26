@@ -34,6 +34,18 @@ else:
 
 
 
+def load_any_video(video_filename_pattern):
+    """ loads either a video file or a video file stack, depending
+    on the video_filename_pattern supplied """
+    if any(c in video_filename_pattern for c in r'*?%'):
+        # contains placeholder => load multiple videos
+        return VideoFileStack(video_filename_pattern, keep_files_open=False)
+    else:
+        # no placeholder => load single video
+        return VideoFile(video_filename_pattern)
+
+
+
 def write_video(video, filename, **kwargs):
     """
     Saves the video to the file indicated by filename.

@@ -11,6 +11,6 @@ Two formats are supported:
 from .base import VideoFork
 from .memory import VideoMemory
 from .file import (VideoFile, VideoFileStack, VideoImageStack, VideoFileWriter, 
-                   show_video, write_video)
+                   show_video, load_any_video, write_video)
 from .computed import VideoGaussianNoise
 from .display import ImageWindow
