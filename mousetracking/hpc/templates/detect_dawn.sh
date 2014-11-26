@@ -5,7 +5,7 @@
 #SBATCH -p general           # Partition to submit to
 #SBATCH --mem-per-cpu=500    # Memory per cpu in MB (see also --mem)
 #SBATCH -o {JOB_DIRECTORY}/log_detect_dawn_%j.txt    # File to which stdout and stderr will be written
-#SBATCH --job-name=DD_%j
+#SBATCH --job-name=DD_{NAME}
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=dzwicker@seas.harvard.edu
 
