@@ -19,6 +19,7 @@ this_path = os.path.dirname(__file__)
 video_analysis_path = os.path.join(this_path, '..', '..')
 sys.path.append(video_analysis_path)
 from video.io import load_any_video
+from video.utils import display_progress
 
 
 
@@ -28,7 +29,7 @@ def determine_average_frame_brightness(video_file_or_pattern, output_hdf5_file=N
     # read video data
     with closing(load_any_video(video_file_or_pattern)) as video:
         brightness = np.empty(video.frame_count, np.double)
-        for k, frame in enumerate(video):
+        for k, frame in enumerate(display_progress(video)):
             brightness[k] = frame.mean()
         # restrict the result to the number of actual frames read
         if k < video.frame_count:
