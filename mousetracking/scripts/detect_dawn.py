@@ -13,6 +13,7 @@ import os
 
 import h5py
 import numpy as np
+from scipy import ndimage
 
 # add the root of the video-analysis project to the path
 this_path = os.path.dirname(__file__)
@@ -23,7 +24,8 @@ from video.utils import display_progress
 
 
 
-def determine_average_frame_brightness(video_file_or_pattern, output_hdf5_file=None):
+def determine_average_frame_brightness(video_file_or_pattern,
+                                       output_hdf5_file=None):
     """ iterates a video and determines its intensity, which will be stored
     in a hdf5 file, if the respective file name is given"""
     # read video data
@@ -44,6 +46,20 @@ def determine_average_frame_brightness(video_file_or_pattern, output_hdf5_file=N
 
 
 
+def get_dawn_from_brightness(brightness, smoothing_sigma=25):
+    """ determines the frame where dawn sets in after smoothing the supplied
+    brightness data """
+    # filter the brightness
+    brightness = ndimage.filters.gaussian_filter1d(brightness,
+                                                   smoothing_sigma,
+                                                   mode='nearest')
+    # determine the change in brightness
+    change = np.gradient(brightness)
+    # report the frame where the change is maximal
+    return np.argmax(change)
+
+
+
 def main():
     # determine the video file
     try:
@@ -59,7 +75,13 @@ def main():
         output_hdf5_file = os.path.splitext(video_file)[0] + '.hdf5'
     print('Write the result to `%s`' % output_hdf5_file)
     
-    determine_average_frame_brightness(video_file, output_hdf5_file)
+    # calculate the brightness
+    brightness = determine_average_frame_brightness(video_file, output_hdf5_file)
+    
+    # determine the frame where the light is switched on
+    frame_dawn = get_dawn_from_brightness(brightness)
+    
+    print('Lights are switch on in frame %d' % frame_dawn)
     
 
 

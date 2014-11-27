@@ -846,7 +846,7 @@ class ThirdPass(DataHandler):
                 index_longest = np.argmax(l.length for l in line)
                 line = line[index_longest]
 
-            if line.is_empty:
+            if line.is_empty or line.length <= 0:
                 # the centerline disappeared
                 # => calculate a new centerline from the burrow outline
                 self.calculate_burrow_centerline(burrow)
@@ -855,7 +855,7 @@ class ThirdPass(DataHandler):
                 # adjust the burrow centerline to reach to the ground line
                 # it could be that the whole line was underground
                 # => move the first data point onto the ground line
-                line = np.array(line, np.double)
+                line = np.atleast_2d(np.array(line, np.double))
                 line[0] = curves.get_projection_point(self.ground.linestring, line[0])
                 # set the updated burrow centerline
                 burrow.centerline = line
