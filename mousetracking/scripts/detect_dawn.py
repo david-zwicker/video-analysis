@@ -51,6 +51,7 @@ def get_dawn_from_brightness(brightness, output_file=None,
                              smoothing_sigma=25):
     """ determines the frame where dawn sets in after smoothing the supplied
     brightness data """
+    
     # average over window to reduce amount of data
     data_len = len(brightness) // averaging_window
     data = np.empty(data_len, np.double)
@@ -63,7 +64,9 @@ def get_dawn_from_brightness(brightness, output_file=None,
                                              mode='reflect')
     
     # determine the maximal change in brightness
-    frame_dawn = np.argmax(np.gradient(data)) * averaging_window
+    data_roi = data[int(smoothing_sigma) : -int(smoothing_sigma)]
+    pos_max = np.argmax(np.gradient(data_roi))
+    frame_dawn = (pos_max + smoothing_sigma) * averaging_window
     
     if output_file:
         with open(output_file, 'w') as fp:
