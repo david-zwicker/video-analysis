@@ -47,22 +47,29 @@ def determine_average_frame_brightness(video_file_or_pattern,
 
 
 def get_dawn_from_brightness(brightness, output_file=None,
-                             smoothing_sigma=25*60):
+                             averaging_window=100,
+                             smoothing_sigma=25):
     """ determines the frame where dawn sets in after smoothing the supplied
     brightness data """
-    # filter the brightness
-    brightness = ndimage.filters.gaussian_filter1d(brightness,
-                                                   smoothing_sigma,
-                                                   mode='nearest')
+    # average over window to reduce amount of data
+    data_len = len(brightness) // averaging_window
+    data = np.empty(data_len, np.double)
+    for i in xrange(data_len):
+        ia = i*averaging_window
+        data[i] = np.mean(brightness[ia: ia + averaging_window])
+    
+    # filter the data
+    data = ndimage.filters.gaussian_filter1d(data, smoothing_sigma,
+                                             mode='reflect')
+    
     # determine the maximal change in brightness
-    change = np.gradient(brightness)
-    frame_dawn = np.argmax(change)
+    frame_dawn = np.argmax(np.gradient(data)) * averaging_window
     
     if output_file:
         with open(output_file, 'w') as fp:
             fp.write(str(frame_dawn))
     
-    return frame_dawn
+    return frame_dawn, data
 
 
 
