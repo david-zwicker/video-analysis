@@ -16,6 +16,6 @@ source ~/.profile
 # change to job directory
 cd {JOB_DIRECTORY}
 # run python script
-{SCRIPT_DIRECTORY}/detect_dawn.py "{VIDEO_FILE}" "{RESULT_FILE}"
+{SCRIPT_DIRECTORY}/detect_dawn.py "{VIDEO_FILE}" "{RESULT_FILE}" "{BRIGHTNESS_FILE}"
 
 echo "Ended job with id $SLURM_JOB_ID"

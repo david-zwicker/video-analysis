@@ -46,17 +46,23 @@ def determine_average_frame_brightness(video_file_or_pattern,
 
 
 
-def get_dawn_from_brightness(brightness, smoothing_sigma=25):
+def get_dawn_from_brightness(brightness, output_file=None,
+                             smoothing_sigma=25*60):
     """ determines the frame where dawn sets in after smoothing the supplied
     brightness data """
     # filter the brightness
     brightness = ndimage.filters.gaussian_filter1d(brightness,
                                                    smoothing_sigma,
                                                    mode='nearest')
-    # determine the change in brightness
+    # determine the maximal change in brightness
     change = np.gradient(brightness)
-    # report the frame where the change is maximal
-    return np.argmax(change)
+    frame_dawn = np.argmax(change)
+    
+    if output_file:
+        with open(output_file, 'w') as fp:
+            fp.write(str(frame_dawn))
+    
+    return frame_dawn
 
 
 
@@ -70,16 +76,23 @@ def main():
     
     # determine the output file
     if len(sys.argv) > 2:
-        output_hdf5_file = sys.argv[2]
+        output_file = sys.argv[2]
     else:
-        output_hdf5_file = os.path.splitext(video_file)[0] + '.hdf5'
-    print('Write the result to `%s`' % output_hdf5_file)
+        output_file = os.path.splitext(video_file)[0] + '_dawn.txt'
+    print('Write the result to `%s`' % output_file)
+
+    # determine the brightness file
+    if len(sys.argv) > 3:
+        output_hdf5_file = sys.argv[3]
+    else:
+        output_hdf5_file = os.path.splitext(video_file)[0] + '_brightness.hdf5'
+    print('Write the brightness data to `%s`' % output_hdf5_file)
     
     # calculate the brightness
     brightness = determine_average_frame_brightness(video_file, output_hdf5_file)
     
     # determine the frame where the light is switched on
-    frame_dawn = get_dawn_from_brightness(brightness)
+    frame_dawn = get_dawn_from_brightness(brightness, output_file)
     
     print('Lights are switch on in frame %d' % frame_dawn)
     
