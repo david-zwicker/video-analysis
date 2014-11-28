@@ -87,6 +87,7 @@ def get_dawn_from_brightness(brightness, output_file=None,
         ks = np.linspace(0, data_len, num_points, endpoint=False).astype(int)
         ts = ks*averaging_window
         
+        plt.figure()
         plt.axvspan(0, margin*averaging_window, color='0.5')
         tmax = data_len*averaging_window
         plt.axvspan(tmax - margin*averaging_window, tmax, color='0.5')
@@ -100,6 +101,7 @@ def get_dawn_from_brightness(brightness, output_file=None,
         plt.xlim(0, tmax)
         plt.legend(loc='best')
         plt.savefig(debug_image)
+        plt.close()
     
     return frame_dawn
 
