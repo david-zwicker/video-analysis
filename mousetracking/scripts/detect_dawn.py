@@ -69,7 +69,7 @@ def get_dawn_from_brightness(brightness, output_file=None,
         with open(output_file, 'w') as fp:
             fp.write(str(frame_dawn))
     
-    return frame_dawn, data
+    return frame_dawn
 
 
 
