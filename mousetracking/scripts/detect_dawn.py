@@ -47,30 +47,59 @@ def determine_average_frame_brightness(video_file_or_pattern,
 
 
 def get_dawn_from_brightness(brightness, output_file=None,
-                             averaging_window=100,
-                             smoothing_sigma=25):
-    """ determines the frame where dawn sets in after smoothing the supplied
-    brightness data """
-    
+                             averaging_window=100, smoothing_sigma=25,
+                             margin=500, debug_image=None):
+    """ determines the frame where dawn sets.
+    output_file: is a file into which the frame number of dawn is written
+    averaging_window: denotes the number of frames which are averaged together
+        in order to reduce the total amount of data
+    smoothing_sigma: standard deviation used for Gaussian smoothing of the 
+        resulting data
+    margin: regions of data at the beginning and the end, which will not be used
+        in the further analysis
+    debug_image: filename to which an image is written, which can then be used
+        to check the result of the algorithm
+    """
     # average over window to reduce amount of data
     data_len = len(brightness) // averaging_window
-    data = np.empty(data_len, np.double)
+    data_raw = np.empty(data_len, np.double)
     for i in xrange(data_len):
         ia = i*averaging_window
-        data[i] = np.mean(brightness[ia: ia + averaging_window])
+        data_raw[i] = np.mean(brightness[ia: ia + averaging_window])
     
     # filter the data
-    data = ndimage.filters.gaussian_filter1d(data, smoothing_sigma,
-                                             mode='reflect')
+    data = ndimage.filters.gaussian_filter1d(data_raw, smoothing_sigma,
+                                             mode='nearest')
     
     # determine the maximal change in brightness
-    data_roi = data[int(smoothing_sigma) : -int(smoothing_sigma)]
+    data_roi = data[margin : -margin]
     pos_max = np.argmax(np.gradient(data_roi))
-    frame_dawn = (pos_max + smoothing_sigma) * averaging_window
+    frame_dawn = (pos_max + margin) * averaging_window
     
     if output_file:
         with open(output_file, 'w') as fp:
             fp.write(str(frame_dawn))
+
+    if debug_image:
+        import matplotlib.pyplot as plt
+        
+        num_points = min(data_len, 512)
+        ks = np.linspace(0, data_len, num_points, endpoint=False).astype(int)
+        ts = ks*averaging_window
+        
+        plt.axvspan(0, margin*averaging_window, color='0.5')
+        tmax = data_len*averaging_window
+        plt.axvspan(tmax - margin*averaging_window, tmax, color='0.5')
+        
+        plt.plot(ts, data_raw[ks], label='Raw intensity')
+        plt.plot(ts, data[ks], label='Smoothed intensity', lw=2)
+        plt.axvline(frame_dawn, color='r', label='Detected dawn')
+        
+        plt.xlabel('Frame number')
+        plt.ylabel('Average brightness')
+        plt.xlim(0, tmax)
+        plt.legend(loc='best')
+        plt.savefig(debug_image)
     
     return frame_dawn
 
