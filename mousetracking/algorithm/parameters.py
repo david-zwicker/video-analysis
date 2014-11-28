@@ -54,8 +54,11 @@ Parameter = namedtuple('Parameter', ['key', 'default_value', 'unit', 'descriptio
 
 
 PARAMETER_LIST = [
+    # Basic parameters
     Parameter('base_folder', '.', UNIT.FOLDER,
               'Base folder in which all files are kept'),
+    Parameter('factor_length', 1, UNIT.FACTOR,
+              'A factor by which all length scales will be scaled'),
                   
     # Video input
     Parameter('video/filename_pattern', 'raw_video/*.MTS', UNIT.SUBFOLDER,
@@ -361,9 +364,12 @@ PARAMETER_LIST = [
               'and foreground statistics. If the distributions overlap more '
               'than this value the point is considered to be background since '
               'it cannot be discriminated reliably.'),
-                  
-    Parameter('factor_length', 1, UNIT.FACTOR,
-              'A factor by which all length scales will be scaled'),
+          
+    # analysis after tracking        
+    Parameter('analysis/frames', None, None,
+              'Frames of the video which are included in the report of the '
+              'analysis [start and end index should be given]. If this is '
+              'omitted, all analyzed frames are included'),
                   
     # Computation resources
     Parameter('project/symlink_folder', None, None,

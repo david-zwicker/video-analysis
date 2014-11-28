@@ -56,6 +56,29 @@ class Analyzer(DataHandler):
             self.length_scale = self.length_scale_mag
         
         
+    def get_frame_range(self):
+        """ returns the range of frames that is going to be analyzed """
+        frames = self.data['parameters/analysis/frames']
+        frames_video = self.data['pass1/video/frames']
+        if frames is None:
+            frames = frames_video
+        else:
+            frames = (max(frames[0], frames_video[0]),
+                      min(frames[1], frames_video[1]))
+        return frames
+    
+    
+    def get_frame_roi(self, frame_ids=None):
+        """ returns a slice object indicating where the given frame_ids lie in
+        the range that was choosen for analysis """ 
+        fmin, fmax = self.get_frame_range()
+        if frame_ids is None:
+            return slice(fmin, fmax + 1)
+        else:
+            return slice(np.searchsorted(frame_ids, fmin, side='left'),
+                         np.searchsorted(frame_ids, fmax, side='right'))
+        
+        
     #===========================================================================
     # BURROW STATISTICS
     #===========================================================================
@@ -66,9 +89,15 @@ class Analyzer(DataHandler):
         burrow_tracks = self.data['pass1/burrows/tracks']
         results = []
         for burrow_track in burrow_tracks:
-            times = np.asarray(burrow_track.times)*self.time_scale
+            # read raw data
+            times = np.asarray(burrow_track.times)
             lenghts = [burrow.length for burrow in burrow_track.burrows]
-            data = np.c_[times, lenghts]
+            
+            # get the indices in the analysis range
+            idx = self.get_frame_roi(times)
+            
+            # append the data to the result
+            data = np.c_[times[idx]*self.time_scale, lenghts[idx]]
             results.append(data)
                   
         return results
@@ -87,7 +116,7 @@ class Analyzer(DataHandler):
         
         # calculate and return velocity
         mouse_trajectory.calculate_velocities(sigma=sigma)
-        velocity = mouse_trajectory.velocity
+        velocity = mouse_trajectory.velocity[self.get_frame_roi()]
         return velocity * self.length_scale / self.time_scale
 
     
@@ -98,7 +127,9 @@ class Analyzer(DataHandler):
         the result.
         """
         try:
+            # read raw data for the frames that we are interested in 
             mouse_state = self.data['pass2/mouse_trajectory'].states
+            mouse_state = mouse_state[self.get_frame_roi()]
         except KeyError:
             raise RuntimeError('The mouse trajectory has to be determined '
                                'before the transitions can be analyzed.')
@@ -138,7 +169,9 @@ class Analyzer(DataHandler):
         not be included in the results.
         """
         try:
+            # read raw data for the frames that we are interested in 
             mouse_state = self.data['pass2/mouse_trajectory'].states
+            mouse_state = mouse_state[self.get_frame_roi()]
         except KeyError:
             raise RuntimeError('The mouse trajectory has to be determined '
                                'before the transitions can be analyzed.')

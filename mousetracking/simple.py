@@ -13,7 +13,7 @@ import warnings
 
 import yaml
 
-from .algorithm import FirstPass, SecondPass, ThirdPass
+from .algorithm import FirstPass, SecondPass, ThirdPass, FourthPass
 from .algorithm.parameters import PARAMETERS_DEFAULT
 from .algorithm.analyzer import Analyzer
 
@@ -53,6 +53,11 @@ def scan_video(name, video=None, parameters=None, passes=2, **kwargs):
     # do third pass
     if passes > 2:
         job = ThirdPass.from_second_pass(job)
+        job.process()
+    
+    # do fourth pass
+    if passes > 3:
+        job = FourthPass.from_third_pass(job)
         job.process()
     
 
