@@ -18,7 +18,7 @@ import sys
 import cv2
 import yaml
 
-from .parameters import PARAMETERS_DEFAULT, scale_parameters
+from .parameters import PARAMETERS, PARAMETERS_DEFAULT, UNIT, scale_parameters
 import objects
 from mousetracking.algorithm.objects import burrow
 from .objects.utils import LazyHDFValue, prepare_data_for_yaml
@@ -86,11 +86,18 @@ class DataHandler(object):
     def check_parameters(self, parameters):
         """ checks whether the parameters given in the input do actually exist
         in this version of the code """
-        unknown_keys = [key
-                        for key in parameters
-                        if key not in PARAMETERS_DEFAULT]
-        if unknown_keys:
-            raise ValueError('Parameters %s are not understood.' % unknown_keys)
+        unknown_params, deprecated_params = [], []
+        for key in parameters:
+            if key not in PARAMETERS:
+                unknown_params.append(key)
+            elif PARAMETERS[key].unit == UNIT.DEPRECATED:
+                deprecated_params.append(key)
+
+        if unknown_params:
+            raise ValueError('Parameter(s) %s are not known.' % unknown_params)
+        if deprecated_params:
+            self.logger.warn('Parameter(s) %s are deprecated and will not be '
+                             'used in the analysis.' % unknown_params)
         
 
     def initialize_parameters(self, parameters=None):
