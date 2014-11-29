@@ -120,7 +120,8 @@ class SecondPass(DataHandler):
                         graph.add_edge(a, b, cost=cost)
                         
             # highlight node if necessary
-            graph.node[a]['highlight'] = (a_idx in highlight_nodes)
+            if a in graph:
+                graph.node[a]['highlight'] = (a_idx in highlight_nodes)
                         
         return graph
             
