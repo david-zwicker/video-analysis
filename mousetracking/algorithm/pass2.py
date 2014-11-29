@@ -173,7 +173,10 @@ class SecondPass(DataHandler):
          
     def get_best_track_connection(self, tracks, start_nodes=None, end_nodes=None):
         """ determines a good path, possibly choosing from several start and 
-        end nodes """        
+        end nodes """   
+        if len(tracks) < 2:
+            return tracks
+        
         threshold = self.params['tracking/initial_score_threshold']
 
         # set flags if the end nodes have to be determined automatically
@@ -185,17 +188,20 @@ class SecondPass(DataHandler):
         while successful_iterations < 2:
             # build the tracking graph
             graph = self.get_track_graph(tracks, threshold)
-
-            # get the end nodes if necessary
-            if determine_start_nodes:
-                start_nodes, _ = self.find_outer_nodes(graph)
-            if determine_end_nodes:
-                _, end_nodes = self.find_outer_nodes(graph)
-
-            # find possible paths between the start and end nodes
-            find_all = (successful_iterations >= 1)
-            paths = self.find_paths_in_track_graph(graph, start_nodes,
-                                                   end_nodes, find_all)
+            
+            if graph.number_of_edges() > 0:
+                # get the end nodes if necessary
+                if determine_start_nodes:
+                    start_nodes, _ = self.find_outer_nodes(graph)
+                if determine_end_nodes:
+                    _, end_nodes = self.find_outer_nodes(graph)
+    
+                # find possible paths between the start and end nodes
+                find_all = (successful_iterations >= 1)
+                paths = self.find_paths_in_track_graph(graph, start_nodes,
+                                                       end_nodes, find_all)
+            else:
+                paths = False
 
             if paths:
                 # we'll do an additional search with an increased threshold
