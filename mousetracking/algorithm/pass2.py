@@ -297,7 +297,7 @@ class SecondPass(DataHandler):
     def find_sure_mouse_tracks(self, tracks):
         """ identifies tracks which surely describe mice. These tracks can then
         be used to split up the connection problem into distinct parts """
-        smoothing_window = self.params['mouse/speed_smoothing_window']
+        smoothing_window = self.params['tracking/position_smoothing_window']
         dist_threshold = self.params['tracking/mouse_distance_threshold']
         min_mean_speed = self.params['tracking/mouse_min_mean_speed']
         max_speed = self.params['mouse/speed_max']
