@@ -60,6 +60,13 @@ class Analyzer(DataHandler):
         """ returns the range of frames that is going to be analyzed """
         frames = self.data['parameters/analysis/frames']
         frames_video = self.data['pass1/video/frames']
+        if not frames_video[0]:
+            frames_video[0] = 0
+        
+        adaptation_frames = self.data['parameters/video/initial_adaptation_frames'] 
+        if adaptation_frames:
+            frames_video[0] = adaptation_frames
+            
         if frames is None:
             frames = frames_video
         else:

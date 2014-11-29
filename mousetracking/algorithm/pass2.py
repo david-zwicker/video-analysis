@@ -164,8 +164,8 @@ class SecondPass(DataHandler):
         track_len_orig = len(tracks)
         tracks.break_long_tracks(self.params['tracking/splitting_duration_min'])
         if len(tracks) != track_len_orig:
-            self.logger.info('Pass 2 - Increased the track count from %d to %d by '
-                             'splitting long, overlapping tracks.',
+            self.logger.info('Pass 2 - Increased the track count from %d to %d '
+                             'by splitting long, overlapping tracks.',
                              track_len_orig, len(tracks))
         
         # get some statistics about the tracks
@@ -182,11 +182,12 @@ class SecondPass(DataHandler):
         # try different thresholds until we found a result
         successful_iterations = 0
         while successful_iterations < 2:
-            self.logger.info('Pass 2 - Building tracking graph of %d nodes with threshold %g',
-                             len(tracks), threshold) 
+            self.logger.info('Pass 2 - Building tracking graph of %d nodes '
+                             'with threshold %g', len(tracks), threshold) 
             graph = self.get_track_graph(tracks, threshold)
             graph.add_nodes_from(endtoend_nodes) 
-            self.logger.info('Pass 2 - Built tracking graph with %d nodes and %d edges',
+            self.logger.info('Pass 2 - Built tracking graph with %d nodes and '
+                             '%d edges',
                              graph.number_of_nodes(), graph.number_of_edges()) 
 
             # find start and end nodes
@@ -194,12 +195,14 @@ class SecondPass(DataHandler):
                                                            start_time + end_node_interval,
                                                            end_time - end_node_interval)
     
-            self.logger.info('Pass 2 - Found %d start node(s) and %d end node(s) in tracking graph.',
+            self.logger.info('Pass 2 - Found %d start node(s) and %d end '
+                             'node(s) in tracking graph.',
                              len(start_nodes), len(end_nodes)) 
 
             # find possible paths
             find_all = (successful_iterations >= 1)
-            paths = self.find_paths_in_track_graph(graph, start_nodes, end_nodes, find_all)
+            paths = self.find_paths_in_track_graph(graph, start_nodes,
+                                                   end_nodes, find_all)
 
             if paths:
                 # we'll do an additional search with an increased threshold
@@ -220,32 +223,17 @@ class SecondPass(DataHandler):
             if score < score_best:  #< lower is better
                 path_best, score_best = path, score
                 
-#         debug.show_tracking_graph(graph, path_best)
+        #debug.show_tracking_graph(graph, path_best)
                 
         return path_best
-            
-        
-    def find_mouse_track(self):
-        """ identifies the mouse trajectory by connecting object tracks.
-        
-        This function takes the tracks in 'pass1/objects/tracks', connects
-        suitable parts, and interpolates gaps.
-        """
-        self.log_event('Pass 2 - Started identifying mouse trajectory.')
-        
-        tracks = self.data['pass1/objects/tracks']
+    
 
-        #tracks = [track for track in tracks if track.start < 10000]
-        
-        # get the best collection of tracks that best fit mouse
-        path = self.get_best_track(tracks)
-        
-        # build a single trajectory out of this
-        trajectory = np.empty((self.data['pass1/video/frames_analyzed'], 2))
-        trajectory.fill(np.nan)
+    def add_tracks_to_trajectory(self, tracks, trajectory):
+        """ iterates through all tracks and adds them to the trajectory, using
+        linear interpolation where necessary and appropriate """
         
         time_last, obj_last = None, None        
-        for track in path:
+        for track in tracks:
             # check the connection between the previous point and the current one
             if obj_last is not None:
                 time_now, obj_now = track.start, track.first
@@ -279,6 +267,26 @@ class SecondPass(DataHandler):
                     
             time_last, obj_last = time, obj
         
+        
+    def find_mouse_track(self):
+        """ identifies the mouse trajectory by connecting object tracks.
+        
+        This function takes the tracks in 'pass1/objects/tracks', connects
+        suitable parts, and interpolates gaps.
+        """
+        self.log_event('Pass 2 - Started identifying mouse trajectory.')
+        
+        tracks = self.data['pass1/objects/tracks']
+
+        # get the best collection of tracks that best fit mouse
+        path = self.get_best_track(tracks)
+        
+        # build a single trajectory out of this
+        trajectory = np.empty((self.data['pass1/video/frames_analyzed'], 2))
+        trajectory.fill(np.nan)
+        self.add_tracks_to_trajectory(path, trajectory)
+
+        # save the result
         self.data['pass2/mouse_trajectory'] = MouseTrack(trajectory)
     
                         

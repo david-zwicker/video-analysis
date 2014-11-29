@@ -217,10 +217,10 @@ def show_tracking_graph(graph, path=None, **kwargs):
     for node in graph.nodes():
         plt.plot([node.start, node.end],
                  [node.first.pos[0], node.last.pos[0]],
-                 'r', lw=(1 + 10*node.mouse_score))
+                 'r', lw=(4 + 10*node.mouse_score))
         
     try:
-        max_weight = max(data['weight']
+        max_weight = max(data['cost']
                          for _, _, data in graph.edges_iter(data=True))
     except ValueError:
         max_weight = 1
@@ -229,20 +229,21 @@ def show_tracking_graph(graph, path=None, **kwargs):
         for (a, b, d) in graph.edges_iter(data=True):
             plt.plot([a.end, b.start],
                      [a.last.pos[0], b.first.pos[0]],
-                     color=str(d['weight']/max_weight), lw=1)
+                     color=str(d['cost']/max_weight), lw=1)
         
     # plot the actual graph
-    if path is not None:
-        node_prev = None
-        for node in path:
-            plt.plot([node.start, node.end],
-                     [node.first.pos[0], node.last.pos[0]],
-                     'b', lw=2)
-            if node_prev is not None:
-                plt.plot([node_prev.end, node.start],
-                         [node_prev.last.pos[0], node.first.pos[0]],
+    if kwargs.get('plot_graph', True):
+        if path is not None:
+            node_prev = None
+            for node in path:
+                plt.plot([node.start, node.end],
+                         [node.first.pos[0], node.last.pos[0]],
                          'b', lw=2)
-            node_prev = node
+                if node_prev is not None:
+                    plt.plot([node_prev.end, node.start],
+                             [node_prev.last.pos[0], node.first.pos[0]],
+                             'b', lw=2)
+                node_prev = node
 
     # show plot
     plt.xlabel('Time in Frames')
