@@ -289,6 +289,9 @@ PARAMETER_LIST = [
               'How much are two consecutive tracks allowed to overlap'),
     Parameter('tracking/initial_score_threshold', 1000, UNIT.FACTOR,
               'Initial threshold for building the tracking graph'),
+    Parameter('tracking/score_threshold_max', 1e10, UNIT.FACTOR,
+              'Maximal threshold above which the graph based tracking is '
+              'aborted.'),
     Parameter('tracking/end_node_interval', 1000, UNIT.TIME_FRAMES,
               'What time duration do we consider for start and end nodes'),
     Parameter('tracking/splitting_duration_min', 10, UNIT.TIME_FRAMES,

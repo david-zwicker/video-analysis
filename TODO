@@ -7,14 +7,9 @@
 	- Alternatively, find centerline by using active snake guided by current centerline and distance map
 * Use images of final burrow cast to locate burrows (by analyzing the video in reverse)
 * Pass2:
-	- break graph based tracking into multiple steps separated by tracks where we are sure that they belong to a mouse
-		These are long tracks where we detect enough movement.
-		This should both speed up the tracking and more importantly reduce memory footprint
 * Pass3:
 * Pass4:
 	- connect two burrows that face each other (which happens for burrows with two exits) 
-* Move 'get_code_status' into the __init__ file of the tracking program, which will produce
-    more accurate results for code which restarts tracking frequently
 * Combine burrow.py and burrow2.py -- use burrow2.py as base
 * Determine absolute times by checking when the lights go on
     - this does only seem to be visible outside the cage

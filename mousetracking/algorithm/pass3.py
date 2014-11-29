@@ -9,16 +9,16 @@ Module that contains the class responsible for the third pass of the algorithm
 from __future__ import division
 
 import csv
-import math
+# import math
 import time
 
 import cv2
 import numpy as np
-from shapely import affinity, geometry, geos
+from shapely import geometry
 
 from .data_handler import DataHandler
 from .objects import mouse
-from .objects.burrow2 import Burrow, BurrowTrack, BurrowTrackList
+from mousetracking.algorithm.objects.burrow import Burrow, BurrowTrack, BurrowTrackList
 from video.analysis import curves, regions
 from video.filters import FilterCrop
 from video.io import ImageWindow
@@ -404,265 +404,265 @@ class ThirdPass(DataHandler):
     #===========================================================================
 
 
-    def get_burrow_contour_from_mask(self, mask, offset=None):
-        """ creates a burrow object given a contour outline.
-        If offset=(xoffs, yoffs) is given, all the points are translate.
-        May return None if no burrow was found 
-        """
-        if offset is None:
-            offset = (0, 0)
-
-        # find the contour of the mask    
-        contours, _ = cv2.findContours(mask.astype(np.uint8, copy=False),
-                                       cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
-        
-        if not contours:
-            raise RuntimeError('Could not find any contour')
-        
-        # find the contour with the largest area, in case there are multiple
-        contour_areas = [cv2.contourArea(cnt) for cnt in contours]
-        contour_id = np.argmax(contour_areas)
-        
-        if contour_areas[contour_id] < self.params['burrows/area_min']:
-            # disregard small burrows
-            raise RuntimeError('Burrow is too small')
-            
-        # simplify the contour
-        contour = np.squeeze(np.asarray(contours[contour_id], np.double))
-        tolerance = self.params['burrows/outline_simplification_threshold'] \
-                        *curves.curve_length(contour)
-        contour = curves.simplify_curve(contour, tolerance).tolist()
-
-        # move points close to the ground line onto the ground line
-        ground_point_dist = self.params['burrows/ground_point_distance']
-        ground_line = affinity.translate(self.ground.linestring,
-                                         xoff=-offset[0],
-                                         yoff=-offset[1]) 
-        for k, p in enumerate(contour):
-            point = geometry.Point(p)
-            if ground_line.distance(point) < ground_point_dist:
-                contour[k] = curves.get_projection_point(ground_line, point)
-        
-        # simplify contour while keeping the area roughly constant
-        threshold = self.params['burrows/simplification_threshold_area']
-        contour = regions.simplify_contour(contour, threshold)
-        
-        # remove potential invalid structures from contour
-        if contour:
-            contour = regions.regularize_contour_points(contour)
-        
-#         if offset[0]:
-#             debug.show_shape(geometry.LinearRing(contour),
-#                              background=mask, wait_for_key=False)
-        
-        # create the burrow based on the contour
-        if contour:
-            contour = curves.translate_points(contour,
-                                              xoff=offset[0],
-                                              yoff=offset[1])
-            try:
-                return contour
-            except ValueError as err:
-                raise RuntimeError(err.message)
-            
-        else:
-            raise RuntimeError('Contour is not a simple polygon')
+#     def get_burrow_contour_from_mask(self, mask, offset=None):
+#         """ creates a burrow object given a contour outline.
+#         If offset=(xoffs, yoffs) is given, all the points are translate.
+#         May return None if no burrow was found 
+#         """
+#         if offset is None:
+#             offset = (0, 0)
+# 
+#         # find the contour of the mask    
+#         contours, _ = cv2.findContours(mask.astype(np.uint8, copy=False),
+#                                        cv2.RETR_EXTERNAL,
+#                                        cv2.CHAIN_APPROX_SIMPLE)
+#         
+#         if not contours:
+#             raise RuntimeError('Could not find any contour')
+#         
+#         # find the contour with the largest area, in case there are multiple
+#         contour_areas = [cv2.contourArea(cnt) for cnt in contours]
+#         contour_id = np.argmax(contour_areas)
+#         
+#         if contour_areas[contour_id] < self.params['burrows/area_min']:
+#             # disregard small burrows
+#             raise RuntimeError('Burrow is too small')
+#             
+#         # simplify the contour
+#         contour = np.squeeze(np.asarray(contours[contour_id], np.double))
+#         tolerance = self.params['burrows/outline_simplification_threshold'] \
+#                         *curves.curve_length(contour)
+#         contour = curves.simplify_curve(contour, tolerance).tolist()
+# 
+#         # move points close to the ground line onto the ground line
+#         ground_point_dist = self.params['burrows/ground_point_distance']
+#         ground_line = affinity.translate(self.ground.linestring,
+#                                          xoff=-offset[0],
+#                                          yoff=-offset[1]) 
+#         for k, p in enumerate(contour):
+#             point = geometry.Point(p)
+#             if ground_line.distance(point) < ground_point_dist:
+#                 contour[k] = curves.get_projection_point(ground_line, point)
+#         
+#         # simplify contour while keeping the area roughly constant
+#         threshold = self.params['burrows/simplification_threshold_area']
+#         contour = regions.simplify_contour(contour, threshold)
+#         
+#         # remove potential invalid structures from contour
+#         if contour:
+#             contour = regions.regularize_contour_points(contour)
+#         
+# #         if offset[0]:
+# #             debug.show_shape(geometry.LinearRing(contour),
+# #                              background=mask, wait_for_key=False)
+#         
+#         # create the burrow based on the contour
+#         if contour:
+#             contour = curves.translate_points(contour,
+#                                               xoff=offset[0],
+#                                               yoff=offset[1])
+#             try:
+#                 return contour
+#             except ValueError as err:
+#                 raise RuntimeError(err.message)
+#             
+#         else:
+#             raise RuntimeError('Contour is not a simple polygon')
     
     
-    def refine_elongated_burrow_centerline(self, burrow):
-        """ refines the centerline of an elongated burrow """
-        spacing = self.params['burrows/centerline_segment_length']
-        centerline = curves.make_curve_equidistant(burrow.centerline, spacing)
-        outline = burrow.outline_ring
-        
-        # iterate over all but the boundary points
-        ray_len = 10000
-
-        # determine the boundary points for each centerline point
-#         points = [centerline[0]]
-        dp = []
-        boundary = []
-        for k in xrange(1, len(centerline)):
-            # get local points and slopes
-            if k == len(centerline) - 1:
-                p_p, p_m =  centerline[k-1], centerline[k]
-                dx, dy = p_m - p_p
-            else:
-                p_p, p_m, p_n =  centerline[k-1], centerline[k], centerline[k+1]
-                dx, dy = p_n - p_p
-            dist = math.hypot(dx, dy)
-            if dist == 0: #< something went wrong 
-                continue #< skip this point
-            dx /= dist; dy /= dist
-
-            # determine the points of intersection with the burrow outline         
-            p_a = (p_m[0] - ray_len*dy, p_m[1] + ray_len*dx)
-            p_b = (p_m[0] + ray_len*dy, p_m[1] - ray_len*dx)
-            line = geometry.LineString((p_a, p_b))
-            
-            # find the intersections between the ray and the burrow outline
-            inter = regions.get_intersections(outline, line)
-
-            if len(inter) < 2:
-                # not enough information to proceed
-                continue
-            
-            # find the two closest points
-            dist = [curves.point_distance(p, p_m) for p in inter]
-            k_a = np.argmin(dist)
-            p_a = inter[k_a]
-            dist[k_a] = np.inf
-            p_b = inter[np.argmin(dist)]
-            
-            # set boundary point
-#             points.append(p)
-            dp.append((-dy, dx))
-            boundary.append((p_a, p_b))
-
-#         points = np.array(points)
-        dp = np.array(dp)
-        boundary = np.array(boundary)
-
-        # get the points, which are neither at the exit nor the front
-        if len(boundary) == 0:
-            return
-        points = np.mean(boundary, axis=1).tolist()
-        
-        if burrow.two_exits:
-            # the burrow end point is also an exit point 
-            # => find the best approximation for this burrow exit
-            p_far = curves.get_projection_point(self.ground.linestring, points[-1])
-            points = points[:-1] + [p_far]
-            
-        else:
-            # the burrow end point is under ground
-            # => extend the centerline to the burrow front
-            angle = np.arctan2(-dp[-1][0], dp[-1][1])
-            angles = np.linspace(angle - np.pi/4, angle + np.pi/4, 32)
-            p_far, _, _ = regions.get_farthest_ray_intersection(points[-1], angles, outline)
+#     def refine_elongated_burrow_centerline(self, burrow):
+#         """ refines the centerline of an elongated burrow """
+#         spacing = self.params['burrows/centerline_segment_length']
+#         centerline = curves.make_curve_equidistant(burrow.centerline, spacing)
+#         outline = burrow.outline_ring
+#         
+#         # iterate over all but the boundary points
+#         ray_len = 10000
+# 
+#         # determine the boundary points for each centerline point
+# #         points = [centerline[0]]
+#         dp = []
+#         boundary = []
+#         for k in xrange(1, len(centerline)):
+#             # get local points and slopes
+#             if k == len(centerline) - 1:
+#                 p_p, p_m =  centerline[k-1], centerline[k]
+#                 dx, dy = p_m - p_p
+#             else:
+#                 p_p, p_m, p_n =  centerline[k-1], centerline[k], centerline[k+1]
+#                 dx, dy = p_n - p_p
+#             dist = math.hypot(dx, dy)
+#             if dist == 0: #< something went wrong 
+#                 continue #< skip this point
+#             dx /= dist; dy /= dist
+# 
+#             # determine the points of intersection with the burrow outline         
+#             p_a = (p_m[0] - ray_len*dy, p_m[1] + ray_len*dx)
+#             p_b = (p_m[0] + ray_len*dy, p_m[1] - ray_len*dx)
+#             line = geometry.LineString((p_a, p_b))
+#             
+#             # find the intersections between the ray and the burrow outline
+#             inter = regions.get_intersections(outline, line)
+# 
+#             if len(inter) < 2:
+#                 # not enough information to proceed
+#                 continue
+#             
+#             # find the two closest points
+#             dist = [curves.point_distance(p, p_m) for p in inter]
+#             k_a = np.argmin(dist)
+#             p_a = inter[k_a]
+#             dist[k_a] = np.inf
+#             p_b = inter[np.argmin(dist)]
+#             
+#             # set boundary point
+# #             points.append(p)
+#             dp.append((-dy, dx))
+#             boundary.append((p_a, p_b))
+# 
+# #         points = np.array(points)
+#         dp = np.array(dp)
+#         boundary = np.array(boundary)
+# 
+#         # get the points, which are neither at the exit nor the front
+#         if len(boundary) == 0:
+#             return
+#         points = np.mean(boundary, axis=1).tolist()
+#         
+#         if burrow.two_exits:
+#             # the burrow end point is also an exit point 
+#             # => find the best approximation for this burrow exit
+#             p_far = curves.get_projection_point(self.ground.linestring, points[-1])
+#             points = points[:-1] + [p_far]
+#             
+#         else:
+#             # the burrow end point is under ground
+#             # => extend the centerline to the burrow front
+#             angle = np.arctan2(-dp[-1][0], dp[-1][1])
+#             angles = np.linspace(angle - np.pi/4, angle + np.pi/4, 32)
+#             p_far, _, _ = regions.get_farthest_ray_intersection(points[-1], angles, outline)
+#     
+#             if p_far is not None:
+#                 points = points + [p_far]
+#                 if curves.point_distance(points[-1], points[-2]) < spacing:
+#                     del points[-2]
+#             
+#         # find the best approximation for the burrow exit
+#         p_near = curves.get_projection_point(self.ground.linestring, points[0])
+#         points = [p_near] + points
+#             
+#         burrow.centerline = points
     
-            if p_far is not None:
-                points = points + [p_far]
-                if curves.point_distance(points[-1], points[-2]) < spacing:
-                    del points[-2]
-            
-        # find the best approximation for the burrow exit
-        p_near = curves.get_projection_point(self.ground.linestring, points[0])
-        points = [p_near] + points
-            
-        burrow.centerline = points
     
-    
-    def refine_burrow_centerline(self, burrow):
-        """ refines the centerline of a burrow """
-        # check the percentage of outline points close to the ground
-        spacing = self.params['burrows/ground_point_distance']
-        outline = curves.make_curve_equidistant(burrow.outline, spacing)
-        groundline = self.ground.linestring
-
-        dist_far, p_far = 0, None
-        for p in outline:
-            dist = groundline.distance(geometry.Point(p))
-            if dist > dist_far:
-                dist_far = dist
-                p_far = p
-                
-        threshold_dist = self.params['burrows/shape_threshold_distance']
-        if dist_far > threshold_dist:
-            # burrow has few points close to the ground
-            self.refine_elongated_burrow_centerline(burrow)
-            burrow.elongated = True
-            
-        else:
-            # burrow is close to the ground
-            p_near = curves.get_projection_point(groundline, p_far)
-            burrow.elongated = False
-            
-            burrow.centerline = [p_near, p_far]
+#     def refine_burrow_centerline(self, burrow):
+#         """ refines the centerline of a burrow """
+#         # check the percentage of outline points close to the ground
+#         spacing = self.params['burrows/ground_point_distance']
+#         outline = curves.make_curve_equidistant(burrow.outline, spacing)
+#         groundline = self.ground.linestring
+# 
+#         dist_far, p_far = 0, None
+#         for p in outline:
+#             dist = groundline.distance(geometry.Point(p))
+#             if dist > dist_far:
+#                 dist_far = dist
+#                 p_far = p
+#                 
+#         threshold_dist = self.params['burrows/shape_threshold_distance']
+#         if dist_far > threshold_dist:
+#             # burrow has few points close to the ground
+#             self.refine_elongated_burrow_centerline(burrow)
+#             burrow.elongated = True
+#             
+#         else:
+#             # burrow is close to the ground
+#             p_near = curves.get_projection_point(groundline, p_far)
+#             burrow.elongated = False
+#             
+#             burrow.centerline = [p_near, p_far]
 
     
-    def refine_burrow(self, burrow):
-        """ refine burrow by thresholding background image using the GrabCut
-        algorithm """
-        mask_ground = self.get_ground_mask()
-        frame = self.background
-        width_min = self.params['burrows/width_min']
-        
-        # get region of interest from expanded bounding rectangle
-        rect = burrow.get_bounding_rect(5*width_min)
-        # get respective slices for the image, respecting image borders 
-        (_, slices), rect = regions.get_overlapping_slices(rect[:2],
-                                                           (rect[3], rect[2]),
-                                                           frame.shape,
-                                                           anchor='upper left',
-                                                           ret_rect=True)
-        
-        # extract the region of interest from the frame and the mask
-        img = frame[slices].astype(np.uint8)
-        mask_ground = mask_ground[slices]
-        mask = np.zeros_like(mask_ground)        
-        
-        centerline = curves.translate_points(burrow.centerline,
-                                             xoff=-rect[0],
-                                             yoff=-rect[1])
-
-        spacing = self.params['burrows/centerline_segment_length']
-        centerline = curves.make_curve_equidistant(centerline, spacing) 
-
-        if burrow.outline is not None and len(centerline) > 2:
-            centerline = geometry.LineString(centerline[:-1])
-        else:
-            centerline = geometry.LineString(centerline)
-        
-        def add_to_mask(color, buffer_radius):
-            """ adds the region around the centerline to the mask """
-            polygon = centerline.buffer(buffer_radius)
-            coords = np.asarray(polygon.exterior.xy, np.int).T 
-            cv2.fillPoly(mask, [coords], color=int(color))
-
-        # setup the mask for the GrabCut algorithm
-        mask.fill(cv2.GC_BGD)
-        add_to_mask(cv2.GC_PR_BGD, 2*self.params['burrows/width'])
-        add_to_mask(cv2.GC_PR_FGD, self.params['burrows/width'])
-        add_to_mask(cv2.GC_FGD, self.params['burrows/width_min']/2)
-
-        # have to convert to color image, since grabCut only supports color
-        img = cv2.cvtColor(img, cv2.cv.CV_GRAY2RGB)
-        bgdmodel = np.zeros((1, 65), np.float64)
-        fgdmodel = np.zeros((1, 65), np.float64)
-        # run GrabCut algorithm
-        try:
-            cv2.grabCut(img, mask, (0, 0, 1, 1),
-                        bgdmodel, fgdmodel, 2, cv2.GC_INIT_WITH_MASK)
-        except:
-            # any error in the GrabCut algorithm makes the whole function useless
-            self.logger.warn('%d: GrabCut algorithm failed on burrow at %s',
-                             self.frame_id, burrow.position)
-            return burrow
-
-#         debug.show_image(burrow_mask, ground_mask, img, 
-#                          debug.get_grabcut_image(mask),
-#                          wait_for_key=False)
-
-        # calculate the mask of the foreground
-        mask = np.where((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0)
-        
-        # make sure that the burrow is under ground
-        mask[mask_ground == 0] = 0
-        
-        # find the burrow from the mask
-        try:
-            contour = self.get_burrow_contour_from_mask(mask.astype(np.uint8),
-                                                        offset=rect[:2])
-            burrow.outline = contour
-            self.refine_burrow_centerline(burrow)
-            burrow.refined = True
-        except RuntimeError as err:
-            self.logger.debug('%d: Invalid burrow from GrabCut: %s',
-                              self.frame_id, err.message)
-        
-        return burrow
+#     def refine_burrow(self, burrow):
+#         """ refine burrow by thresholding background image using the GrabCut
+#         algorithm """
+#         mask_ground = self.get_ground_mask()
+#         frame = self.background
+#         width_min = self.params['burrows/width_min']
+#         
+#         # get region of interest from expanded bounding rectangle
+#         rect = burrow.get_bounding_rect(5*width_min)
+#         # get respective slices for the image, respecting image borders 
+#         (_, slices), rect = regions.get_overlapping_slices(rect[:2],
+#                                                            (rect[3], rect[2]),
+#                                                            frame.shape,
+#                                                            anchor='upper left',
+#                                                            ret_rect=True)
+#         
+#         # extract the region of interest from the frame and the mask
+#         img = frame[slices].astype(np.uint8)
+#         mask_ground = mask_ground[slices]
+#         mask = np.zeros_like(mask_ground)        
+#         
+#         centerline = curves.translate_points(burrow.centerline,
+#                                              xoff=-rect[0],
+#                                              yoff=-rect[1])
+# 
+#         spacing = self.params['burrows/centerline_segment_length']
+#         centerline = curves.make_curve_equidistant(centerline, spacing) 
+# 
+#         if burrow.outline is not None and len(centerline) > 2:
+#             centerline = geometry.LineString(centerline[:-1])
+#         else:
+#             centerline = geometry.LineString(centerline)
+#         
+#         def add_to_mask(color, buffer_radius):
+#             """ adds the region around the centerline to the mask """
+#             polygon = centerline.buffer(buffer_radius)
+#             coords = np.asarray(polygon.exterior.xy, np.int).T 
+#             cv2.fillPoly(mask, [coords], color=int(color))
+# 
+#         # setup the mask for the GrabCut algorithm
+#         mask.fill(cv2.GC_BGD)
+#         add_to_mask(cv2.GC_PR_BGD, 2*self.params['burrows/width'])
+#         add_to_mask(cv2.GC_PR_FGD, self.params['burrows/width'])
+#         add_to_mask(cv2.GC_FGD, self.params['burrows/width_min']/2)
+# 
+#         # have to convert to color image, since grabCut only supports color
+#         img = cv2.cvtColor(img, cv2.cv.CV_GRAY2RGB)
+#         bgdmodel = np.zeros((1, 65), np.float64)
+#         fgdmodel = np.zeros((1, 65), np.float64)
+#         # run GrabCut algorithm
+#         try:
+#             cv2.grabCut(img, mask, (0, 0, 1, 1),
+#                         bgdmodel, fgdmodel, 2, cv2.GC_INIT_WITH_MASK)
+#         except:
+#             # any error in the GrabCut algorithm makes the whole function useless
+#             self.logger.warn('%d: GrabCut algorithm failed on burrow at %s',
+#                              self.frame_id, burrow.position)
+#             return burrow
+# 
+# #         debug.show_image(burrow_mask, ground_mask, img, 
+# #                          debug.get_grabcut_image(mask),
+# #                          wait_for_key=False)
+# 
+#         # calculate the mask of the foreground
+#         mask = np.where((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0)
+#         
+#         # make sure that the burrow is under ground
+#         mask[mask_ground == 0] = 0
+#         
+#         # find the burrow from the mask
+#         try:
+#             contour = self.get_burrow_contour_from_mask(mask.astype(np.uint8),
+#                                                         offset=rect[:2])
+#             burrow.outline = contour
+#             self.refine_burrow_centerline(burrow)
+#             burrow.refined = True
+#         except RuntimeError as err:
+#             self.logger.debug('%d: Invalid burrow from GrabCut: %s',
+#                               self.frame_id, err.message)
+#         
+#         return burrow
     
     
     def active_burrows(self, time_interval=None):
@@ -674,95 +674,95 @@ class ThirdPass(DataHandler):
                 yield track_id, burrow_track.last
 
     
-    def find_burrows_grabcut(self, two_exits=False):
-        """ locates burrows based on the mouse's movement.
-        two_exits indicates whether the current mouse_trail describes a burrow
-        with two exits """
-        burrow_tracks = self.result['burrows/tracks']
-        
-        # copy all burrows to the this frame
-        for burrow_id, burrow in self.active_burrows():
-            burrow_tracks[burrow_id].append(self.frame_id, burrow)
-        
-        # check whether the mouse is in a burrow
-        if self.mouse_trail is None:
-            # mouse trail is unknown => we don't have enough information 
-            burrow_with_mouse = -1
-        
-        else:
-            # mouse entered a burrow
-            trail_length = curves.curve_length(self.mouse_trail)
-            
-            # check if we already know this burrow
-            for burrow_with_mouse, burrow in self.active_burrows(time_interval=0):
-                # determine whether we are inside this burrow
-                trail_line = geometry.LineString(self.mouse_trail)
-                if burrow.outline is not None:
-                    dist = burrow.polygon.distance(trail_line)
-                    mouse_is_close = (dist < self.params['burrows/width']) 
-                else:
-                    mouse_is_close = False
-                if not mouse_is_close:
-                    dist = burrow.linestring.distance(trail_line)
-                    mouse_is_close = (dist < 2*self.params['burrows/width']) 
-                     
-                if mouse_is_close:
-                    burrow.refined = False
-                    if trail_length > burrow.length:
-                        # update the centerline estimate
-                        burrow.centerline = self.mouse_trail[:] #< copy list
-                    if two_exits:
-                        burrow.two_exits = True
-                    break #< burrow_with_mouse contains burrow id
-            else:
-                # create the burrow, since we don't know it yet
-                burrow = Burrow(self.mouse_trail[:], two_exits=two_exits)
-                burrow_track = BurrowTrack(self.frame_id, burrow)
-                burrow_tracks.append(burrow_track)
-                burrow_with_mouse = len(burrow_tracks) - 1
-
-        # refine burrows
-        refined_burrows = []
-        for track_id, burrow in self.active_burrows(time_interval=0):
-            # skip burrows with mice in them
-            if track_id == burrow_with_mouse:
-                continue
-            if not burrow.refined:
-                old_shape = burrow.polygon
-                while True:
-                    burrow = self.refine_burrow(burrow)
-                    area = burrow.area
-                    # check whether the burrow is small
-                    if area < 2*self.params['burrows/area_min']:
-                        break
-                    # check whether the burrow has changed significantly
-                    try:
-                        diff = old_shape.symmetric_difference(burrow.polygon)
-                    except geos.TopologicalError:
-                        # can happen in some corner cases
-                        break
-                    else: 
-                        if diff.area / area < 0.1:
-                            break 
-                    old_shape = burrow.polygon
-                
-                refined_burrows.append(track_id)
-                
-        # check for overlapping burrows
-        for track1_id in reversed(refined_burrows):
-            burrow1_track = burrow_tracks[track1_id]
-            # check against all the other burrows
-            for track2_id, burrow2 in self.active_burrows(time_interval=0):
-                if track2_id >= track1_id:
-                    break
-                if burrow1_track.last.intersects(burrow2):
-                    # intersecting burrows: keep the older burrow
-                    if len(burrow1_track) <= 1:
-                        del burrow_tracks[track1_id]
-                    else:
-                        del burrow1_track[-1]
-                    self.logger.debug('Delete overlapping burrow at %s',
-                                      burrow.position)
+#     def find_burrows_grabcut(self, two_exits=False):
+#         """ locates burrows based on the mouse's movement.
+#         two_exits indicates whether the current mouse_trail describes a burrow
+#         with two exits """
+#         burrow_tracks = self.result['burrows/tracks']
+#         
+#         # copy all burrows to the this frame
+#         for burrow_id, burrow in self.active_burrows():
+#             burrow_tracks[burrow_id].append(self.frame_id, burrow)
+#         
+#         # check whether the mouse is in a burrow
+#         if self.mouse_trail is None:
+#             # mouse trail is unknown => we don't have enough information 
+#             burrow_with_mouse = -1
+#         
+#         else:
+#             # mouse entered a burrow
+#             trail_length = curves.curve_length(self.mouse_trail)
+#             
+#             # check if we already know this burrow
+#             for burrow_with_mouse, burrow in self.active_burrows(time_interval=0):
+#                 # determine whether we are inside this burrow
+#                 trail_line = geometry.LineString(self.mouse_trail)
+#                 if burrow.outline is not None:
+#                     dist = burrow.polygon.distance(trail_line)
+#                     mouse_is_close = (dist < self.params['burrows/width']) 
+#                 else:
+#                     mouse_is_close = False
+#                 if not mouse_is_close:
+#                     dist = burrow.linestring.distance(trail_line)
+#                     mouse_is_close = (dist < 2*self.params['burrows/width']) 
+#                      
+#                 if mouse_is_close:
+#                     burrow.refined = False
+#                     if trail_length > burrow.length:
+#                         # update the centerline estimate
+#                         burrow.centerline = self.mouse_trail[:] #< copy list
+#                     if two_exits:
+#                         burrow.two_exits = True
+#                     break #< burrow_with_mouse contains burrow id
+#             else:
+#                 # create the burrow, since we don't know it yet
+#                 burrow = Burrow(None, self.mouse_trail[:], two_exits=two_exits)
+#                 burrow_track = BurrowTrack(self.frame_id, burrow)
+#                 burrow_tracks.append(burrow_track)
+#                 burrow_with_mouse = len(burrow_tracks) - 1
+# 
+#         # refine burrows
+#         refined_burrows = []
+#         for track_id, burrow in self.active_burrows(time_interval=0):
+#             # skip burrows with mice in them
+#             if track_id == burrow_with_mouse:
+#                 continue
+#             if not burrow.refined:
+#                 old_shape = burrow.polygon
+#                 while True:
+#                     burrow = self.refine_burrow(burrow)
+#                     area = burrow.area
+#                     # check whether the burrow is small
+#                     if area < 2*self.params['burrows/area_min']:
+#                         break
+#                     # check whether the burrow has changed significantly
+#                     try:
+#                         diff = old_shape.symmetric_difference(burrow.polygon)
+#                     except geos.TopologicalError:
+#                         # can happen in some corner cases
+#                         break
+#                     else: 
+#                         if diff.area / area < 0.1:
+#                             break 
+#                     old_shape = burrow.polygon
+#                 
+#                 refined_burrows.append(track_id)
+#                 
+#         # check for overlapping burrows
+#         for track1_id in reversed(refined_burrows):
+#             burrow1_track = burrow_tracks[track1_id]
+#             # check against all the other burrows
+#             for track2_id, burrow2 in self.active_burrows(time_interval=0):
+#                 if track2_id >= track1_id:
+#                     break
+#                 if burrow1_track.last.intersects(burrow2):
+#                     # intersecting burrows: keep the older burrow
+#                     if len(burrow1_track) <= 1:
+#                         del burrow_tracks[track1_id]
+#                     else:
+#                         del burrow1_track[-1]
+#                     self.logger.debug('Delete overlapping burrow at %s',
+#                                       burrow.position)
               
               
     def calculate_burrow_centerline(self, burrow, point_start=None):
@@ -940,7 +940,7 @@ class ThirdPass(DataHandler):
             mouse_trail_buffered = mouse_trail.buffer(trail_width)
             outline = mouse_trail_buffered.boundary.coords
 
-            burrow_mouse = Burrow(self.mouse_trail, outline)
+            burrow_mouse = Burrow(outline, centerline=self.mouse_trail)
             self.burrows.append(burrow_mouse)
 
         # simplify the burrow outline

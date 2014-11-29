@@ -8,11 +8,13 @@ Holds classes describing mouse burrows
 
 from __future__ import division
 
+import copy
 import itertools
 
 import numpy as np
 import cv2
-from shapely import geometry, geos
+import shapely
+from shapely import geometry
 
 from .utils import LazyHDFCollection, rtrim_nan
 from video.analysis import curves, regions
@@ -26,10 +28,20 @@ if not hasattr(geometry, 'LinearRing'):
     geometry.LinearRing = geometry.polygon.LinearRing
 
 
+
+def bool_nan(number):
+    """ returns the boolean value of the number.
+    Returns False if number is not-a-number"""
+    if np.isnan(number):
+        return False
+    else:
+        return bool(number)
+
+
+
 class Burrow(object):
     """ represents a single burrow.
-    Note that the outline are always given in clockwise direction, which is
-    ensured automatically
+    Note that the outline are always given in clockwise direction
     """
     
     storage_class = LazyHDFCollection
@@ -39,83 +51,109 @@ class Burrow(object):
     
     
     def __init__(self, outline, centerline=None, length=None,
-                 refined=False, exit_count=1):
+                 refined=False, two_exits=False):
         """ initialize the structure using line on its outline """
         if len(outline) < 3:
             raise ValueError("Burrow outline must be defined by at least "
                              "three points.")
-        self.outline = outline
         self.centerline = centerline
+        self.outline = outline
         self.refined = refined
-        self.exit_count = exit_count
+        self.two_exits = two_exits
 
-        if length is not None and np.isfinite(length):
+        if length is not None:
             self.length = length
 
 
     def copy(self):
-        return Burrow(self.outline.copy())
+        return Burrow(copy.copy(self.outline), copy.copy(self.centerline),
+                      self.length, self.refined)
 
         
     def __repr__(self):
-        polygon = self.polygon
-        center = polygon.centroid
-        return ('Burrow(center=(%d, %d), area=%s, points=%d)' %
-                (center.x, center.y, polygon.area, len(self._outline)))
+        center = self.polygon.centroid
+        flags = ['center=(%d, %d)' % (center.x, center.y),
+                 'points=%d' % len(self._outline)]
+        if self.length:
+            flags.append('length=%d' % self.length)
+        else:
+            flags.append('area=%d' % self.polygon.area)
+        if self.refined:
+            flags.append('refined')
+        if self.two_exits:
+            flags.append('two_exits')
+            
+        return ('Burrow(%s)' % (', '.join(flags)))
 
 
-    def __eq__(self, other):
-        return np.all(self.outline == other.outline)
-
-    def __ne__(self, other):
-        return np.any(self.outline != other.outline)
+    @property
+    def centerline(self):
+        return self._centerline
+    
+    @centerline.setter
+    def centerline(self, points):
+        if points is None:
+            self._centerline = None
+            self.length = 0
+        else:
+            self._centerline = np.array(points, np.double)
+            self.length = curves.curve_length(self._centerline)
+        self._cache = {}
 
 
     @property
     def outline(self):
         return self._outline
     
-    @outline.setter
-    def outline(self, point_list):
-        """ sets a new outline """
-        point_list = np.asarray(point_list, np.double)
-        # make sure that the outline is given in clockwise direction
-        if geometry.LinearRing(point_list).is_ccw:
-            point_list = point_list[::-1]
-        self._outline = point_list
-
-        # reset cache
-        self.centerline = None
-        self.length = None
-        self.refined = False
+    @outline.setter 
+    def outline(self, points):
+        """ set the outline of the burrow.
+        `point_list` can be a list/array of points or a shapely LinearRing
+        """ 
+        if points is None:
+            self._outline = None
+        else:
+            if isinstance(points, geometry.LinearRing):
+                ring = points
+            else:
+                ring = geometry.LinearRing(points)
+                
+            # make sure that the outline is given in clockwise direction
+            self._outline = np.array(points, np.double)
+            if ring.is_ccw:
+                self._outline = self._outline[::-1]
+            
         self._cache = {}
         
+
+    def merge(self, other):
+        """ merge this burrow with another one """
+        polygon = self.polygon.union(other.polygon)
+        self.outline = regions.get_enclosing_outline(polygon)
         
-    @property
-    def centerline(self):
-        return self._centerline
-    
-    @centerline.setter
-    def centerline(self, point_list):
-        """ sets a new centerline """
-        if point_list is None:
-            self._centerline = None
-            self.length = None
-        else:
-            self._centerline = np.asarray(point_list, np.double)
-            self.length = curves.curve_length(self._centerline)
-        
+        # set the centerline to the longest of the two
+        if other.length > self.length:
+            self.centerline = other.centerline
+
 
     @cached_property
     def outline_ring(self):
         """ return the linear ring of the burrow outline """
-        return geometry.asLinearRing(self.outline)
+        return geometry.LinearRing(self.outline)
     
         
     @cached_property
     def polygon(self):
         """ return the polygon of the burrow outline """
         return geometry.Polygon(self.outline)
+    
+    
+    @cached_property
+    def linestring(self):
+        if self.centerline is None:
+            return geometry.LineString()
+        else:
+            return geometry.LineString(self.centerline)
     
     
     @cached_property
@@ -127,6 +165,22 @@ class Burrow(object):
     def area(self):
         """ return the area of the burrow shape """
         return self.polygon.area
+    
+    
+    @property
+    def entry_point(self):
+        if self.centerline is None:
+            return None
+        else:
+            return self.centerline[0]
+    
+    
+    @property
+    def end_point(self):
+        if self.centerline is None:
+            return None
+        else:
+            return self.centerline[-1]
     
     
     @property
@@ -155,17 +209,13 @@ class Burrow(object):
         return self.polygon.contains(geometry.Point(point))
     
     
-    def intersects(self, burrow):
+    def intersects(self, burrow_or_shape):
         """ returns True if polygon intersects the burrow """
+        if isinstance(burrow_or_shape, Burrow):
+            burrow_or_shape = burrow_or_shape.polygon
         try:
-            # We'd like to use the simple form
-            #    return self.polygon.intersects(polygon)
-            # but that does not work due a shapely error
-            poly1 = self.polygon
-            poly2 = burrow.polygon
-            intersection = poly1.intersection(poly2)
-            return not intersection.is_empty
-        except geos.TopologicalError:
+            return self.polygon.intersects(burrow_or_shape)
+        except shapely.geos.TopologicalError:
             return False
     
     
@@ -179,9 +229,13 @@ class Burrow(object):
     
     def get_bounding_rect(self, margin=0):
         """ returns the bounding rectangle of the burrow """
-        bounds = self.polygon.bounds
+        burrow_points = self.outline
+        if self.centerline is not None:
+            burrow_points = np.vstack((burrow_points, self.centerline))
+        bounds = geometry.MultiPoint(burrow_points).bounds
         bound_rect = regions.corners_to_rect(bounds[:2], bounds[2:])
-        bound_rect = regions.expand_rectangle(bound_rect, margin)
+        if margin:
+            bound_rect = regions.expand_rectangle(bound_rect, margin)
         return np.asarray(bound_rect, np.int)
     
     
@@ -197,8 +251,8 @@ class Burrow(object):
         outline = outline.simplify(simplify_threshold*outline.length)
 
         self.outline = np.asarray(outline, np.int32)
- 
-   
+
+
     def get_mask(self, margin=0, dtype=np.uint8, ret_shift=False):
         """ builds a mask of the burrow """
         # prepare the array to store the mask into
@@ -214,16 +268,19 @@ class Burrow(object):
             return mask, (-offset[0], -offset[1])
         else:
             return mask
+        
             
-    
     def to_array(self):
         """ converts the internal representation to a single array """
         # collect the data for the first two columns
-        data1 = np.asarray(self.outline, np.double)
+        if self.outline is None:
+            data1 = np.zeros((0, 2), np.double)
+        else:
+            data1 = np.asarray(self.outline, np.double)
 
         # collect the data for the last two columns
         data2 = np.array([[self.length, self.refined],
-                          [np.nan, np.nan]], np.double)
+                          [self.two_exits, np.nan]], np.double)
         if self.centerline is not None:
             data2 = np.concatenate((data2, self.centerline))
         
@@ -241,15 +298,18 @@ class Burrow(object):
         """ creates a burrow track from a single array """
         # load the data from the respective places
         data = np.asarray(data)
-        data_attr = data[0, 2:]
+        data_attr = data[:2, 2:]
         data_outline = rtrim_nan(data[:, :2])
         data_centerline = rtrim_nan(data[2:, 2:])
         if len(data_centerline) == 0:
             data_centerline = None
             
         # create the object
-        return cls(outline=data_outline, centerline=data_centerline,
-                   length=data_attr[0], refined=bool(data_attr[1]))
+        return cls(outline=data_outline,
+                   centerline=data_centerline,
+                   length=data_attr[0, 0],
+                   refined=bool_nan(data_attr[0, 1]),
+                   two_exits=bool_nan(data_attr[1, 0]))
         
         
         
@@ -261,7 +321,6 @@ class BurrowTrack(object):
     def __init__(self, time=None, burrow=None):
         self.times = [] if time is None else [time]
         self.burrows = [] if burrow is None else [burrow]
-        self.active = True
         
         
     def __repr__(self):
@@ -276,6 +335,18 @@ class BurrowTrack(object):
     def __len__(self):
         return len(self.times)
     
+    
+    def append(self, time, burrow):
+        """ append a new burrow with a time code """
+        self.times.append(time)
+        self.burrows.append(burrow)
+        
+        
+    def __delitem__(self, key):
+        """ deletes a certain burrow from the track list """
+        del self.times[key]
+        del self.burrows[key]
+        
     
     @property
     def last(self):
@@ -305,12 +376,6 @@ class BurrowTrack(object):
                 return burrow, (self.times[idx] + self.times[idx + 1])/2
         else:
             return burrow
-    
-    
-    def append(self, time, burrow):
-        """ append a new burrow with a time code """
-        self.times.append(time)
-        self.burrows.append(burrow)
     
     
     def to_array(self):

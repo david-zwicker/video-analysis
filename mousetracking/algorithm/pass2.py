@@ -178,6 +178,7 @@ class SecondPass(DataHandler):
             return tracks
         
         threshold = self.params['tracking/initial_score_threshold']
+        threshold_max = self.params['tracking/score_threshold_max']
 
         # set flags if the end nodes have to be determined automatically
         determine_start_nodes = (start_nodes is None)
@@ -188,7 +189,7 @@ class SecondPass(DataHandler):
         while successful_iterations < 2:
             # build the tracking graph
             graph = self.get_track_graph(tracks, threshold)
-            
+
             if graph.number_of_edges() > 0:
                 # get the end nodes if necessary
                 if determine_start_nodes:
@@ -200,6 +201,14 @@ class SecondPass(DataHandler):
                 find_all = (successful_iterations >= 1)
                 paths = self.find_paths_in_track_graph(graph, start_nodes,
                                                        end_nodes, find_all)
+            elif threshold > threshold_max:
+                # stop the iteration if the threshold becomes too large 
+                if determine_start_nodes or determine_end_nodes:
+                    paths = []
+                else:
+                    paths = [start_nodes[0], end_nodes[0]]
+                break
+                
             else:
                 paths = False
 
@@ -211,7 +220,7 @@ class SecondPass(DataHandler):
                 threshold *= 2
         
         # identify the best path
-        path_best, score_best = None, np.inf 
+        path_best, score_best = None, np.inf
         for path in paths:
             cost = sum(graph.get_edge_data(a, b)['cost']
                        for a, b in itertools.izip(path, path[1:]))
@@ -378,33 +387,36 @@ class SecondPass(DataHandler):
         tracks.sort(key=lambda track: track.start)
 
         # find tracks where we are sure that they correspond to a mouse
-        sure_tracks = self.find_sure_mouse_tracks(tracks)    
+        sure_tracks = self.find_sure_mouse_tracks(tracks)
 
-        # connect all these sure tracks with the best match
-        path = []
-        # add the first trajectory with automatic start nodes
-        tracks_part = tracks[:sure_tracks[0]]
-        connection = self.get_best_track_connection(tracks_part,
-                                                    end_nodes=[tracks_part[-1]])
-        path.extend(connection)
-        
-        # connect all the sure tracks
-        for track_start, track_end in itertools.izip(sure_tracks[:-1],
-                                                     sure_tracks[1:]):
-            tracks_part = tracks[track_start:track_end + 1]
+        if sure_tracks:
+            # connect all these sure tracks with the best match
+            path = []
+            # add the first trajectory with automatic start nodes
+            tracks_part = tracks[:sure_tracks[0] + 1]
             connection = self.get_best_track_connection(tracks_part,
-                                                        start_nodes=[tracks_part[0]],
                                                         end_nodes=[tracks_part[-1]])
-            path.extend(connection[1:])
-
-        # add the last trajectory with automatic end nodes
-        tracks_part = tracks[sure_tracks[-1]:]
-        connection = self.get_best_track_connection(tracks_part,
-                                                    start_nodes=[tracks_part[0]])
-        path.extend(connection[1:])
+            path.extend(connection)
+            
+            # connect all the sure tracks
+            for track_start, track_end in itertools.izip(sure_tracks[:-1],
+                                                         sure_tracks[1:]):
+                tracks_part = tracks[track_start:track_end + 1]
+                connection = self.get_best_track_connection(tracks_part,
+                                                            start_nodes=[tracks_part[0]],
+                                                            end_nodes=[tracks_part[-1]])
+                path.extend(connection[1:])
+    
+            # add the last trajectory with automatic end nodes
+            tracks_part = tracks[sure_tracks[-1]:]
+            connection = self.get_best_track_connection(tracks_part,
+                                                        start_nodes=[tracks_part[0]])
+            if connection:
+                path.extend(connection[1:])
+            
+        else:
+            path = self.get_best_track_connection(tracks)
               
-        #path = self.get_best_track(tracks, sure_tracks)
-        
         # build a single trajectory out of this
         trajectory = np.empty((self.data['pass1/video/frames_analyzed'], 2))
         trajectory.fill(np.nan)

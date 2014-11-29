@@ -16,7 +16,7 @@ import numpy as np
 from scipy import cluster
 from shapely import geometry
 
-from .objects.burrow import Burrow, BurrowTrackList
+from mousetracking.algorithm.objects.burrow import Burrow, BurrowTrackList
 from .data_handler import DataHandler
 from .utils import unique_based_on_id
 from video.analysis import curves, regions
@@ -98,7 +98,8 @@ class FourthPass(DataHandler):
         else:
             # finalize all active burrow tracks
             if self.params['burrows/enabled_pass4']:
-                self.add_burrows_to_tracks(self.active_burrows())
+                active_burrows = [b for _, b in self.active_burrows()]
+                self.add_burrows_to_tracks(active_burrows)
             
             self.log_event('Pass 4 - Finished iterating through the frames.')
             self.data['analysis-status'] = 'Finished third pass'
@@ -694,11 +695,19 @@ class FourthPass(DataHandler):
         return burrows
 
 
-    def active_burrows(self):
+#     def active_burrows(self):
+#         """ returns a generator to iterate over all active burrows """
+#         for burrow_track in self.result['burrows/tracks']:
+#             if burrow_track.active:
+#                 yield burrow_track.last
+
+    def active_burrows(self, time_interval=None):
         """ returns a generator to iterate over all active burrows """
-        for burrow_track in self.result['burrows/tracks']:
-            if burrow_track.active:
-                yield burrow_track.last
+        if time_interval is None:
+            time_interval = self.params['burrows/adaptation_interval']
+        for track_id, burrow_track in enumerate(self.result['burrows/tracks']):
+            if burrow_track.track_end >= self.frame_id - time_interval:
+                yield track_id, burrow_track.last
 
 
     def add_burrows_to_tracks(self, burrows):
@@ -706,8 +715,9 @@ class FourthPass(DataHandler):
         burrow_tracks = self.result['burrows/tracks']
         
         # get currently active tracks
+        time_interval = self.params['burrows/adaptation_interval']
         active_tracks = [track for track in burrow_tracks
-                         if track.active]
+                         if track.track_end >= self.frame_id - time_interval]
         
         # check each burrow that has been found
         tracks_extended = set()
@@ -796,7 +806,7 @@ class FourthPass(DataHandler):
                 
             if self.params['burrows/enabled_pass4']:
                 debug_video.highlight_mask(self.burrow_mask == 1, 'b', strength=128)
-                for burrow in self.active_burrows():
+                for _, burrow in self.active_burrows():
                     debug_video.add_line(burrow.outline, 'r')
                     if burrow.centerline is not None:
                         debug_video.add_line(burrow.centerline, 'r',

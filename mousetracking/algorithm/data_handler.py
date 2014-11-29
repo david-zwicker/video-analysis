@@ -20,7 +20,7 @@ import yaml
 
 from .parameters import PARAMETERS_DEFAULT, scale_parameters
 import objects
-from objects import burrow2
+from mousetracking.algorithm.objects import burrow
 from .objects.utils import LazyHDFValue, prepare_data_for_yaml
 from .utils import get_loglevel_from_name, change_directory
 from video.io import load_any_video
@@ -57,8 +57,8 @@ class DataHandler(object):
                   'pass1/burrows/tracks': objects.BurrowTrackList,
                   'pass2/ground_profile': objects.GroundProfileTrack,
                   'pass2/mouse_trajectory': objects.MouseTrack,
-                  'pass3/burrows/tracks': burrow2.BurrowTrackList,
-                  'pass4/burrows/tracks': objects.BurrowTrackList}
+                  'pass3/burrows/tracks': burrow.BurrowTrackList,
+                  'pass4/burrows/tracks': burrow.BurrowTrackList}
     
     def __init__(self, name='', parameters=None, initialize_parameters=True,
                  read_data=False):
