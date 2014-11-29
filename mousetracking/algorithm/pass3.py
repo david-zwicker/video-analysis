@@ -153,7 +153,7 @@ class ThirdPass(DataHandler):
         self.params['mouse/moving_threshold_pixel_frame'] = moving_threshold
 
         # calculate mouse velocities    
-        sigma = self.params['mouse/speed_smoothing_window']
+        sigma = self.params['tracking/position_smoothing_window']
         self.data['pass2/mouse_trajectory'].calculate_velocities(sigma=sigma)
         
         if self.params['burrows/enabled_pass3']:

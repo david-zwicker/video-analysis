@@ -12,6 +12,7 @@ from __future__ import division
 import itertools
 
 import numpy as np
+from scipy.ndimage import filters
 
 from .utils import LazyHDFCollection
 from video.analysis import curves
@@ -121,6 +122,15 @@ class ObjectTrack(object):
         return [obj.pos for obj in self.objects[s]]
 
 
+    def get_trajectory(self, smoothing=0):
+        """ returns a numpy array of positions over time """
+        trajectory = np.array([obj.pos for obj in self.objects])
+        if smoothing:
+            filters.gaussian_filter1d(trajectory, output=trajectory,
+                                      sigma=smoothing, axis=0, mode='nearest')
+        return trajectory
+
+
     def append(self, time, obj):
         """ append a new object with a time code """
         self.times.append(time)
@@ -151,6 +161,9 @@ class ObjectTrack(object):
             idx += len(chunk)
         return result
     
+    
+#     def get_trajectory
+#     
     
     def to_array(self):
         """ converts the internal representation to a single array

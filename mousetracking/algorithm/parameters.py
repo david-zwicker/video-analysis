@@ -265,9 +265,9 @@ PARAMETER_LIST = [
               'Maximal speed of the mouse'),
     Parameter('mouse/max_rel_area_change', 0.5, UNIT.FACTOR,
               'Maximal area change allowed between consecutive frames'),
-    Parameter('mouse/speed_smoothing_window', 25, UNIT.TIME_FRAMES,
-              'The number of frames over which the mouse position is smoothed '
-              'in order to calculate its velocity'),
+#     Parameter('mouse/speed_smoothing_window', 25, UNIT.TIME_FRAMES,
+#               'The number of frames over which the mouse position is smoothed '
+#               'in order to calculate its velocity'),
     Parameter('mouse/moving_threshold_cm_sec', 5, UNIT.SPEED_CM_SEC,
               'The threshold value of the speed above which the mouse is '
               'considered to be moving.'),
@@ -299,6 +299,17 @@ PARAMETER_LIST = [
     Parameter('tracking/maximal_jump', 50, UNIT.LENGTH_PIXEL,
               'Maximal distance between two tracks where we will use linear '
               'interpolation to determine the intermediated mouse positions.'),
+    Parameter('tracking/position_smoothing_window', 25, UNIT.TIME_FRAMES,
+              'The number of frames over which the mouse position is smoothed '
+              'in order to calculate its velocity'),
+    Parameter('tracking/mouse_distance_threshold', 500, UNIT.LENGTH_PIXEL,
+              'Distance over which an object must move in order to call it a '
+              'mouse. This is used to identify tracks which surely belong to '
+              'mice. Graph matching is then used to fill in the gaps.'),
+    Parameter('tracking/mouse_min_mean_speed', 0.5, UNIT.SPEED_PIXEL_FRAME,
+              'Minimal average speed an object must have in order to be '
+              'surely considered as a mouse. This is introduced to prevent '
+              'stationary objects to be called a mouse.'),
         
     # Burrows
     Parameter('burrows/enabled_pass1', False, UNIT.BOOLEAN,

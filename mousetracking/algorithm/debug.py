@@ -214,10 +214,11 @@ def show_tracking_graph(graph, path=None, **kwargs):
     import matplotlib.pyplot as plt
     
     # plot the known chunks
-    for node in graph.nodes():
+    for node, data in graph.nodes_iter(data=True):
+        color = 'r' if data['highlight'] else 'g'
         plt.plot([node.start, node.end],
                  [node.first.pos[0], node.last.pos[0]],
-                 'r', lw=(4 + 10*node.mouse_score))
+                 color, lw=(4 + 10*node.mouse_score))
         
     try:
         max_weight = max(data['cost']

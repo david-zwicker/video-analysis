@@ -83,8 +83,13 @@ class SecondPass(DataHandler):
     #===========================================================================
 
 
-    def get_track_graph(self, tracks, threshold):
+    def get_track_graph(self, tracks, threshold, highlight_nodes=None):
         """ builds a weighted, directed graph representing the possible trajectories """
+        if highlight_nodes:
+            highlight_nodes = set(highlight_nodes)
+        else:
+            highlight_nodes = set()
+        
         graph = nx.DiGraph()
         
         # find all possible connections
@@ -113,6 +118,10 @@ class SecondPass(DataHandler):
                     # add the edge if the cost is not too high
                     if cost < threshold:
                         graph.add_edge(a, b, cost=cost)
+                        
+            # highlight node if necessary
+            graph.node[a]['highlight'] = (a_idx in highlight_nodes)
+                        
         return graph
             
                 
@@ -135,8 +144,17 @@ class SecondPass(DataHandler):
         return paths
            
            
-    def find_outer_nodes(self, graph, start_time, end_time):
+    def find_outer_nodes(self, graph, start_time=None, end_time=None):
         """ locate the start and end nodes in a graph """
+        # determine start and end times automatically if necessary
+        if start_time is None:
+            start_time = min(node.start for node in graph.nodes_iter())
+            start_time += self.params['tracking/end_node_interval']
+        if end_time is None:
+            end_time = max(node.end for node in graph.nodes_iter())
+            end_time -= self.params['tracking/end_node_interval']
+        
+        # find the nodes which are at the edges
         start_nodes, end_nodes = [], []
         for node in graph:
             if node.start <= start_time:
@@ -151,8 +169,56 @@ class SecondPass(DataHandler):
                     end_nodes.append(node)
         return start_nodes, end_nodes
          
+         
+    def get_best_track_connection(self, tracks, start_nodes=None, end_nodes=None):
+        """ determines a good path, possibly choosing from several start and 
+        end nodes """        
+        threshold = self.params['tracking/initial_score_threshold']
+
+        # set flags if the end nodes have to be determined automatically
+        determine_start_nodes = (start_nodes is None)
+        determine_end_nodes = (end_nodes is None)
+
+        # try different thresholds until we found a result
+        successful_iterations = 0
+        while successful_iterations < 2:
+            # build the tracking graph
+            graph = self.get_track_graph(tracks, threshold)
+
+            # get the end nodes if necessary
+            if determine_start_nodes:
+                start_nodes, _ = self.find_outer_nodes(graph)
+            if determine_end_nodes:
+                _, end_nodes = self.find_outer_nodes(graph)
+
+            # find possible paths between the start and end nodes
+            find_all = (successful_iterations >= 1)
+            paths = self.find_paths_in_track_graph(graph, start_nodes,
+                                                   end_nodes, find_all)
+
+            if paths:
+                # we'll do an additional search with an increased threshold
+                successful_iterations += 1
+                threshold *= 10
+            else:
+                threshold *= 2
+        
+        # identify the best path
+        path_best, score_best = None, np.inf 
+        for path in paths:
+            cost = sum(graph.get_edge_data(a, b)['cost']
+                       for a, b in itertools.izip(path, path[1:]))
+            length = 1 + path[-1].end - path[0].start
+            score = (1 + cost)/length
+            if score < score_best:  #< lower is better
+                path_best, score_best = path, score
                 
-    def get_best_track(self, tracks):
+#         debug.show_tracking_graph(graph, path_best)
+        
+        return path_best
+         
+                
+    def get_best_track(self, tracks, sure_tracks):
         """ finds the best connection of tracks """
         if not tracks:
             return []
@@ -184,7 +250,7 @@ class SecondPass(DataHandler):
         while successful_iterations < 2:
             self.logger.info('Pass 2 - Building tracking graph of %d nodes '
                              'with threshold %g', len(tracks), threshold) 
-            graph = self.get_track_graph(tracks, threshold)
+            graph = self.get_track_graph(tracks, threshold, sure_tracks)
             graph.add_nodes_from(endtoend_nodes) 
             self.logger.info('Pass 2 - Built tracking graph with %d nodes and '
                              '%d edges',
@@ -223,10 +289,34 @@ class SecondPass(DataHandler):
             if score < score_best:  #< lower is better
                 path_best, score_best = path, score
                 
-        #debug.show_tracking_graph(graph, path_best)
+        debug.show_tracking_graph(graph, path_best)
                 
         return path_best
     
+
+    def find_sure_mouse_tracks(self, tracks):
+        """ identifies tracks which surely describe mice. These tracks can then
+        be used to split up the connection problem into distinct parts """
+        smoothing_window = self.params['mouse/speed_smoothing_window']
+        dist_threshold = self.params['tracking/mouse_distance_threshold']
+        min_mean_speed = self.params['tracking/mouse_min_mean_speed']
+        max_speed = self.params['mouse/speed_max']
+        min_length = int(dist_threshold/(0.25 * max_speed))
+         
+        sure_tracks = []
+        for track_id, track in enumerate(tracks):
+            if len(track) < min_length:
+                continue
+            
+            # get smoothed trajectory
+            trajectory = track.get_trajectory(smoothing_window)
+            dist = curves.curve_length(trajectory)
+            
+            if dist > dist_threshold and dist/len(track) > min_mean_speed:
+                sure_tracks.append(track_id)
+
+        return sure_tracks
+        
 
     def add_tracks_to_trajectory(self, tracks, trajectory):
         """ iterates through all tracks and adds them to the trajectory, using
@@ -267,7 +357,7 @@ class SecondPass(DataHandler):
                     
             time_last, obj_last = time, obj
         
-        
+                
     def find_mouse_track(self):
         """ identifies the mouse trajectory by connecting object tracks.
         
@@ -276,10 +366,37 @@ class SecondPass(DataHandler):
         """
         self.log_event('Pass 2 - Started identifying mouse trajectory.')
         
+        # get tracks and sort them according to their start time
         tracks = self.data['pass1/objects/tracks']
+        tracks.sort(key=lambda track: track.start)
 
-        # get the best collection of tracks that best fit mouse
-        path = self.get_best_track(tracks)
+        # find tracks where we are sure that they correspond to a mouse
+        sure_tracks = self.find_sure_mouse_tracks(tracks)    
+
+        # connect all these sure tracks with the best match
+        path = []
+        # add the first trajectory with automatic start nodes
+        tracks_part = tracks[:sure_tracks[0]]
+        connection = self.get_best_track_connection(tracks_part,
+                                                    end_nodes=[tracks_part[-1]])
+        path.extend(connection)
+        
+        # connect all the sure tracks
+        for track_start, track_end in itertools.izip(sure_tracks[:-1],
+                                                     sure_tracks[1:]):
+            tracks_part = tracks[track_start:track_end + 1]
+            connection = self.get_best_track_connection(tracks_part,
+                                                        start_nodes=[tracks_part[0]],
+                                                        end_nodes=[tracks_part[-1]])
+            path.extend(connection[1:])
+
+        # add the last trajectory with automatic end nodes
+        tracks_part = tracks[sure_tracks[-1]:]
+        connection = self.get_best_track_connection(tracks_part,
+                                                    start_nodes=[tracks_part[0]])
+        path.extend(connection[1:])
+              
+        #path = self.get_best_track(tracks, sure_tracks)
         
         # build a single trajectory out of this
         trajectory = np.empty((self.data['pass1/video/frames_analyzed'], 2))
