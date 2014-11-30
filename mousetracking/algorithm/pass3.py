@@ -18,7 +18,7 @@ from shapely import geometry
 
 from .data_handler import DataHandler
 from .objects import mouse
-from mousetracking.algorithm.objects.burrow import Burrow, BurrowTrack, BurrowTrackList
+from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
 from video.analysis import curves, regions
 from video.filters import FilterCrop
 from video.io import ImageWindow

@@ -16,7 +16,7 @@ import numpy as np
 from scipy import cluster
 from shapely import geometry
 
-from mousetracking.algorithm.objects.burrow import Burrow, BurrowTrackList
+from .objects.burrow import Burrow, BurrowTrackList
 from .data_handler import DataHandler
 from .utils import unique_based_on_id
 from video.analysis import curves, regions
@@ -36,7 +36,7 @@ class FourthPass(DataHandler):
     def __init__(self, name='', parameters=None, **kwargs):
         super(FourthPass, self).__init__(name, parameters, **kwargs)
         if kwargs.get('initialize_parameters', True):
-            self.log_event('Pass 3 - Initialized the third pass analysis.')
+            self.log_event('Pass 4 - Initialized the third pass analysis.')
         self.initialize_pass()
         
 
@@ -55,7 +55,7 @@ class FourthPass(DataHandler):
         # initialize parameters
         obj.initialize_parameters()
         obj.initialize_pass()
-        obj.log_event('Pass 3 - Initialized the third pass analysis.')
+        obj.log_event('Pass 4 - Initialized the third pass analysis.')
         return obj
     
     

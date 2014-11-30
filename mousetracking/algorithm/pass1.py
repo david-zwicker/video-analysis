@@ -37,7 +37,7 @@ from video.utils import display_progress
 from video.composer import VideoComposer
 
 from .data_handler import DataHandler
-from mousetracking.algorithm.objects.moving_objects import MovingObject, ObjectTrack, ObjectTrackList
+from .objects.moving_objects import MovingObject, ObjectTrack, ObjectTrackList
 from .objects.ground import GroundProfile, GroundProfileList
 from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
 
@@ -268,7 +268,8 @@ class FirstPass(DataHandler):
         Try to find a bounding box for the cage.
         The rectangle [top, left, height, width] enclosing the cage is returned. """
         # do automatic thresholding to find large, bright areas
-        _, binarized_frame = cv2.threshold(frame, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, binarized_frame = cv2.threshold(frame, 0, 255,
+                                           cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
         # find the largest bright are, which should contain the cage
         cage_mask = regions.get_largest_region(binarized_frame)

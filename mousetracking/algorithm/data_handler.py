@@ -109,8 +109,9 @@ class DataHandler(object):
             
         # scale parameters, if requested
         if self.data['parameters/factor_length'] != 1:
+            factor_length = self.data['parameters/factor_length']
             self.data['parameters'] = scale_parameters(self.data['parameters'],
-                                                       factor_length=self.data['parameters/factor_length'])
+                                                       factor_length=factor_length)
             # reset the factor since the scaling was performed
             self.data['parameters/factor_length'] = 1
             
@@ -123,19 +124,23 @@ class DataHandler(object):
         if self.data['parameters/logging/enabled']:
             # add default logger to stderr
             handler = logging.StreamHandler()
-            formatter = logging.Formatter('%(asctime)s ' + self.name + '%(levelname)8s: %(message)s',
+            formatter = logging.Formatter('%(asctime)s ' + self.name + 
+                                          '%(levelname)8s: %(message)s',
                                           datefmt='%Y-%m-%d %H:%M:%S')
             handler.setFormatter(formatter)
-            logging_level = get_loglevel_from_name(self.data['parameters/logging/level_stderr'])
+            level_stderr = self.data['parameters/logging/level_stderr']
+            logging_level = get_loglevel_from_name(level_stderr)
             handler.setLevel(logging_level)
             self.logger.addHandler(handler) 
             logging_level_min = min(logging_level_min, logging_level)
         
             # setup handler to log to file
             logfile = self.get_filename('log.log', 'logging')
-            handler = logging.FileHandler(logfile, mode=LOGGING_FILE_MODES[self.logging_mode])
+            logging_mode = LOGGING_FILE_MODES[self.logging_mode]
+            handler = logging.FileHandler(logfile, mode=logging_mode)
             handler.setFormatter(formatter)
-            logging_level = get_loglevel_from_name(self.data['parameters/logging/level_file'])
+            level_file = self.data['parameters/logging/level_file']
+            logging_level = get_loglevel_from_name(level_file)
             handler.setLevel(logging_level)
             self.logger.addHandler(handler)
             logging_level_min = min(logging_level_min, logging_level)
@@ -146,7 +151,8 @@ class DataHandler(object):
             self.logger.debug('Analysis runs in process %d' % os.getpid())
             
         # setup mouse parameters as class variables
-        # => the code is not thread-safe if different values for these parameters are used in the same process
+        # => the code is not thread-safe if different values for these 
+        #        parameters are used in the same process
         # number of consecutive frames used for motion detection [in frames]
         moving_window = self.data.get('parameters/tracking/moving_window', None)
         if moving_window:
@@ -189,13 +195,17 @@ class DataHandler(object):
         """ makes sure that a folder exists and returns its path """
         base_folder = self.data['parameters/base_folder']
         if folder == 'results':
-            folder = os.path.join(base_folder, self.data['parameters/output/folder'])
+            folder = os.path.join(base_folder,
+                                  self.data['parameters/output/folder'])
         elif folder == 'video':
-            folder = os.path.join(base_folder, self.data['parameters/output/video/folder'])
+            folder = os.path.join(base_folder,
+                                  self.data['parameters/output/video/folder'])
         elif folder == 'logging':
-            folder = os.path.join(base_folder, self.data['parameters/logging/folder'])
+            folder = os.path.join(base_folder,
+                                  self.data['parameters/logging/folder'])
         elif folder == 'debug':
-            folder = os.path.join(base_folder, self.data['parameters/debug/folder'])
+            folder = os.path.join(base_folder,
+                                  self.data['parameters/debug/folder'])
         else:
             self.logger.warn('Requested unknown folder `%s`.' % folder)
 
@@ -274,9 +284,9 @@ class DataHandler(object):
         """ loads the video and applies a monochrome and cropping filter """
         # initialize the video
         if video is None:
-            video_filename_pattern = os.path.join(self.data['parameters/base_folder'],
-                                                  self.data['parameters/video/filename_pattern'])
-            self.video = load_any_video(video_filename_pattern)
+            filename_pattern = os.path.join(self.data['parameters/base_folder'],
+                                            self.data['parameters/video/filename_pattern'])
+            self.video = load_any_video(filename_pattern)
                 
         else:
             self.video = video
