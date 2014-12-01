@@ -128,6 +128,10 @@ class SecondPass(DataHandler):
                 
     def find_paths_in_track_graph(self, graph, start_nodes, end_nodes, find_all=True):
         """ finds all shortest paths from start_nodes to end_nodes in the graph """
+        # filter start and end nodes to make sure that they actually are in the graph
+        start_nodes = (s for s in start_nodes if s in graph)
+        end_nodes = (s for s in end_nodes if s in graph)
+
         # find paths between start and end nodes
         paths = []
         for start_node in start_nodes:
@@ -206,7 +210,7 @@ class SecondPass(DataHandler):
                 if determine_start_nodes or determine_end_nodes:
                     paths = []
                 else:
-                    paths = [start_nodes[0], end_nodes[0]]
+                    paths = [[start_nodes[0], end_nodes[0]]]
                 break
                 
             else:
