@@ -284,9 +284,9 @@ class DataHandler(object):
         """ loads the video and applies a monochrome and cropping filter """
         # initialize the video
         if video is None:
-            filename_pattern = os.path.join(self.data['parameters/base_folder'],
-                                            self.data['parameters/video/filename_pattern'])
-            self.video = load_any_video(filename_pattern)
+            video_filename_pattern = os.path.join(self.data['parameters/base_folder'],
+                                                  self.data['parameters/video/filename_pattern'])
+            self.video = load_any_video(video_filename_pattern)
                 
         else:
             self.video = video
