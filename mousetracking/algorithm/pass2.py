@@ -223,6 +223,9 @@ class SecondPass(DataHandler):
             else:
                 threshold *= 2
         
+        # filter erroneous paths
+        paths = (p for p in paths if p is not None)
+
         # identify the best path
         path_best, score_best = None, np.inf
         for path in paths:
