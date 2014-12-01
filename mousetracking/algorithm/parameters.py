@@ -271,6 +271,8 @@ PARAMETER_LIST = [
     Parameter('mouse/moving_threshold_cm_sec', 5, UNIT.SPEED_CM_SEC,
               'The threshold value of the speed above which the mouse is '
               'considered to be moving.'),
+    Parameter('mouse/moving_threshold_pixel_frame', None, UNIT.DEPRECATED,
+              'Deprecated since 2014-12-01.'),
                   
     Parameter('tracking/weight', 0.5, UNIT.FACTOR,
               'Relative weight of distance vs. size of objects for matching '

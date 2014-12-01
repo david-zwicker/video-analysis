@@ -846,7 +846,7 @@ class ThirdPass(DataHandler):
                 index_longest = np.argmax(l.length for l in line)
                 line = line[index_longest]
 
-            if line.is_empty or line.length <= 0:
+            if line.is_empty or line.length <= 1:
                 # the centerline disappeared
                 # => calculate a new centerline from the burrow outline
                 self.calculate_burrow_centerline(burrow)
