@@ -31,8 +31,10 @@ def process_trials(logfile, max_iterations=10):
         processing_finished = True
         try:
             for line in open(logfile, "r"):
-                if 'FFmpeg encountered the following error while writing file' in line:
+                if 'FFmpeg encountered the following error' in line:
                     # sleep up to two minutes to get around weird race conditions
+                    logging.info('Restarted the analysis since an FFmpeg error '
+                                 'was encountered.')
                     time.sleep(np.random.randint(120))
                     processing_finished = False
         except IOError:
