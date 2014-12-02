@@ -395,6 +395,13 @@ class SecondPass(DataHandler):
 
         # find tracks where we are sure that they correspond to a mouse
         sure_tracks = self.find_sure_mouse_tracks(tracks)
+        if len(sure_tracks) > 1:
+            consecutive_tracks = itertools.izip(sure_tracks, sure_tracks[1:])
+            max_gap = max(b.start - a.end for a, b in consecutive_tracks)
+            self.logger.info('Found %d sure mouse tracks. The longest gap is '
+                             '%d frames.', len(sure_tracks), max_gap)
+        else:
+            self.logger.info('Found %d sure mouse tracks.', len(sure_tracks))
 
         if sure_tracks:
             # connect all these sure tracks with the best match
