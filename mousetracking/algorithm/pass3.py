@@ -14,7 +14,7 @@ import time
 
 import cv2
 import numpy as np
-from shapely import geometry
+from shapely import geometry, geos
 
 from .data_handler import DataHandler
 from .objects import mouse
@@ -833,7 +833,10 @@ class ThirdPass(DataHandler):
                     burrow.merge(burrow_last)
                         
             # keep the burrow parts that are below the ground line
-            polygon = burrow.polygon.intersection(ground_polygon)
+            try:
+                polygon = burrow.polygon.intersection(ground_polygon)
+            except geos.TopologicalError:
+                continue
             if polygon.is_empty:
                 continue
             burrow.outline = regions.get_enclosing_outline(polygon)
