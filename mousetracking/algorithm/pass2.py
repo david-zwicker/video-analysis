@@ -223,14 +223,14 @@ class SecondPass(DataHandler):
             else:
                 threshold *= 2
         
-        # filter erroneous paths
-        paths = (p for p in paths if p is not None)
-
         # identify the best path
         path_best, score_best = None, np.inf
         for path in paths:
+            if path is None:
+                continue
             cost = sum(graph.get_edge_data(a, b)['cost']
-                       for a, b in itertools.izip(path, path[1:]))
+                       for a, b in itertools.izip(path, path[1:])
+                       if graph.has_edge(a, b))
             length = 1 + path[-1].end - path[0].start
             score = (1 + cost)/length
             if score < score_best:  #< lower is better

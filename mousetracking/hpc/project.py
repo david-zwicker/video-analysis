@@ -27,7 +27,7 @@ def process_trials(logfile, max_iterations=10):
     for trial in xrange(max_iterations):
         yield trial
 
-        # check for an error in the logfile
+        # check for an error in the log file
         processing_finished = True
         try:
             for line in open(logfile, "r"):
