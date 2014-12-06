@@ -37,7 +37,8 @@ class GroundProfile(object):
         
         
     def __repr__(self):
-        return 'GroundProfile(%d line)' % (len(self))
+        return ('GroundProfile(num_points=%d, length=%g)'
+                % (len(self), self.length))
     
     
     def __len__(self):
@@ -240,3 +241,6 @@ class GroundProfileTrack(object):
     def create_from_array(cls, data):
         """ collect the data in a single array """
         return cls(times=data[:, 0, 0], profiles=data[:, 1:, :])
+    
+     
+    

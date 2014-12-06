@@ -381,7 +381,7 @@ PARAMETER_LIST = [
               'than this value the point is considered to be background since '
               'it cannot be discriminated reliably.'),
           
-    # analysis after tracking        
+    # analysis after tracking
     Parameter('analysis/frames', None, None,
               'Frames of the video which are included in the report of the '
               'analysis [start and end index should be given]. If this is '

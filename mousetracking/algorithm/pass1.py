@@ -37,6 +37,7 @@ from video.utils import display_progress
 from video.composer import VideoComposer
 
 from .data_handler import DataHandler
+from .processes.ground_detector import GroundDetector
 from .objects.moving_objects import MovingObject, ObjectTrack, ObjectTrackList
 from .objects.ground import GroundProfile, GroundProfileList
 from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
@@ -1233,7 +1234,7 @@ class FirstPass(DataHandler):
         return (pos_edge, ground_point[1])
     
         
-    def refine_ground(self, ground):
+    def refine_ground_old(self, ground):
         """ adapts a points profile given as points to a given frame.
         Here, we fit a ridge profile in the vicinity of every point of the curve.
         The only fitting parameter is the distance by which a single points moves
@@ -1393,6 +1394,11 @@ class FirstPass(DataHandler):
             
         return GroundProfile(points)
             
+
+    def refine_ground(self, ground):
+        detector = GroundDetector(ground, self.params)
+        return detector.refine_ground(self.background)
+        
 
     def produce_ground_debug_image(self, ground):
         """ saves an image with information on how the ground profile was

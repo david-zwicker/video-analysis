@@ -223,6 +223,23 @@ class MouseTrack(object):
     def __repr__(self):
         return '%s(frames=%d)' % (self.__class__.__name__, len(self.pos))
 
+
+    def trajectory_smoothed(self, sigma):
+        """ returns the mouse trajectory smoothed with a Gaussian filter of
+        standard deviation `sigma` """
+        trajectory = np.empty_like(self.pos)
+        trajectory.fill(np.nan)
+        
+        # smooth position
+        indices = contiguous_true_regions(np.isfinite(self.pos[:, 0]))
+        for start, end in indices:
+            if end - start > 1:
+                filters.gaussian_filter1d(self.pos[start:end, :],
+                                          sigma, axis=0, mode='nearest',
+                                          output=trajectory[start:end, :])
+
+        return trajectory
+        
     
     def calculate_velocities(self, sigma):
         """ calculates the velocity from smoothed positions """

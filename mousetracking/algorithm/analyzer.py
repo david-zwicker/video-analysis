@@ -462,6 +462,7 @@ class Analyzer(DataHandler):
                 valid = np.isfinite(trajectory_part[:, 0])
                 dist.append(curves.curve_length(trajectory_part[valid]))
             result['mouse_distance'] = dist * self.length_scale
+            del keys['mouse_distance']
 
         if keys and not isinstance(keys, EverythingContainer):
             # report statistics that could not be calculated
