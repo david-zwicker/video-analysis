@@ -16,6 +16,7 @@ import numpy as np
 from scipy import stats
 
 from video.analysis.utils import cached_property
+from collections import OrderedDict
 
 
 
@@ -71,6 +72,38 @@ def unique_based_on_id(data):
             result.append(item)
             seen.add(id(item))
     return result
+
+
+
+def save_dict_to_csv(data, filename, first_columns=None, **kwargs):
+    """ function that takes a dictionary of lists and saves it as a csv file """
+    if first_columns is None:
+        first_columns = []
+
+    # sort the columns 
+    def column_key(col):
+        """ helper function for sorting the columns in the given order """
+        try:
+            return first_columns.index(col)
+        except ValueError:
+            return len(first_columns)
+        
+    # indicate a potential unit associated with the data in the header
+    table = OrderedDict()
+    for key in sorted(data.keys(), key=column_key):
+        value = data[key]
+        if hasattr(value, 'magnitude'):
+            key += ' [%s]' % value.units
+            value = value.magnitude
+        elif len(value) > 0 and hasattr(value[0], 'magnitude'):
+            assert len(set(str(item.units) for item in value)) == 1
+            key += ' [%s]' % value[0].units
+            value = [item.magnitude for item in value]
+        table[key] = value
+
+    # create a pandas data frame to save data to CSV
+    import pandas as pd
+    pd.DataFrame(table).to_csv(filename, **kwargs)
 
 
 

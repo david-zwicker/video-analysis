@@ -179,6 +179,7 @@ class Analyzer(DataHandler):
     def get_mouse_velocities(self):
         """ returns an array with mouse velocities as a function of time """
         velocity = self.get_mouse_track_data('velocity')
+        velocity[np.isnan(velocity)] = 0
         return velocity * self.length_scale / self.time_scale
 
 
@@ -429,29 +430,42 @@ class Analyzer(DataHandler):
     #===========================================================================
 
     
-    def get_statistics_periods(self, keys, slice_length=None):
-        """ calculate certain statistics for consecutive time slices """
-        result = {}
+    def get_statistics_periods(self, keys=None, slice_length=None):
+        """ calculate statistics given in `keys` for consecutive time slices.
+        If `keys` is None, all statistics are calculated.
+        If `slice_length` is None, the statistics are calculated for the entire
+            video. """
+        if keys is None:
+            keys = EverythingContainer()
         
         # determine the frame slices
         frame_range = self.get_frame_range()
         if slice_length:
-            frame_range = range(frame_range[0], frame_range[1], slice_length)
+            frame_range = range(frame_range[0], frame_range[1],
+                                int(slice_length))
         frame_slices = [slice(a, b)
                         for a, b in itertools.izip(frame_range,
                                                    frame_range[1:])]
+
+        # save the time slices used for analysis
+        result = {'frame_bins': [[s.start, s.stop] for s in frame_slices],
+                  'time_start': [s.start*self.time_scale for s in frame_slices],
+                  'time_end': [s.stop*self.time_scale for s in frame_slices],
+                  'time_duration': [(s.stop - s.start)*self.time_scale
+                                    for s in frame_slices]}
         
-        if 'mouse_velocity_max' in keys or 'mouse_velocity_mean' in keys:
+        if 'mouse_speed_max' in keys or 'mouse_speed_mean' in keys:
             # get velocity statistics
             velocities = self.get_mouse_velocities()
-            vel_mean, vel_max = [], []
+            speed = np.hypot(velocities[:, 0], velocities[:, 1])
+            speed_mean, speed_max = [], []
             for t_slice in frame_slices:
-                vel_mean.append(np.nanmean(velocities[t_slice]))
-                vel_max.append(np.nanmax(velocities[t_slice]))
+                speed_mean.append(np.nanmean(speed[t_slice]))
+                speed_max.append(np.nanmax(speed[t_slice]))
 
-            result['mouse_velocity_mean'] = vel_mean * self.speed_scale
-            result['mouse_velocity_max'] = vel_max * self.speed_scale
-            del keys['mouse_velocity_max'], keys['mouse_velocity_mean']
+            result['mouse_speed_mean'] = speed_mean * self.speed_scale
+            result['mouse_speed_max'] = speed_max * self.speed_scale
+            del keys['mouse_speed_max'], keys['mouse_speed_mean']
         
         if 'mouse_distance' in keys:
             # get distance statistics
@@ -470,11 +484,12 @@ class Analyzer(DataHandler):
                              'algorithm and could therefore not be '
                              'calculated: %s', ', '.join(keys))
         
-        return frame_range, result
+        return result
         
     
     def get_statistics(self, keys=None):
-        """ calculate statistics for the entire experiment """
+        """ calculate statistics given in `keys` for the entire experiment.
+        If `keys` is None, all statistics are calculated. """
         if keys is None:
             keys = EverythingContainer()
         
@@ -483,7 +498,7 @@ class Analyzer(DataHandler):
         if keys:
             # fill in the remaining keys by using the statistics function that
             # usually is used for calculating statistics on regular periods
-            _, result_periods = self.get_statistics_periods(keys)
+            result_periods = self.get_statistics_periods(keys)
             for k, v in result_periods.iteritems():
                 result[k] = v[0]
                 
