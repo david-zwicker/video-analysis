@@ -9,6 +9,7 @@ Contains a class that can be used to analyze results from the tracking
 from __future__ import division
 
 import collections
+import copy
 import itertools
 
 import numpy as np
@@ -26,7 +27,8 @@ except (ImportError, ImportWarning):
     UNITS_AVAILABLE = False
 
 
-class EverythingContainer(object):
+
+class OmniContainer(object):
     """ helper class that acts as a container that contains everything """
     def __bool__(self, key):
         return True
@@ -35,7 +37,7 @@ class EverythingContainer(object):
     def __delitem__(self, key):
         pass
     def __repr__(self):
-        return 'EverythingContainer()'
+        return 'OmniContainer()'
 
 
 
@@ -74,21 +76,30 @@ class Analyzer(DataHandler):
         
     def get_frame_range(self):
         """ returns the range of frames that is going to be analyzed """
-        frames = self.data['parameters/analysis/frames']
-        frames_video = self.data['pass1/video/frames']
+        # get the frames that were actually analyzed in the video
+        frames_video = copy.copy(self.data['pass1/video/frames'])
         if not frames_video[0]:
             frames_video[0] = 0
         
         adaptation_frames = self.data['parameters/video/initial_adaptation_frames'] 
         if adaptation_frames:
-            frames_video[0] = adaptation_frames
+            frames_video[0] += adaptation_frames
             
-        if frames is None:
-            frames = frames_video
+        # get the frames that are chosen for analysis
+        frames_analysis = self.data['parameters/analysis/frames']
+        if frames_analysis is None:
+            frames_analysis = frames_video
         else:
-            frames = (max(frames[0], frames_video[0]),
-                      min(frames[1], frames_video[1]))
-        return frames
+            if frames_analysis[0] is None:
+                frames_analysis[0] = frames_video[0]
+            else:
+                frames_analysis[0] = max(frames_analysis[0], frames_video[0])
+            if frames_analysis[1] is None:
+                frames_analysis[1] = frames_video[1]
+            else:
+                frames_analysis[1] = min(frames_analysis[1], frames_video[1])
+
+        return frames_analysis
     
     
     def get_frame_roi(self, frame_ids=None):
@@ -100,6 +111,43 @@ class Analyzer(DataHandler):
         else:
             return slice(np.searchsorted(frame_ids, fmin, side='left'),
                          np.searchsorted(frame_ids, fmax, side='right'))
+        
+        
+    #===========================================================================
+    # GROUND STATISTICS
+    #===========================================================================
+
+    
+    def get_ground_changes(self, frames=None):
+        """ returns shape polygons or polygon collections of ground area that
+        was removed and added, respectively, over the chosen frames """
+        if frames is None:
+            frames = self.get_frame_range()
+
+        # load the ground profiles
+        ground_profile = self.data['pass2/ground_profile']
+        ground0 = ground_profile.get_ground_profile(frames[0])
+        ground1 = ground_profile.get_ground_profile(frames[1])
+        
+        # get the ground polygons
+        left = min(ground0.points[0, 0], ground1.points[0, 0])
+        right = max(ground0.points[-1, 0], ground1.points[-1, 0])
+        depth = max(ground0.points[:, 1].max(), ground1.points[:, 1].max()) + 1
+        poly0 = ground0.get_polygon(depth, left, right)
+        poly1 = ground1.get_polygon(depth, left, right)
+        
+        # get the differences in the areas
+        area_removed = poly0.difference(poly1)
+        area_accrued = poly1.difference(poly0)
+        
+        return area_removed, area_accrued
+        
+        
+    def get_ground_change_areas(self, frames=None):
+        """ returns the area of the ground that was removed and added """
+        area_removed, area_accrued = self.get_ground_changes(frames)
+        return (area_removed.area * self.length_scale**2,
+                area_accrued.area * self.length_scale**2)
         
         
     #===========================================================================
@@ -183,22 +231,41 @@ class Analyzer(DataHandler):
         return velocity * self.length_scale / self.time_scale
 
 
-    def get_mouse_state_durations(self, states=None, ret_states=False):
-        """ returns the durations the mouse spends in each state 
+    def get_mouse_state_vector(self, states=None, ret_states=False):
+        """ returns the a vector of integers indicating in what state the mouse
+        was at each point in time 
         
         If a list of `states` is given, only these states are included in
-        the result.
+            the result.
+        If `ret_states` is True, the states that are considered are returned
+            as a list
         """
-        mouse_state = self.get_mouse_track_data('state')
+        mouse_state = self.get_mouse_track_data('states')
 
         # set the default list of states if it not already set
         if states is None:
             states = ('.A.', '.H.', '.V.', '.D.', '.B ', '.BE', '...')
             
-        # cluster mouse states according to the defined states
+        # convert the mouse states into integers according to the defined states
         lut = mouse.state_converter.get_state_lookup_table(states)
-        state_cat = [-1 if lut[state] is None else lut[state]
-                     for state in mouse_state]
+        state_cat = np.array([-1 if lut[state] is None else lut[state]
+                              for state in mouse_state])
+            
+        if ret_states:
+            return states, state_cat
+        else:
+            return state_cat
+
+
+    def get_mouse_state_durations(self, states=None, ret_states=False):
+        """ returns the durations the mouse spends in each state 
+        
+        If a list of `states` is given, only these states are included in
+            the result.
+        If `ret_states` is True, the states that are considered are returned
+            as a list
+        """
+        states, state_cat = self.get_mouse_state_vector(states, ret_states=True)
             
         # get durations
         durations = collections.defaultdict(list)
@@ -225,17 +292,11 @@ class Analyzer(DataHandler):
         Transitions with a duration [in seconds] below duration_threshold will
         not be included in the results.
         """
-        try:
-            # read raw data for the frames that we are interested in 
-            mouse_state = self.data['pass2/mouse_trajectory'].states
-            mouse_state = mouse_state[self.get_frame_roi()]
-        except KeyError:
-            raise RuntimeError('The mouse trajectory has to be determined '
-                               'before the transitions can be analyzed.')
+        mouse_state = self.get_mouse_track_data('state')
 
         # set the default list of states if it not already set
         if states is None:
-            states = ('.A.', '.H.', '.V.', '.D.', '.B ', '.BE', '...')
+            states = ('.A.', '.H.', '.V.', '.D.', '.B ', '.[B|D]E', '...')
             
         # add a unit to the duration threshold if it does not have any
         if self.use_units and isinstance(duration_threshold, self.units.Quantity):
@@ -436,24 +497,49 @@ class Analyzer(DataHandler):
         If `slice_length` is None, the statistics are calculated for the entire
             video. """
         if keys is None:
-            keys = EverythingContainer()
+            keys = OmniContainer()
         
         # determine the frame slices
         frame_range = self.get_frame_range()
         if slice_length:
             frame_range = range(frame_range[0], frame_range[1],
                                 int(slice_length))
-        frame_slices = [slice(a, b)
+        frame_slices = [slice(a, b + 1)
                         for a, b in itertools.izip(frame_range,
                                                    frame_range[1:])]
 
         # save the time slices used for analysis
         result = {'frame_bins': [[s.start, s.stop] for s in frame_slices],
-                  'time_start': [s.start*self.time_scale for s in frame_slices],
-                  'time_end': [s.stop*self.time_scale for s in frame_slices],
-                  'time_duration': [(s.stop - s.start)*self.time_scale
-                                    for s in frame_slices]}
-        
+                  'period_start': [s.start*self.time_scale for s in frame_slices],
+                  'period_end': [s.stop*self.time_scale for s in frame_slices],
+                  'period_duration': [(s.stop - s.start)*self.time_scale
+                                      for s in frame_slices]}
+
+        # get the area changes of the ground line
+        if 'ground_removed' in keys or 'ground_accrued' in keys:
+            area_removed, area_accrued = [], []
+            for f in frame_slices:
+                poly_rem, poly_acc = self.get_ground_changes((f.start, f.stop))
+                area_removed.append(poly_rem.area)
+                area_accrued.append(poly_acc.area)
+
+            if 'ground_removed' in keys:
+                result['ground_removed'] = area_removed * self.length_scale**2
+                del keys['ground_removed'] 
+            if 'ground_accrued' in keys:
+                result['ground_accrued'] = area_accrued * self.length_scale**2
+                del keys['ground_accrued'] 
+
+        # get durations of the mouse being in different states        
+        for key, pattern in (('time_spent_moving', '...M'), 
+                             ('time_spent_digging', '.(B|D)E.')):
+            if key in keys:
+                states = self.get_mouse_state_vector([pattern])
+                duration = [np.count_nonzero(states[t_slice] == 0)
+                            for t_slice in frame_slices]
+                result[key] = duration * self.time_scale
+                del keys[key]
+
         if 'mouse_speed_max' in keys or 'mouse_speed_mean' in keys:
             # get velocity statistics
             velocities = self.get_mouse_velocities()
@@ -462,10 +548,13 @@ class Analyzer(DataHandler):
             for t_slice in frame_slices:
                 speed_mean.append(np.nanmean(speed[t_slice]))
                 speed_max.append(np.nanmax(speed[t_slice]))
-
-            result['mouse_speed_mean'] = speed_mean * self.speed_scale
-            result['mouse_speed_max'] = speed_max * self.speed_scale
-            del keys['mouse_speed_max'], keys['mouse_speed_mean']
+            # save result
+            if 'mouse_speed_mean' in keys:
+                result['mouse_speed_mean'] = speed_mean * self.speed_scale
+                del keys['mouse_speed_mean']
+            if 'mouse_speed_max' in keys:
+                result['mouse_speed_max'] = speed_max * self.speed_scale
+                del keys['mouse_speed_max']
         
         if 'mouse_distance' in keys:
             # get distance statistics
@@ -477,8 +566,15 @@ class Analyzer(DataHandler):
                 dist.append(curves.curve_length(trajectory_part[valid]))
             result['mouse_distance'] = dist * self.length_scale
             del keys['mouse_distance']
+            
+        if 'mouse_deepest_underground' in keys:
+            ground_dist = self.get_mouse_track_data('ground_dist')
+            dist = [-np.nanmin(ground_dist[t_slice])
+                    for t_slice in frame_slices]
+            result['mouse_deepest_underground'] = dist * self.length_scale
+            del keys['mouse_deepest_underground']
 
-        if keys and not isinstance(keys, EverythingContainer):
+        if keys and not isinstance(keys, OmniContainer):
             # report statistics that could not be calculated
             self.logger.warn('The following statistics are not defined in the '
                              'algorithm and could therefore not be '
@@ -491,9 +587,36 @@ class Analyzer(DataHandler):
         """ calculate statistics given in `keys` for the entire experiment.
         If `keys` is None, all statistics are calculated. """
         if keys is None:
-            keys = EverythingContainer()
+            keys = OmniContainer()
         
         result = {}
+        
+        if any(key in keys for key in ('burrow_area_total',
+                                       'burrow_length_total',
+                                       'burrow_length_max')):
+            # load the burrow tracks and get the last time frame
+            length_max, length_total, area_total = 0, 0, 0
+            burrow_tracks = self.data['pass3/burrows/tracks']
+            if burrow_tracks:
+                last_time = max(bt.track_end for bt in burrow_tracks)
+                # gather burrow statistics
+                for bt in burrow_tracks:
+                    if bt.track_end == last_time:
+                        length_total += bt.last.length
+                        if bt.last.length > length_max:
+                            length_max = bt.last.length
+                        area_total += bt.last.area
+
+            # save the data
+            if 'burrow_length_max' in keys:
+                result['burrow_length_max'] = length_max*self.length_scale
+                del keys['burrow_length_max']
+            if 'burrow_length_total' in keys:
+                result['burrow_length_total'] = length_total*self.length_scale
+                del keys['burrow_length_total']
+            if 'burrow_area_total' in keys:
+                result['burrow_area_total'] = area_total*self.length_scale**2
+                del keys['burrow_area_total']
         
         if keys:
             # fill in the remaining keys by using the statistics function that
@@ -523,9 +646,4 @@ class Analyzer(DataHandler):
         
         return problems
     
-        
-
-
-                    
-                
                     

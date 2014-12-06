@@ -374,6 +374,8 @@ class ThirdPass(DataHandler):
     def get_ground_polygon_points(self):
         """ returns a list of points marking the ground region """
         width, height = self.video.size
+        ground_points = self.ground.get_ground_polygon_points(height, 0, width)
+        return np.asarray(ground_points, np.int32)
 
         # create a mask for the region below the current mask_ground profile
         ground_points = np.empty((len(self.ground) + 4, 2), np.int32)

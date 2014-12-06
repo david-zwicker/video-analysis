@@ -57,6 +57,36 @@ class GroundProfile(object):
         return geometry.LineString(self.points)
     
     
+    def get_polygon_points(self, depth, left=None, right=None):
+        """ returns the points of a polygon representing the ground with a
+        given `depth`, reaching from `left` to `right` """
+        # build left side of the polygon
+        if left is None:
+            ground_points = [(self.points[0, 0], depth)]
+            idx_left = 0
+        else:
+            ground_points = [(left, depth),
+                             (left, self.points[0, 1])]
+            idx_left = np.nonzero(self.points[:, 0] > left)[0][0]
+            
+        if right is None:
+            ground_points += self.points[idx_left:, :].tolist()
+            ground_points.append((self.points[-1, 0], depth))
+        else:
+            idx_right = np.nonzero(self.points[:, 0] < right)[0][-1]
+            ground_points += self.points[idx_left:idx_right, :].tolist()
+            ground_points.append((right, self.points[-1, 1]))
+            ground_points.append((right, depth))
+
+        return ground_points
+            
+                
+    def get_polygon(self, depth, left=None, right=None):
+        """ returns a polygon representing the ground with a given `depth` """
+        points = self.get_polygon_points(depth, left, right)
+        return geometry.Polygon(points)
+    
+                
     def make_equidistant(self, **kwargs):
         """ makes the ground profile equidistant """
         self.points = curves.make_curve_equidistant(self.points, **kwargs)

@@ -81,16 +81,19 @@ def save_dict_to_csv(data, filename, first_columns=None, **kwargs):
         first_columns = []
 
     # sort the columns 
+    sorted_index = {c: k for k, c in enumerate(sorted(data.keys()))}
     def column_key(col):
         """ helper function for sorting the columns in the given order """
         try:
             return first_columns.index(col)
         except ValueError:
-            return len(first_columns)
+            return len(first_columns) + sorted_index[col]
+    sorted_keys = sorted(data.keys(), key=column_key)
         
-    # indicate a potential unit associated with the data in the header
+    # create a data table and indicated potential units associated with the data
+    # in the header
     table = OrderedDict()
-    for key in sorted(data.keys(), key=column_key):
+    for key in sorted_keys:
         value = data[key]
         if hasattr(value, 'magnitude'):
             key += ' [%s]' % value.units
