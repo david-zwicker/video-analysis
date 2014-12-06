@@ -9,12 +9,14 @@ Contains a class that can be used to analyze results from the tracking
 from __future__ import division
 
 import collections
+import itertools
 
 import numpy as np
 import networkx as nx
 
 from .data_handler import DataHandler
 from .objects import mouse
+from video.analysis import curves
 from video.utils import contiguous_int_regions_iter
 
 try:
@@ -22,6 +24,18 @@ try:
     UNITS_AVAILABLE = True
 except (ImportError, ImportWarning):
     UNITS_AVAILABLE = False
+
+
+class EverythingContainer(object):
+    """ helper class that acts as a container that contains everything """
+    def __bool__(self, key):
+        return True
+    def __contains__(self, key):
+        return True
+    def __delitem__(self, key):
+        pass
+    def __repr__(self):
+        return 'EverythingContainer()'
 
 
 
@@ -54,6 +68,8 @@ class Analyzer(DataHandler):
         else:
             self.time_scale = self.time_scale_mag
             self.length_scale = self.length_scale_mag
+
+        self.speed_scale = self.length_scale / self.time_scale
         
         
     def get_frame_range(self):
@@ -77,7 +93,7 @@ class Analyzer(DataHandler):
     
     def get_frame_roi(self, frame_ids=None):
         """ returns a slice object indicating where the given frame_ids lie in
-        the range that was choosen for analysis """ 
+        the range that was chosen for analysis """ 
         fmin, fmax = self.get_frame_range()
         if frame_ids is None:
             return slice(fmin, fmax + 1)
@@ -115,31 +131,64 @@ class Analyzer(DataHandler):
     #===========================================================================
 
 
-    def get_mouse_velocities(self):
-        """ returns an array with mouse velocities as a function of time """
-        # read data
-        sigma = self.data['parameters/mouse/speed_smoothing_window']
-        mouse_trajectory = self.data['pass2/mouse_trajectory']
+    def get_mouse_track_data(self, attribute='pos', night_only=True):
+        """ returns the  """
+        try:
+            # read raw data for the frames that we are interested in 
+            mouse_track = self.data['pass2/mouse_trajectory']
+            
+            # extract the right attribute from the mouse track
+            if attribute == 'trajectory_smoothed':
+                sigma = self.data['parameters/mouse/speed_smoothing_window']
+                data = mouse_track.trajectory_smoothed(sigma)
+            elif attribute == 'velocity':
+                sigma = self.data['parameters/mouse/speed_smoothing_window']
+                mouse_track.calculate_velocities(sigma=sigma)
+                data = mouse_track.velocity
+            else:
+                data = getattr(mouse_track, attribute)
+                
+            # restrict the data to the night period
+            if night_only:
+                data = data[self.get_frame_roi()]
+        except KeyError:
+            raise RuntimeError('The mouse trajectory has to be determined '
+                               'before the transitions can be analyzed.')
         
-        # calculate and return velocity
-        mouse_trajectory.calculate_velocities(sigma=sigma)
-        velocity = mouse_trajectory.velocity[self.get_frame_roi()]
-        return velocity * self.length_scale / self.time_scale
+        return data
+
+
+    def get_mouse_trajectory(self, smoothed=True):
+        """ returns the mouse positions, smoothed if requested """
+        if smoothed:
+            return self.get_mouse_track_data('trajectory_smoothed')
+        else:
+            return self.get_mouse_track_data('pos')
+
+
+    def get_mouse_distance(self):
+        """ returns the total distance traveled by the mouse """
+        trajectory = self.get_mouse_track_data('trajectory_smoothed')
+
+        # calculate distance
+        valid = np.isfinite(trajectory[:, 0])
+        distance = curves.curve_length(trajectory[valid, :])
+        return distance
 
     
+    def get_mouse_velocities(self):
+        """ returns an array with mouse velocities as a function of time """
+        velocity = self.get_mouse_track_data('velocity')
+        return velocity * self.length_scale / self.time_scale
+
+
     def get_mouse_state_durations(self, states=None, ret_states=False):
         """ returns the durations the mouse spends in each state 
         
         If a list of `states` is given, only these states are included in
         the result.
         """
-        try:
-            # read raw data for the frames that we are interested in 
-            mouse_state = self.data['pass2/mouse_trajectory'].states
-            mouse_state = mouse_state[self.get_frame_roi()]
-        except KeyError:
-            raise RuntimeError('The mouse trajectory has to be determined '
-                               'before the transitions can be analyzed.')
+        mouse_state = self.get_mouse_track_data('state')
 
         # set the default list of states if it not already set
         if states is None:
@@ -374,6 +423,71 @@ class Analyzer(DataHandler):
         plt.sca(ax)
         return ax
 
+    
+    #===========================================================================
+    # GENERAL ROUTINES
+    #===========================================================================
+
+    
+    def get_statistics_periods(self, keys, slice_length=None):
+        """ calculate certain statistics for consecutive time slices """
+        result = {}
+        
+        # determine the frame slices
+        frame_range = self.get_frame_range()
+        if slice_length:
+            frame_range = range(frame_range[0], frame_range[1], slice_length)
+        frame_slices = [slice(a, b)
+                        for a, b in itertools.izip(frame_range,
+                                                   frame_range[1:])]
+        
+        if 'mouse_velocity_max' in keys or 'mouse_velocity_mean' in keys:
+            # get velocity statistics
+            velocities = self.get_mouse_velocities()
+            vel_mean, vel_max = [], []
+            for t_slice in frame_slices:
+                vel_mean.append(np.nanmean(velocities[t_slice]))
+                vel_max.append(np.nanmax(velocities[t_slice]))
+
+            result['mouse_velocity_mean'] = vel_mean * self.speed_scale
+            result['mouse_velocity_max'] = vel_max * self.speed_scale
+            del keys['mouse_velocity_max'], keys['mouse_velocity_mean']
+        
+        if 'mouse_distance' in keys:
+            # get distance statistics
+            trajectory = self.get_mouse_trajectory()
+            dist = []
+            for t_slice in frame_slices:
+                trajectory_part = trajectory[t_slice]
+                valid = np.isfinite(trajectory_part[:, 0])
+                dist.append(curves.curve_length(trajectory_part[valid]))
+            result['mouse_distance'] = dist * self.length_scale
+
+        if keys and not isinstance(keys, EverythingContainer):
+            # report statistics that could not be calculated
+            self.logger.warn('The following statistics are not defined in the '
+                             'algorithm and could therefore not be '
+                             'calculated: %s', ', '.join(keys))
+        
+        return frame_range, result
+        
+    
+    def get_statistics(self, keys=None):
+        """ calculate statistics for the entire experiment """
+        if keys is None:
+            keys = EverythingContainer()
+        
+        result = {}
+        
+        if keys:
+            # fill in the remaining keys by using the statistics function that
+            # usually is used for calculating statistics on regular periods
+            _, result_periods = self.get_statistics_periods(keys)
+            for k, v in result_periods.iteritems():
+                result[k] = v[0]
+                
+        return result
+            
     
     def find_problems(self):
         """ checks for certain common problems in the results and returns a
