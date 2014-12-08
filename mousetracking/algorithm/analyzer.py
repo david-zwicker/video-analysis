@@ -32,10 +32,13 @@ class OmniContainer(object):
     """ helper class that acts as a container that contains everything """
     def __bool__(self, key):
         return True
+    
     def __contains__(self, key):
         return True
+    
     def __delitem__(self, key):
         pass
+    
     def __repr__(self):
         return 'OmniContainer()'
 
@@ -540,21 +543,22 @@ class Analyzer(DataHandler):
                 result[key] = duration * self.time_scale
                 del keys[key]
 
-        if 'mouse_speed_max' in keys or 'mouse_speed_mean' in keys:
+        speed_keys = ('mouse_speed_mean', 'mouse_speed_mean_valid',
+                      'mouse_speed_max')
+        if any(key in keys for key in speed_keys):
             # get velocity statistics
             velocities = self.get_mouse_velocities()
             speed = np.hypot(velocities[:, 0], velocities[:, 1])
-            speed_mean, speed_max = [], []
-            for t_slice in frame_slices:
-                speed_mean.append(np.nanmean(speed[t_slice]))
-                speed_max.append(np.nanmax(speed[t_slice]))
-            # save result
-            if 'mouse_speed_mean' in keys:
-                result['mouse_speed_mean'] = speed_mean * self.speed_scale
-                del keys['mouse_speed_mean']
-            if 'mouse_speed_max' in keys:
-                result['mouse_speed_max'] = speed_max * self.speed_scale
-                del keys['mouse_speed_max']
+            statistics = {
+                'mouse_speed_mean': lambda x: np.nan_to_num(np.array(x)).mean(),
+                'mouse_speed_mean_valid': lambda x: np.nanmean(x),
+                'mouse_speed_max': lambda x: np.nanmax(x)
+            }
+            for key in speed_keys:
+                stat = statistics[key]
+                res = [stat(speed[t_slice]) for t_slice in frame_slices]
+                result[key] = np.array(res) * self.speed_scale
+                del keys[key]
         
         if 'mouse_distance' in keys:
             # get distance statistics
