@@ -267,7 +267,8 @@ PARAMETER_LIST = [
     Parameter('mouse/max_rel_area_change', 0.5, UNIT.FACTOR,
               'Maximal area change allowed between consecutive frames'),
     Parameter('mouse/speed_smoothing_window', 25, UNIT.DEPRECATED,
-              'Deprecated since 2014-11-29.'),
+              'Deprecated since 2014-11-29. Use '
+              '`tracking/position_smoothing_window` instead.'),
     Parameter('mouse/moving_threshold_cm_sec', 5, UNIT.SPEED_CM_SEC,
               'The threshold value of the speed above which the mouse is '
               'considered to be moving.'),
@@ -304,7 +305,7 @@ PARAMETER_LIST = [
     Parameter('tracking/maximal_jump', 50, UNIT.LENGTH_PIXEL,
               'Maximal distance between two tracks where we will use linear '
               'interpolation to determine the intermediated mouse positions.'),
-    Parameter('tracking/position_smoothing_window', 25, UNIT.TIME_FRAMES,
+    Parameter('tracking/position_smoothing_window', 5, UNIT.TIME_FRAMES,
               'The number of frames over which the mouse position is smoothed '
               'in order to calculate its velocity'),
     Parameter('tracking/mouse_distance_threshold', 500, UNIT.LENGTH_PIXEL,

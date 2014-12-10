@@ -17,6 +17,7 @@ Optional python packages:
 Package     |Usage                                      
 ------------|-------------------------------------------
 descartes   | Used for debug plotting of shapes
+grip        | Used for converting markdown to html 
 pandas      | Used for writing results to csv files
 pint        | Used for result with physical units
 sharedmem   | Used for showing the videos in a separate process while iterating 

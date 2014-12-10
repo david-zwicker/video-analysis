@@ -190,10 +190,10 @@ class Analyzer(DataHandler):
             
             # extract the right attribute from the mouse track
             if attribute == 'trajectory_smoothed':
-                sigma = self.data['parameters/mouse/speed_smoothing_window']
+                sigma = self.data['parameters/tracking/position_smoothing_window']
                 data = mouse_track.trajectory_smoothed(sigma)
             elif attribute == 'velocity':
-                sigma = self.data['parameters/mouse/speed_smoothing_window']
+                sigma = self.data['parameters/tracking/position_smoothing_window']
                 mouse_track.calculate_velocities(sigma=sigma)
                 data = mouse_track.velocity
             else:
@@ -496,12 +496,13 @@ class Analyzer(DataHandler):
     # GENERAL ROUTINES
     #===========================================================================
 
+
     def get_mouse_ground_distance_max(self, frame_ivals=None):
         """ determines the maximal distance of the mouse to the ground line
         during the given frame_slices """
         
         # load data
-        trajectory = self.get_mouse_track_data()
+        trajectory = self.data['pass2/mouse_trajectory'].pos
         ground_profile = self.data['pass2/ground_profile']
         
         # iterate over all frame intervals
@@ -525,7 +526,6 @@ class Analyzer(DataHandler):
             res_vertical.append(max_vertical)
             
         return np.array(res_diagonal), np.array(res_vertical)              
-
 
     
     def get_statistics_periods(self, keys=None, slice_length=None):
