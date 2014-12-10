@@ -543,20 +543,17 @@ class Analyzer(DataHandler):
                 result[key] = duration * self.time_scale
                 del keys[key]
 
-        speed_keys = ('mouse_speed_mean', 'mouse_speed_mean_valid',
-                      'mouse_speed_max')
-        if any(key in keys for key in speed_keys):
-            # get velocity statistics
+        # get velocity statistics
+        speed_statistics = {
+            'mouse_speed_mean': lambda x: np.nan_to_num(np.array(x)).mean(),
+            'mouse_speed_mean_valid': lambda x: np.nanmean(x),
+            'mouse_speed_max': lambda x: np.nanmax(x)
+        }
+        if any(key in keys for key in speed_statistics.keys()):
             velocities = self.get_mouse_velocities()
             speed = np.hypot(velocities[:, 0], velocities[:, 1])
-            statistics = {
-                'mouse_speed_mean': lambda x: np.nan_to_num(np.array(x)).mean(),
-                'mouse_speed_mean_valid': lambda x: np.nanmean(x),
-                'mouse_speed_max': lambda x: np.nanmax(x)
-            }
-            for key in speed_keys:
-                stat = statistics[key]
-                res = [stat(speed[t_slice]) for t_slice in frame_slices]
+            for key, stat_func in speed_statistics.iteritems():
+                res = [stat_func(speed[t_slice]) for t_slice in frame_slices]
                 result[key] = np.array(res) * self.speed_scale
                 del keys[key]
         
@@ -571,12 +568,12 @@ class Analyzer(DataHandler):
             result['mouse_distance'] = dist * self.length_scale
             del keys['mouse_distance']
             
-        if 'mouse_deepest_underground' in keys:
+        if 'mouse_trail_longest' in keys:
             ground_dist = self.get_mouse_track_data('ground_dist')
             dist = [-np.nanmin(ground_dist[t_slice])
                     for t_slice in frame_slices]
-            result['mouse_deepest_underground'] = dist * self.length_scale
-            del keys['mouse_deepest_underground']
+            result['mouse_trail_longest'] = dist * self.length_scale
+            del keys['mouse_trail_longest']
 
         if keys and not isinstance(keys, OmniContainer):
             # report statistics that could not be calculated

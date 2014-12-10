@@ -5,7 +5,6 @@
 	- each inner point on this center line can be put at the midpoint between the outlines
 		to prevent problems, the point should be displaced by at most 0.5*burrow_width
 	- Alternatively, find centerline by using active snake guided by current centerline and distance map
-* Use images of final burrow cast to locate burrows (by analyzing the video in reverse)
 * Pass1:
     - Improve ground line detection with more accurate snake minimization
         the snake dynamic variables are the distortions of each point perpendicular to the snake
@@ -16,12 +15,10 @@
 * Pass2:
 * Pass3:
 * Pass4:
-	- connect two burrows that face each other (which happens for burrows with two exits) 
-* Determine absolute times by checking when the lights go on
-    - this does only seem to be visible outside the cage
-    - scan full video (all four quadrants) and determine mean intensity over time to estimate when the lights go on
-* Detect the area by which the ground line moved up/down
- 
+	- connect two burrows that face each other (which happens for burrows with two exits)
+* measure depth underneath ground (both vertically, geometric distance to ground distance)
+* look at video 54, no burrow time reported, but burrow reported
+
 
 Performance improvements:
 -------------------------

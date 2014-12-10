@@ -189,13 +189,13 @@ class ThirdPass(DataHandler):
                 self.mouse_pos = (np.nan, np.nan)
             self.ground = ground_profile.get_ground_profile(self.frame_id)
 
-            # find out where the mouse currently is        
-            self.classify_mouse_state(mouse_track)
-            
             if self.params['burrows/enabled_pass3']:
                 # find the burrow from the mouse trail
                 self.find_burrows()
 
+            # find out where the mouse currently is
+            self.classify_mouse_state(mouse_track)
+            
             # store some information in the debug dictionary
             self.debug_process_frame(frame, mouse_track)
             
@@ -374,7 +374,7 @@ class ThirdPass(DataHandler):
     def get_ground_polygon_points(self):
         """ returns a list of points marking the ground region """
         width, height = self.video.size
-        ground_points = self.ground.get_ground_polygon_points(height, 0, width)
+        ground_points = self.ground.get_polygon_points(height, 0, width)
         return np.asarray(ground_points, np.int32)
 
         # create a mask for the region below the current mask_ground profile

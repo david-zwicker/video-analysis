@@ -7,7 +7,7 @@ These are statistics that are only produced for the entire video
 * `burrow_length_total`: The total length of all burrow structures  
 * `burrow_length_max`: The length of the longest burrow
 
-All burrows are currently obtained by sweeping the mouse trail over time.
+All burrow statistics are currently obtained by sweeping the mouse trail over time.
 The mouse trail is given by the connecting line of the current mouse position
 with the ground line.
 The statistics are calculated until the end of the analysis period, which is
@@ -44,7 +44,7 @@ actually detect the mouse.
 * `mouse_speed_max`: The maximal speed the mouse attained during the analysis
 period.
 * `mouse_distance`: The total distance the mouse covered over the analysis period.
-* `mouse_deepest_underground`: The longest distance the mouse has been under ground
+* `mouse_trail_longest`: The longest distance the mouse has been under ground
 during the analysis period. This distance is given by the maximum over the length
 of all mouse trails.
 
