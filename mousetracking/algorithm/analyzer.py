@@ -227,10 +227,13 @@ class Analyzer(DataHandler):
         return distance
 
     
-    def get_mouse_velocities(self):
-        """ returns an array with mouse velocities as a function of time """
+    def get_mouse_velocities(self, invalid=0):
+        """ returns an array with mouse velocities as a function of time.
+        Velocities at positions where we have no information about the mouse
+        are set to `invalid`, if `invalid` is not None """
         velocity = self.get_mouse_track_data('velocity')
-        velocity[np.isnan(velocity)] = 0
+        if invalid is not None:
+            velocity[np.isnan(velocity)] = invalid
         return velocity * self.length_scale / self.time_scale
 
 
@@ -493,6 +496,37 @@ class Analyzer(DataHandler):
     # GENERAL ROUTINES
     #===========================================================================
 
+    def get_mouse_ground_distance_max(self, frame_ivals=None):
+        """ determines the maximal distance of the mouse to the ground line
+        during the given frame_slices """
+        
+        # load data
+        trajectory = self.get_mouse_track_data()
+        ground_profile = self.data['pass2/ground_profile']
+        
+        # iterate over all frame intervals
+        res_diagonal, res_vertical = [], []
+        for a, b in frame_ivals:
+            max_diagonal, max_vertical = -np.inf, -np.inf
+            # iterate over all frames in this interval
+            for frame_id in xrange(a, b):
+                # retrieve data for this frame
+                pos = trajectory[frame_id]
+                if np.isnan(pos[0]):
+                    continue
+                ground = ground_profile.get_ground_profile(frame_id)
+                # get geometric distance
+                dist = ground.get_distance(pos, signed=True)
+                max_diagonal = max(max_diagonal, dist)
+                # get vertical distance
+                dist = pos[1] - ground.get_y(pos[0])
+                max_vertical = max(max_vertical, dist)
+            res_diagonal.append(max_diagonal)
+            res_vertical.append(max_vertical)
+            
+        return np.array(res_diagonal), np.array(res_vertical)              
+
+
     
     def get_statistics_periods(self, keys=None, slice_length=None):
         """ calculate statistics given in `keys` for consecutive time slices.
@@ -507,16 +541,16 @@ class Analyzer(DataHandler):
         if slice_length:
             frame_range = range(frame_range[0], frame_range[1],
                                 int(slice_length))
-        frame_slices = [slice(a, b + 1)
-                        for a, b in itertools.izip(frame_range,
-                                                   frame_range[1:])]
+        frame_ivals = [(a, b + 1) for a, b in itertools.izip(frame_range,
+                                                             frame_range[1:])]
+        frame_slices = [slice(a, b + 1) for a, b in frame_ivals]
 
         # save the time slices used for analysis
-        result = {'frame_bins': [[s.start, s.stop] for s in frame_slices],
-                  'period_start': [s.start*self.time_scale for s in frame_slices],
-                  'period_end': [s.stop*self.time_scale for s in frame_slices],
-                  'period_duration': [(s.stop - s.start)*self.time_scale
-                                      for s in frame_slices]}
+        result = {'frame_interval': frame_ivals,
+                  'period_start': [a*self.time_scale for a, _ in frame_ivals],
+                  'period_end': [b*self.time_scale for _, b in frame_ivals],
+                  'period_duration': [(b - a)*self.time_scale 
+                                      for a, b in frame_ivals]}
 
         # get the area changes of the ground line
         if 'ground_removed' in keys or 'ground_accrued' in keys:
@@ -557,23 +591,32 @@ class Analyzer(DataHandler):
                 result[key] = np.array(res) * self.speed_scale
                 del keys[key]
         
-        if 'mouse_distance' in keys:
-            # get distance statistics
+        # get distance statistics
+        if 'mouse_distance_covered' in keys:
             trajectory = self.get_mouse_trajectory()
             dist = []
             for t_slice in frame_slices:
                 trajectory_part = trajectory[t_slice]
                 valid = np.isfinite(trajectory_part[:, 0])
                 dist.append(curves.curve_length(trajectory_part[valid]))
-            result['mouse_distance'] = dist * self.length_scale
-            del keys['mouse_distance']
-            
+            result['mouse_distance_covered'] = dist * self.length_scale
+            del keys['mouse_distance_covered']
+
         if 'mouse_trail_longest' in keys:
             ground_dist = self.get_mouse_track_data('ground_dist')
             dist = [-np.nanmin(ground_dist[t_slice])
                     for t_slice in frame_slices]
             result['mouse_trail_longest'] = dist * self.length_scale
             del keys['mouse_trail_longest']
+            
+        if 'mouse_deepest_diagonal' in keys or 'mouse_deepest_vertical' in keys:
+            dist_diag, dist_vert = self.get_mouse_ground_distance_max(frame_ivals)
+            if 'mouse_deepest_diagonal' in keys:
+                result['mouse_deepest_diagonal'] = dist_diag * self.length_scale
+                del keys['mouse_deepest_diagonal']
+            if 'mouse_deepest_vertical' in keys:
+                result['mouse_deepest_vertical'] = dist_vert * self.length_scale
+                del keys['mouse_deepest_vertical']
 
         if keys and not isinstance(keys, OmniContainer):
             # report statistics that could not be calculated
@@ -625,7 +668,7 @@ class Analyzer(DataHandler):
             result_periods = self.get_statistics_periods(keys)
             for k, v in result_periods.iteritems():
                 result[k] = v[0]
-                
+        
         return result
             
     

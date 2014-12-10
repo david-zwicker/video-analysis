@@ -33,7 +33,7 @@ class GroundProfile(object):
     @points.setter
     def points(self, value):
         self._points = np.asarray(value, np.double)
-        self._cache = {}
+        self._cache = {} #< reset the cache of the cached_property
         
         
     def __repr__(self):
@@ -113,6 +113,16 @@ class GroundProfile(object):
         else:
             return self.interpolator(x)
         
+        
+    def get_distance(self, (x, y), signed=False):
+        """ calculates the (signed) distance of a point to the ground line. If
+        the distance is signed, points above the ground are associated with 
+        negative distances """
+        dist = self.linestring.distance(geometry.Point(x, y))
+        if signed and self.above_ground((x, y)):
+            dist *= -1
+        return dist
+
         
     def above_ground(self, (x, y)):
         """ returns True if the point is above the ground """

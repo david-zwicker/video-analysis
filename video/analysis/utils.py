@@ -18,6 +18,9 @@ class cached_property(object):
             @cached_property
             def foo(self):
                 return "Cached"
+                
+    The data is stored in a dictionary named `_cache` attached to the instance
+    of each object. The cache can thus be cleared by setting self._cache = {}
 
     Adapted from <http://wiki.python.org/moin/PythonDecoratorLibrary>.
     """

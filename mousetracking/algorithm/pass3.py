@@ -283,7 +283,6 @@ class ThirdPass(DataHandler):
         return ground_dist
 
 
-
     def classify_mouse_state(self, mouse_track):
         """ classifies the mouse in the current frame """
         if (not np.all(np.isfinite(self.mouse_pos)) or
