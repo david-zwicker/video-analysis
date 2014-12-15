@@ -505,6 +505,7 @@ class Analyzer(DataHandler):
         trajectory = self.data['pass2/mouse_trajectory'].pos
         trail_lengths = self.data['pass2/mouse_trajectory'].ground_dist
         ground_profile = self.data['pass2/ground_profile']
+        ground_dist_error = 0.5 * self.data['parameters/ground/point_spacing']
         
         # iterate over all frame intervals
         res_diagonal, res_vertical = [], []
@@ -527,9 +528,14 @@ class Analyzer(DataHandler):
                      
                     ground = ground_profile.get_ground_profile(frame_id)
 
-                    # get vertical distance, since mouse is under ground
-                    dist_vert = pos[1] - ground.get_y(pos[0])
-                    max_vertical = max(max_vertical, dist_vert)
+                    # get approximate vertical distance quickly
+                    dist_vert_approx = pos[1] - ground.get_y(pos[0], nearest_neighbor=True)
+                    if dist_vert_approx > max_vertical - ground_dist_error:
+                        # get exact vertical distance
+                        dist_vert = pos[1] - ground.get_y(pos[0])
+                        max_vertical = max(max_vertical, dist_vert)
+                    else:
+                        dist_vert = dist_vert_approx
                 
                     # Here, we use that max_vertical >= max_diagonal
                     if dist_vert > max_diagonal:
