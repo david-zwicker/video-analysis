@@ -101,7 +101,6 @@ class SecondPass(DataHandler):
             for b in tracks[max(a_idx - look_back_count, 0):]:
                 if a is b or graph.has_edge(a, b):
                     continue # don't add self-loops or multiple loops
-                
                 gap_length = b.start - a.end #< time gap between the two chunks
                 if gap_length > -tolerated_overlap:
                     # calculate the cost of this gap
@@ -122,7 +121,7 @@ class SecondPass(DataHandler):
             # highlight node if necessary
             if a in graph:
                 graph.node[a]['highlight'] = (a_idx in highlight_nodes)
-                        
+
         return graph
             
                 
@@ -140,7 +139,7 @@ class SecondPass(DataHandler):
                     # find best path to reach this out degree
                     path = nx.shortest_path(graph, start_node, end_node, weight='cost')
                 except nx.exception.NetworkXNoPath:
-                    # there are no connections between the start and the end node 
+                    # there are no connections between the start and the end node
                     continue #< check the next node
                 else:
                     paths.append(path)
@@ -184,6 +183,25 @@ class SecondPass(DataHandler):
         threshold = self.params['tracking/initial_score_threshold']
         threshold_max = self.params['tracking/score_threshold_max']
 
+        # sort them according to their start time
+        tracks.sort(key=lambda track: track.start)
+
+        # build list of start and end nodes
+        excluded_tracks = []
+        if start_nodes:
+            excluded_tracks += start_nodes
+        if end_nodes:
+            excluded_tracks += end_nodes
+
+        # break apart long tracks to facilitate graph matching
+        track_len_orig = len(tracks)
+        tracks.break_long_tracks(self.params['tracking/splitting_duration_min'],
+                                 excluded_tracks=excluded_tracks)
+        if len(tracks) != track_len_orig:
+            self.logger.info('Pass 2 - Increased the track count from %d to %d '
+                             'by splitting long, overlapping tracks.',
+                             track_len_orig, len(tracks))
+
         # set flags if the end nodes have to be determined automatically
         determine_start_nodes = (start_nodes is None)
         determine_end_nodes = (end_nodes is None)
@@ -200,7 +218,7 @@ class SecondPass(DataHandler):
                     start_nodes, _ = self.find_outer_nodes(graph)
                 if determine_end_nodes:
                     _, end_nodes = self.find_outer_nodes(graph)
-    
+
                 # find possible paths between the start and end nodes
                 find_all = (successful_iterations >= 1)
                 paths = self.find_paths_in_track_graph(graph, start_nodes,
@@ -337,6 +355,23 @@ class SecondPass(DataHandler):
             
             if dist > dist_threshold and dist/len(track) > min_mean_speed:
                 sure_tracks.append(track_id)
+
+        # remove overlapping tracks that were marked as true tracks
+        k = 1
+        t1 = tracks[sure_tracks[0]]
+        while k < len(sure_tracks):
+            t2 = tracks[sure_tracks[k]]
+            if t1.end > t2.start:
+                # overlap => delete shorter track
+                if t1.duration > t2.duration:
+                    del sure_tracks[k]
+                else:
+                    del sure_tracks[k-1]
+                    t1 = t2
+            else:
+                # check next track
+                k += 1
+                t1 = t2
 
         return sure_tracks
         

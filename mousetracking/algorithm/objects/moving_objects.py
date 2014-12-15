@@ -202,6 +202,18 @@ class ObjectTrackList(list):
     
     duration_min = 2 #< minimal duration of a track to be considered
     
+
+    def __getitem__(self, item):
+        result = super(ObjectTrackList, self).__getitem__(item)
+        if isinstance(item, slice):
+            return ObjectTrackList(result)
+        else:
+            return result
+    
+
+    def __getslice__(self, i, j):
+        return ObjectTrackList(super(ObjectTrackList, self).__getslice__(i, j))
+
     
     def insert(self, index, item):
         if item.duration >= self.duration_min:
@@ -234,14 +246,19 @@ class ObjectTrackList(list):
                 self.append(item)
 
 
-    def break_long_tracks(self, duration_cutoff):
+    def break_long_tracks(self, duration_cutoff, excluded_tracks=None):
         """ breaks apart long tracks and stores the chunks """
+        if excluded_tracks is None:
+            excluded_tracks = set()
+        else:
+            excluded_tracks = set(excluded_tracks)
+        
         k1 = 0
         # iterate over changing list `self`
         while k1 < len(self):
             track1 = self[k1]
-            if track1.duration < duration_cutoff:
-                # track is short => check next one
+            if track1 in excluded_tracks or track1.duration < duration_cutoff:
+                # track is excluded or too short => check next one
                 k1 += 1
                 continue
             
@@ -250,6 +267,8 @@ class ObjectTrackList(list):
                 if track2.start >= track1.end - duration_cutoff:
                     # there won't be any overlapping tracks 
                     break #< check the next track1
+                if track2 in excluded_tracks:
+                    continue #< skip this track
                 if track2.duration >= duration_cutoff:
                     # both tracks are long and they overlap => split them
                     track1s, track2s = [], [] #< split tracks
