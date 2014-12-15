@@ -526,14 +526,15 @@ class Analyzer(DataHandler):
                     # currently under ground
                      
                     ground = ground_profile.get_ground_profile(frame_id)
+
+                    # get vertical distance, since mouse is under ground
+                    dist_vert = pos[1] - ground.get_y(pos[0])
+                    max_vertical = max(max_vertical, dist_vert)
                 
-                    # get geometric distance, if mouse is enough under ground
-                    if trail_length > max_diagonal:
+                    # Here, we use that max_vertical >= max_diagonal
+                    if dist_vert > max_diagonal:
                         dist = ground.get_distance(pos, signed=True)
                         max_diagonal = max(max_diagonal, dist)
-                    # get vertical distance, since mouse is under ground
-                    dist = pos[1] - ground.get_y(pos[0])
-                    max_vertical = max(max_vertical, dist)
                 
             res_diagonal.append(max_diagonal)
             res_vertical.append(max_vertical)
