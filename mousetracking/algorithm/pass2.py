@@ -16,6 +16,7 @@ from shapely import geometry
 
 from .data_handler import DataHandler
 from .objects import GroundProfile, GroundProfileTrack, MouseTrack
+from .utils import deprecated
 from video.analysis import curves
 from video.composer import VideoComposer
 from video.filters import FilterCrop
@@ -240,7 +241,8 @@ class SecondPass(DataHandler):
         
         return path_best
          
-                
+
+    @deprecated                
     def get_best_track(self, tracks, sure_tracks):
         """ finds the best connection of tracks """
         if not tracks:

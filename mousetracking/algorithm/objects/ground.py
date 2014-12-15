@@ -100,7 +100,10 @@ class GroundProfile(object):
 
     @cached_property
     def interpolator(self):
-        return Interpolate_1D_Extrapolated(self._points[:, 0], self._points[:, 1])
+        return Interpolate_1D_Extrapolated(self._points[:, 0],
+                                           self._points[:, 1],
+                                           copy=False,
+                                           assume_sorted=True)
     
     
     def get_y(self, x, nearest_neighbor=False):

@@ -512,7 +512,10 @@ class Analyzer(DataHandler):
             # iterate over all frames in this interval
             for frame_id in xrange(a, b):
                 # retrieve data for this frame
-                pos = trajectory[frame_id]
+                try:
+                    pos = trajectory[frame_id]
+                except IndexError:
+                    break
                 if np.isnan(pos[0]):
                     continue
                 ground = ground_profile.get_ground_profile(frame_id)
@@ -522,6 +525,7 @@ class Analyzer(DataHandler):
                 # get vertical distance
                 dist = pos[1] - ground.get_y(pos[0])
                 max_vertical = max(max_vertical, dist)
+                
             res_diagonal.append(max_diagonal)
             res_vertical.append(max_vertical)
             
@@ -562,10 +566,8 @@ class Analyzer(DataHandler):
 
             if 'ground_removed' in keys:
                 result['ground_removed'] = area_removed * self.length_scale**2
-                del keys['ground_removed'] 
             if 'ground_accrued' in keys:
                 result['ground_accrued'] = area_accrued * self.length_scale**2
-                del keys['ground_accrued'] 
 
         # get durations of the mouse being in different states        
         for key, pattern in (('time_spent_moving', '...M'), 
@@ -575,7 +577,6 @@ class Analyzer(DataHandler):
                 duration = [np.count_nonzero(states[t_slice] == 0)
                             for t_slice in frame_slices]
                 result[key] = duration * self.time_scale
-                del keys[key]
 
         # get velocity statistics
         speed_statistics = {
@@ -589,7 +590,6 @@ class Analyzer(DataHandler):
             for key, stat_func in speed_statistics.iteritems():
                 res = [stat_func(speed[t_slice]) for t_slice in frame_slices]
                 result[key] = np.array(res) * self.speed_scale
-                del keys[key]
         
         # get distance statistics
         if 'mouse_distance_covered' in keys:
@@ -600,29 +600,31 @@ class Analyzer(DataHandler):
                 valid = np.isfinite(trajectory_part[:, 0])
                 dist.append(curves.curve_length(trajectory_part[valid]))
             result['mouse_distance_covered'] = dist * self.length_scale
-            del keys['mouse_distance_covered']
 
         if 'mouse_trail_longest' in keys:
             ground_dist = self.get_mouse_track_data('ground_dist')
             dist = [-np.nanmin(ground_dist[t_slice])
                     for t_slice in frame_slices]
             result['mouse_trail_longest'] = dist * self.length_scale
-            del keys['mouse_trail_longest']
             
         if 'mouse_deepest_diagonal' in keys or 'mouse_deepest_vertical' in keys:
             dist_diag, dist_vert = self.get_mouse_ground_distance_max(frame_ivals)
             if 'mouse_deepest_diagonal' in keys:
                 result['mouse_deepest_diagonal'] = dist_diag * self.length_scale
-                del keys['mouse_deepest_diagonal']
             if 'mouse_deepest_vertical' in keys:
                 result['mouse_deepest_vertical'] = dist_vert * self.length_scale
-                del keys['mouse_deepest_vertical']
 
-        if keys and not isinstance(keys, OmniContainer):
-            # report statistics that could not be calculated
-            self.logger.warn('The following statistics are not defined in the '
-                             'algorithm and could therefore not be '
-                             'calculated: %s', ', '.join(keys))
+        # determine the remaining keys
+        if not isinstance(keys, OmniContainer):
+            keys = set(keys) - set(result.keys())  
+
+        if not isinstance(keys, OmniContainer):
+            keys = set(keys) - set(result.keys())
+            if keys:
+                # report statistics that could not be calculated
+                self.logger.warn('The following statistics are not defined in '
+                                 'the algorithm and could therefore not be '
+                                 'calculated: %s', ', '.join(keys))
         
         return result
         
@@ -654,13 +656,14 @@ class Analyzer(DataHandler):
             # save the data
             if 'burrow_length_max' in keys:
                 result['burrow_length_max'] = length_max*self.length_scale
-                del keys['burrow_length_max']
             if 'burrow_length_total' in keys:
                 result['burrow_length_total'] = length_total*self.length_scale
-                del keys['burrow_length_total']
             if 'burrow_area_total' in keys:
                 result['burrow_area_total'] = area_total*self.length_scale**2
-                del keys['burrow_area_total']
+        
+        # determine the remaining keys
+        if not isinstance(keys, OmniContainer):
+            keys = set(keys) - set(result.keys())  
         
         if keys:
             # fill in the remaining keys by using the statistics function that
