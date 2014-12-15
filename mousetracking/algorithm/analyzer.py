@@ -503,6 +503,7 @@ class Analyzer(DataHandler):
         
         # load data
         trajectory = self.data['pass2/mouse_trajectory'].pos
+        trail_lengths = self.data['pass2/mouse_trajectory'].ground_dist
         ground_profile = self.data['pass2/ground_profile']
         
         # iterate over all frame intervals
@@ -511,20 +512,28 @@ class Analyzer(DataHandler):
             max_diagonal, max_vertical = -np.inf, -np.inf
             # iterate over all frames in this interval
             for frame_id in xrange(a, b):
-                # retrieve data for this frame
+                # retrieve mouse position
                 try:
                     pos = trajectory[frame_id]
                 except IndexError:
                     break
                 if np.isnan(pos[0]):
                     continue
-                ground = ground_profile.get_ground_profile(frame_id)
-                # get geometric distance
-                dist = ground.get_distance(pos, signed=True)
-                max_diagonal = max(max_diagonal, dist)
-                # get vertical distance
-                dist = pos[1] - ground.get_y(pos[0])
-                max_vertical = max(max_vertical, dist)
+                trail_length = trail_lengths[frame_id]
+                
+                if max_diagonal < 0 or trail_length > 0:
+                    # mouse was either never under ground or it is currently
+                    # currently under ground
+                     
+                    ground = ground_profile.get_ground_profile(frame_id)
+                
+                    # get geometric distance, if mouse is enough under ground
+                    if trail_length > max_diagonal:
+                        dist = ground.get_distance(pos, signed=True)
+                        max_diagonal = max(max_diagonal, dist)
+                    # get vertical distance, since mouse is under ground
+                    dist = pos[1] - ground.get_y(pos[0])
+                    max_vertical = max(max_vertical, dist)
                 
             res_diagonal.append(max_diagonal)
             res_vertical.append(max_vertical)

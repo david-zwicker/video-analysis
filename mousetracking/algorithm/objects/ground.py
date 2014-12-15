@@ -102,8 +102,7 @@ class GroundProfile(object):
     def interpolator(self):
         return Interpolate_1D_Extrapolated(self._points[:, 0],
                                            self._points[:, 1],
-                                           copy=False,
-                                           assume_sorted=True)
+                                           copy=False)
     
     
     def get_y(self, x, nearest_neighbor=False):
