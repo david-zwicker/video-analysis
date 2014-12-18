@@ -73,19 +73,19 @@ class PassBase(DataHandler):
     def update_status(self, status_update):
         """ update the status file """
         path = self.get_filename('status.yaml', 'logging')
-        with open(path, 'r+') as fp:
-            # read data
-            try:
+
+        # read data
+        try:
+            with open(path, 'r') as fp:
                 status = yaml.load(fp)
-            except IOError:
-                status = {}
+        except IOError:
+            status = {}
             
-            # update data
-            status.update(status_update)
+        # update data
+        status.update(status_update)
             
-            # write data
-            fp.seek(0)
-            fp.truncate()
+        # write data
+        with open(path, 'w') as fp:
             yaml.dump(status, fp)
         
     
