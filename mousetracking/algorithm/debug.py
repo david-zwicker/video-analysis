@@ -73,9 +73,10 @@ def show_image(*images, **kwargs):
         images = [np.ma.array(image, mask=~mask) for image in images]
     
     # see if all the images have the same dimensions
-    if len(set(image.shape[:2] for image in images)) == 1:
-        share_axes = True
-    else:
+    try:
+        share_axes = (len(set(image.shape[:2] for image in images)) == 1)
+    except AttributeError:
+        # there is something else than a np.ndarray in the list
         share_axes = False
     
     # choose the color map and color scaling
@@ -102,23 +103,35 @@ def show_image(*images, **kwargs):
             ax = plt.subplot(num_rows, num_cols, k + 1)
             
         # plot the image
-        img = ax.imshow(image, interpolation='nearest',
-                        vmin=vmin, vmax=vmax, norm=norm)
-        
-        # add the colorbar
-        if image.min() != image.max():
-            # recipe from http://stackoverflow.com/a/18195921/932593
-            from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport
-            divider = make_axes_locatable(plt.gca())
-            cax = divider.append_axes("right", size="5%", pad=0.05)
-            try:
-                plt.colorbar(img, cax=cax)
-            except DeprecationWarning:
-                # we don't care about these in the debug module
-                pass
+        if isinstance(image, np.ndarray):
+            img = ax.imshow(image, interpolation='nearest',
+                            vmin=vmin, vmax=vmax, norm=norm)
+            # add the colorbar
+            if image.min() != image.max():
+                # recipe from http://stackoverflow.com/a/18195921/932593
+                from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport
+                divider = make_axes_locatable(plt.gca())
+                cax = divider.append_axes("right", size="5%", pad=0.05)
+                try:
+                    plt.colorbar(img, cax=cax)
+                except DeprecationWarning:
+                    # we don't care about these in the debug module
+                    pass
             
-        # adjust the mouse over effects
-        ax.format_coord = functools.partial(_ax_format_coord, image=image)
+            # adjust the mouse over effects
+            ax.format_coord = functools.partial(_ax_format_coord, image=image)
+            
+        elif len(image) == 2:
+            # assume it's a vector field plot
+            u, v = image
+            #max_len = np.hypot(u, v).max()
+            
+            ax.quiver(u[::-10, ::10], -v[::-10, ::10], pivot='tip',
+                      angles='xy', scale_units='xy')
+            plt.axis('equal')
+            
+        else:
+            raise ValueError('Unsupported image type')
         
     # show the images and wait for user input
     plt.show()
@@ -146,6 +159,8 @@ def show_shape(*shapes, **kwargs):
     if background is not None:
         axim = ax.imshow(background, origin='upper',
                          interpolation='nearest', cmap=plt.get_cmap('gray'))
+        # adjust the mouse over effects
+        ax.format_coord = functools.partial(_ax_format_coord, image=background)
         if background.min() != background.max():
             # recipe from http://stackoverflow.com/a/18195921/932593
             from mpl_toolkits.axes_grid1 import make_axes_locatable  # @UnresolvedImport

@@ -11,7 +11,7 @@ import math
 
 import numpy as np
 from shapely import geometry
-from scipy import ndimage, optimize, signal
+from scipy import ndimage, optimize, signal, integrate
 import cv2
 
 from ..objects import GroundProfile
@@ -245,18 +245,134 @@ class GroundDetector(object):
     
     
     
+
+def get_subpixel(img, pt):
+    x, y = pt
+    dx = x - int(x)
+    dy = y - int(y)
+
+    weight_tl = (1.0 - dx) * (1.0 - dy)
+    weight_tr = (dx)       * (1.0 - dy)
+    weight_bl = (1.0 - dx) * (dy)
+    weight_br = (dx)       * (dy)
+    return (weight_tl*img[y  , x  ] +
+            weight_tr*img[y  , x+1] +
+            weight_bl*img[y+1, x  ] +
+            weight_br*img[y+1, x+1])
+
+
+def get_subpixels(img, pts):
+    res = [get_subpixel(img, pt) for pt in pts]
+    return np.array(res)
+    
+    
+
+def run_snake(image, (x, y), blur_radius=10, f=0.001):
+
+    # get image gradient
+    Ix = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=5)
+    Iy = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=5)
+
+    ds = curves.curve_length(np.c_[x, y])/(len(x) - 1)
+
+    # define parameters
+    alpha = 1e-1/f/ds**2 # tension ~1/ds^2
+    beta = 1e2/f/ds**4 # stiffness ~ 1/ds^4
+    gamma = 10*f #~ dt
+    iterations = 50
+
+    # create matrix
+    # TODO: Derive correct boundary conditions that only allow movement in
+    # y direction
+    N = len(x)
+    a = gamma*(2*alpha + 6*beta) + 1
+    b = gamma*(-alpha - 4*beta)
+    c = gamma*beta
+    
+    if False:
+        # matrix for closed loop
+        P = (
+            np.diag(np.zeros(N) + a) +
+            np.diag(np.zeros(N-1) + b, 1) + np.diag(   [b], -N+1) +
+            np.diag(np.zeros(N-1) + b,-1) + np.diag(   [b],  N-1) +
+            np.diag(np.zeros(N-2) + c, 2) + np.diag([c, c], -N+2) +
+            np.diag(np.zeros(N-2) + c,-2) + np.diag([c, c],  N-2)
+        )
+        
+    else:
+        # matrix for open end
+        P = (
+            np.diag(np.zeros(N) + a) +
+            np.diag(np.zeros(N-1) + b, 1) +
+            np.diag(np.zeros(N-1) + b,-1) +
+            np.diag(np.zeros(N-2) + c, 2) +
+            np.diag(np.zeros(N-2) + c,-2)
+        )
+        P[0, 1] = P[-1, -2] = 2*b
+        P[0, 2] = P[-1, -3] = 2*c
+        P[0, 2] = P[-1, -3] = 2*c
+        P[1, 1] = P[-2, -2] = a + c
+        
+#         show_image(P)
+        
+    Pinv = np.linalg.inv(P)
+
+    gradmag = np.hypot(Ix, Iy)
+    if blur_radius > 0:
+        gradmag = cv2.GaussianBlur(gradmag, (0, 0), blur_radius)
+    fx = cv2.Sobel(gradmag, cv2.CV_64F, 1, 0, ksize=5)
+    fy = cv2.Sobel(gradmag, cv2.CV_64F, 0, 1, ksize=5)
+
+
+    # plt.quiver(fx[::10, ::10], fy[::10, ::10])
+    # plt.show()
+    # exit()
+
+    # plt.imshow(gradmag)
+    # plt.colorbar()
+    # plt.show()
+    # exit()
+
+    # get_subpixels(np.array([[0, 1], [1, 2]],),
+    #                     np.c_[0:1:0.1, 0:1:0.1])
+
+    for ii in xrange(iterations):
+        # TODO: find better stopping criterium
+        # Calculate external force
+        coords = np.c_[x, y]
+        fex = get_subpixels(fx, coords)
+        fey = get_subpixels(fy, coords)
+        
+        # Move control points
+        xn = x[0], x[-1]
+        x = np.dot(Pinv, x + gamma*fex)
+        y = np.dot(Pinv, y + gamma*fey)
+        x[0], x[-1] = xn
+
+        x = np.clip(x, 0, image.shape[1] - 2)
+        y = np.clip(y, 0, image.shape[0] - 2)
+
+    return (x, y)    
+    
+    
     
 class GroundDetectorGlobal(GroundDetector):
     """ class that handles the detection and adaptation of the ground line """
     
+
+    def __init__(self, *args, **kwargs):
+        super(GroundDetectorGlobal, self).__init__(*args, **kwargs)
+        self.img_shape = None
+        self.blur_radius = 20
+
     
     def get_buffer_images(self, indices, image):
         # prepare buffers
         if ('img_buffer' not in self._cache or
             len(self._cache['img_buffer']) <= max(indices)):
-            
-            shape = (max(indices) + 1,) + image.shape
-            self._cache['img_buffer'] = np.zeros(shape, np.double)
+            self.img_shape = image.shape
+            self._cache['img_buffer'] = [np.zeros(self.img_shape, np.double)
+                                         for _ in xrange(max(indices) + 1)]
             
         return [self._cache['img_buffer'][i] for i in indices]
 
@@ -274,6 +390,7 @@ class GroundDetectorGlobal(GroundDetector):
         
         # do Sobel filtering to find the image edges
         sobel_x, sobel_y = buffer2, buffer3
+        cv2.divide(image, 256, dst=image) #< scale image to [0, 1]
         cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=5, dst=sobel_x)
         cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=5, dst=sobel_y)
         
@@ -286,41 +403,60 @@ class GroundDetectorGlobal(GroundDetector):
         # use Eq. 12 from Paper `Gradient Vector Flow: A New External Force for Snakes`
         fx, fy, fxy, u, v = self.get_buffer_images(range(1, 6), image)
         
-        # FIXME: Normalize image after gradient calculation to avoid overflow
-        
         cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=5, dst=fx)
         cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=5, dst=fy)
         np.add(fx**2, fy**2, out=fxy)
         
-        print fx.max(), fy.max(), fxy.max()
-        show_image(image, fx, fy, fxy, u, v)
+#         print fx.max(), fy.max(), fxy.max()
+#         show_image(image, fx, fy, fxy, u, v)
         
-        mu = 0.1
+        mu = 10
         def dudt(u):
             return mu*cv2.Laplacian(u, cv2.CV_64F) - (u - fx)*fxy
         def dvdt(v):
             return mu*cv2.Laplacian(v, cv2.CV_64F) - (v - fy)*fxy
         
-        rhs = np.array(np.inf)
-        while np.abs(rhs).sum() > 1e-3:
+         
+        N = 10000 #< maximum number of steps that the integrator is allowed
+        dt = 1e-4 #< time step
+
+        
+        for n in xrange(N):
             rhs = dudt(u)
-            print np.abs(rhs).sum()
-            u += 1e-5*rhs
-            
-        show_image(image, u[50:-50, 50:-50])
-            
+            residual = np.abs(rhs).sum()
+            if n % 1000 == 0:
+                print n*dt, '%e' % residual 
+            u += dt*rhs
+        
+        for n in xrange(N):
+            rhs = dvdt(v)
+#             residual = np.abs(rhs).sum()
+#             if n % 100 == 0:
+#                 print n*dt, '%e' % residual 
+            v += dt*rhs
         
         
+        show_image(image, (u, v))
+        return (u, v)
+            
   
-    def refine_ground(self, frame):
+    def refine_ground_old(self, frame):
         """ adapts a points profile given as points to a given frame.
         Here, we fit a ridge profile in the vicinity of every point of the curve.
         The only fitting parameter is the distance by which a single points moves
         in the direction perpendicular to the curve. """
+        
+#         for _ in xrange(2):
+#             frame = cv2.pyrDown(frame)
+        
         # prepare image
         image = self.get_gradient_strenght(frame)
         
-        self.get_gradient_vector_flow(image)
+#         (u, v) = self.get_gradient_vector_flow(image)
+
+#         for _ in xrange(2):
+#             image = cv2.pyrUp(image)
+
         
         image_cv = cv2.cv.fromarray(image)
         #show_image(frame, image)
@@ -329,37 +465,43 @@ class GroundDetectorGlobal(GroundDetector):
         # Gradient Vector Flow: A New External Force for Snakes
         
         # make sure the curve has equidistant points
-        spacing = 2*int(self.params['ground/point_spacing'])
+        spacing = int(self.params['ground/point_spacing'])
         self.ground.make_equidistant(spacing=spacing)
 
         # consider all points that are far away from the borders        
         frame_margin = int(self.params['ground/frame_margin'])
         x_max = frame.shape[1] - frame_margin
-        points = [point for point in self.ground.points
-                  if frame_margin < point[0] < x_max]
+#         points = [point for point in self.ground.points
+#                   if frame_margin < point[0] < x_max]
+        points = self.ground.points
         points = np.array(np.round(points),  np.int32)
         
         # calculate the normal vector at each point
         normal = np.empty_like(points, dtype=np.double)
         normal[0, :] = normal[-1, :] = 0, 1 #< end points have vertical normal 
-        normal[1:-1, 0] = points[ 2:, 1] - points[:-2, 1]
-        normal[1:-1, 1] = points[:-2, 0] - points[ 2:, 0]
+        normal[1:-1, 0] = points[:-2, 1] - points[ 2:, 1]
+        normal[1:-1, 1] = points[ 2:, 0] - points[:-2, 0]
         normal /= np.linalg.norm(normal, axis=1)[:, None]
+
+        normal[:, :] = 0, 1 #< end points have vertical normal 
+
         
         curvature_energy_factor = self.params['ground/curvature_energy_factor']
         
         # define the active snake functions
         def energy_image(ps):
             """ integrate energy along """
+            count = 1
             res = image[ps[0, 1], ps[0, 0]]
             
             for (ax, ay), (bx, by) in itertools.izip(ps[:-1], ps[1:]):
                 # correct for counting corner points twice
                 res -= image[ay, ax]
-                for i in cv2.cv.InitLineIterator(image_cv, (ax, ay), (bx, by)):
-                    res += i
-
-            return res
+                count -= 1
+                for c in cv2.cv.InitLineIterator(image_cv, (ax, ay), (bx, by), connectivity=8):
+                    res += c
+                    count += 1
+            return res#/count
         
         def energy_curvature(ps):
             """ part of the energy related to the curvature of the ground line """
@@ -390,7 +532,9 @@ class GroundDetectorGlobal(GroundDetector):
             curve_len = curves.curve_length(ps)
             E1 = 0#1e2 * curvature_energy_factor * energy_curvature(ps)
             E2 = energy_image(ps.astype(np.uint8))
-            energy = (E1 - E2)/curve_len
+            E3 = 0.1*curve_len
+            print E1, E2, E3
+            energy = (E1 - E2) + E3
             # print E1, - E2
             return energy
 
@@ -400,23 +544,55 @@ class GroundDetectorGlobal(GroundDetector):
         bounds[:, 0] = -spacing
         bounds[:, 1] = spacing
         
-        result, snake_energy, _ = \
-            optimize.fmin_l_bfgs_b(energy_snake, approx_grad=True,
-                                   x0=x0, bounds=bounds,
-                                   epsilon=1)
+        
+#         result, snake_energy, _ = \
+#             optimize.fmin_l_bfgs_b(energy_snake, approx_grad=True,
+#                                    x0=x0, bounds=bounds,
+#                                    epsilon=1.41)
 
 #         result, snake_energy, _ = \
 #             optimize.fmin_tnc(energy_snake, approx_grad=True,
 #                                    x0=x0, bounds=bounds,
 #                                    epsilon=1)
+        dx = np.zeros(len(points))
+        x = x0
+        energies = np.empty(3)
+        energies[1] = energy_snake(x) 
+        improved = True
+        while improved:
+            improved = False
+            # check even and odd points independently
+            for s in (0, 1):
+                # iterate through all points
+                for k in xrange(s, len(points), 2):
+                #for k in xrange(27 + s, 28, 2):
+                    # test moving point up and down
+                    for d in (-1, 1):
+                        dx[k] = d
+                        energies[d + 1] = energy_snake(x + dx)
+                          
+                    # get the minimal energy
+                    i = np.argmin(energies)
+                    if i != 1:
+                        x[k] += i - 1 
+                        energies[1] = energies[i]
+                        print energies[1], k, i - 1
+                        improved = True
+                    dx[k] = 0
             
-#         result = optimize.fmin_powell(energy_snake, x0, disp=False)
-        #result = optimize.fmin(energy_snake, x0)
+        result = x
+            
+#         result = optimize.fmin(energy_snake, x0)
+#         result = optimize.fmin_powell(energy_snake, x0, disp=True)
         print np.sum(np.abs(result))
 
         # apply the result
         candidate_points = points + normal*result[:, None]
 
+        print energy_snake(x0), energy_snake(result)
+        show_shape(geometry.LineString(points),
+                   geometry.LineString(candidate_points),
+                   background=image, mark_points=True)
 
         # filter points, where the fit did not work
         # FIXME: fix overhanging ridge detection (changed sign of comparison Oct. 27)
@@ -440,19 +616,87 @@ class GroundDetectorGlobal(GroundDetector):
                 # => do not add the current candidate point
                 pass
                 
-#         # extend the ground line toward the left edge of the cage
-#         edge_point = self._get_cage_boundary(points[0], frame, 'left')
-#         if edge_point is not None:
-#             points.insert(0, edge_point)
-#             
-#         # extend the ground line toward the right edge of the cage
-#         edge_point = self._get_cage_boundary(points[-1], frame, 'right')
-#         if edge_point is not None:
-#             points.append(edge_point)
+        # extend the ground line toward the left edge of the cage
+        edge_point = self._get_cage_boundary(points[0], frame, 'left')
+        if edge_point is not None:
+            points.insert(0, edge_point)
+             
+        # extend the ground line toward the right edge of the cage
+        edge_point = self._get_cage_boundary(points[-1], frame, 'right')
+        if edge_point is not None:
+            points.append(edge_point)
 
-        show_shape(geometry.LineString(points), background=image, mark_points=True)
-
-            
         self.ground = GroundProfile(points)
         return self.ground
     
+    
+
+    def refine_ground(self, frame):
+        """ adapts a points profile given as points to a given frame.
+        Here, we fit a ridge profile in the vicinity of every point of the curve.
+        The only fitting parameter is the distance by which a single points moves
+        in the direction perpendicular to the curve. """
+        
+        # prepare image
+        image = self.get_gradient_strenght(frame)
+        
+        
+        # TODO: Try using gradient vector flow from this paper:
+        # Gradient Vector Flow: A New External Force for Snakes
+        
+        # make sure the curve has equidistant points
+        spacing = int(self.params['ground/point_spacing'])
+        self.ground.make_equidistant(spacing=spacing)
+
+        frame_margin = int(self.params['ground/frame_margin'])
+        x_max = frame.shape[1] - frame_margin
+        points = [point for point in self.ground.points
+                  if frame_margin < point[0] < x_max]
+        points = np.array(points,  np.double)
+        
+        x, y = run_snake(image, (points[:, 0], points[:, 1]), 
+                         blur_radius=self.blur_radius, f=0.001)
+        
+        if self.blur_radius > 10:
+            self.blur_radius -= 2
+        
+        candidate_points = np.c_[x, y]
+        
+#         show_shape(geometry.LineString(points),
+#                    geometry.LineString(candidate_points),
+#                    background=image, mark_points=True)
+
+        # filter points, where the fit did not work
+        # FIXME: fix overhanging ridge detection (changed sign of comparison Oct. 27)
+        points = []
+        for candidate in candidate_points:
+            if candidate is None:
+                continue
+            
+            # check for overhanging ridge
+            if len(points) == 0 or candidate[0] > points[-1][0]:
+                points.append(candidate)
+                
+            # there is an overhanging part, since candidate[0] <= points[-1][0]:
+            elif candidate[1] < points[-1][1]:
+                # current point is above previous point
+                # => replace the previous candidate point
+                points[-1] = candidate
+                
+            else:
+                # current point is below previous point
+                # => do not add the current candidate point
+                pass
+                
+        # extend the ground line toward the left edge of the cage
+        edge_point = self._get_cage_boundary(points[0], frame, 'left')
+        if edge_point is not None:
+            points.insert(0, edge_point)
+             
+        # extend the ground line toward the right edge of the cage
+        edge_point = self._get_cage_boundary(points[-1], frame, 'right')
+        if edge_point is not None:
+            points.append(edge_point)
+
+        self.ground = GroundProfile(points)
+        return self.ground    

@@ -1421,7 +1421,10 @@ class FirstPass(PassBase):
             
 
     def refine_ground(self, ground):
-        detector = GroundDetector(ground, self.params)
+        if 'ground_detector' not in self._cache:
+            self._cache['ground_detector'] = \
+                                    GroundDetectorGlobal(ground, self.params)
+        detector = self._cache['ground_detector']
         return detector.refine_ground(self.background)
         
 
