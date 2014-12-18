@@ -140,6 +140,11 @@ class VideoBase(object):
                                    'is already at frame %d' % (index, self.get_frame_pos()))
 
 
+    def rewind(self):
+        """ rewind video to first frame """
+        self.set_frame_pos(0) 
+
+
     def _process_frame(self, frame):
         """ returns the frame with a filter applied """
         # notify potential observers

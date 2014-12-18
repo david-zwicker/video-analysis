@@ -33,19 +33,32 @@ def ensure_directory_exists(folder):
 
 
 
+def get_number_range(dtype):
+    """
+    determines the mininal and maximal value a certain number type can hold
+    """
+    if np.issubdtype(dtype, np.integer):
+        info = np.iinfo(dtype)
+    elif np.issubdtype(dtype, np.floating):
+        info = np.finfo(dtype)
+    else:
+        raise ValueError('Unsupported data type `%r`' % dtype)
+
+    return info.min, info.max
+        
+
+
 def get_color_range(dtype):
     """
     determines the color depth of the numpy array `data`.
     If the dtype is an integer, the range that it can hold is returned.
     If dtype is an inexact number (a float point), zero and one is returned
     """
-    if(np.issubdtype(dtype, np.integer)):
+    if np.issubdtype(dtype, np.integer):
         info = np.iinfo(dtype)
         return info.min, info.max
-        
-    elif(np.issubdtype(dtype, np.floating)):
-        return 0, 1
-        
+    elif np.issubdtype(dtype, np.floating):
+        return 0, 1        
     else:
         raise ValueError('Unsupported data type `%r`' % dtype)
    

@@ -332,15 +332,27 @@ def get_farthest_ray_intersection(point_anchor, angles, polygon, ray_length=1000
 
 
 def triangle_area(a, b, c):
-    """ returns the area of a triangle with sides a, b, c """
-    # use Heron's formula
+    """ returns the area of a triangle with sides a, b, c 
+    Note that the input could also be numpy arrays
+    """
+    # use Heron's formula to calculate triangle area
     s = (a + b + c)/2
     radicand = s*(s - a)*(s - b)*(s - c)
-    if radicand > 0:
-        return np.sqrt(radicand)
-    else:
+    
+    if isinstance(radicand, np.ndarray):
+        i = (radicand > 0)
+        np.sqrt(radicand[i], out=radicand[i])
         # sometimes rounding errors produce small negative quantities
-        return 0
+        radicand[~i] = 0
+        return radicand
+
+    else:
+        # input is plain number
+        if radicand > 0:
+            return np.sqrt(radicand)
+        else:
+            # sometimes rounding errors produce small negative quantities
+            return 0
 
 
 

@@ -22,6 +22,7 @@ class VideoMemory(VideoBase):
     """
     
     write_access = True
+    seekable = True
     
     def __init__(self, data, fps=25, copy_data=True):
         

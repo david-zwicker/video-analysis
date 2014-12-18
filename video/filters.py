@@ -23,7 +23,7 @@ except ImportError:
 
 from .io.base import VideoFilterBase
 from .analysis.regions import rect_to_slices
-from .utils import get_color_range
+from .utils import get_color_range, get_number_range
 
 logger = logging.getLogger('video')
 
@@ -94,7 +94,7 @@ class FilterNormalize(VideoFilterBase):
             self._alpha = (tmax - self._tmin)/(self._fmax - self._fmin)
             
             # some safety checks on the first run:
-            fmin, fmax = get_color_range(frame.dtype)
+            fmin, fmax = get_number_range(frame.dtype)
             if self._fmin < fmin:
                 logger.warn('Lower normalization bound is below what the format can hold.')
             if self._fmax > fmax:
