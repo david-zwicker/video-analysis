@@ -71,7 +71,11 @@ class PassBase(DataHandler):
 
     
     def update_status(self, status_update):
-        """ update the status file """
+        """ update the status file.
+        The update is done by reading the file, updating it, and then writing it
+        again. There is a possible race-condition if the surveillance system is
+        doing this at the same time.
+        """
         path = self.get_filename('status.yaml', 'logging')
 
         # read data
@@ -93,10 +97,17 @@ class PassBase(DataHandler):
         """ update the status for the current pass """
         # make sure that we know the name of this pass
         pass_name = kwargs.pop('pass_name', self.pass_name)
-                
+        
+        # set the current time      
         data = kwargs
         data['timestamp'] = str(datetime.datetime.now())
-                
+        
+        # set the current job_id if it is given
+        job_id = self.params.get('resources/%s/job_id' % pass_name, None)
+        if job_id:
+            data['job_id'] = job_id
+        
+        # write the updated status
         self.update_status({pass_name: data})
         
         

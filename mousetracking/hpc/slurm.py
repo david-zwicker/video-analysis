@@ -51,6 +51,7 @@ class ProjectSingleSlurm(HPCProjectBase):
     job_ids_file = 'job_ids.txt'
     log_file = 'log_pass%d_%s.txt'
     status_cache_file = 'status_pass%d.yaml'
+    status_file = '%s_status.yaml'
     pass_finished_states = {'done', 'ffmpeg-error'}
 
 
@@ -151,7 +152,10 @@ class ProjectSingleSlurm(HPCProjectBase):
 
 
     def get_pass_status(self, pass_id):
-        """ check the status of a single pass """
+        """ check the status of a single pass
+        This function is deprecated, because we now store the status information
+        in a single yaml file per project
+        """
         cache_file_name = os.path.join(self.folder,
                                        self.status_cache_file % pass_id)
         try:
@@ -178,9 +182,36 @@ class ProjectSingleSlurm(HPCProjectBase):
             # project is initialized
             status['project'] = 'initialized'
 
+            # load yaml file to get status of project
+            status_path = os.path.join(self.folder,
+                                       self.status_file % self.name)
+            try:
+                with open(status_path, "r") as fp:
+                    status_data = yaml.load(fp)
+            except IOError:
+                status_data = {}
+
+            # get the status of the individual passes
+            status_updated = False
             for pass_id in xrange(1, 5):
-                status['pass%d' % pass_id] = self.get_pass_status(pass_id)
+                pass_name = 'pass%d' % pass_id
+                if pass_name in status_data:
+                    status[pass_name] = status_data[pass_name]
+                else:
+                    status[pass_name] = {'state': 'unknown'}
+                    
+                if status[pass_name]['state'] not in {'done', 'error'}:   
+                    status[pass_name] = self.check_pass_status(pass_id)
+                    status_data[pass_name] = status[pass_name]
+                    status_updated = True
+                    
+            # write updated status
+            if status_updated:
+                with open(status_path, "w") as fp:
+                    yaml.dump(status_data, fp)
 
         else:
             status['project'] = 'not-initialized'
         return status
+    
+    

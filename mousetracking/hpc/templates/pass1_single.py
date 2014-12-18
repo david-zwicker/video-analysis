@@ -27,6 +27,7 @@ parameters.update({{
     'debug/folder': ".",
     'output/folder': ".",
     'output/video/folder': ".",
+    'resources/pass1/job_id': job_id,
 }})
 
 # do the first pass scan

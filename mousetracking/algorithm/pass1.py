@@ -262,9 +262,14 @@ class FirstPass(PassBase):
         problems = {}
         
         # check for ground line that went up to the roof
-        ground_profile = self.result['ground/profile']
-        if np.max(ground_profile.grounds[-1].points[:, 1]) < 2:
-            problems['ground_through_roof'] = True
+        try:
+            ground_profile = self.result['ground/profile']
+            last_profile = ground_profile.grounds[-1]
+        except (KeyError, IndexError):
+            problems['ground_not_found'] = True
+        else:
+            if np.max(last_profile.points[:, 1]) < 2:
+                problems['ground_through_roof'] = True
             
         # check the number of frames that were analyzed
         frames_analyzed = self.result['video/frames_analyzed']
