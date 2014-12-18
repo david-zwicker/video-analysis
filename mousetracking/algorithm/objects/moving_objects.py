@@ -162,9 +162,6 @@ class ObjectTrack(object):
         return result
     
     
-#     def get_trajectory
-#     
-    
     def to_array(self):
         """ converts the internal representation to a single array
         useful for storing the data """

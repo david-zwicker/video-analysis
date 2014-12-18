@@ -47,6 +47,18 @@ def mean(values, empty=0):
 
 
 
+def round_to_even(value):
+    """ rounds the value to the nearest even integer """
+    return int(value/2 + 0.5)*2
+
+
+
+def round_to_odd(value):
+    """ rounds the value to the nearest odd integer """
+    return int(value/2)*2 + 1
+
+
+
 @contextlib.contextmanager
 def change_directory(path):
     """

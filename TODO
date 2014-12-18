@@ -16,9 +16,9 @@
 * Pass3:
 * Pass4:
 	- connect two burrows that face each other (which happens for burrows with two exits)
-* measure depth underneath ground (both vertically, geometric distance to ground distance)
-* look at video 54, no burrow time reported, but burrow reported
-
+* Add better structure for reporting the status of a pass:
+    - provide additional PassBase class that contains functions managing the status
+    - write status to YAML file immediately on update
 
 Performance improvements:
 -------------------------

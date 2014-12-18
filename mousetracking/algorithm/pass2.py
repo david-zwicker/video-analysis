@@ -14,7 +14,7 @@ import numpy as np
 import networkx as nx
 from shapely import geometry
 
-from .data_handler import DataHandler
+from .pass_base import PassBase
 from .objects import GroundProfile, GroundProfileTrack, MouseTrack
 from .utils import deprecated
 from video.analysis import curves
@@ -25,14 +25,12 @@ from video.utils import display_progress
 import debug  # @UnusedImport
 
 
-class SecondPass(DataHandler):
+class SecondPass(PassBase):
     """ class containing methods for the second pass """
-    
+    pass_name = 'pass2' 
+
     def __init__(self, name='', parameters=None, **kwargs):
         super(SecondPass, self).__init__(name, parameters, **kwargs)
-        self.params = self.data['parameters']
-        self.result = self.data.create_child('pass2')
-        self.result['code_status'] = self.get_code_status()
         if kwargs.get('initialize_parameters', True):
             self.log_event('Pass 2 - Initialized the second pass analysis.')
         
@@ -57,6 +55,7 @@ class SecondPass(DataHandler):
 
     def process(self):
         """ do the second pass of the analysis """
+        self.set_pass_status(state='started')
         
         self.find_mouse_track()
         self.smooth_ground_profile()
@@ -64,6 +63,7 @@ class SecondPass(DataHandler):
         
         self.data['analysis-status'] = 'Finished second pass'
         self.log_event('Pass 2 - Finished second pass.')
+        self.set_pass_status(state='done')
         
         self.write_data()
 
@@ -359,21 +359,22 @@ class SecondPass(DataHandler):
                 sure_tracks.append(track_id)
 
         # remove overlapping tracks that were marked as true tracks
-        k = 1
-        t1 = tracks[sure_tracks[0]]
-        while k < len(sure_tracks):
-            t2 = tracks[sure_tracks[k]]
-            if t1.end > t2.start:
-                # overlap => delete shorter track
-                if t1.duration > t2.duration:
-                    del sure_tracks[k]
+        if sure_tracks:
+            k = 1
+            t1 = tracks[sure_tracks[0]]
+            while k < len(sure_tracks):
+                t2 = tracks[sure_tracks[k]]
+                if t1.end > t2.start:
+                    # overlap => delete shorter track
+                    if t1.duration > t2.duration:
+                        del sure_tracks[k]
+                    else:
+                        del sure_tracks[k-1]
+                        t1 = t2
                 else:
-                    del sure_tracks[k-1]
+                    # check next track
+                    k += 1
                     t1 = t2
-            else:
-                # check next track
-                k += 1
-                t1 = t2
 
         return sure_tracks
         
@@ -470,7 +471,9 @@ class SecondPass(DataHandler):
             path = self.get_best_track_connection(tracks)
               
         # build a single trajectory out of this
-        trajectory = np.empty((self.data['pass1/video/frames_analyzed'], 2))
+        trajectory_length = (self.data['pass1/video/frames_analyzed']
+                             + self.data['pass1/video/frames'][0])
+        trajectory = np.empty((trajectory_length, 2))
         trajectory.fill(np.nan)
         self.add_tracks_to_trajectory(path, trajectory)
 

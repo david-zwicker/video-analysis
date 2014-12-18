@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 from shapely import geometry, geos
 
-from .data_handler import DataHandler
+from .pass_base import PassBase
 from .objects import mouse
 from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
 from video.analysis import curves, regions
@@ -30,15 +30,16 @@ from __builtin__ import True
 
 
 
-class ThirdPass(DataHandler):
+class ThirdPass(PassBase):
     """ class containing methods for the third pass, which locates burrows
     based on the mouse movement """
+    pass_name = 'pass3'
+    
     
     def __init__(self, name='', parameters=None, **kwargs):
         super(ThirdPass, self).__init__(name, parameters, **kwargs)
         if kwargs.get('initialize_parameters', True):
             self.log_event('Pass 3 - Initialized the third pass analysis.')
-        self.initialize_pass()
         
 
     @classmethod
@@ -60,21 +61,10 @@ class ThirdPass(DataHandler):
         return obj
     
     
-    def initialize_pass(self):
-        """ initialize values necessary for this run """
-        self.params = self.data['parameters']
-        self.result = self.data.create_child('pass3')
-        self.result['code_status'] = self.get_code_status()
-        self.debug = {}
-        if self.params['debug/output'] is None:
-            self.debug_output = []
-        else:
-            self.debug_output = self.params['debug/output']
-            
-
     def process(self):
         """ processes the entire video """
         self.log_event('Pass 3 - Started initializing the video analysis.')
+        self.set_pass_status(state='started')
         
         self.setup_processing()
         self.debug_setup()
@@ -102,6 +92,9 @@ class ThirdPass(DataHandler):
         finally:
             # cleanup in all cases 
             self.add_processing_statistics(time.time() - start_time)        
+
+            # check how successful we finished
+            self.set_pass_status(**self.get_pass_state())
                         
             # cleanup and write out of data
             self.video.close()
@@ -230,6 +223,24 @@ class ThirdPass(DataHandler):
         super(ThirdPass, self).write_data()
         self.write_mouse_state()
 
+
+    def get_pass_state(self):
+        """ check how the run went """
+        problems = {}
+        
+        # check the number of frames that were analyzed
+        frames_analyzed = self.result['video/frames_analyzed']
+        frame_count = self.result['video/frame_count']
+        if frames_analyzed < 0.99*frame_count:
+            problems['stopped_early'] = True
+
+        if problems:
+            result = {'state': 'error', 'problems': problems}
+        else:
+            result = {'state': 'done'}
+            
+        return result
+    
     
     #===========================================================================
     # MOUSE TRACKING

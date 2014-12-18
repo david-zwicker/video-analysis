@@ -9,13 +9,11 @@ contains classes that manage data input and output
 from __future__ import division
 
 import collections
-import datetime
 import logging
 import os
 import subprocess
 import sys
 
-import cv2
 import yaml
 
 from .parameters import PARAMETERS, PARAMETERS_DEFAULT, UNIT, scale_parameters
@@ -167,24 +165,6 @@ class DataHandler(object):
             LazyHDFValue.compression = hdf5_compression
             
             
-    def blur_image(self, image):
-        """ returns a blurred version of the image """
-        blur_sigma = self.params['video/blur_radius']
-        blur_sigma_color = self.params['video/blur_sigma_color']
-
-        if blur_sigma_color == 0:
-            image_blurred = cv2.GaussianBlur(image, ksize=(0, 0),
-                                             sigmaX=blur_sigma,
-                                             borderType=cv2.BORDER_REPLICATE)
-        
-        else:
-            image_blurred = cv2.bilateralFilter(image, d=int(blur_sigma),
-                                                sigmaColor=blur_sigma_color,
-                                                sigmaSpace=blur_sigma)
-            
-        return image_blurred
-            
-            
     @property
     def debug_enabled(self):
         """ return True if this is a debug run """
@@ -193,6 +173,7 @@ class DataHandler(object):
 
     def get_folder(self, folder):
         """ makes sure that a folder exists and returns its path """
+        # FIXME: Rewrite if/elif as dictionary select
         base_folder = self.data['parameters/base_folder']
         if folder == 'results':
             folder = os.path.join(base_folder,
@@ -228,17 +209,6 @@ class DataHandler(object):
             return os.path.join(self.get_folder(folder), filename)
       
 
-    def log_event(self, description):
-        """ stores and/or outputs the time and date of the event given by name """
-        self.logger.info(description)
-        
-        # save the event in the result structure
-        if 'event_log' not in self.data:
-            self.data['event_log'] = []
-        event = str(datetime.datetime.now()) + ': ' + description 
-        self.data['event_log'].append(event)
-
-    
     def get_code_status(self):
         """ returns a dictionary with information about the current version of
         the code in the local git repository """

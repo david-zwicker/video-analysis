@@ -16,8 +16,8 @@ import numpy as np
 from scipy import cluster
 from shapely import geometry
 
+from .pass_base import PassBase
 from .objects.burrow import Burrow, BurrowTrackList
-from .data_handler import DataHandler
 from .utils import unique_based_on_id
 from video.analysis import curves, regions
 from video.io import ImageWindow, VideoFile
@@ -29,15 +29,15 @@ import debug  # @UnusedImport
 from mousetracking.algorithm.utils import NormalDistribution
 
 
-class FourthPass(DataHandler):
+class FourthPass(PassBase):
     """ class containing methods for the third pass, which locates burrows
     based on the mouse movement """
+    pass_name = 'pass4' 
     
     def __init__(self, name='', parameters=None, **kwargs):
         super(FourthPass, self).__init__(name, parameters, **kwargs)
         if kwargs.get('initialize_parameters', True):
-            self.log_event('Pass 4 - Initialized the third pass analysis.')
-        self.initialize_pass()
+            self.log_event('Pass 4 - Initialized the fourth pass analysis.')
         
 
     @classmethod
@@ -46,8 +46,8 @@ class FourthPass(DataHandler):
         # create the data and copy the data from first_pass
         obj = cls(third_pass.name, initialize_parameters=False)
         obj.data = third_pass.data
-        obj.params = obj.data['parameters']
-        obj.result = obj.data.create_child('pass4')
+        #obj.params = obj.data['parameters']
+        #obj.result = obj.data.create_child('pass4')
 
         # close logging handlers and other files        
         third_pass.close()
@@ -55,27 +55,14 @@ class FourthPass(DataHandler):
         # initialize parameters
         obj.initialize_parameters()
         obj.initialize_pass()
-        obj.log_event('Pass 4 - Initialized the third pass analysis.')
+        obj.log_event('Pass 4 - Initialized the fourth pass analysis.')
         return obj
     
-    
-    def initialize_pass(self):
-        """ initialize values necessary for this run """
-        self.params = self.data['parameters']
-        self.result = self.data.create_child('pass4')
-        self.result['code_status'] = self.get_code_status()
-        self.debug = {}
-        if self.params['debug/output'] is None:
-            self.debug_output = []
-        else:
-            self.debug_output = self.params['debug/output']
-        self._cache = {}
-            
 
     def process(self):
         """ processes the entire video """
-
         self.log_event('Pass 4 - Started initializing the video analysis.')
+        self.set_pass_status(state='started')
 
         self.setup_processing()
         self.debug_setup()
@@ -108,6 +95,9 @@ class FourthPass(DataHandler):
             # cleanup in all cases 
             self.add_processing_statistics(time.time() - start_time)        
                         
+            # check how successful we finished
+            self.set_pass_status(**self.get_pass_state())
+
             # cleanup and write out of data
             self.background_video.close()
             self.debug_finalize()
@@ -171,7 +161,25 @@ class FourthPass(DataHandler):
             if background_id % 1000 == 0:
                 self.logger.debug('Analyzed frame %d', self.frame_id)
 
+
+    def get_pass_state(self):
+        """ check how the run went """
+        problems = {}
+        
+        # check the number of frames that were analyzed
+        frames_analyzed = self.result['video/frames_analyzed']
+        frame_count = self.data['pass3/video/frame_count']
+        if frames_analyzed < 0.99*frame_count:
+            problems['stopped_early'] = True
+
+        if problems:
+            result = {'state': 'error', 'problems': problems}
+        else:
+            result = {'state': 'done'}
+            
+        return result
     
+        
     #===========================================================================
     # HANDLE MOUSE MOVEMENT
     #===========================================================================

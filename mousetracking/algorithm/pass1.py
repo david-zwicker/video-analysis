@@ -36,8 +36,8 @@ from video.analysis import regions, curves, image
 from video.utils import display_progress
 from video.composer import VideoComposer
 
-from .data_handler import DataHandler
-from .processes.ground_detector import GroundDetector
+from .pass_base import PassBase
+from .processes.ground_detector import GroundDetector, GroundDetectorGlobal
 from .objects.moving_objects import MovingObject, ObjectTrack, ObjectTrackList
 from .objects.ground import GroundProfile, GroundProfileList
 from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
@@ -46,27 +46,23 @@ import debug  # @UnusedImport
 
 
 
-class FirstPass(DataHandler):
+class FirstPass(PassBase):
     """
     Analyzes mouse movies. Three objects are traced over time:
         1) the mouse position
         2) the ground line 
         3) the burrows
     """
-    logging_mode = 'create'    
+    logging_mode = 'create'
+    pass_name = 'pass1' 
     
     def __init__(self, name='', parameters=None, **kwargs):
         """ initializes the whole mouse tracking and prepares the video filters """
         
         # initialize the data handler
         super(FirstPass, self).__init__(name, parameters, **kwargs)
-        self.params = self.data['parameters']
-        self.result = self.data.create_child('pass1')
-        self.result['code_status'] = self.get_code_status()
         
         # setup internal structures that will be filled by analyzing the video
-        self._cache = {}               # cache that some functions might want to use
-        self.debug = {}                # dictionary holding debug information
         self.output = {}               # dictionary holding output structures
         self.background = None         # current background model
         self.ground = None             # current model of the ground profile
@@ -74,8 +70,6 @@ class FirstPass(DataHandler):
         self.explored_area = None      # region the mouse has explored yet
         self.frame_id = 0              # id of the current frame
         self.result['objects/moved_first_in_frame'] = None
-        if self.params['debug/output'] is None:
-            self.params['debug/output'] = []
         self.log_event('Pass 1 - Initialized the first pass analysis.')
 
 
@@ -97,6 +91,7 @@ class FirstPass(DataHandler):
     def process(self):
         """ processes the entire video """
         self.log_event('Pass 1 - Started initializing the video analysis.')
+        self.set_pass_status(state='started')
         
         # restrict the video to the region of interest (the cage)
         if self.params['cage/determine_boundaries']:
@@ -134,9 +129,11 @@ class FirstPass(DataHandler):
             
         finally:
             # cleanup in all cases 
-            
             self._end_current_tracks()
             self.add_processing_statistics(time.time() - start_time)        
+
+            # check how successful we finished
+            self.set_pass_status(**self.get_pass_state())
                         
             # cleanup and write out of data
             self.video.close()
@@ -146,8 +143,8 @@ class FirstPass(DataHandler):
 
     def add_processing_statistics(self, time):
         """ add some extra statistics to the results """
-        frames_analyzed = self.frame_id + 1
-        self.data['pass1/video/frames_analyzed'] = frames_analyzed
+        frames_analyzed = self.frame_id + 1 - self.result['video/frames'][0]
+        self.result['video/frames_analyzed'] = frames_analyzed
         self.result['statistics/processing_time'] = time
         self.result['statistics/processing_fps'] = frames_analyzed/time
 
@@ -258,6 +255,29 @@ class FirstPass(DataHandler):
                     
             # store some information in the debug dictionary
             self.debug_process_frame(frame)
+                   
+                   
+    def get_pass_state(self):
+        """ check how the run went """
+        problems = {}
+        
+        # check for ground line that went up to the roof
+        ground_profile = self.result['ground/profile']
+        if np.max(ground_profile.grounds[-1].points[:, 1]) < 2:
+            problems['ground_through_roof'] = True
+            
+        # check the number of frames that were analyzed
+        frames_analyzed = self.result['video/frames_analyzed']
+        frame_count = self.result['video/frame_count']
+        if frames_analyzed < 0.99*frame_count:
+            problems['stopped_early'] = True
+
+        if problems:
+            result = {'state': 'error', 'problems': problems}
+        else:
+            result = {'state': 'done'}
+            
+        return result
                          
                     
     #===========================================================================
