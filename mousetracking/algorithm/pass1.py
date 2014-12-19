@@ -37,7 +37,7 @@ from video.utils import display_progress
 from video.composer import VideoComposer
 
 from .pass_base import PassBase
-from .processes.ground_detector import GroundDetector, GroundDetectorGlobal
+from .processes.ground_detector import GroundDetectorGlobal
 from .objects.moving_objects import MovingObject, ObjectTrack, ObjectTrackList
 from .objects.ground import GroundProfile, GroundProfileList
 from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList

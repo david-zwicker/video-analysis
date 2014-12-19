@@ -18,6 +18,44 @@ from utils import cached_property
 
 
 
+def subpixel(img, pt):
+    """ gets image intensities at a single point with sub pixel accuracy """
+    x, y = pt
+    xi = int(x)
+    yi = int(y)
+    dx = x - xi
+    dy = y - int(y)
+
+    weight_tl = (1.0 - dx) * (1.0 - dy)
+    weight_tr = (dx)       * (1.0 - dy)
+    weight_bl = (1.0 - dx) * (dy)
+    weight_br = (dx)       * (dy)
+    return (weight_tl*img[yi  , xi  ] +
+            weight_tr*img[yi  , xi+1] +
+            weight_bl*img[yi+1, xi  ] +
+            weight_br*img[yi+1, xi+1])
+
+
+
+def subpixels(img, pts):
+    """ gets image intensities of multiple points with sub pixel accuracy """
+    x, y = pts[:, 0], pts[:, 1]
+    xi = x.astype(np.int)
+    yi = y.astype(np.int)
+    dx = x - xi
+    dy = y - yi
+
+    weight_tl = (1.0 - dx) * (1.0 - dy)
+    weight_tr = (dx)       * (1.0 - dy)
+    weight_bl = (1.0 - dx) * (dy)
+    weight_br = (dx)       * (dy)
+    return (weight_tl*img[yi  , xi  ] +
+            weight_tr*img[yi  , xi+1] +
+            weight_bl*img[yi+1, xi  ] +
+            weight_br*img[yi+1, xi+1])
+
+
+
 def line_scan(image, p1, p2, width=5):
     """ returns the average intensity of an image along a strip of a given
     width, ranging from point p1 to p2.
