@@ -12,6 +12,12 @@ import sys
 from .lazy_values import LazyValue
 
 
+
+class LazyLoadError(RuntimeError):
+    pass
+
+
+
 class DictXpath(collections.MutableMapping):
     """ special dictionary class representing nested dictionaries.
     This class allows easy access to nested properties using a single key:
@@ -36,34 +42,22 @@ class DictXpath(collections.MutableMapping):
             self.from_dict(data)
 
 
-    def get_item(self, key, load_data=True):
+    def get_item(self, key):
         """ returns the item identified by `key`.
         If load_data is True, a potential LazyValue gets loaded """
         try:
             if isinstance(key, basestring) and self.sep in key:
                 # sub-data is accessed
                 child, grandchildren = key.split(self.sep, 1)
-                value = self.data[child].get_item(grandchildren, load_data)
+                try:
+                    value = self.data[child].get_item(grandchildren)
+                except AttributeError:
+                    raise KeyError(key)
             else:
                 value = self.data[key]
         except KeyError:
             raise KeyError(key)
 
-        # load lazy values
-        if load_data and isinstance(value, LazyValue):
-            try:
-                value = value.load()
-            except KeyError as err:
-                # we have to relabel KeyErrors, since they otherwise shadow
-                # KeyErrors raised by the item actually not being in the DictXpath
-                # This then allows us to distinguish between items not found in
-                # DictXpath (raising KeyError) and items not being able to load
-                # (raising LazyLoadError)
-                err_msg = ('Cannot load item `%s`.\nThe original error was: %s'
-                           % (key, err)) 
-                raise LazyLoadError, err_msg, sys.exc_info()[2] 
-            self.data[key] = value #< replace loader with actual value
-            
         return value
 
     
@@ -83,6 +77,9 @@ class DictXpath(collections.MutableMapping):
                 child_node = self.__class__()
                 child_node[grandchildren] = value
                 self.data[child] = child_node
+            except TypeError:
+                raise TypeError('Can only use Xpath assignment if all children '
+                                'are DictXpath instances.')
                 
         else:
             self.data[key] = value
@@ -94,7 +91,10 @@ class DictXpath(collections.MutableMapping):
             if isinstance(key, basestring) and self.sep in key:
                 # sub-data is deleted
                 child, grandchildren = key.split(self.sep, 1)
-                del self.data[child][grandchildren]
+                try:
+                    del self.data[child][grandchildren]
+                except TypeError:
+                    raise KeyError(key)
     
             else:
                 del self.data[key]
@@ -106,7 +106,10 @@ class DictXpath(collections.MutableMapping):
         """ returns True if the item identified by key is contained in the data """
         if isinstance(key, basestring) and self.sep in key:
             child, grandchildren = key.split(self.sep, 1)
-            return child in self.data and grandchildren in self.data[child]
+            try:
+                return child in self.data and grandchildren in self.data[child]
+            except TypeError:
+                return False
 
         else:
             return key in self.data
@@ -172,7 +175,7 @@ class DictXpath(collections.MutableMapping):
 
             
     def __repr__(self):
-        return '%s(%s)' % (self.__class__, repr(self.data))
+        return '%s(%s)' % (self.__class__.__name__, repr(self.data))
 
 
     def create_child(self, key, values=None):
@@ -235,11 +238,6 @@ class DictXpath(collections.MutableMapping):
 
 
 
-class LazyLoadError(RuntimeError):
-    pass
-
-
-
 class DictXpathLazy(DictXpath):
     """ special dictionary class representing nested dictionaries.
     This class allows easy access to nested properties using a single key.
@@ -253,7 +251,10 @@ class DictXpathLazy(DictXpath):
             if isinstance(key, basestring) and self.sep in key:
                 # sub-data is accessed
                 child, grandchildren = key.split(self.sep, 1)
-                value = self.data[child].get_item(grandchildren, load_data)
+                try:
+                    value = self.data[child].get_item(grandchildren, load_data)
+                except AttributeError:
+                    raise KeyError(key)
             else:
                 value = self.data[key]
         except KeyError:
@@ -275,3 +276,4 @@ class DictXpathLazy(DictXpath):
             self.data[key] = value #< replace loader with actual value
             
         return value
+    
