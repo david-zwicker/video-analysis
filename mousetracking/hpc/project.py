@@ -15,7 +15,7 @@ import time
 import numpy as np
 
 from ..algorithm.parameters import PARAMETERS_DEFAULT
-from ..algorithm.data_handler import DataDict
+from data_structures.dict_xpath import DictXpath
 
 
 
@@ -70,7 +70,7 @@ class HPCProjectBase(object):
             self.passes = passes
 
         # save tracking parameters
-        self.parameters = DataDict(PARAMETERS_DEFAULT)
+        self.parameters = DictXpath(PARAMETERS_DEFAULT)
         if parameters is not None:
             self.parameters.from_dict(parameters)
             

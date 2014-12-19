@@ -16,7 +16,8 @@ import cv2
 import shapely
 from shapely import geometry
 
-from .utils import LazyHDFCollection, rtrim_nan
+from data_structures.lazy_values import LazyHDFCollection
+from .utils import rtrim_nan
 from video.analysis import curves, regions
 from video.analysis.utils import cached_property
 

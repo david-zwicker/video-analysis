@@ -250,7 +250,6 @@ class GroundDetector(GroundDetectorBase):
     
 class GroundDetectorGlobal(GroundDetectorBase):
     """ class that handles the detection and adaptation of the ground line """
-    
 
     def __init__(self, *args, **kwargs):
         super(GroundDetectorGlobal, self).__init__(*args, **kwargs)
@@ -274,26 +273,22 @@ class GroundDetectorGlobal(GroundDetectorBase):
         """ calculates the gradient strength of the image in frame
         This function returns its result in buffer1
         """
-        buffer1, buffer2, buffer3 = self.get_buffers((0, 1, 2), frame.shape)
-        
         # smooth the frame_blurred to be able to find smoothed edges
         blur_radius = self.params['ground/ridge_width']
-        frame_blurred = buffer1
-        cv2.GaussianBlur(frame, (0, 0), blur_radius, dst=frame_blurred)
+        frame_blurred = cv2.GaussianBlur(frame, (0, 0), blur_radius)
         
-        # do Sobel filtering to find the frame_blurred edges
-        sobel_x, sobel_y = buffer2, buffer3
         # scale frame_blurred to [0, 1]
         cv2.divide(frame_blurred, 256, dst=frame_blurred) 
-        cv2.Sobel(frame_blurred, cv2.CV_64F, 1, 0, ksize=5, dst=sobel_x)
-        cv2.Sobel(frame_blurred, cv2.CV_64F, 0, 1, ksize=5, dst=sobel_y)
+        # do Sobel filtering to find the frame_blurred edges
+        grad_x = cv2.Sobel(frame_blurred, cv2.CV_64F, 1, 0, ksize=5)
+        grad_y = cv2.Sobel(frame_blurred, cv2.CV_64F, 0, 1, ksize=5)
 
         # restrict to edges that go from dark to white (from top to bottom)        
-        sobel_y[sobel_y < 0] = 0
+        grad_y[grad_y < 0] = 0
         
         # calculate the gradient strength
         gradient_mag = frame_blurred #< reuse memory
-        np.hypot(sobel_x, sobel_y, out=gradient_mag)
+        np.hypot(grad_x, grad_y, out=gradient_mag)
         
         return gradient_mag
         
@@ -302,11 +297,11 @@ class GroundDetectorGlobal(GroundDetectorBase):
         """ calculate the gradient vector flow from the given potential.
         This function is not very well tested, yet """
         # use Eq. 12 from Paper `Gradient Vector Flow: A New External Force for Snakes`
-        fx, fy, fxy, u, v = self.get_buffers(range(1, 6), potential.shape)
+        u, v = self.get_buffers([0, 1], potential.shape)
         
-        cv2.Sobel(potential, cv2.CV_64F, 1, 0, ksize=5, dst=fx)
-        cv2.Sobel(potential, cv2.CV_64F, 0, 1, ksize=5, dst=fy)
-        np.add(fx**2, fy**2, out=fxy)
+        fx = cv2.Sobel(potential, cv2.CV_64F, 1, 0, ksize=5)
+        fy = cv2.Sobel(potential, cv2.CV_64F, 0, 1, ksize=5)
+        fxy = fx**2 + fy**2
         
 #         print fx.max(), fy.max(), fxy.max()
 #         show_image(potential, fx, fy, fxy, u, v)

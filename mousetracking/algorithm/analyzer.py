@@ -160,9 +160,9 @@ class Analyzer(DataHandler):
     #===========================================================================
 
         
-    def get_burrow_lengths(self):
+    def get_burrow_lengths(self, pass_id=3):
         """ returns a list of burrows containing their length over time """
-        burrow_tracks = self.data['pass1/burrows/tracks']
+        burrow_tracks = self.data['pass%d/burrows/tracks' % pass_id]
         results = []
         for burrow_track in burrow_tracks:
             # read raw data

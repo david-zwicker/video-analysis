@@ -14,7 +14,8 @@ import numpy as np
 from scipy import ndimage
 from shapely import geometry
 
-from .utils import LazyHDFValue, Interpolate_1D_Extrapolated
+from data_structures.lazy_values import LazyHDFValue
+from .utils import Interpolate_1D_Extrapolated
 from video.analysis import curves
 from video.analysis.utils import cached_property
 
