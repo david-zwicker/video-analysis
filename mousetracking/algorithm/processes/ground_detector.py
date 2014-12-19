@@ -11,7 +11,6 @@ import math
 
 import numpy as np
 from scipy import ndimage, optimize, signal
-from shapely import geometry
 import cv2
 
 from ..objects import GroundProfile
@@ -247,10 +246,16 @@ class GroundDetector(object):
     
 class ActiveContour(object):
     """ class that manages an algorithm for using active contours for edge
-    detection [http://en.wikipedia.org/wiki/Active_contour_model] """
+    detection [http://en.wikipedia.org/wiki/Active_contour_model]
+    
+    This implementation is inspired by the following articles:
+        http://www.pagines.ma1.upc.edu/~toni/files/SnakesAivru86c.pdf
+        http://www.cb.uu.se/~cris/blog/index.php/archives/217
+    """
     
     max_iterations = 50  #< maximal number of iterations
     max_cache_count = 20 #< maximal number of cache entries
+    residual_tolerance = 1 #< stop iteration when reaching this residual value
     
     
     def __init__(self, blur_radius=10, alpha=0, beta=1e2, gamma=0.001,
@@ -361,7 +366,6 @@ class ActiveContour(object):
         ps = points.copy()
     
         for _ in xrange(self.max_iterations):
-            # TODO: find better stopping criterium
             # calculate external force
             fex = image.subpixels(fx, points)
             fey = image.subpixels(fy, points)
@@ -384,8 +388,7 @@ class ActiveContour(object):
             points[:, 0] = np.clip(ps[:, 0], 0, potential.shape[1] - 2)
             points[:, 1] = np.clip(ps[:, 1], 0, potential.shape[0] - 2)
 
-#             print residual
-            if residual < 1:
+            if residual < self.residual_tolerance * self.gamma:
                 break
             
     
@@ -428,7 +431,8 @@ class GroundDetectorGlobal(GroundDetector):
         
         # do Sobel filtering to find the frame_blurred edges
         sobel_x, sobel_y = buffer2, buffer3
-        cv2.divide(frame_blurred, 256, dst=frame_blurred) #< scale frame_blurred to [0, 1]
+        # scale frame_blurred to [0, 1]
+        cv2.divide(frame_blurred, 256, dst=frame_blurred) 
         cv2.Sobel(frame_blurred, cv2.CV_64F, 1, 0, ksize=5, dst=sobel_x)
         cv2.Sobel(frame_blurred, cv2.CV_64F, 0, 1, ksize=5, dst=sobel_y)
 
@@ -443,6 +447,8 @@ class GroundDetectorGlobal(GroundDetector):
         
         
     def get_gradient_vector_flow(self, potential):
+        """ calculate the gradient vector flow from the given potential.
+        This function is not very well tested, yet """
         # use Eq. 12 from Paper `Gradient Vector Flow: A New External Force for Snakes`
         fx, fy, fxy, u, v = self.get_buffers(range(1, 6), potential.shape)
         
@@ -505,11 +511,13 @@ class GroundDetectorGlobal(GroundDetector):
         if self.contour_finder is None:
             # first contour fitting
             while self.blur_radius > 0:
-                self.contour_finder = ActiveContour(blur_radius=self.blur_radius,
-                                                    closed_loop=False,
-                                                    keep_end_x=True,
-                                                    alpha=0, beta=1e4,
-                                                    gamma=1e-1)
+                ac = ActiveContour(blur_radius=self.blur_radius,
+                                   closed_loop=False,
+                                   keep_end_x=True,
+                                   alpha=0, #< line length is constraint by beta
+                                   beta=self.params['ground/active_snake_beta'],
+                                   gamma=self.params['ground/active_snake_gamma'])
+                self.contour_finder = ac
                 points = self.contour_finder.find_contour(potential, points)
                 if self.blur_radius < 2:
                     self.blur_radius = 0
@@ -521,6 +529,7 @@ class GroundDetectorGlobal(GroundDetector):
 
         points = points.tolist()
 
+#         from shapely import geometry
 #         show_shape(geometry.LineString(points),
 #                    background=potential, mark_points=True)
                 
@@ -535,4 +544,5 @@ class GroundDetectorGlobal(GroundDetector):
             points.append(edge_point)
 
         self.ground = GroundProfile(points)
-        return self.ground    
+        return self.ground
+     

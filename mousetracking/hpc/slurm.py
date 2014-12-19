@@ -80,7 +80,10 @@ class ProjectSingleSlurm(HPCProjectBase):
         """ scans a log file for errors.
         returns a string indicating the error or None """
         uri = os.path.join(self.folder, log_file)
-        log = sp.check_output(['tail', '-n', '10', uri])
+        try:
+            log = sp.check_output(['tail', '-n', '10', uri])
+        except sp.CalledProcessError:
+            return '???'
         if 'exceeded memory limit' in log:
             return 'memory-error'
         elif 'FFmpeg encountered the following error' in log:

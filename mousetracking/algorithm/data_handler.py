@@ -57,6 +57,13 @@ class DataHandler(object):
                   'pass2/mouse_trajectory': objects.MouseTrack,
                   'pass3/burrows/tracks': burrow.BurrowTrackList,
                   'pass4/burrows/tracks': burrow.BurrowTrackList}
+
+    # look up table for where to find folders in the parameter dictionary    
+    folder_lut = {'results': 'parameters/output/folder',
+                  'video': 'parameters/output/video/folder',
+                  'logging': 'parameters/logging/folder',
+                  'debug': 'parameters/debug/folder'}
+
     
     def __init__(self, name='', parameters=None, initialize_parameters=True,
                  read_data=False):
@@ -173,21 +180,12 @@ class DataHandler(object):
 
     def get_folder(self, folder):
         """ makes sure that a folder exists and returns its path """
-        # FIXME: Rewrite if/elif as dictionary select
         base_folder = self.data['parameters/base_folder']
-        if folder == 'results':
-            folder = os.path.join(base_folder,
-                                  self.data['parameters/output/folder'])
-        elif folder == 'video':
-            folder = os.path.join(base_folder,
-                                  self.data['parameters/output/video/folder'])
-        elif folder == 'logging':
-            folder = os.path.join(base_folder,
-                                  self.data['parameters/logging/folder'])
-        elif folder == 'debug':
-            folder = os.path.join(base_folder,
-                                  self.data['parameters/debug/folder'])
-        else:
+        try:
+            # get parameter key from folder name
+            data_key = self.folder_lut[folder]
+            folder = os.path.join(base_folder, self.data[data_key])
+        except KeyError: 
             self.logger.warn('Requested unknown folder `%s`.' % folder)
 
         folder = os.path.abspath(folder)

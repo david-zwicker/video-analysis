@@ -219,8 +219,9 @@ PARAMETER_LIST = [
               'Margin on the top and the bottom of the template.'),
     Parameter('ground/point_spacing', 20, UNIT.LENGTH_PIXEL,
               'Spacing of the support points describing the ground profile'),
-    Parameter('ground/linescan_length', 50, UNIT.LENGTH_PIXEL,
-              'Length of the line scan used to determine the ground profile'),
+    Parameter('ground/linescan_length', 50, UNIT.DEPRECATED, #UNIT.LENGTH_PIXEL,
+              'Length of the line scan used to determine the ground profile. '
+              'Deprecated since 2014-12-19'),
     Parameter('ground/slope_detector_max_factor', 0.4, UNIT.FACTOR,
               'Factor important in the ridge detection step, where the ridge '
               'is roughly located by looking at vertical line scans and points '
@@ -229,11 +230,13 @@ PARAMETER_LIST = [
               'estimated to be'),
     Parameter('ground/length_max', 1500, UNIT.LENGTH_PIXEL,
               'Maximal length of the ground profile above which it is rejected'),
-    Parameter('ground/curvature_energy_factor', 1, UNIT.FACTOR,
+    Parameter('ground/curvature_energy_factor', 1, UNIT.DEPRECATED, #UNIT.FACTOR,
               'Relative strength of the curvature energy to the image energy '
-              'in the snake model of the ground line'),
-    Parameter('ground/snake_energy_max', 10, UNIT.FACTOR,
-              'Determines the maximal energy the snake is allowed to have'),
+              'in the snake model of the ground line.'
+              'Deprecated since 2014-12-19.'),
+    Parameter('ground/snake_energy_max', 10, UNIT.DEPRECATED, #UNIT.FACTOR,
+              'Determines the maximal energy the snake is allowed to have. '
+              'Deprecated since 2014-12-19'),
     Parameter('ground/slope_max', 3, UNIT.FRACTION,
               'Maximal slope of the side ridges'),
     Parameter('ground/frame_margin', 50, UNIT.LENGTH_PIXEL,
@@ -242,6 +245,14 @@ PARAMETER_LIST = [
     Parameter('ground/grabcut_uncertainty_margin', 50, UNIT.LENGTH_PIXEL,
               'Width of the region around the estimated profile, in which '
               'the GrabCut algorithm may optimize'),
+    Parameter('ground/active_snake_gamma', 1e-1, UNIT.FACTOR,
+              'Time scale of the active snake evolution algorithm for finding '
+              'the ground line. Too large gammas may lead to instabilities in '
+              'the algorithm, while too small gammas may cause a very slow '
+              'convergence.'),
+    Parameter('ground/active_snake_beta', 1e6, UNIT.FACTOR,
+              'Stiffness of the active snake evolution algorithm for finding '
+              'the ground line. Larger values lead to straighter lines.'),
     Parameter('ground/adaptation_interval', 100, UNIT.TIME_FRAMES,
               'How often is the ground profile adapted'),
     Parameter('ground/ridge_width', 5, UNIT.LENGTH_PIXEL,
