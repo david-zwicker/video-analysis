@@ -6,6 +6,7 @@ Created on Dec 3, 2014
 
 from __future__ import division
 
+import collections
 import math
 
 import numpy as np
@@ -244,11 +245,31 @@ class GroundDetector(object):
     
     
 class ActiveContour(object):
+    """ class that manages an algorithm for using active contours for edge
+    detection [http://en.wikipedia.org/wiki/Active_contour_model] """
     
-    max_iterations = 50
+    max_iterations = 50 #< maximal number of iterations
+    max_cache_count = 20 #< maximal number of cache entries
     
     def __init__(self, blur_radius=10, alpha=0, beta=1e2, gamma=0.001,
                  point_spacing=None, closed_loop=False, keep_end_x=False):
+        """ initializes the active contour model
+        blur_radius sets the length scale of the attraction to features.
+            As a drawback, this is also the largest feature size that can be
+            resolved by the contour.
+        alpha is the line tension of the contour (high alpha leads to shorter
+            contours)
+        beta is the stiffness of the contour (high beta leads to straighter
+            contours)
+        gamma is the time scale of the convergence (high gamma might lead to 
+            overshoot)
+        point_spacing should only be set in production runs. It can help
+            speeding up the process since matrices can be reused
+        closed_loop indicates whether the contour is a closed loop
+        keep_end_x indicates whether the x coordinates of the end points of the
+            contour are kept fixed
+        """
+        
         self.blur_radius = blur_radius
         self.alpha = alpha  #< line tension
         self.beta = beta    #< stiffness 
@@ -257,19 +278,20 @@ class ActiveContour(object):
         self.closed_loop = closed_loop
         self.keep_end_x = keep_end_x
         
-        self._Pinv_cache = {}
+        self._Pinv_cache = collections.OrderedDict()
 
 
     def clear_cache(self):
-        self._Pinv_cache = {}
+        """ clears the cache. This method should be called if any of the
+        parameters of the model are changed """
+        self._Pinv_cache = collections.OrderedDict()
 
         
     def get_evolution_matrix(self, N, ds):
-        # calculate evolution matrix
-
+        """ calculates the evolution matrix """
         # scale parameters
         alpha = self.alpha/ds**2 # tension ~1/ds^2
-        beta = self.beta/ds**4 # stiffness ~ 1/ds^4
+        beta = self.beta/ds**4   # stiffness ~ 1/ds^4
         
         # calculate matrix entries
         a = self.gamma*(2*alpha + 6*beta) + 1
@@ -305,21 +327,24 @@ class ActiveContour(object):
         
         
     def find_contour(self, potential, points):
-        """ adapts the contour given by points to the image
-        ds is the line spacing, which
-        """
+        """ adapts the contour given by points to the potential image """
         points = np.asarray(points, np.double)
         
+        # determine point spacing if it is not given
         if self.point_spacing is None:
             ds = curves.curve_length(points)/(len(points) - 1)
         else:
             ds = self.point_spacing
 
-        # try loading the inverse matrix from the cache            
+        # try loading the evolution matrix from the cache            
         N = len(points)
         cache_key = (N, ds)
         Pinv = self._Pinv_cache.get(cache_key, None)
         if not Pinv:
+            # make sure that the cache does not grow indefinitely
+            while len(self._Pinv_cache) >= self.max_cache_count - 1:
+                self._Pinv_cache.popitem(last=False)
+            # add new item to cache
             Pinv = self.get_evolution_matrix(N, ds)
             self._Pinv_cache[cache_key] = Pinv
     
@@ -331,6 +356,9 @@ class ActiveContour(object):
     
 #         show_image(potential, (fx, fy))
     
+        # create intermediate array
+        ps = points.copy()
+    
         for _ in xrange(self.max_iterations):
             # TODO: find better stopping criterium
             # calculate external force
@@ -340,17 +368,22 @@ class ActiveContour(object):
             # Move control points
             if self.keep_end_x:
                 # move all but end points in x direction
-                points[1:-1, 0] = np.dot(Pinv[1:-1, :],
-                                         points[:, 0] + self.gamma*fex)
+                ps[1:-1, 0] = np.dot(Pinv[1:-1, :],
+                                     points[:, 0] + self.gamma*fex)
             else:
                 # move all points in x-direction
-                points[:, 0] = np.dot(Pinv, points[:, 0] + self.gamma*fex)
+                ps[:, 0] = np.dot(Pinv, points[:, 0] + self.gamma*fex)
             # move all points in y-direction
-            points[:, 1] = np.dot(Pinv, points[:, 1] + self.gamma*fey)
+            ps[:, 1] = np.dot(Pinv, points[:, 1] + self.gamma*fey)
+            
+            # check the distance that we evolved
+            residual = np.abs(ps - points).sum()
+            if residual < 1:
+                break
             
             # Restrict control points to potential
-            np.clip(points[:, 0], 0, potential.shape[1] - 2, out=points[:, 0])
-            np.clip(points[:, 1], 0, potential.shape[0] - 2, out=points[:, 1])
+            np.clip(points[:, 0], 0, potential.shape[1] - 2, out=ps[:, 0])
+            np.clip(points[:, 1], 0, potential.shape[0] - 2, out=ps[:, 1])
     
         return points
     
