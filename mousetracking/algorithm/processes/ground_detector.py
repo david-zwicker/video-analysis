@@ -502,15 +502,16 @@ class GroundDetectorGlobal(GroundDetector):
         
         if self.contour_finder is None:
             # first contour fitting
-            while self.blur_radius > 0:
+            while self.blur_radius > 10:
                 self.contour_finder = ActiveContour(blur_radius=self.blur_radius,
+                                                    closed_loop=False,
                                                     keep_end_x=True,
-                                                    beta=0*1e1, alpha=0)
+                                                    beta=1e1, alpha=0)
                 points = self.contour_finder.find_contour(potential, points)
-                if self.blur_radius < 2:
-                    self.blur_radius = 0
-                else:
-                    self.blur_radius /= 2
+#                 if self.blur_radius < 2:
+#                     self.blur_radius = 0
+#                 else:
+                self.blur_radius /= 2
         else:
             # reuse the previous contour finder
             points = self.contour_finder.find_contour(potential, points)
