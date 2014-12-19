@@ -315,7 +315,7 @@ class DataHandler(object):
     def write_data(self):
         """ writes the results to a file """
 
-        self.log_event('Started writing out all data.')
+        self.logger.info('Started writing out all data.')
 
         # prepare writing the data
         main_result = self.data.copy()
@@ -372,7 +372,7 @@ class DataHandler(object):
                                                                       hdf_folder)
                     self.data[key] = lazy_loader
         
-        self.log_event('Read previously calculated data from files.')
+        self.logger.info('Read previously calculated data from files.')
 
  
     def close(self):
