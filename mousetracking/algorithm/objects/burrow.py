@@ -215,7 +215,7 @@ class Burrow(object):
             burrow_or_shape = burrow_or_shape.polygon
         try:
             return self.polygon.intersects(burrow_or_shape)
-        except shapely.geos.TopologicalError:
+        except (shapely.geos.TopologicalError, shapely.geos.PredicateError):
             return False
     
     
