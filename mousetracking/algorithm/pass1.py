@@ -132,7 +132,7 @@ class FirstPass(PassBase):
             self.add_processing_statistics(time.time() - start_time)        
 
             # check how successful we finished
-            self.set_pass_status(**self.get_pass_state())
+            self.set_pass_status(**self.get_pass_state(self.data))
                         
             # cleanup and write out of data
             self.video.close()
@@ -254,15 +254,16 @@ class FirstPass(PassBase):
                     
             # store some information in the debug dictionary
             self.debug_process_frame(frame)
+                 
                    
-                   
-    def get_pass_state(self):
+    @staticmethod
+    def get_pass_state(data):
         """ check how the run went """
         problems = {}
         
         # check for ground line that went up to the roof
         try:
-            ground_profile = self.result['ground/profile']
+            ground_profile = data['pass1/ground/profile']
             last_profile = ground_profile.grounds[-1]
         except (KeyError, IndexError):
             problems['ground_not_found'] = True
@@ -270,16 +271,24 @@ class FirstPass(PassBase):
             if np.max(last_profile.points[:, 1]) < 2:
                 problems['ground_through_roof'] = True
             
-        # check the number of frames that were analyzed
-        frames_analyzed = self.result['video/frames_analyzed']
-        frame_count = self.result['video/frame_count']
-        if frames_analyzed < 0.99*frame_count:
-            problems['stopped_early'] = True
-
+        try:
+            frames_analyzed = data['pass1/video/frames_analyzed']
+            frame_count = data['pass1/video/frame_count']
+        except KeyError:
+            # data could not be loaded
+            result = {'state': 'not-started'}
+        else:    
+            # check the number of frames that have been analyzed
+            if frames_analyzed < 0.99*frame_count:
+                problems['stopped_early'] = True
+    
+            if problems:
+                result = {'state': 'error'}
+            else:
+                result = {'state': 'done'}
+                            
         if problems:
-            result = {'state': 'error', 'problems': problems}
-        else:
-            result = {'state': 'done'}
+            result['problems'] = problems
             
         return result
                          

@@ -15,6 +15,7 @@ import itertools
 import numpy as np
 import networkx as nx
 
+from ..algorithm import FirstPass, SecondPass, ThirdPass, FourthPass
 from .data_handler import DataHandler
 from .objects import mouse
 from video.analysis import curves
@@ -48,6 +49,7 @@ class Analyzer(DataHandler):
     """ class contains methods to analyze the results of a video """
     
     use_units = True
+    pass_classes = [FirstPass, SecondPass, ThirdPass, FourthPass]
     
     def __init__(self, *args, **kwargs):
         super(Analyzer, self).__init__(*args, **kwargs)
@@ -696,17 +698,13 @@ class Analyzer(DataHandler):
         dictionary with identified problems """
         problems = {}
         
-        # check for ground line that went up to the roof
-        ground_profile = self.data['pass2/ground_profile']
-        if np.max(ground_profile.profiles[-1, :, 1]) < 2:
-            problems['ground_through_roof'] = True
-            
-        # check the number of frames that were analyzed
-        frame_count_1 = self.data['pass1/video/frames_analyzed']
-        frame_count_3 = self.data['pass3/video/frames_analyzed']
-        if frame_count_3 < 0.99*frame_count_1:
-            problems['pass_3_stopped_early'] = True
-        
+        for pass_cls in self.pass_classes:
+            try:
+                state = pass_cls.get_pass_state(self.data)
+            except AttributeError:
+                continue
+            if state['state'] == 'error':
+                problems.update(problems)
+                
         return problems
-    
-                    
+

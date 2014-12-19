@@ -243,7 +243,7 @@ class SecondPass(PassBase):
                 threshold *= 2
         
         # identify the best path
-        path_best, score_best = None, np.inf
+        path_best, score_best = [], np.inf
         for path in paths:
             if path is None:
                 continue

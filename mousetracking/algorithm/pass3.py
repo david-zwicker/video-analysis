@@ -94,7 +94,7 @@ class ThirdPass(PassBase):
             self.add_processing_statistics(time.time() - start_time)        
 
             # check how successful we finished
-            self.set_pass_status(**self.get_pass_state())
+            self.set_pass_status(**self.get_pass_state(self.data))
                         
             # cleanup and write out of data
             self.video.close()
@@ -224,20 +224,26 @@ class ThirdPass(PassBase):
         self.write_mouse_state()
 
 
-    def get_pass_state(self):
+    @staticmethod
+    def get_pass_state(data):
         """ check how the run went """
         problems = {}
         
-        # check the number of frames that were analyzed
-        frames_analyzed = self.result['video/frames_analyzed']
-        frame_count = self.result['video/frame_count']
-        if frames_analyzed < 0.99*frame_count:
-            problems['stopped_early'] = True
-
-        if problems:
-            result = {'state': 'error', 'problems': problems}
-        else:
-            result = {'state': 'done'}
+        try:
+            frames_analyzed = data['pass3/video/frames_analyzed']
+            frame_count = data['pass3/video/frame_count']
+        except KeyError:
+            # data could not be loaded
+            result = {'state': 'not-started'}
+        else:    
+            # check the number of frames that have been analyzed
+            if frames_analyzed < 0.99*frame_count:
+                problems['stopped_early'] = True
+    
+            if problems:
+                result = {'state': 'error', 'problems': problems}
+            else:
+                result = {'state': 'done'}
             
         return result
     
