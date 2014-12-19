@@ -16,12 +16,8 @@ from .data_handler import DataHandler
 
 class PassBase(DataHandler):
     """ base class for the actual video analysis passes """
-    
-    pass_id_replacements = {'first': '1',
-                            'second': '2',
-                            'third': '3',
-                            'fourth': '4'}
-    
+
+    passes = ['pass%d' % k for k in xrange(1, 5)]
     
     def __init__(self, *args, **kwargs):
         super(PassBase, self).__init__(*args, **kwargs)
@@ -87,6 +83,15 @@ class PassBase(DataHandler):
             
         # update data
         status.update(status_update)
+        
+        # ensure integrity of the passes
+        state_succ = None
+        state_gen = (status[p_id] for p_id in self.passes if p_id in status) 
+        for pass_state in state_gen:
+            if state_succ:
+                pass_state['state'] = state_succ
+            elif pass_state['state'] != 'done':
+                state_succ = '???'
             
         # write data
         with open(path, 'w') as fp:
