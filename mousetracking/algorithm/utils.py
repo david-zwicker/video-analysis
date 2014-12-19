@@ -16,7 +16,7 @@ import warnings
 import numpy as np
 from scipy import stats
 
-from video.analysis.utils import cached_property
+from data_structures.cache import cached_property
 from collections import OrderedDict
 
 

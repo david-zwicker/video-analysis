@@ -19,7 +19,7 @@ from shapely import geometry
 from data_structures.lazy_values import LazyHDFCollection
 from .utils import rtrim_nan
 from video.analysis import curves, regions
-from video.analysis.utils import cached_property
+from data_structures.cache import cached_property
 
 from ..debug import *  # @UnusedWildImport
 

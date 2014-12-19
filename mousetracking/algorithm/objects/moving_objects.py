@@ -16,7 +16,7 @@ from scipy.ndimage import filters
 
 from data_structures.lazy_values import LazyHDFCollection
 from video.analysis import curves
-from video.analysis.utils import cached_property
+from data_structures.cache import cached_property
 
 from .. import debug  # @UnusedImport
 

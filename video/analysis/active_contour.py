@@ -6,11 +6,11 @@ Created on Dec 19, 2014
 
 from __future__ import division
 
-import collections
 
 import numpy as np
 import cv2
 
+from data_structures.cache import DictFinite
 import curves
 import image
 
@@ -57,13 +57,13 @@ class ActiveContour(object):
         self.closed_loop = closed_loop
         self.keep_end_x = keep_end_x
         
-        self._Pinv_cache = collections.OrderedDict()
+        self.clear_cache() #< also initializes the cache
 
 
     def clear_cache(self):
         """ clears the cache. This method should be called if any of the
         parameters of the model are changed """
-        self._Pinv_cache = collections.OrderedDict()
+        self._Pinv_cache = DictFinite(capacity=self.max_cache_count)
 
         
     def get_evolution_matrix(self, N, ds):
@@ -119,9 +119,6 @@ class ActiveContour(object):
         cache_key = (len(points), ds)
         Pinv = self._Pinv_cache.get(cache_key, None)
         if not Pinv:
-            # make sure that the cache does not grow indefinitely
-            while len(self._Pinv_cache) >= self.max_cache_count - 1:
-                self._Pinv_cache.popitem(last=False)
             # add new item to cache
             Pinv = self.get_evolution_matrix(len(points), ds)
             self._Pinv_cache[cache_key] = Pinv

@@ -6,6 +6,36 @@ Created on Sep 11, 2014
 
 from __future__ import division
 
+import collections
+
+
+
+class DictFinite(collections.OrderedDict):
+    """ cache with a limited number of items """
+    
+    default_capacity = 100    
+    
+    def __init__(self, *args, **kwargs):
+        self.capacity = kwargs.pop('capacity', self.default_capacity)
+        super(DictFinite, self).__init__(*args, **kwargs)
+
+
+    def check_length(self):
+        """ ensures that the dictionary does not grow beyond its capacity """
+        while len(self) > self.capacity:
+            self.popitem(last=False)
+            
+
+    def __setitem__(self, key, value):
+        super(DictFinite, self).__setitem__(key, value)
+        self.check_length()
+        
+        
+    def update(self, values):
+        super(DictFinite, self).update(values)
+        self.check_length()
+        
+    
 
 class cached_property(object):
     """Decorator to use a function as a cached property.

@@ -14,12 +14,11 @@ import subprocess
 
 import yaml
 
-from .parameters import PARAMETERS, PARAMETERS_DEFAULT, UNIT, scale_parameters
 import objects
-from mousetracking.algorithm.objects import burrow
+from .parameters import PARAMETERS, PARAMETERS_DEFAULT, UNIT, scale_parameters
+from .utils import get_loglevel_from_name, change_directory
 from data_structures.dict_xpath import DictXpathLazy
 from data_structures.lazy_values import LazyHDFValue, prepare_data_for_yaml
-from .utils import get_loglevel_from_name, change_directory
 from video.io import load_any_video
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists
@@ -51,8 +50,8 @@ class DataHandler(object):
                   'pass1/burrows/tracks': objects.BurrowTrackList,
                   'pass2/ground_profile': objects.GroundProfileTrack,
                   'pass2/mouse_trajectory': objects.MouseTrack,
-                  'pass3/burrows/tracks': burrow.BurrowTrackList,
-                  'pass4/burrows/tracks': burrow.BurrowTrackList}
+                  'pass3/burrows/tracks': objects.BurrowTrackList,
+                  'pass4/burrows/tracks': objects.BurrowTrackList}
 
     # look up table for where to find folders in the parameter dictionary    
     folder_lut = {'results': 'parameters/output/folder',
