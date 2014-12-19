@@ -11,6 +11,7 @@ import math
 
 import numpy as np
 from scipy import ndimage, optimize, signal
+from shapely import geometry
 import cv2
 
 from ..objects import GroundProfile
@@ -248,8 +249,9 @@ class ActiveContour(object):
     """ class that manages an algorithm for using active contours for edge
     detection [http://en.wikipedia.org/wiki/Active_contour_model] """
     
-    max_iterations = 50 #< maximal number of iterations
+    max_iterations = 50  #< maximal number of iterations
     max_cache_count = 20 #< maximal number of cache entries
+    
     
     def __init__(self, blur_radius=10, alpha=0, beta=1e2, gamma=0.001,
                  point_spacing=None, closed_loop=False, keep_end_x=False):
@@ -337,15 +339,14 @@ class ActiveContour(object):
             ds = self.point_spacing
 
         # try loading the evolution matrix from the cache            
-        N = len(points)
-        cache_key = (N, ds)
+        cache_key = (len(points), ds)
         Pinv = self._Pinv_cache.get(cache_key, None)
         if not Pinv:
             # make sure that the cache does not grow indefinitely
             while len(self._Pinv_cache) >= self.max_cache_count - 1:
                 self._Pinv_cache.popitem(last=False)
             # add new item to cache
-            Pinv = self.get_evolution_matrix(N, ds)
+            Pinv = self.get_evolution_matrix(len(points), ds)
             self._Pinv_cache[cache_key] = Pinv
     
         # get image gradient
@@ -378,12 +379,15 @@ class ActiveContour(object):
             
             # check the distance that we evolved
             residual = np.abs(ps - points).sum()
+
+            # Restrict control points to potential
+            points[:, 0] = np.clip(ps[:, 0], 0, potential.shape[1] - 2)
+            points[:, 1] = np.clip(ps[:, 1], 0, potential.shape[0] - 2)
+
+#             print residual
             if residual < 1:
                 break
             
-            # Restrict control points to potential
-            np.clip(points[:, 0], 0, potential.shape[1] - 2, out=ps[:, 0])
-            np.clip(points[:, 1], 0, potential.shape[0] - 2, out=ps[:, 1])
     
         return points
     
@@ -455,10 +459,8 @@ class GroundDetectorGlobal(GroundDetector):
         def dvdt(v):
             return mu*cv2.Laplacian(v, cv2.CV_64F) - (v - fy)*fxy
         
-         
         N = 10000 #< maximum number of steps that the integrator is allowed
         dt = 1e-4 #< time step
-
         
         for n in xrange(N):
             rhs = dudt(u)
@@ -502,16 +504,17 @@ class GroundDetectorGlobal(GroundDetector):
         
         if self.contour_finder is None:
             # first contour fitting
-            while self.blur_radius > 10:
+            while self.blur_radius > 0:
                 self.contour_finder = ActiveContour(blur_radius=self.blur_radius,
                                                     closed_loop=False,
                                                     keep_end_x=True,
-                                                    beta=1e1, alpha=0)
+                                                    alpha=0, beta=1e4,
+                                                    gamma=1e-1)
                 points = self.contour_finder.find_contour(potential, points)
-#                 if self.blur_radius < 2:
-#                     self.blur_radius = 0
-#                 else:
-                self.blur_radius /= 2
+                if self.blur_radius < 2:
+                    self.blur_radius = 0
+                else:
+                    self.blur_radius /= 2
         else:
             # reuse the previous contour finder
             points = self.contour_finder.find_contour(potential, points)
