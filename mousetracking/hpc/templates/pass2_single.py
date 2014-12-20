@@ -29,6 +29,5 @@ parameters.update({{
 # do the second pass scan
 pass2 = SecondPass("{NAME}", parameters=parameters, read_data=True)
 pass2.process()
-pass2.process()
 if pass2.data['parameters/output/video/enabled']:
     pass2.produce_video()
