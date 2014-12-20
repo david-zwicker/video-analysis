@@ -145,9 +145,12 @@ class HPCProjectBase(object):
         this_folder, _ = os.path.split(__file__)
         folder_code = os.path.abspath(os.path.join(this_folder, '../..'))
         
-        # setup general information
+        # setup tracking parameters
         tracking_parameters = project.parameters.to_dict(flatten=True)
-        scale_length = parameters.pop('scale_length', 1)
+        # extract the factor for the lengths and provide it separately
+        scale_length = tracking_parameters.pop('scale_length', 1)
+        scale_length = parameters.pop('scale_length', scale_length)
+        # setup all variables that might be used in the templates
         params = {'FOLDER_CODE': folder_code,
                   'JOB_DIRECTORY': project.folder,
                   'NAME': project.name,
