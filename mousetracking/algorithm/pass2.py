@@ -22,7 +22,8 @@ from video.composer import VideoComposer
 from video.filters import FilterCrop
 from video.utils import display_progress
 
-import debug  # @UnusedImport
+from video import debug  # @UnusedImport
+
 
 
 class SecondPass(PassBase):

@@ -41,7 +41,7 @@ from .objects.moving_objects import MovingObject, ObjectTrack, ObjectTrackList
 from .objects.ground import GroundProfile, GroundProfileList
 from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
 
-import debug  # @UnusedImport
+from video import debug  # @UnusedImport
 
 
 
@@ -297,6 +297,7 @@ class FirstPass(PassBase):
     # FINDING THE CAGE
     #===========================================================================
     
+
     def find_cage_approximately(self, frame, ret_binarized=False):
         """ analyzes a single frame and locates the mouse cage in it.
         Try to find a bounding box for the cage.

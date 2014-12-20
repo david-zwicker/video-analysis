@@ -16,7 +16,7 @@ from ..objects import GroundProfile
 from video.analysis import image, curves, regions
 from video.analysis.active_contour import ActiveContour
 
-from ..debug import *  # @UnusedWildImport
+from video import debug  # @UnusedImport
 
 
 class GroundDetectorBase(object):
@@ -304,7 +304,7 @@ class GroundDetectorGlobal(GroundDetectorBase):
         fxy = fx**2 + fy**2
         
 #         print fx.max(), fy.max(), fxy.max()
-#         show_image(potential, fx, fy, fxy, u, v)
+#         debug.show_image(potential, fx, fy, fxy, u, v)
         
         mu = 10
         def dudt(u):
@@ -330,7 +330,7 @@ class GroundDetectorGlobal(GroundDetectorBase):
             v += dt*rhs
         
         
-        show_image(potential, (u, v))
+        debug.show_image(potential, (u, v))
         return (u, v)
     
     
@@ -358,26 +358,28 @@ class GroundDetectorGlobal(GroundDetectorBase):
         if self.contour_finder is None:
             # first contour fitting
             while self.blur_radius > 0:
-                ac = ActiveContour(blur_radius=self.blur_radius,
-                                   closed_loop=False,
-                                   keep_end_x=True,
-                                   alpha=0, #< line length is constraint by beta
-                                   beta=self.params['ground/active_snake_beta'],
-                                   gamma=self.params['ground/active_snake_gamma'])
-                self.contour_finder = ac
-                points = self.contour_finder.find_contour(potential, points)
+                self.contour_finder = \
+                    ActiveContour(blur_radius=self.blur_radius,
+                                  closed_loop=False,
+                                  keep_end_x=True,
+                                  alpha=0, #< line length is constraint by beta
+                                  beta=self.params['ground/active_snake_beta'],
+                                  gamma=self.params['ground/active_snake_gamma'])
+                self.contour_finder.set_potential(potential)
+                points = self.contour_finder.find_contour(points)
                 if self.blur_radius < 2:
                     self.blur_radius = 0
                 else:
                     self.blur_radius /= 2
         else:
             # reuse the previous contour finder
-            points = self.contour_finder.find_contour(potential, points)
+            self.contour_finder.set_potential(potential)
+            points = self.contour_finder.find_contour(points)
 
         points = points.tolist()
 
 #         from shapely import geometry
-#         show_shape(geometry.LineString(points),
+#         debug.show_shape(geometry.LineString(points),
 #                    background=potential, mark_points=True)
                 
         # extend the ground line toward the left edge of the cage

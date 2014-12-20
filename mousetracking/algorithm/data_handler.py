@@ -23,8 +23,6 @@ from video.io import load_any_video
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists
 
-import debug  # @UnusedImport
-
 
 LOGGING_FILE_MODES = {'create': 'w', #< create new log file 
                       'append': 'a'} #< append to old log file

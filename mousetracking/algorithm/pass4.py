@@ -18,15 +18,15 @@ from shapely import geometry
 
 from .pass_base import PassBase
 from .objects.burrow import Burrow, BurrowTrackList
-from .utils import unique_based_on_id
+from .utils import unique_based_on_id, NormalDistribution
 from video.analysis import curves, regions
 from video.io import ImageWindow, VideoFile
 from video.filters import FilterMonochrome
 from video.utils import display_progress, contiguous_true_regions
 from video.composer import VideoComposer
 
-import debug  # @UnusedImport
-from mousetracking.algorithm.utils import NormalDistribution
+from video import debug  # @UnusedImport
+
 
 
 class FourthPass(PassBase):

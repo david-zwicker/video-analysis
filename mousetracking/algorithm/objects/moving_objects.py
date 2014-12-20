@@ -18,7 +18,7 @@ from data_structures.lazy_values import LazyHDFCollection
 from video.analysis import curves
 from data_structures.cache import cached_property
 
-from .. import debug  # @UnusedImport
+from video import debug  # @UnusedImport
 
 
 

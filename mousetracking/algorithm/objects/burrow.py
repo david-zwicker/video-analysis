@@ -21,7 +21,7 @@ from .utils import rtrim_nan
 from video.analysis import curves, regions
 from data_structures.cache import cached_property
 
-from ..debug import *  # @UnusedWildImport
+from video import debug  # @UnusedImport
 
 
 # monkey patch shapely.geometry to get compatibility with older shapely versions

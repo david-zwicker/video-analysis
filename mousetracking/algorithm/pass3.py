@@ -25,8 +25,7 @@ from video.io import ImageWindow
 from video.utils import display_progress, contiguous_int_regions_iter
 from video.composer import VideoComposer
 
-import debug  # @UnusedImport
-from __builtin__ import True
+from video import debug  # @UnusedImport
 
 
 

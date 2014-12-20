@@ -58,6 +58,7 @@ class ActiveContour(object):
         self.keep_end_x = keep_end_x
         
         self.clear_cache() #< also initializes the cache
+        self.fx = self.fy = None
 
 
     def clear_cache(self):
@@ -104,9 +105,22 @@ class ActiveContour(object):
         # create inverse matrix for iteration                
         return np.linalg.inv(P)
         
+    
+    def set_potential(self, potential):
+        """ sets the potential and calculates the associated derivatives """
+        # get image gradient
+        if self.blur_radius > 0:
+            potential = cv2.GaussianBlur(potential, (0, 0), self.blur_radius)
+        self.fx = cv2.Sobel(potential, cv2.CV_64F, 1, 0, ksize=5)
+        self.fy = cv2.Sobel(potential, cv2.CV_64F, 0, 1, ksize=5)
+    
         
-    def find_contour(self, potential, points):
+    def find_contour(self, points):
         """ adapts the contour given by points to the potential image """
+        if self.fx is None:
+            raise RuntimeError('Potential must be set before the contour can '
+                               'be adapted.')
+        
         points = np.asarray(points, np.double)
         
         # determine point spacing if it is not given
@@ -123,19 +137,13 @@ class ActiveContour(object):
             Pinv = self.get_evolution_matrix(len(points), ds)
             self._Pinv_cache[cache_key] = Pinv
     
-        # get image gradient
-        if self.blur_radius > 0:
-            potential = cv2.GaussianBlur(potential, (0, 0), self.blur_radius)
-        fx = cv2.Sobel(potential, cv2.CV_64F, 1, 0, ksize=5)
-        fy = cv2.Sobel(potential, cv2.CV_64F, 0, 1, ksize=5)
-    
         # create intermediate array
         ps = points.copy()
     
         for _ in xrange(self.max_iterations):
             # calculate external force
-            fex = image.subpixels(fx, points)
-            fey = image.subpixels(fy, points)
+            fex = image.subpixels(self.fx, points)
+            fey = image.subpixels(self.fy, points)
             
             # Move control points
             if self.keep_end_x:
@@ -152,8 +160,8 @@ class ActiveContour(object):
             residual = np.abs(ps - points).sum()
 
             # Restrict control points to potential
-            points[:, 0] = np.clip(ps[:, 0], 0, potential.shape[1] - 2)
-            points[:, 1] = np.clip(ps[:, 1], 0, potential.shape[0] - 2)
+            points[:, 0] = np.clip(ps[:, 0], 0, self.fx.shape[1] - 2)
+            points[:, 1] = np.clip(ps[:, 1], 0, self.fx.shape[0] - 2)
 
             if residual < self.residual_tolerance * self.gamma:
                 break
