@@ -199,10 +199,10 @@ class DictXpath(collections.MutableMapping):
         for key, value in data.iteritems():
             if isinstance(value, dict):
                 if key in self and isinstance(self[key], DictXpath):
-                    # extend existing DictXpath structure
+                    # extend existing DictXpath instance
                     self[key].from_dict(value)
                 else:
-                    # create new DictXpath structure
+                    # create new DictXpath instance
                     self[key] = self.__class__(value)
             else:
                 # store simple value

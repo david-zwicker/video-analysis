@@ -58,8 +58,9 @@ PARAMETER_LIST = [
     # Basic parameters
     Parameter('base_folder', '.', UNIT.FOLDER,
               'Base folder in which all files are kept'),
-    Parameter('factor_length', 1, UNIT.FACTOR,
-              'A factor by which all length scales will be scaled'),
+    Parameter('factor_length', 1, UNIT.DEPRECATED, #UNIT.FACTOR,
+              'A factor by which all length scales will be scaled.'
+              'Deprecated since 2014-12-20'),
                   
     # Video input
     Parameter('video/filename_pattern', 'raw_video/*.MTS', UNIT.SUBFOLDER,
@@ -458,15 +459,10 @@ def set_base_folder(parameters, folder, include_default=False):
 
 
 def scale_parameters(parameters, factor_length=1, factor_time=1):
-    """ takes a dictionary of parameters and scales them according to their
-    unit and the given scale factors """
-    # convert to plain dictionary if it is anything else
-    parameters_type = type(parameters)
-    if parameters_type != dict:
-        parameters = parameters.to_dict(flatten=True)
-        
+    """ takes a DictXpath dictionary of parameters and scales them according to
+    their unit and the given scale factors """
     # scale each parameter in the list
-    for key in parameters:
+    for key in parameters.iterkeys(flatten=True):
         unit = PARAMETERS[key].unit
         if unit == UNIT.LENGTH_PIXEL:
             parameters[key] *= factor_length
@@ -478,7 +474,4 @@ def scale_parameters(parameters, factor_length=1, factor_time=1):
             parameters[key] /= factor_time
         elif unit == UNIT.SPEED_PIXEL_FRAME:
             parameters[key] *= factor_length/factor_time
-            
-    # return the result as the original type 
-    return parameters_type(parameters)
 

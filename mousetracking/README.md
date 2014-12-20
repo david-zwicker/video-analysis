@@ -1,6 +1,6 @@
 Necessary python packages:
 
-Package     |Usage                                      
+Package     | Usage                                      
 ------------|-------------------------------------------
 cv2         | OpenCV python bindings for computer vision 
 h5py        | HDF5 python binding for writing out data    
@@ -14,7 +14,7 @@ yaml        | YAML binding for writing out data
 
 Optional python packages:
 
-Package     |Usage                                      
+Package     | Usage                                      
 ------------|-------------------------------------------
 descartes   | Used for debug plotting of shapes
 grip        | Used for converting markdown to html 

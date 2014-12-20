@@ -1487,7 +1487,8 @@ class FirstPass(PassBase):
         
         # reparameterize the burrow outline to locate the burrow exit reliably
         ground_point_distance = self.params['burrows/ground_point_distance']
-        outline = curves.make_curve_equidistant(burrow.outline, ground_point_distance)
+        outline = curves.make_curve_equidistant(burrow.outline,
+                                                ground_point_distance)
         outline = np.asarray(outline, np.double)
 
         # calculate the distance of each outline point to the ground

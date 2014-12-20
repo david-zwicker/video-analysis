@@ -105,15 +105,8 @@ class DataHandler(object):
         if parameters is not None:
             if self.report_unknown_parameters:
                 self.check_parameters(parameters)
+            # update parameters with the given ones
             self.data['parameters'].from_dict(parameters)
-            
-        # scale parameters, if requested
-        if self.data['parameters/factor_length'] != 1:
-            factor_length = self.data['parameters/factor_length']
-            self.data['parameters'] = scale_parameters(self.data['parameters'],
-                                                       factor_length=factor_length)
-            # reset the factor since the scaling was performed
-            self.data['parameters/factor_length'] = 1
             
         # create logger for this object
         self.logger = logging.getLogger(self.name)
@@ -153,7 +146,6 @@ class DataHandler(object):
         # setup mouse parameters as class variables
         # => the code is not thread-safe if different values for these 
         #        parameters are used in the same process
-        # number of consecutive frames used for motion detection [in frames]
         moving_window = self.data.get('parameters/tracking/moving_window', None)
         if moving_window:
             objects.ObjectTrack.moving_window_frames = moving_window
@@ -165,6 +157,13 @@ class DataHandler(object):
         hdf5_compression = self.data.get('parameters/output/hdf5_compression', None)
         if hdf5_compression:
             LazyHDFValue.compression = hdf5_compression
+            
+            
+    def scale_parameters(self, factor_length=1, factor_time=1):
+        """ scales the parameters in length and time """
+        scale_parameters(self.data['parameters'],
+                        factor_length=factor_length,
+                        factor_time=factor_time)
             
             
     @property
@@ -351,6 +350,7 @@ class DataHandler(object):
             raise ValueError('Result file is empty.')
         
         # initialize the parameters read from the YAML file
+        # but overwrite the user supplied parameters before that
         self.initialize_parameters(self.parameters_user)
         
         # initialize the loaders for values stored elsewhere

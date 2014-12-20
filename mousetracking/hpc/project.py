@@ -110,7 +110,8 @@ class HPCProjectBase(object):
         video_name denotes a name associated with this video, which will be used
             to name folders and such. If no name is given, the filename is used.
         parameters is a dictionary that sets the parameters that are
-            used for tracking.
+            used for tracking. There is a special parameter 'scale_length' that
+            we look for, which is applied in the first pass only.
         passes is an integer which is 1, 2 or 3, indicating whether only the first
             tracking pass or also the second one should be initialized
         prepare_workfolder can be 'none', 'clean', or 'purge', which indicates
@@ -146,12 +147,14 @@ class HPCProjectBase(object):
         
         # setup general information
         tracking_parameters = project.parameters.to_dict(flatten=True)
+        scale_length = parameters.pop('scale_length', 1)
         params = {'FOLDER_CODE': folder_code,
                   'JOB_DIRECTORY': project.folder,
                   'NAME': project.name,
                   'VIDEO_FILE': video_file,
                   'TRACKING_PARAMETERS': pprint.pformat(tracking_parameters),
-                  'SPECIFIC_PARAMETERS': pprint.pformat(parameters)}
+                  'SPECIFIC_PARAMETERS': pprint.pformat(parameters),
+                  'SCALE_LENGTH': scale_length}
         
         # setup job resources
         resource_iter = project.parameters['resources'].iteritems(flatten=True)

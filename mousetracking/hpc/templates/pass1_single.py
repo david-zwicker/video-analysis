@@ -32,4 +32,5 @@ parameters.update({{
 
 # do the first pass scan
 for trial in process_trials("{LOG_FILE}" % job_id, 10):
-    scan_video("{NAME}", parameters=parameters, passes=1)
+    scan_video("{NAME}", parameters=parameters, passes=1,
+               scale_length={SCALE_LENGTH}) # @UndefinedVariable

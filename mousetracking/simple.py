@@ -33,15 +33,15 @@ def scan_video(name, video=None, parameters=None, passes=2, **kwargs):
         parameters['video/frames'] = kwargs.pop('frames', None)
     if 'crop' in kwargs: # don't overwrite cropping_rect if given in parameters
         parameters['video/cropping_rect'] = kwargs.pop('crop', None)
-    if 'scale_length' in kwargs: # don't overwrite factor_length if given in parameters
-        parameters['factor_length'] = kwargs.pop('scale_length', 1)
     if 'debug_output' in kwargs: # don't overwrite debug_output if given in parameters
         parameters['debug/output'] = kwargs.pop('debug_output', None)
+    scale_length = kwargs.pop('scale_length', 1) 
     if kwargs:
         warnings.warn('There are unused kwargs: %s' % ', '.join(kwargs))
     
     # do first pass
     job = FirstPass(name, parameters=parameters)
+    job.scale_parameters(factor_length=scale_length)
     job.load_video(video, crop_video=crop_video)
     job.process()
     
