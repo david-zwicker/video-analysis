@@ -134,70 +134,80 @@ class HPCProjectBase(object):
         folder = os.path.join(result_folder, video_name)
         project = cls(folder, video_name, parameters, passes)
         
+        # prepare the project
+        project.prepare_project(video_file, result_folder, video_name,
+                                parameters, passes, prepare_workfolder)
+        return project
+        
+        
+    def prepare_project(self, video_file, result_folder, video_name=None,
+                        parameters=None, passes=None,
+                        prepare_workfolder='auto'):
+        """ prepare the work directory by setting up all necessary files """
+        
         if prepare_workfolder == 'auto':
-            pass1_requested = (1 in project.passes)
-            project.clean_workfolder(purge=pass1_requested)
+            pass1_requested = (1 in self.passes)
+            self.clean_workfolder(purge=pass1_requested)
         elif 'clean' in prepare_workfolder:
-            project.clean_workfolder()
+            self.clean_workfolder()
         elif 'purge' in prepare_workfolder:
-            project.clean_workfolder(purge=True)
+            self.clean_workfolder(purge=True)
         
         # extract folder of current file
         this_folder, _ = os.path.split(__file__)
         folder_code = os.path.abspath(os.path.join(this_folder, '../..'))
         
         # setup tracking parameters
-        tracking_parameters = project.parameters.to_dict(flatten=True)
+        tracking_parameters = self.parameters.to_dict(flatten=True)
         # extract the factor for the lengths and provide it separately
         scale_length = tracking_parameters.pop('scale_length', 1)
         scale_length = parameters.pop('scale_length', scale_length)
         # setup all variables that might be used in the templates
         params = {'FOLDER_CODE': folder_code,
-                  'JOB_DIRECTORY': project.folder,
-                  'NAME': project.name,
+                  'JOB_DIRECTORY': self.folder,
+                  'NAME': self.name,
                   'VIDEO_FILE': video_file,
                   'TRACKING_PARAMETERS': pprint.pformat(tracking_parameters),
                   'SPECIFIC_PARAMETERS': pprint.pformat(parameters),
                   'SCALE_LENGTH': scale_length}
         
         # setup job resources
-        resource_iter = project.parameters['resources'].iteritems(flatten=True)
+        resource_iter = self.parameters['resources'].iteritems(flatten=True)
         for key, value in resource_iter:
             params[key.upper()] = value
         
         # ensure that the result folder exists
         try:
-            os.makedirs(project.folder)
+            os.makedirs(self.folder)
         except OSError:
             pass
         
         # set up job scripts
-        for pass_id in project.passes:
+        for pass_id in self.passes:
             # add job files to parameters
-            for k, filename in enumerate(cls.files_job[pass_id]):
+            for k, filename in enumerate(self.files_job[pass_id]):
                 params['JOB_FILE_%d' % k] = filename
-            params['LOG_FILE'] = os.path.join(project.folder,
+            params['LOG_FILE'] = os.path.join(self.folder,
                                               "log_pass%d_%%s.log" % pass_id)
         
             # create the job scripts
-            for filename in cls.files_job[pass_id]:
-                script = project.get_template(filename)
+            for filename in self.files_job[pass_id]:
+                script = self.get_template(filename)
                 script = script.format(**params)
-                open(os.path.join(project.folder, filename), 'w').write(script)
+                open(os.path.join(self.folder, filename), 'w').write(script)
             
         # create symbolic link if requested
-        symlink_folder = project.parameters['project/symlink_folder']
+        symlink_folder = self.parameters['project/symlink_folder']
         if symlink_folder:
-            dst = os.path.join(symlink_folder, project.name)
+            dst = os.path.join(symlink_folder, self.name)
             if os.path.exists(dst):
                 os.remove(dst)
             try:
-                os.symlink(project.folder, dst)
+                os.symlink(self.folder, dst)
             except OSError as err:
-                project.logger.warn('Symlink creation failed: %s', err)
+                self.logger.warn('Symlink creation failed: %s', err)
             
-        project.logger.info('Prepared project in folder %s', project.folder)
-        return project
+        self.logger.info('Prepared project in folder %s', self.folder)
         
         
     def get_template(self, template):
