@@ -11,6 +11,8 @@
 * Pass4:
 	- connect two burrows that face each other (which happens for burrows with two exits)
 * Support automatic scaling down for VideoComposer
+* Project management:
+    - cancel running jobs when submitting new ones
 
 Performance improvements:
 -------------------------

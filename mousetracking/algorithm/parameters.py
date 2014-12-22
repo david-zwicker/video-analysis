@@ -414,7 +414,7 @@ PARAMETER_LIST = [
     Parameter('resources/pass1/memory', 1000, None, 'Maximal RAM per core for pass 1 [in MB]'),
     Parameter('resources/pass2/job_id', None, None, 'Job id of pass 2'),              
     Parameter('resources/pass2/cores', 1, UNIT.INTEGER, 'Number of cores for pass 2'),
-    Parameter('resources/pass2/time', 20*60, None, 'Maximal computation minutes for pass 2'),
+    Parameter('resources/pass2/time', 25*60, None, 'Maximal computation minutes for pass 2'),
     Parameter('resources/pass2/memory', 8000, None, 'Maximal RAM per core for pass 2 [in MB]'),
     Parameter('resources/pass3/job_id', None, None, 'Job id of pass 3'),              
     Parameter('resources/pass3/cores', 2, UNIT.INTEGER, 'Number of cores for pass 3'),
@@ -422,7 +422,7 @@ PARAMETER_LIST = [
     Parameter('resources/pass3/memory', 1000, None, 'Maximal RAM per core for pass 3 [in MB]'),
     Parameter('resources/pass4/job_id', None, None, 'Job id of pass 4'),              
     Parameter('resources/pass4/cores', 2, UNIT.INTEGER, 'Number of cores for pass 4'),
-    Parameter('resources/pass4/time', 20*60, None, 'Maximal computation minutes for pass 4'),
+    Parameter('resources/pass4/time', 25*60, None, 'Maximal computation minutes for pass 4'),
     Parameter('resources/pass4/memory', 1000, None, 'Maximal RAM per core for pass 4 [in MB]'),
 ]
 

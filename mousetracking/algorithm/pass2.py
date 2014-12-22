@@ -214,6 +214,7 @@ class SecondPass(PassBase):
             # build the tracking graph
             graph = self.get_track_graph(tracks, threshold)
 
+            # try to find the best path through the graph
             if graph.number_of_edges() > 0:
                 # get the end nodes if necessary
                 if determine_start_nodes:
@@ -225,23 +226,26 @@ class SecondPass(PassBase):
                 find_all = (successful_iterations >= 1)
                 paths = self.find_paths_in_track_graph(graph, start_nodes,
                                                        end_nodes, find_all)
-            elif threshold > threshold_max:
-                # stop the iteration if the threshold becomes too large 
-                if determine_start_nodes or determine_end_nodes:
-                    paths = []
-                else:
-                    paths = [[start_nodes[0], end_nodes[0]]]
-                break
-                
             else:
                 paths = False
 
+            # check whether we found the best path
             if paths:
                 # we'll do an additional search with an increased threshold
                 successful_iterations += 1
                 threshold *= 10
             else:
-                threshold *= 2
+                if threshold > threshold_max:
+                    # stop the iteration if the threshold becomes too large 
+                    if determine_start_nodes or determine_end_nodes:
+                        paths = []
+                    else:
+                        paths = [[start_nodes[0], end_nodes[0]]]
+                    break
+                else:
+                    # do another iteration with an increased threshold
+                    threshold *= 5
+
         
         # identify the best path
         path_best, score_best = [], np.inf
