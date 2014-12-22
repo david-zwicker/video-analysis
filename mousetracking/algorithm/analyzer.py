@@ -47,9 +47,12 @@ class OmniContainer(object):
 
 class Analyzer(DataHandler):
     """ class contains methods to analyze the results of a video """
-    
+    # flag indicating whether results are reported with pint units
     use_units = True
+    # list of classes that manage analysis passes
     pass_classes = [FirstPass, SecondPass, ThirdPass, FourthPass]
+    # list of mouse states that are returned by default
+    mouse_states_default = ('.A.', '.H.', '.V.', '.D.', '.B ', '.[B|D]E', '...')
     
     def __init__(self, *args, **kwargs):
         super(Analyzer, self).__init__(*args, **kwargs)
@@ -252,7 +255,7 @@ class Analyzer(DataHandler):
 
         # set the default list of states if it not already set
         if states is None:
-            states = ('.A.', '.H.', '.V.', '.D.', '.B ', '.BE', '...')
+            states = self.mouse_states_default
             
         # convert the mouse states into integers according to the defined states
         lut = mouse.state_converter.get_state_lookup_table(states)
@@ -304,7 +307,7 @@ class Analyzer(DataHandler):
 
         # set the default list of states if it not already set
         if states is None:
-            states = ('.A.', '.H.', '.V.', '.D.', '.B ', '.[B|D]E', '...')
+            states = self.mouse_states_default
             
         # add a unit to the duration threshold if it does not have any
         if self.use_units and isinstance(duration_threshold, self.units.Quantity):
