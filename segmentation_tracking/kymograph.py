@@ -28,13 +28,13 @@ def plot_kymograph(infile, outfile):
             img[l, :len(d)] = d#[::-1]
 
 
-        plt.subplot(1, 2, side)
+        plt.subplot(1, 2, side + 1)
         # create image
-        plt.imshow(img, aspect='auto')
+        plt.imshow(img, aspect='auto', interpolation='none')
         plt.gray()
-        plt.xlabel('Distance from posterior [pixels]')
+        plt.xlabel('Distance from posterior [4 pixels]')
         plt.ylabel('Time [frames]')
-        #cb = plt.colorbar(label='Mean')
+        plt.title(['ventral', 'dorsal'][side])
 
     plt.suptitle(infile)
     plt.savefig(outfile)

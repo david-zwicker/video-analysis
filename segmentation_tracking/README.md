@@ -1,10 +1,9 @@
-Tracker for locating mouse tails in microscopy videos
+Tracker for locating mouse tails in microscope videos
+This algorithm locates tails in the video and follows them over time.
+It also locates the center line of the tail and does line scans on both sides,
+which can then be combined for kymographs.
 
 
 TODO
 ----
-* locate the curved side (which should be the ventral one)
-    - cut the shape between the two endpoints and use the larger half 
-* determine the curve along which we will do the linescan
 * align the linescans of different experiments
-* construct a kymograph 

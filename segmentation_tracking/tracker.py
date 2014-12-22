@@ -15,13 +15,14 @@ import numpy as np
 import cv2
 from scipy.ndimage import measurements
 
-from video import debug
 from video.io import VideoFile, ImageWindow
 from video.composer import VideoComposer
 from video.utils import display_progress
 from video.filters import FilterMonochrome
 from video.analysis import curves, image
 from video.analysis.active_contour import ActiveContour
+
+from video import debug  # @UnusedImport
 
 from tail import Tail
 
@@ -30,7 +31,6 @@ from tail import Tail
 class TailSegmentationTracking(object):
     """ class managing the tracking of mouse tails in videos """
     
-        
     def __init__(self, video_file, output_file, show_video=False):
         """
         `video_file` is the input video
@@ -68,6 +68,8 @@ class TailSegmentationTracking(object):
     
         # iterate through all frames
         for self.frame_id, frame in enumerate(display_progress(self.video)):
+            self.output.set_frame(frame, copy=True)
+            
             # adapt the object outlines
             self.adapt_tail_contours(frame, self.tails)
             
@@ -195,7 +197,6 @@ class TailSegmentationTracking(object):
         for tail in tails:
             for _ in xrange(10):
                 tail.contour = ac.find_contour(tail.contour)
-#         self.debug_tails(tails, potential)
 
     
     def adapt_tail_contours(self, frame, tails):
@@ -216,7 +217,6 @@ class TailSegmentationTracking(object):
         # iterate through the contours
         for tail in tails:
             tail.update_contour(ac.find_contour(tail.contour))
-#         self.debug_tails(tails, frame)
 
     
     #===========================================================================
@@ -226,7 +226,7 @@ class TailSegmentationTracking(object):
     
     def tail_linescans(self, frame, tail):
         """ do line scans along the measurement lines of the tails """
-        w, l = 2, 50
+        w, l = 2, 40
         result = []
         for line in tail.measurement_lines:
             ps = curves.make_curve_equidistant(line, spacing=2*w)
@@ -243,6 +243,8 @@ class TailSegmentationTracking(object):
                 
                 lscan = image.line_scan(frame, p1, p2, width=w)
                 profile.append(lscan.mean())
+                
+                self.output.add_points([p1, p2], 1, 'w')
                 
             result.append(profile)
             
@@ -261,16 +263,11 @@ class TailSegmentationTracking(object):
     # OUTPUT
     #===========================================================================
     
-    def debug_tails(self, tails, image=None):
-        gtail = [tail.outline for tail in tails]
-        debug.show_shape(*gtail, background=image)
-    
-    
+
     def update_video_output(self, frame):
         """ updates the video output to both the screen and the file """
         video = self.output
-        video.set_frame(frame, copy=False)
-        for tail in self.tails:
+        for tail_id, tail in enumerate(self.tails):
             # mark all the lines that are important in the video
             mark_points = (video.zoom_factor < 1)
             video.add_line(tail.contour, color='b', is_closed=True,
@@ -282,11 +279,14 @@ class TailSegmentationTracking(object):
             for k, line in enumerate(tail.measurement_lines):
                 video.add_line(line[:-3], color='r', is_closed=False, width=5,
                                mark_points=mark_points)
-                video.add_text(str(k), line[-1], color='r', anchor='center middle')
+                video.add_text(tail.line_names[k], line[-1], color='r',
+                               anchor='center middle')
             
             # mark the points that we identified
             video.add_circle(tail.endpoints[0], 10, 'g')
             video.add_circle(tail.endpoints[1], 10, 'b')
+            video.add_text(str('tail %d' % tail_id), tail.center,
+                           color='w', anchor='center middle')
             
         if self.debug_window:
             self.debug_window.show(video.frame)

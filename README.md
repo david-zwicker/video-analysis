@@ -5,7 +5,7 @@ The package is organized in multiple sub-packages:
 
 video
 -----
-This package contains code, which can be used to process videos using python.
+General code that can be used to process videos using python.
 Special attention has been paid to develop video classes that can be easily
 used in iterating over video frames, also with multiprocessing support.
 The sub-package `analysis` contains several modules that contain miscellaneous
@@ -15,10 +15,20 @@ Part of the modules have been modified from code from moviepy, which
 is released under the MIT license at github. The license is included
 at the end of this file.
 
+data_structures
+---------------
+Miscellaneous data structures that are useful for managing caches, managing
+heterogeneous output, etc.
+
 mousetracking
 -------------
-This package contains the actual video analysis code of the project within
-which this package was developed.
+The actual video analysis code for a project where we track mice burrowing in
+sand boxes.
+
+segmentation_tracking
+---------------------
+Another video analysis project where we track growing mice tails under the
+microscope.
 
 lib
 ---

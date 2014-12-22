@@ -23,6 +23,7 @@ from video.analysis.active_contour import ActiveContour
 class Tail(object):
     
     spline_smoothing = 20
+    line_names = ['ventr', 'dors']
     
     
     def __init__(self, contour):
@@ -60,6 +61,9 @@ class Tail(object):
     def polygon(self):
         return geometry.Polygon(self.contour)
 
+    @cached_property
+    def center(self):
+        return self.polygon.centroid.coords[0]
 
     @cached_property
     def bounds(self):
@@ -107,33 +111,42 @@ class Tail(object):
         return self.contour[j], self.contour[k]
     
     
-    def determine_sides(self):
+    def _sort_sides(self, sides, first_line):
+        """ sorts sides such that the first line in `sides` is closest to
+        `first_line` """
+
+    
+    def determine_sides(self, line_ref='ventral'):
         """ determine the sides of the tail """
+        # get the two sides
         k1, k2 = self.endpoint_indices
         if k2 > k1:
-            ps = [self.contour[k1:k2 + 1],
-                  np.r_[self.contour[k2:], self.contour[:k1 + 1]]]
+            sides = [self.contour[k1:k2 + 1],
+                     np.r_[self.contour[k2:], self.contour[:k1 + 1]]]
         else:
-            ps = [self.contour[k2:k1 + 1][::-1],
-                  np.r_[self.contour[k1:], self.contour[:k2 + 1]][::-1, :]]
-        return ps
+            sides = [self.contour[k2:k1 + 1][::-1],
+                     np.r_[self.contour[k1:], self.contour[:k2 + 1]][::-1, :]]
+            
+        # determine how to sort them
+        if 'ventral' == line_ref:
+            line_ref = self.ventral_side
+            
+        if line_ref is not None:
+            # sort lines such that reference line comes first
+            first_line = geometry.LineString(line_ref)
+            dists = [np.mean([first_line.distance(geometry.Point(p))
+                              for p in side])
+                     for side in sides]
+            if dists[0] > dists[1]:
+                sides = sides[1], sides[0]
+        return sides
     
-    
+        
     def update_sides(self, tail_prev):
         """ determines the side of the tails and align them with an earlier
         shape """
-        # get the sides
-        sides = self.determine_sides()
-        first_side = geometry.LineString(tail_prev.sides[0])
-        
-        # compare the distance to the previous sides
-        dists = [np.mean([first_side.distance(geometry.Point(p))
-                          for p in side])
-                 for side in self.sides]
-        if dists[0] > dists[1]:
-            sides = sides[1], sides[0]
-        
-        self._cache['sides'] = sides
+        # get the sides and make sure they agree with the previous order
+        self._cache['sides'] = self.determine_sides(line_ref=tail_prev.sides[0])
     
     
     @property
@@ -156,12 +169,13 @@ class Tail(object):
         
         # measure the fraction of points that lie in the polygon
         fs = []
-        for c in self.sides:
+        sides = self.determine_sides(line_ref=None)
+        for c in sides:
             mp = geometry.MultiPoint(c)
             frac = len(mp.intersection(polygon))/len(mp)
             fs.append(frac)
 
-        return self.sides[np.argmax(fs)]
+        return sides[np.argmax(fs)]
     
     
     def update_ventral_side(self, tail_prev):
