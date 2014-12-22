@@ -33,20 +33,27 @@ class VideoComposer(VideoFileWriter):
     Additional elements like geometric objects can be added to each frame
     """
     
-    def __init__(self, filename, size, fps, is_color, output_period=1, **kwargs):
+    def __init__(self, filename, size, fps, is_color, output_period=1, 
+                 zoom_factor=1, **kwargs):
         """
         Initializes a video file writer with additional functionality to annotate
         videos. The first arguments (size, fps, is_color) are directly passed on
         to the VideoFileWriter.
-        The additional argument `output_period` determines how often frames are
-        actually written. `output_period=10` for instance only outputs every
-        tenth frame to the file.
+        `output_period` determines how often frames are actually written.
+            `output_period=10` for instance only outputs every tenth frame to
+            the file.
+        `zoom_factor` determines how much the output will be scaled down. The
+            width of the new image is given by dividing the width of the
+            original image by the zoom_factor.
         """
         self.frame = None
         self.next_frame = -1
         self.output_period = output_period
+        self.zoom_factor = zoom_factor
+        target_size = (int(size[0]/zoom_factor), int(size[1]/zoom_factor))
         
-        super(VideoComposer, self).__init__(filename, size, fps, is_color, **kwargs)
+        super(VideoComposer, self).__init__(filename, target_size, fps,
+                                            is_color, **kwargs)
 
 
     @property
@@ -59,19 +66,28 @@ class VideoComposer(VideoFileWriter):
         """ set the current frame from an image """
         self.next_frame += 1
         if self.output_this_frame:
+            # scale current frame if necessary 
+            if self.zoom_factor != 1:
+                frame = cv2.resize(frame, self.size)
+                copy = False #< copy already happened
+            
             if self.frame is None:
-                # first frame => initialize
+                # first frame => initialize the video 
                 if self.is_color and frame.ndim == 2:
-                    self.frame = frame[:, :, None]*np.ones((1, 1, 3), np.uint8)
+                    # turn the monochrome image into a color image
+                    self.frame = np.repeat(frame[:, :, None], 3, axis=2)
                 elif not self.is_color and frame.ndim == 3:
-                    raise ValueError('Cannot copy a color image into a monochrome video.')
-                else:
+                    raise ValueError('Cannot copy a color image into a '
+                                     'monochrome video.')
+                elif copy:
                     self.frame = frame.copy()
+                else:
+                    self.frame = frame
                 
             else:
-                # write the last frame
+                # had a previous frame => write the last frame
                 self.write_frame(self.frame)
-            
+
                 # set current frame
                 if self.is_color and frame.ndim == 2:
                     # set all three color channels
@@ -87,6 +103,7 @@ class VideoComposer(VideoFileWriter):
     @skip_if_no_output
     def highlight_mask(self, mask, channel='all', strength=128):
         """ highlights the non-zero entries of a mask in the current frame """
+        # determine which color channel to use
         if channel is None or channel == 'all':
             if self.is_color:
                 channel = slice(0, 3)
@@ -101,14 +118,30 @@ class VideoComposer(VideoFileWriter):
             raise ValueError('Highlighting a specific channel is only '
                              'supported for color videos.')
 
+        # scale mask if necessary
+        if self.zoom_factor != 1:
+            mask = cv2.resize(mask.astype(np.uint8), self.size).astype(np.bool)
+        
+        # mark the mask area in the image    
         factor = (255 - strength)/255
         self.frame[mask, channel] = strength + factor*self.frame[mask, channel]
         
+
+    def _prepare_images(self, image, mask=None):
+        """ scale image if necessary """
+        if self.zoom_factor != 1:
+            image = cv2.resize(image, self.size)
+            if mask:
+                mask = cv2.resize(mask.astype(np.uint8),
+                                  self.size).astype(np.bool)
+        return image, mask        
+
 
     @skip_if_no_output
     def add_image(self, image, mask=None):
         """ adds an image to the frame """
         frame = self.frame
+        image, mask = self._prepare_images(image, mask)
         
         # check image dimensions
         if frame.shape[:2] != image.shape[:2]:
@@ -130,6 +163,7 @@ class VideoComposer(VideoFileWriter):
     def blend_image(self, image, weight=0.5, mask=None):
         """ overlay image with weight """
         frame = self.frame
+        image, mask = self._prepare_images(image, mask)
         
         # check image dimensions
         if frame.shape[:2] != image.shape[:2]:
@@ -165,6 +199,10 @@ class VideoComposer(VideoFileWriter):
                                            cv2.RETR_EXTERNAL,
                                            cv2.CHAIN_APPROX_SIMPLE)
             
+        if self.zoom_factor != 1:
+            contours = np.asarray(contours, np.double) / self.zoom_factor
+            contours = contours.astype(np.int)
+            
         cv2.drawContours(self.frame, contours, -1,
                          get_color(color), thickness=int(thickness))
     
@@ -175,7 +213,7 @@ class VideoComposer(VideoFileWriter):
         if len(points) == 0:
             return
         
-        points = np.asarray(points, np.int32)
+        points = np.asarray(points)
         
         # find the regions where the points are finite
         # Here, we compare to 0 to capture nans in the int32 array 
@@ -183,7 +221,8 @@ class VideoComposer(VideoFileWriter):
         
         for start, end in indices:
             # add the line
-            cv2.polylines(self.frame, [points[start:end, :]],
+            line_points = (points[start:end, :]/self.zoom_factor).astype(np.int)
+            cv2.polylines(self.frame, [line_points],
                           isClosed=is_closed, color=get_color(color),
                           thickness=int(width))
             # mark the anchor points if requested
@@ -196,6 +235,8 @@ class VideoComposer(VideoFileWriter):
     @skip_if_no_output
     def add_rectangle(self, rect, color='w', width=1):
         """ add a rect=(left, top, width, height) to the frame """
+        if self.zoom_factor != 1:
+            rect = np.asarray(rect) / self.zoom_factor
         cv2.rectangle(self.frame, *rect_to_corners(rect),
                       color=get_color(color), thickness=int(width))
         
@@ -205,9 +246,11 @@ class VideoComposer(VideoFileWriter):
         """ add a circle to the frame.
         thickness=-1 denotes a filled circle 
         """
+        pos = (int(pos[0]/self.zoom_factor), int(pos[1]/self.zoom_factor))
+        radius = int(radius/self.zoom_factor)
         try:
-            pos = (int(pos[0]), int(pos[1]))
-            cv2.circle(self.frame, pos, int(radius), get_color(color), thickness=int(thickness))
+            cv2.circle(self.frame, pos, radius, get_color(color),
+                       thickness=int(thickness))
         except (ValueError, OverflowError):
             pass
         
@@ -215,13 +258,8 @@ class VideoComposer(VideoFileWriter):
     @skip_if_no_output
     def add_points(self, points, radius=1, color='w'):
         """ adds a sequence of points to the frame """
-        c = get_color(color)
         for p in points:
-            try:
-                cv2.circle(self.frame, (int(p[0]), int(p[1])), radius, c, thickness=-1)
-            except OverflowError:
-                # happens with negative coordinates 
-                pass
+            self.add_circle(p, radius, color, thickness=-1)
         
     
     @skip_if_no_output
@@ -229,6 +267,8 @@ class VideoComposer(VideoFileWriter):
         """ adds text to the video.
         pos denotes the bottom left corner of the text
         """
+        if self.zoom_factor != 1:
+            pos = (int(pos[0]/self.zoom_factor), int(pos[1]/self.zoom_factor))
         
         if anchor == 'top':
             text_size, _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_COMPLEX_SMALL,
