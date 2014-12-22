@@ -77,7 +77,7 @@ class ProjectSingleSlurm(HPCProjectBase):
                 
         # cancel the jobs that were found
         if job_ids:
-            cmd = ['scancel', '-Q'] + job_ids.values()
+            cmd = ['scancel', '-Q'] + [str(i) for i in job_ids.values()]
             sp.check_call(cmd)
         
         # add files using 
