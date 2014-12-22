@@ -6,232 +6,38 @@ Created on Dec 19, 2014
 
 from __future__ import division
 
+from collections import defaultdict
+import cPickle as pickle 
+import itertools
+import math
+
 import numpy as np
 import cv2
-from scipy import interpolate
 from scipy.ndimage import measurements
-from scipy.spatial import distance
-from shapely import geometry
 
 from video import debug
 from video.io import VideoFile, ImageWindow
 from video.composer import VideoComposer
 from video.utils import display_progress
 from video.filters import FilterMonochrome
-from video.analysis import curves
+from video.analysis import curves, image
 from video.analysis.active_contour import ActiveContour
-from data_structures.cache import cached_property
 
-
-class Tail(object):
-    
-    def __init__(self, contour):
-        self.contour = contour
-        
-        
-    @property
-    def contour(self):
-        return self._contour
-    
-    @contour.setter
-    def contour(self, points):
-        points = curves.make_curve_equidistant(points, spacing=20)
-        if geometry.LinearRing(points).is_ccw:
-            self._contour = np.array(points[::-1])
-        else:
-            self._contour = np.array(points)
-        self._cache = {}
-        
-
-    @cached_property
-    def outline(self):
-        return geometry.LinearRing(self.contour)
-    
-    @cached_property
-    def polygon(self):
-        return geometry.Polygon(self.contour)
-
-
-    @cached_property
-    def bounds(self):
-        return np.array(self.outline.bounds, np.int)
-    
-    
-    @cached_property
-    def mask(self):
-        x_min, y_min, x_max, y_max = self.bounds
-        shape = (y_max - y_min) + 3, (x_max - x_min) + 3
-        offset =  (-x_min + 1, -y_min + 1)
-        mask = np.zeros(shape, np.uint8)
-        cv2.fillPoly(mask, [self.contour.astype(np.int)], 255,
-                     offset=offset)
-        return mask, offset
-    
-    
-    @cached_property
-    def endpoint_indices(self):
-        """ locate the end points as contour points with maximal distance """
-        # get the points which are farthest away from each other
-        dist = distance.squareform(distance.pdist(self.contour))
-        indices = np.unravel_index(np.argmax(dist), dist.shape)
-        
-        # determine the surrounding mass of tissue to determine posterior end
-        # TODO: We might have to determine the posterior end from previous
-        # tails, too
-        mass = []
-        for k in indices:
-            p = geometry.Point(self.contour[k]).buffer(500)
-            mass.append(self.polygon.intersection(p).area)
-            
-        # determine posterior end point by measuring the surrounding
-        if mass[1] > mass[0]:
-            return indices
-        else:
-            return indices[::-1]
-        
-        
-    @cached_property
-    def endpoints(self):
-        j, k = self.endpoint_indices
-        return self.contour[j], self.contour[k]
-    
-    
-    def _get_both_contour_sides(self):
-        k1, k2 = self.endpoint_indices
-        if k2 > k1:
-            ps = [self.contour[k1:k2 + 1],
-                  np.r_[self.contour[k2:], self.contour[:k1 + 1]]]
-        else:
-            ps = [self.contour[k2:k1 + 1][::-1],
-                  np.r_[self.contour[k1:], self.contour[:k2 + 1]][::-1, :]]
-        return ps
-            
-        
-    def determine_ventral_side(self):
-        """ determines the ventral side from the curvature of the tail """
-        # define a line connecting both end points
-        k1, k2 = self.endpoint_indices
-        line = geometry.LineString([self.contour[k1], self.contour[k2]])
-        
-        # cut the shape using this line and return the largest part
-        parts = self.polygon.difference(line.buffer(0.1))
-        areas = [part.area for part in parts]
-        polygon = parts[np.argmax(areas)].buffer(0.1)
-        
-        # get the two contour lines connecting the end points
-        cs = self._get_both_contour_sides()
-        
-        # measure the fraction of points that lie in the polygon
-        fs = []
-        for c in cs:
-            mp = geometry.MultiPoint(c)
-            frac = len(mp.intersection(polygon))/len(mp)
-            fs.append(frac)
-
-        return cs[np.argmax(fs)]
-    
-    
-    def update_ventral_side(self, tail_prev):
-        """ determines the ventral side by comparing to an earlier shape """
-        # get the two contour lines connecting the end points
-        cs = self._get_both_contour_sides()
-        
-        # get average distance of these two lines to the previous dorsal line
-        line_prev = geometry.LineString(tail_prev.ventral_side)
-        dists = [np.mean([line_prev.distance(geometry.Point(p))
-                          for p in c])
-                 for c in cs]
-        
-        return cs[np.argmin(dists)]
-
-        
-    @property
-    def ventral_side(self):
-        """ returns the points along the ventral side """
-        if 'ventral_side' not in self._cache:
-            self._cache['ventral_side'] = self.determine_ventral_side()
-        return self._cache['ventral_side']
-    
-    
-    @cached_property
-    def centerline(self):
-        """ determine the center line of the tail """
-        mask, offset = self.mask
-        dist_map = cv2.distanceTransform(mask, cv2.cv.CV_DIST_L2, 5)
-        
-        # setup active contour algorithm
-        ac = ActiveContour(blur_radius=5,
-                           closed_loop=False,
-                           alpha=0, #< line length is constraint by beta
-                           beta=1e6,
-                           gamma=1e-2)
-        ac.max_iterations = 500
-        ac.set_potential(dist_map)
-        
-        # find centerline starting from the ventral_side
-        points = curves.translate_points(self.ventral_side, *offset)
-        points = curves.make_curve_equidistant(points, spacing=50)
-        # use the active contour algorithm
-        points = ac.find_contour(points)
-        
-        points = curves.translate_points(points, -offset[0], -offset[1])
-        
-        
-        return points
-    
-    
-    @cached_property
-    def measurement_line(self):
-        """ determines the measurement line, we should use the central line
-        and the ventral line to determine where to measure """
-        # measurement line is defined by an offset to the ventral side
-        ventral_line = self.ventral_side
-        centerline = self.centerline
-        
-        # find the line between the centerline and the ventral line
-        points = []
-        for p in centerline:
-            pp = curves.get_projection_point(ventral_line, p)
-            points.append((0.5*(p[0] + pp[0]), 0.5*(p[1] + pp[1])))
-            
-        # do spline fitting
-        tck, _ = interpolate.splprep(np.transpose(points),
-                                     k=2, s=10*len(points))
-        
-        points = interpolate.splev(np.linspace(-0.5, 1.5, 100), tck)
-        points = zip(*points) #< transpose list
-
-        # restrict centerline to object
-        cline = geometry.LineString(points).intersection(self.polygon)
-            
-        return np.array(cline.coords)
-        
-#         lines = [ventral_line.parallel_offset(100, side)
-#                  for side in ('left', 'right')]
-#         
-#         # pick the side that lies within the object
-#         overlap = [self.polygon.intersection(l).length
-#                    for l in lines]
-#         line = lines[np.argmax(overlap)]
-# 
-#         # pick longest line if there are many due to strange geometries
-#         if isinstance(line, geometry.MultiLineString):
-#             line = line[np.argmax([l.length for l in line])]
-#         
-#         return line.coords
-    
+from tail import Tail
 
 
 
 class TailSegmentationTracking(object):
     """ class managing the tracking of mouse tails in videos """
     
+        
     def __init__(self, video_file, output_file, show_video=False):
         """
         `video_file` is the input video
         `output_file` is the video file where the output is written to
         `show_video` indicates whether the video should be shown while processing
         """
+        self.video_file = video_file
         self.video = self.load_video(video_file)
         # setup debug output 
         self.output = VideoComposer(output_file, size=self.video.size,
@@ -243,6 +49,8 @@ class TailSegmentationTracking(object):
         else:
             self.debug_window = None
         
+        # setup structure for saving data
+        self.kymographs = defaultdict(lambda: [[], []])
         self.tails = None
 
 
@@ -255,16 +63,25 @@ class TailSegmentationTracking(object):
     
     def process(self):
         """ processes the video """
+        # process first frame to find objects
         self.process_first_frame(self.video[0])
     
+        # iterate through all frames
         for self.frame_id, frame in enumerate(display_progress(self.video)):
+            # adapt the object outlines
             self.adapt_tail_contours(frame, self.tails)
             
-#             for tail in self.tails:
-#                 tail.measurement_line
+            # do the line scans in each object
+            for tail_id, tail in enumerate(self.tails):
+                linescans = self.tail_linescans(frame, tail)
+                self.kymographs[tail_id][0].append(linescans[0]) 
+                self.kymographs[tail_id][1].append(linescans[1])
             
+            # update the debug output
             self.update_video_output(frame)
             
+        # save the data and close the videos
+        self.save_kymographs()
         self.close()
 
     
@@ -398,13 +215,47 @@ class TailSegmentationTracking(object):
         
         # iterate through the contours
         for tail in tails:
-            tail.contour = ac.find_contour(tail.contour)
+            tail.update_contour(ac.find_contour(tail.contour))
 #         self.debug_tails(tails, frame)
 
     
     #===========================================================================
     # SEGMENT FINDING
     #===========================================================================
+    
+    
+    def tail_linescans(self, frame, tail):
+        """ do line scans along the measurement lines of the tails """
+        w, l = 2, 50
+        result = []
+        for line in tail.measurement_lines:
+            ps = curves.make_curve_equidistant(line, spacing=2*w)
+            profile = []
+            for pp, p, pn in itertools.izip(ps[:-2], ps[1:-1], ps[2:]):
+                # slope
+                dx, dy = pn - pp
+                dlen = math.hypot(dx, dy)
+                dx /= dlen; dy /= dlen
+                
+                # get end points of line scan
+                p1 = (p[0] + l*dy, p[1] - l*dx)
+                p2 = (p[0] - l*dy, p[1] + l*dx)
+                
+                lscan = image.line_scan(frame, p1, p2, width=w)
+                profile.append(lscan.mean())
+                
+            result.append(profile)
+            
+        return result
+    
+    
+    def save_kymographs(self):
+        """ saves all kymographs as pickle files """
+        for key, tail_data in self.kymographs.iteritems():
+            outfile = self.video_file.replace('.avi', '_kymo_%s.pkl' % key)
+            with open(outfile, 'w') as fp:
+                pickle.dump(tail_data, fp)
+                
     
     #===========================================================================
     # OUTPUT
@@ -417,25 +268,28 @@ class TailSegmentationTracking(object):
     
     def update_video_output(self, frame):
         """ updates the video output to both the screen and the file """
-        self.output.set_frame(frame, copy=False)
+        video = self.output
+        video.set_frame(frame, copy=False)
         for tail in self.tails:
             # mark all the lines that are important in the video
-            mark_points = (self.output.zoom_factor < 3)
-            self.output.add_line(tail.contour, color='b', is_closed=True,
-                                 width=3, mark_points=mark_points)
-            self.output.add_line(tail.ventral_side, color='g', is_closed=False,
-                                 width=4, mark_points=mark_points)
-            self.output.add_line(tail.centerline, color='g',
-                                 is_closed=False, width=5, mark_points=mark_points)
-            self.output.add_line(tail.measurement_line, color='r',
-                                 is_closed=False, width=5, mark_points=mark_points)
+            mark_points = (video.zoom_factor < 1)
+            video.add_line(tail.contour, color='b', is_closed=True,
+                           width=3, mark_points=mark_points)
+            video.add_line(tail.ventral_side, color='g', is_closed=False,
+                           width=4, mark_points=mark_points)
+            video.add_line(tail.centerline, color='g',
+                           is_closed=False, width=5, mark_points=mark_points)
+            for k, line in enumerate(tail.measurement_lines):
+                video.add_line(line[:-3], color='r', is_closed=False, width=5,
+                               mark_points=mark_points)
+                video.add_text(str(k), line[-1], color='r', anchor='center middle')
             
             # mark the points that we identified
-            self.output.add_circle(tail.endpoints[0], 10, 'g')
-            self.output.add_circle(tail.endpoints[1], 10, 'b')
+            video.add_circle(tail.endpoints[0], 10, 'g')
+            video.add_circle(tail.endpoints[1], 10, 'b')
             
         if self.debug_window:
-            self.debug_window.show(self.output.frame)
+            self.debug_window.show(video.frame)
     
     
     def close(self):
