@@ -267,20 +267,36 @@ class VideoComposer(VideoFileWriter):
         
     
     @skip_if_no_output
-    def add_text(self, text, pos, color='w', size=1, anchor='bottom'):
+    def add_text(self, text, pos, color='w', size=1, anchor='bottom',
+                 font=cv2.FONT_HERSHEY_COMPLEX_SMALL):
         """ adds text to the video.
-        pos denotes the bottom left corner of the text
+        `pos` determines the position of the anchor of the text
+        `anchor` can be a string containing (left, center, right) for
+            horizontal placement and (upper, middle, lower) for the vertical one
         """
         if self.zoom_factor != 1:
-            pos = (int(pos[0]/self.zoom_factor), int(pos[1]/self.zoom_factor))
-        
-        if anchor == 'top':
-            text_size, _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_COMPLEX_SMALL,
-                                           fontScale=size, thickness=1)
-            pos = (pos[0], pos[1] + text_size[1])
+            pos = [int(pos[0]/self.zoom_factor), int(pos[1]/self.zoom_factor)]
+        else:
+            pos = [int(pos[0]), int(pos[1])]
+    
+        # determine text size to allow flexible positioning
+        text_size, _ = cv2.getTextSize(text, font, fontScale=size, thickness=1)
+
+        # determine horizontal position of text
+        if 'right' in anchor:
+            pos[0] = pos[0] - text_size[0]
+        elif 'center' in anchor:
+            pos[0] = pos[0] - text_size[0]//2
             
-        cv2.putText(self.frame, text, pos, cv2.FONT_HERSHEY_COMPLEX_SMALL,
-                    fontScale=size, color=get_color(color), thickness=1)
+        # determine vertical position of text
+        if 'upper' in anchor or 'top' in anchor:
+            pos[1] = pos[1] + text_size[1]
+        elif 'middle' in anchor:
+            pos[1] = pos[1] + text_size[1]//2
+            
+        # place text
+        cv2.putText(self.frame, text, tuple(pos), font, fontScale=size,
+                    color=get_color(color), thickness=1)
         
         
     def close(self):

@@ -56,7 +56,7 @@ def subpixels(img, pts):
 
 
 
-def line_scan(image, p1, p2, width=5):
+def line_scan(img, p1, p2, width=5):
     """ returns the average intensity of an image along a strip of a given
     width, ranging from point p1 to p2.
     """ 
@@ -70,7 +70,7 @@ def line_scan(image, p1, p2, width=5):
 
     # determine and apply the affine transformation
     matrix = cv2.getAffineTransform(pts1, pts2)
-    res = cv2.warpAffine(image, matrix, (int(length), int(2*width)))
+    res = cv2.warpAffine(img, matrix, (int(length), int(2*width)))
 
     # return the profile
     return res.mean(axis=0)
