@@ -68,7 +68,7 @@ class ProjectSingleSlurm(HPCProjectBase):
                 if p_id in job_ids:
                     # this job has been restarted => all previous jobs should
                     # be finished by now
-                    job_ids = {'p_id': j_id}
+                    job_ids = {'p_id': int(j_id)}
                 else:
                     # add this id to list of jobs that may still be running
                     job_ids[p_id] = int(j_id)
