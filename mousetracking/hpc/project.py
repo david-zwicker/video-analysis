@@ -30,6 +30,7 @@ def process_trials(logfile, max_iterations=10):
         # check for an error in the log file
         processing_finished = True
         try:
+            time.sleep(10) #< sleep to allow the log to become accessible 
             for line in open(logfile, "r"):
                 if 'FFmpeg encountered the following error' in line:
                     # sleep up to two minutes to get around weird race conditions
