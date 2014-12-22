@@ -3,8 +3,9 @@ video-analysis
 This python package contains several modules and packages for doing video analysis with OpenCV and python.
 The package is organized in multiple sub-packages:
 
-video
------
+<dl>
+<dt>video</dt>
+<dd>
 General code that can be used to process videos using python.
 Special attention has been paid to develop video classes that can be easily
 used in iterating over video frames, also with multiprocessing support.
@@ -14,26 +15,27 @@ functions that might be useful for general image or video analysis
 Part of the modules have been modified from code from moviepy, which
 is released under the MIT license at github. The license is included
 at the end of this file.
-
-data_structures
----------------
+</dd>
+<dt>data_structures</dt>
+<dd>
 Miscellaneous data structures that are useful for managing caches, managing
 heterogeneous output, etc.
-
-mousetracking
--------------
+</dd>
+<dt>mousetracking</dt>
+<dd>
 The actual video analysis code for a project where we track mice burrowing in
 sand boxes.
-
-segmentation_tracking
----------------------
+</dd>
+<dt>segmentation_tracking</dt>
+<dd>
 Another video analysis project where we track growing mice tails under the
 microscope.
-
-lib
----
+</dd>
+<dt>lib</dt>
+<dd>
 Small package that collects modules copied from other authors.
-
+</dd>
+</dl>
 
 
 The MIT License (MIT) [OSI Approved License]
