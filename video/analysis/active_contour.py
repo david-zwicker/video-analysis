@@ -59,6 +59,7 @@ class ActiveContour(object):
         
         self.clear_cache() #< also initializes the cache
         self.fx = self.fy = None
+        self.info = {}
 
 
     def clear_cache(self):
@@ -140,7 +141,7 @@ class ActiveContour(object):
         # create intermediate array
         ps = points.copy()
     
-        for _ in xrange(self.max_iterations):
+        for k in xrange(self.max_iterations):
             # calculate external force
             fex = image.subpixels(self.fx, points)
             fey = image.subpixels(self.fy, points)
@@ -166,6 +167,7 @@ class ActiveContour(object):
             if residual < self.residual_tolerance * self.gamma:
                 break
             
+        self.info['iteration_count'] = k + 1
     
         return points
     

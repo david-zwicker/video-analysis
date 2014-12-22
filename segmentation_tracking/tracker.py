@@ -8,10 +8,10 @@ from __future__ import division
 
 import numpy as np
 import cv2
+from scipy import interpolate
 from scipy.ndimage import measurements
 from scipy.spatial import distance
 from shapely import geometry
-
 
 from video import debug
 from video.io import VideoFile, ImageWindow
@@ -37,8 +37,9 @@ class Tail(object):
     def contour(self, points):
         points = curves.make_curve_equidistant(points, spacing=20)
         if geometry.LinearRing(points).is_ccw:
-            points = points[::-1].copy()
-        self._contour = points
+            self._contour = np.array(points[::-1])
+        else:
+            self._contour = np.array(points)
         self._cache = {}
         
 
@@ -50,13 +51,21 @@ class Tail(object):
     def polygon(self):
         return geometry.Polygon(self.contour)
 
+
+    @cached_property
+    def bounds(self):
+        return np.array(self.outline.bounds, np.int)
     
-#     @cached_property
-#     def mask(self):
-#         x_min, y_min, x_max, y_max = self.outline.bounds
-#         shape = (y_max - y_min) + 2, (x_max - x_min) + 2 
-#         mask = np.zeros(shape, np.uint8)
-#         cv2.fillPoly([self.contour]
+    
+    @cached_property
+    def mask(self):
+        x_min, y_min, x_max, y_max = self.bounds
+        shape = (y_max - y_min) + 3, (x_max - x_min) + 3
+        offset =  (-x_min + 1, -y_min + 1)
+        mask = np.zeros(shape, np.uint8)
+        cv2.fillPoly(mask, [self.contour.astype(np.int)], 255,
+                     offset=offset)
+        return mask, offset
     
     
     @cached_property
@@ -97,7 +106,6 @@ class Tail(object):
                   np.r_[self.contour[k1:], self.contour[:k2 + 1]][::-1, :]]
         return ps
             
-        
         
     def determine_ventral_side(self):
         """ determines the ventral side from the curvature of the tail """
@@ -143,18 +151,95 @@ class Tail(object):
         if 'ventral_side' not in self._cache:
             self._cache['ventral_side'] = self.determine_ventral_side()
         return self._cache['ventral_side']
+    
+    
+    @cached_property
+    def centerline(self):
+        """ determine the center line of the tail """
+        mask, offset = self.mask
+        dist_map = cv2.distanceTransform(mask, cv2.cv.CV_DIST_L2, 5)
+        
+        # setup active contour algorithm
+        ac = ActiveContour(blur_radius=5,
+                           closed_loop=False,
+                           alpha=0, #< line length is constraint by beta
+                           beta=1e6,
+                           gamma=1e-2)
+        ac.max_iterations = 500
+        ac.set_potential(dist_map)
+        
+        # find centerline starting from the ventral_side
+        points = curves.translate_points(self.ventral_side, *offset)
+        points = curves.make_curve_equidistant(points, spacing=50)
+        # use the active contour algorithm
+        points = ac.find_contour(points)
+        
+        points = curves.translate_points(points, -offset[0], -offset[1])
+        
+        
+        return points
+    
+    
+    @cached_property
+    def measurement_line(self):
+        """ determines the measurement line, we should use the central line
+        and the ventral line to determine where to measure """
+        # measurement line is defined by an offset to the ventral side
+        ventral_line = self.ventral_side
+        centerline = self.centerline
+        
+        # find the line between the centerline and the ventral line
+        points = []
+        for p in centerline:
+            pp = curves.get_projection_point(ventral_line, p)
+            points.append((0.5*(p[0] + pp[0]), 0.5*(p[1] + pp[1])))
+            
+        # do spline fitting
+        tck, _ = interpolate.splprep(np.transpose(points),
+                                     k=2, s=10*len(points))
+        
+        points = interpolate.splev(np.linspace(-0.5, 1.5, 100), tck)
+        points = zip(*points) #< transpose list
+
+        # restrict centerline to object
+        cline = geometry.LineString(points).intersection(self.polygon)
+            
+        return np.array(cline.coords)
+        
+#         lines = [ventral_line.parallel_offset(100, side)
+#                  for side in ('left', 'right')]
+#         
+#         # pick the side that lies within the object
+#         overlap = [self.polygon.intersection(l).length
+#                    for l in lines]
+#         line = lines[np.argmax(overlap)]
+# 
+#         # pick longest line if there are many due to strange geometries
+#         if isinstance(line, geometry.MultiLineString):
+#             line = line[np.argmax([l.length for l in line])]
+#         
+#         return line.coords
+    
 
 
 
 class TailSegmentationTracking(object):
+    """ class managing the tracking of mouse tails in videos """
     
     def __init__(self, video_file, output_file, show_video=False):
+        """
+        `video_file` is the input video
+        `output_file` is the video file where the output is written to
+        `show_video` indicates whether the video should be shown while processing
+        """
         self.video = self.load_video(video_file)
         # setup debug output 
         self.output = VideoComposer(output_file, size=self.video.size,
-                                    fps=self.video.fps, is_color=True)
+                                    fps=self.video.fps, is_color=True,
+                                    zoom_factor=1)
         if show_video:
-            self.debug_window = ImageWindow(self.output.shape, title=video_file)
+            self.debug_window = ImageWindow(self.output.shape, title=video_file,
+                                            multiprocessing=False)
         else:
             self.debug_window = None
         
@@ -174,7 +259,13 @@ class TailSegmentationTracking(object):
     
         for self.frame_id, frame in enumerate(display_progress(self.video)):
             self.adapt_tail_contours(frame, self.tails)
+            
+#             for tail in self.tails:
+#                 tail.measurement_line
+            
             self.update_video_output(frame)
+            
+        self.close()
 
     
     def process_first_frame(self, frame):
@@ -184,7 +275,7 @@ class TailSegmentationTracking(object):
         # refine tails
         self.adapt_tail_contours_initially(frame, self.tails)
         # refine tails a couple of times because convergence is sometimes bad
-        for _ in xrange(20):
+        for _ in xrange(2):#0):
             self.adapt_tail_contours(frame, self.tails)
         
                     
@@ -319,22 +410,36 @@ class TailSegmentationTracking(object):
     # OUTPUT
     #===========================================================================
     
-    def update_video_output(self, frame):
-        self.output.set_frame(frame, copy=False)
-        for tail in self.tails:
-            self.output.add_line(tail.contour, color='b', is_closed=True,
-                                 width=3)
-            self.output.add_circle(tail.endpoints[0], 10, 'r')
-            self.output.add_circle(tail.endpoints[1], 10, 'g')
-            self.output.add_line(tail.ventral_side, color='g', is_closed=False,
-                                 width=4)
-        if self.debug_window:
-            self.debug_window.show(self.output.frame)
-    
-    
     def debug_tails(self, tails, image=None):
         gtail = [tail.outline for tail in tails]
         debug.show_shape(*gtail, background=image)
     
-        
     
+    def update_video_output(self, frame):
+        """ updates the video output to both the screen and the file """
+        self.output.set_frame(frame, copy=False)
+        for tail in self.tails:
+            # mark all the lines that are important in the video
+            mark_points = (self.output.zoom_factor < 3)
+            self.output.add_line(tail.contour, color='b', is_closed=True,
+                                 width=3, mark_points=mark_points)
+            self.output.add_line(tail.ventral_side, color='g', is_closed=False,
+                                 width=4, mark_points=mark_points)
+            self.output.add_line(tail.centerline, color='g',
+                                 is_closed=False, width=5, mark_points=mark_points)
+            self.output.add_line(tail.measurement_line, color='r',
+                                 is_closed=False, width=5, mark_points=mark_points)
+            
+            # mark the points that we identified
+            self.output.add_circle(tail.endpoints[0], 10, 'g')
+            self.output.add_circle(tail.endpoints[1], 10, 'b')
+            
+        if self.debug_window:
+            self.debug_window.show(self.output.frame)
+    
+    
+    def close(self):
+        self.output.close()
+        if self.debug_window:
+            self.debug_window.close()
+        

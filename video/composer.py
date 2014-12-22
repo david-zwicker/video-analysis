@@ -222,9 +222,10 @@ class VideoComposer(VideoFileWriter):
         for start, end in indices:
             # add the line
             line_points = (points[start:end, :]/self.zoom_factor).astype(np.int)
+            thickness = int(np.ceil(width/self.zoom_factor))
             cv2.polylines(self.frame, [line_points],
                           isClosed=is_closed, color=get_color(color),
-                          thickness=int(width))
+                          thickness=thickness)
             # mark the anchor points if requested
             if mark_points:
                 for p in points[start:end, :]:
@@ -237,8 +238,11 @@ class VideoComposer(VideoFileWriter):
         """ add a rect=(left, top, width, height) to the frame """
         if self.zoom_factor != 1:
             rect = np.asarray(rect) / self.zoom_factor
+            thickness = int(np.ceil(width/self.zoom_factor))
+        else:
+            thickness = int(width)
         cv2.rectangle(self.frame, *rect_to_corners(rect),
-                      color=get_color(color), thickness=int(width))
+                      color=get_color(color), thickness=thickness)
         
         
     @skip_if_no_output
@@ -246,9 +250,9 @@ class VideoComposer(VideoFileWriter):
         """ add a circle to the frame.
         thickness=-1 denotes a filled circle 
         """
-        pos = (int(pos[0]/self.zoom_factor), int(pos[1]/self.zoom_factor))
-        radius = int(radius/self.zoom_factor)
         try:
+            pos = (int(pos[0]/self.zoom_factor), int(pos[1]/self.zoom_factor))
+            radius = int(np.ceil(radius/self.zoom_factor))
             cv2.circle(self.frame, pos, radius, get_color(color),
                        thickness=int(thickness))
         except (ValueError, OverflowError):
