@@ -30,7 +30,6 @@ def process_trials(logfile, max_iterations=10):
         # check for an error in the log file
         processing_finished = True
         try:
-            time.sleep(10) #< sleep to allow the log to become accessible 
             for line in open(logfile, "r"):
                 if 'FFmpeg encountered the following error' in line:
                     # sleep up to two minutes to get around weird race conditions
@@ -52,7 +51,8 @@ class HPCProjectBase(object):
     
     files_job = tuple()      #< files that need to be set up for the project
     files_cleanup = tuple()  #< files that need to be deleted to clean the work folder
-    file_parameters = '%s_results.yaml' #< pattern for the file where the parameters are stored 
+    file_parameters = '%s_results.yaml' #< pattern for the file where the parameters are stored
+    file_log_pass = "log_pass%d_%%s.txt" #< pattern for the log file of each pass
     default_passes = 4
     
     def __init__(self, folder, name=None, parameters=None, passes=None):
@@ -187,8 +187,8 @@ class HPCProjectBase(object):
             # add job files to parameters
             for k, filename in enumerate(self.files_job[pass_id]):
                 params['JOB_FILE_%d' % k] = filename
-            params['LOG_FILE'] = os.path.join(self.folder,
-                                              "log_pass%d_%%s.log" % pass_id)
+            params['LOG_FILE'] = os.path.join(self.folder, 
+                                              self.file_log_pass % pass_id)
         
             # create the job scripts
             for filename in self.files_job[pass_id]:
