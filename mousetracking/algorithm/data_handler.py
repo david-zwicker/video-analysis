@@ -86,7 +86,7 @@ class DataHandler(object):
 
     def set_status(self, status):
         """ sets the status of the analysis """
-        self.data['analysis-status/state'] = status
+        self.data['analysis-status'] = {'state': status}
         
 
     def check_parameters(self, parameters):
@@ -316,8 +316,12 @@ class DataHandler(object):
     def data_lastmodified(self):
         """ returns the time at which the data was last modified """
         # try reading the time stamp from the data
-        last_update_str = self.data.get('analysis-status/updated_last', None)
-        last_update = dateutil.parser.parse(last_update_str)
+        try:
+            last_update_str = self.data.get['analysis-status/updated_last']
+        except (KeyError, TypeError):
+            last_update = None
+        else:
+            last_update = dateutil.parser.parse(last_update_str)
         
         if not last_update:
             # try reading the last-modified timestamp from the yaml file
