@@ -21,6 +21,7 @@ from .parameters import PARAMETERS, PARAMETERS_DEFAULT, UNIT, scale_parameters
 from .utils import get_loglevel_from_name, change_directory
 from data_structures.dict_xpath import DictXpathLazy
 from data_structures.lazy_values import LazyHDFValue, prepare_data_for_yaml
+from data_structures.cache import cached_property
 from video.io import load_any_video
 from video.filters import FilterCrop, FilterMonochrome
 from video.utils import ensure_directory_exists
@@ -311,6 +312,7 @@ class DataHandler(object):
         return video_info
 
 
+    @cached_property
     def data_lastmodified(self):
         """ returns the time at which the data was last modified """
         # try reading the time stamp from the data
