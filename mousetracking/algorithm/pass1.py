@@ -84,7 +84,7 @@ class FirstPass(PassBase):
         self.data.create_child('pass1/video', video_info)
         del self.data['pass1/video/filecount']
         
-        self.data['analysis-status'] = 'Loaded video'            
+        self.set_status('Loaded video')            
 
     
     def process(self):
@@ -108,7 +108,7 @@ class FirstPass(PassBase):
 
         self.log_event('Pass 1 - Started iterating through the video with %d frames.' %
                        self.video.frame_count)
-        self.data['analysis-status'] = 'Initialized video analysis'
+        self.set_status('Initialized video analysis')
         start_time = time.time()            
         
         try:
@@ -119,12 +119,12 @@ class FirstPass(PassBase):
             # abort the video analysis
             self.video.abort_iteration()
             self.log_event('Pass 1 - Analysis run has been interrupted.')
-            self.data['analysis-status'] = 'Partly finished first pass'
+            self.set_status('Partly finished first pass')
             
         else:
             # finished analysis successfully
             self.log_event('Pass 1 - Finished iterating through the frames.')
-            self.data['analysis-status'] = 'Finished first pass'
+            self.set_status('Finished first pass')
             
         finally:
             # cleanup in all cases 

@@ -70,7 +70,7 @@ class ThirdPass(PassBase):
         
         self.log_event('Pass 3 - Started iterating through the video with '
                        '%d frames.' % self.video.frame_count)
-        self.data['analysis-status'] = 'Initialized video analysis'
+        self.set_status('Initialized video analysis')
         start_time = time.time()            
         
         try:
@@ -81,12 +81,12 @@ class ThirdPass(PassBase):
             # abort the video analysis
             self.video.abort_iteration()
             self.log_event('Pass 3 - Analysis run has been interrupted.')
-            self.data['analysis-status'] = 'Partly finished third pass'
+            self.set_status('Partly finished third pass')
             
         else:
             # finished analysis successfully
             self.log_event('Pass 3 - Finished iterating through the frames.')
-            self.data['analysis-status'] = 'Finished third pass'
+            self.set_status('Finished third pass')
             
         finally:
             # cleanup in all cases 

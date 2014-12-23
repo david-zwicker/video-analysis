@@ -62,7 +62,7 @@ class SecondPass(PassBase):
         self.smooth_ground_profile()
         #self.classify_mouse_track()
         
-        self.data['analysis-status'] = 'Finished second pass'
+        self.set_status('Finished second pass')
         self.log_event('Pass 2 - Finished second pass.')
         self.set_pass_status(state='done')
         

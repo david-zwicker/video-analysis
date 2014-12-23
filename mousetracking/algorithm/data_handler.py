@@ -8,6 +8,8 @@ contains classes that manage data input and output
 
 from __future__ import division
 
+import datetime
+import dateutil 
 import logging
 import os
 import subprocess
@@ -73,13 +75,18 @@ class DataHandler(object):
         # folders must be initialized before the data is read
         if initialize_parameters:
             self.initialize_parameters(parameters)
-            self.data['analysis-status'] = 'Initialized parameters'
+            self.set_status('Initialized parameters')
 
         if read_data:
             # read_data internally initializes the parameters 
             self.read_data()
-            self.data['analysis-status'] = 'Data from previous run has been read'
+            self.set_status('Data from previous run has been read')
 
+
+    def set_status(self, status):
+        """ sets the status of the analysis """
+        self.data['analysis-status/state'] = status
+        
 
     def check_parameters(self, parameters):
         """ checks whether the parameters given in the input do actually exist
@@ -303,6 +310,25 @@ class DataHandler(object):
         
         return video_info
 
+
+    def data_lastmodified(self):
+        """ returns the time at which the data was last modified """
+        # try reading the time stamp from the data
+        last_update_str = self.data.get('analysis-status/updated_last', None)
+        last_update = dateutil.parser.parse(last_update_str)
+        
+        if not last_update:
+            # try reading the last-modified timestamp from the yaml file
+            filename = self.get_filename('results.yaml', 'results')
+            try:
+                ts = os.path.getmtime(filename)
+                last_update = datetime.datetime.fromtimestamp(ts)
+            except IOError:
+                # the data has not been written and is thus brand new  
+                last_update = datetime.datetime.now()
+        
+        return last_update
+
             
     def write_data(self):
         """ writes the results to a file """
@@ -311,6 +337,7 @@ class DataHandler(object):
 
         # prepare writing the data
         main_result = self.data.copy()
+        main_result['analysis-status/updated_last'] = str(datetime.datetime.now())
         
         # write large amounts of data to accompanying hdf file
         hdf_filename= self.get_filename('results.hdf5', 'results')
@@ -321,7 +348,9 @@ class DataHandler(object):
                 value = main_result.get_item(key, load_data=False)
                 if not isinstance(value, LazyHDFValue):
                     assert cls == value.__class__
-                    main_result[key] = cls.storage_class.create_from_data(key, value, hdf_filename)
+                    obj = cls.storage_class.create_from_data(key, value,
+                                                             hdf_filename)
+                    main_result[key] = obj
         
         # write the main result file to YAML
         filename = self.get_filename('results.yaml', 'results')

@@ -69,7 +69,7 @@ class FourthPass(PassBase):
 
         self.log_event('Pass 4 - Started iterating through the video with '
                        '%d frames.' % self.background_video.frame_count)
-        self.data['analysis-status'] = 'Initialized video analysis'
+        self.set_status('Initialized video analysis')
         start_time = time.time()            
         
         try:
@@ -80,7 +80,7 @@ class FourthPass(PassBase):
             # abort the video analysis
             self.background_video.abort_iteration()
             self.log_event('Pass 4 - Analysis run has been interrupted.')
-            self.data['analysis-status'] = 'Partly finished third pass'
+            self.set_status('Partly finished third pass')
             
         else:
             # finalize all active burrow tracks
@@ -89,7 +89,7 @@ class FourthPass(PassBase):
                 self.add_burrows_to_tracks(active_burrows)
             
             self.log_event('Pass 4 - Finished iterating through the frames.')
-            self.data['analysis-status'] = 'Finished third pass'
+            self.set_status('Finished third pass')
             
         finally:
             # cleanup in all cases 
