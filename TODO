@@ -8,17 +8,15 @@
 * Pass1:
 * Pass2:
 * Pass3:
+    - detect when burrow has mutliple exits and adjust the centerline accordingly
 * Pass4:
 	- connect two burrows that face each other (which happens for burrows with two exits)
-* Project management:
-    - cancel running jobs when submitting new ones
 
 Performance improvements:
 -------------------------
 * Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)
 	- Do operations in place as often as possible
 * Generally cache all kernels for morphological operations, since these are costly to make
-* Performance is limited by reading the video using ffmpeg (which is capped at about 50 fps)
 
 
 Low priority enhancements:
