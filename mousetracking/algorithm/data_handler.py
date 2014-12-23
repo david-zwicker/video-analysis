@@ -9,12 +9,15 @@ contains classes that manage data input and output
 from __future__ import division
 
 import datetime
-import dateutil 
 import logging
 import os
 import subprocess
 
 import yaml
+try:
+    import dateutil 
+except ImportError:
+    dateutil = None
 
 import objects
 from .parameters import PARAMETERS, PARAMETERS_DEFAULT, UNIT, scale_parameters
@@ -321,7 +324,12 @@ class DataHandler(object):
         except (KeyError, TypeError):
             last_update = None
         else:
-            last_update = dateutil.parser.parse(last_update_str)
+            # use dateutil if present, otherwise fall back to datetime
+            if dateutil:
+                last_update = dateutil.parser.parse(last_update_str)
+            else:
+                last_update = datetime.datetime.strptime(last_update_str,
+                                                         "%Y-%m-%d %H:%M:%S")
         
         if not last_update:
             # try reading the last-modified timestamp from the yaml file
