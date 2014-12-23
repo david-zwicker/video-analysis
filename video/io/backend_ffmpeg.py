@@ -313,7 +313,7 @@ class VideoWriterFFmpeg(object):
              '-r', '%.02f' % fps,
              '-i', '-',
              '-an'] # no audio
-            + ([] if (codec is None) else ['-vcodec', codec])
+            + ([] if (codec is None) else ['-c:v', codec])
             + ([] if (bitrate is None) else ['-b:v', bitrate])
 
             # http://trac.FFmpeg.org/ticket/658
@@ -323,7 +323,7 @@ class VideoWriterFFmpeg(object):
                    (size[1] % 2 == 0))
                else [])
 
-            + ['-r', "%d" % fps, filename]
+            + ['-r', "%.02f" % fps, filename]
         )
         
         # start FFmpeg, which should wait for input
