@@ -11,6 +11,7 @@ from numpy import array  # @UnusedImport
 
 from mousetracking import scan_video
 from mousetracking.hpc.project import process_trials
+from video.io.backend_ffmpeg import FFmpegError 
 
 # configure basic logging, which will be overwritten later
 logging.basicConfig()
@@ -31,6 +32,12 @@ parameters.update({{
 }})
 
 # do the first pass scan
-for trial in process_trials("{LOG_FILE}" % job_id, 10):
-    scan_video("{NAME}", parameters=parameters, passes=1,
-               scale_length={SCALE_LENGTH}) # @UndefinedVariable
+for trial in xrange(10):#process_trials("{LOG_FILE}" % job_id, 10):
+    try:
+        scan_video("{NAME}", parameters=parameters, passes=1,
+                   scale_length={SCALE_LENGTH}) # @UndefinedVariable
+    except FFmpegError:
+        print('FFmpeg error occurred! Repeat the analysis.')
+    else:
+        print('Analysis finished successfully.')
+        break

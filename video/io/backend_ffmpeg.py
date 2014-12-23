@@ -58,6 +58,11 @@ else:
 
 
 
+class FFmpegError(IOError):
+    pass
+
+
+
 class VideoFFmpeg(VideoBase):
     """ Class handling a single movie file using FFmpeg
     """ 
@@ -184,10 +189,10 @@ class VideoFFmpeg(VideoBase):
                          self._frame_pos/self.fps, self.duration))
             
             if not hasattr(self, 'lastread'):
-                raise IOError("Failed to read the first frame of video file %s. "
-                              "That might mean that the file is corrupted. That "
-                              "may also mean that you are using a deprecated "
-                              "version of FFmpeg." % self.filename)
+                raise FFmpegError("Failed to read the first frame of video file %s. "
+                                  "That might mean that the file is corrupted. That "
+                                  "may also mean that you are using a deprecated "
+                                  "version of FFmpeg." % self.filename)
 
             result = self.lastread
 
@@ -385,7 +390,7 @@ class VideoWriterFFmpeg(object):
                   "failed, possibly because the bitrate you specified "
                   "was too high or too low for the video codec.")
             
-            raise IOError(error)
+            raise FFmpegError(error)
 
         else:
             self.frames_written += 1   

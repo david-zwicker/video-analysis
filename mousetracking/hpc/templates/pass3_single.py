@@ -11,6 +11,7 @@ from numpy import array  # @UnusedImport
 
 from mousetracking.algorithm.pass3 import ThirdPass
 from mousetracking.hpc.project import process_trials
+from video.io.backend_ffmpeg import FFmpegError 
 
 # configure basic logging, which will be overwritten later
 logging.basicConfig()
@@ -29,5 +30,8 @@ parameters.update({{
 
 # do the second pass scan
 for trial in process_trials("{LOG_FILE}" % job_id, 10):
-    pass3 = ThirdPass("{NAME}", parameters=parameters, read_data=True)
-    pass3.process()
+    try:
+        pass3 = ThirdPass("{NAME}", parameters=parameters, read_data=True)
+        pass3.process()
+    except FFmpegError:
+        print('FFmpeg error occurred. Continue.')
