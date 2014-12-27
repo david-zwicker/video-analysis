@@ -13,7 +13,9 @@ import math
 
 import numpy as np
 import cv2
+from scipy import interpolate
 from scipy.ndimage import measurements
+from shapely import geometry
 
 from video.io import VideoFile, ImageWindow
 from video.composer import VideoComposer
@@ -30,6 +32,11 @@ from tail import Tail
 
 class TailSegmentationTracking(object):
     """ class managing the tracking of mouse tails in videos """
+    
+    measurement_line_offset = 0.5 #< determines position of the measurement line
+    spline_smoothing = 20 #< smoothing factor for measurement lines
+    line_scan_width = 40 #< width of the line scan along the measurement lines
+
     
     def __init__(self, video_file, output_file, show_video=False):
         """
@@ -223,12 +230,49 @@ class TailSegmentationTracking(object):
     # SEGMENT FINDING
     #===========================================================================
     
+    def get_measurement_lines(self, tail):
+        """
+        determines the measurement lines that are used for the line sca
+        """
+        f_c = self.measurement_line_offset
+        f_o = 1 - f_c
+
+        centerline = tail.centerline
+        result = []
+        for side in tail.sides:
+            # find the line between the centerline and the ventral line
+            points = []
+            for p_c in centerline:
+                p_o = curves.get_projection_point(side, p_c) #< outer line
+                points.append((f_c*p_c[0] + f_o*p_o[0],
+                               f_c*p_c[1] + f_o*p_o[1]))
+                
+            # do spline fitting to smooth the line
+            smoothing = self.spline_smoothing*len(points)
+            tck, _ = interpolate.splprep(np.transpose(points),
+                                         k=2, s=smoothing)
+            
+            points = interpolate.splev(np.linspace(-0.5, .8, 100), tck)
+            points = zip(*points) #< transpose list
+    
+            # restrict centerline to object
+            mline = geometry.LineString(points).intersection(tail.polygon)
+            
+            # pick longest line if there are many due to strange geometries
+            if isinstance(mline, geometry.MultiLineString):
+                mline = mline[np.argmax([l.length for l in mline])]
+                
+            result.append(np.array(mline.coords))
+            
+        return result   
+    
     
     def tail_linescans(self, frame, tail):
         """ do line scans along the measurement lines of the tails """
-        w, l = 2, 40
+        l = self.line_scan_width
+        w = 2 #< width of each individual line scan
         result = []
-        for line in tail.measurement_lines:
+        for line in self.get_measurement_lines(tail):
             ps = curves.make_curve_equidistant(line, spacing=2*w)
             profile = []
             for pp, p, pn in itertools.izip(ps[:-2], ps[1:-1], ps[2:]):
@@ -276,7 +320,7 @@ class TailSegmentationTracking(object):
                            width=4, mark_points=mark_points)
             video.add_line(tail.centerline, color='g',
                            is_closed=False, width=5, mark_points=mark_points)
-            for k, line in enumerate(tail.measurement_lines):
+            for k, line in enumerate(self.get_measurement_lines(tail)):
                 video.add_line(line[:-3], color='r', is_closed=False, width=5,
                                mark_points=mark_points)
                 video.add_text(tail.line_names[k], line[-1], color='r',

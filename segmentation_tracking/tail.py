@@ -9,7 +9,6 @@ from __future__ import division
 import copy
 
 import numpy as np
-from scipy import interpolate
 from scipy.spatial import distance
 from shapely import geometry
 import cv2
@@ -21,8 +20,8 @@ from video.analysis.active_contour import ActiveContour
 
 
 class Tail(object):
+    """ class representing a single mouse tail in a single frame """
     
-    spline_smoothing = 20
     line_names = ['ventr', 'dors']
     
     
@@ -229,34 +228,4 @@ class Tail(object):
         return points
     
     
-    @cached_property
-    def measurement_lines(self):
-        """ determines the measurement line, we should use the central line
-        and the ventral line to determine where to measure """
-        centerline = self.centerline
-        result = []
-        for side in self.sides:
-            # find the line between the centerline and the ventral line
-            points = []
-            for p in centerline:
-                pp = curves.get_projection_point(side, p)
-                points.append((0.5*(p[0] + pp[0]), 0.5*(p[1] + pp[1])))
-                
-            # do spline fitting
-            smoothing = self.spline_smoothing*len(points)
-            tck, _ = interpolate.splprep(np.transpose(points),
-                                         k=2, s=smoothing)
-            
-            points = interpolate.splev(np.linspace(-0.5, .8, 100), tck)
-            points = zip(*points) #< transpose list
-    
-            # restrict centerline to object
-            cline = geometry.LineString(points).intersection(self.polygon)
-            
-            # pick longest line if there are many due to strange geometries
-            if isinstance(cline, geometry.MultiLineString):
-                cline = cline[np.argmax([l.length for l in cline])]
-                
-            result.append(np.array(cline.coords))
-            
-        return result    
+     
