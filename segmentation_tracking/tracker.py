@@ -111,7 +111,7 @@ class TailSegmentationTracking(object):
     
     
     def locate_tails_roughly(self, img):
-        """ locate tail objects in thresholded image """
+        """ locate tail objects using thresholding """
         for _ in xrange(3):
             img = cv2.pyrDown(img)
     
@@ -229,6 +229,7 @@ class TailSegmentationTracking(object):
     #===========================================================================
     # SEGMENT FINDING
     #===========================================================================
+    
     
     def get_measurement_lines(self, tail):
         """

@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 
 
 def plot_kymograph(infile, outfile):
+    """ plots a kymograph of the line scan data """
     with open(infile) as fp:
         tail_data = pickle.load(fp)
 

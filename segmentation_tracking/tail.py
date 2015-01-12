@@ -20,7 +20,9 @@ from video.analysis.active_contour import ActiveContour
 
 
 class Tail(object):
-    """ class representing a single mouse tail in a single frame """
+    """ class representing a single mouse tail in a single frame.
+    Every tail is defined by its contour.
+    """
     
     line_names = ['ventr', 'dors']
     
@@ -71,6 +73,8 @@ class Tail(object):
     
     @cached_property
     def mask(self):
+        """ return a binary mask large enough to hold the tails image and an
+        offset the determines the position of the mask in global coordinates """
         x_min, y_min, x_max, y_max = self.bounds
         shape = (y_max - y_min) + 3, (x_max - x_min) + 3
         offset =  (-x_min + 1, -y_min + 1)
