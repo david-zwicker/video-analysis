@@ -172,6 +172,10 @@ def get_external_contour(points, resolution=None):
             if dist > 0:
                 dist_min = min(dist_min, dist)
         resolution = 0.5*dist_min
+        
+        # limit the resolution such that there are at most 2048 points
+        dim_max = np.max(np.ptp(points, axis=0)) #< longest dimension
+        resolution = max(resolution, dim_max/2048)
 
     # build a linear ring with integer coordinates
     ps_int = np.array(np.asarray(points)/resolution, np.int)
