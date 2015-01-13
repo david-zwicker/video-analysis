@@ -24,7 +24,7 @@ logger = logging.getLogger('video.io')
 
         
 def _show_image_from_pipe(pipe, image_array, title, position=None):
-    """ function that runs in a separate process to display images """
+    """ function that runs in a separate process to display an image """
     cv2.namedWindow(title)
     if position is not None:
         cv2.moveWindow(title, position[0], position[1])
@@ -185,6 +185,7 @@ class ImageWindow(object):
         
         
     def close(self):
+        """ closes the window """
         if self._proc is not None:
             # shut down the process
             self._pipe.send('close')
