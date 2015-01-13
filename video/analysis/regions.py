@@ -7,8 +7,9 @@ Created on Aug 4, 2014
 from __future__ import division
 
 from collections import defaultdict
-import operator
+import itertools
 
+import cv2
 import numpy as np
 from scipy import ndimage
 from shapely import geometry, geos
@@ -160,6 +161,36 @@ def get_largest_region(mask, ret_area=False):
     return labels == label_max
 
 
+def get_external_contour(points, resolution=None):
+    """ takes a list of `points` defining a linear ring, which can be self-intersecting,
+    and returns an approximation to the external contour """
+    if resolution is None:
+        # determine resolution from minimal distance of consecutive points
+        dist_min = np.inf
+        for p1, p2 in itertools.izip(np.roll(points, 1, axis=0), points):
+            dist = curves.point_distance(p1, p2)
+            if dist > 0:
+                dist_min = min(dist_min, dist)
+        resolution = 0.5*dist_min
+
+    # build a linear ring with integer coordinates
+    ps_int = np.array(np.asarray(points)/resolution, np.int)
+    ring = geometry.LinearRing(ps_int)
+
+    # get the image of the linear ring by plotting it into a mask
+    x_min, y_min, x_max, y_max = ring.bounds
+    shape = ((y_max - y_min) + 3, (x_max - x_min) + 3)
+    x_off, y_off = int(x_min - 1), int(y_min - 1)
+    mask = np.zeros(shape, np.uint8)
+    cv2.fillPoly(mask, [ps_int], 255, offset=(-x_off, -y_off))
+
+    # find the contour of this mask to recover the exterior contour
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+                                   cv2.CHAIN_APPROX_SIMPLE,
+                                   offset=(x_off, y_off))
+    return np.array(np.squeeze(contours))*resolution
+
+
 def get_enclosing_outline(polygon):
     """ gets the enclosing outline of a (possibly complex) polygon """
     polygon = regularize_polygon(polygon)
@@ -184,11 +215,21 @@ def get_enclosing_outline(polygon):
     
 def regularize_polygon(polygon):
     """ regularize a shapely polygon using polygon.buffer(0) """
-    # regularize polygon
+    area_orig = polygon.area #< the result should have a similar area
+    
+    # try regularizing polygon using the buffer(0) trick
     result = polygon.buffer(0)
     if isinstance(result, geometry.MultiPolygon):
         # retrieve the result with the largest area
-        result = max(result, key=operator.attrgetter('area'))
+        result = max(result, key=lambda obj: obj.area)
+        
+    # check the resulting area
+    if result.area < 0.5*area_orig:
+        # the polygon was likely complex and the buffer(0) trick did not work
+        # => we use a more reliable but slower method
+        contour = get_external_contour(polygon.exterior.coords)
+        result = geometry.Polygon(contour)
+    
     return result
 
 
@@ -197,7 +238,7 @@ def regularize_linear_ring(linear_ring):
     polygon = geometry.Polygon(linear_ring)
     regular_polygon = regularize_polygon(polygon)
     if regular_polygon.is_empty:
-        return geometry.LinearRing() #< empty ring
+        return geometry.LinearRing() #< empty linear ring
     else:
         return regular_polygon.exterior
 
@@ -208,7 +249,7 @@ def regularize_contour_points(contour):
         polygon = geometry.Polygon(np.asarray(contour, np.double))
         regular_polygon = regularize_polygon(polygon)
         if regular_polygon.is_empty:
-            return [] #< empty polygon
+            return [] #< empty list of points
         else:
             contour = regular_polygon.exterior.coords
     return contour
@@ -229,7 +270,10 @@ def simplify_contour(contour, threshold):
         # assume contour are coordinates of a linear ring
         ring = geometry.LinearRing(contour)
         ring = simple_poly.simplify_ring(ring, threshold)
-        return None if ring is None else ring.coords[:-1]
+        if ring is None:
+            return None
+        else:
+            return ring.coords[:-1]
 
 
 def get_intersections(geometry1, geometry2):
