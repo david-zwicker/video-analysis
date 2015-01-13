@@ -36,7 +36,10 @@ class TailSegmentationTracking(object):
     measurement_line_offset = 0.5 #< determines position of the measurement line
     spline_smoothing = 20 #< smoothing factor for measurement lines
     line_scan_width = 40 #< width of the line scan along the measurement lines
-
+    
+    video_background = 'original' #< ('original', 'gradient')
+    video_zoom = 1 #< video zoom factor
+    snake_beta = 1e4
     
     def __init__(self, video_file, output_file, show_video=False):
         """
@@ -49,7 +52,7 @@ class TailSegmentationTracking(object):
         # setup debug output 
         self.output = VideoComposer(output_file, size=self.video.size,
                                     fps=self.video.fps, is_color=True,
-                                    zoom_factor=1)
+                                    zoom_factor=self.video_zoom)
         if show_video:
             self.debug_window = ImageWindow(self.output.shape, title=video_file,
                                             multiprocessing=False)
@@ -75,10 +78,11 @@ class TailSegmentationTracking(object):
     
         # iterate through all frames
         for self.frame_id, frame in enumerate(display_progress(self.video)):
-            self.output.set_frame(frame, copy=True)
-            
+            self.set_video_background(frame)
+
             # adapt the object outlines
-            self.adapt_tail_contours(frame, self.tails)
+            #self.adapt_tail_contours(frame, self.tails, blur_radius=30)
+            self.adapt_tail_contours(frame, self.tails)#, blur_radius=5)
             
             # do the line scans in each object
             for tail_id, tail in enumerate(self.tails):
@@ -92,6 +96,25 @@ class TailSegmentationTracking(object):
         # save the data and close the videos
         self.save_kymographs()
         self.close()
+
+    
+    def set_video_background(self, frame):
+        """ sets the background of the video """
+        if self.video_background == 'original':
+            self.output.set_frame(frame, copy=True)
+        elif self.video_background == 'gradient':
+            image = self.get_gradient_strenght(frame)
+            lo, hi = image.min(), image.max()
+            image = 255*(image - lo)/(hi - lo)
+            self.output.set_frame(image)
+        elif self.video_background == 'thresholded':
+            image = self.get_gradient_strenght(frame)
+            image = self.threshold_gradient_strength(image)
+            lo, hi = image.min(), image.max()
+            image = 255*(image - lo)/(hi - lo)
+            self.output.set_frame(image)
+        else:
+            self.output.set_frame(np.zeros_like(frame))
 
     
     def process_first_frame(self, frame):
@@ -110,7 +133,7 @@ class TailSegmentationTracking(object):
     #===========================================================================
     
     
-    def locate_tails_roughly(self, img):
+    def locate_tails_roughly_old(self, img):
         """ locate tail objects using thresholding """
         for _ in xrange(3):
             img = cv2.pyrDown(img)
@@ -185,6 +208,61 @@ class TailSegmentationTracking(object):
         return gradient_mag
     
         
+    def threshold_gradient_strength(self, gradient_mag):
+        """ thresholds the gradient strength such that features are emphasized
+        """
+        lo, hi = gradient_mag.min(), gradient_mag.max()
+        bw = (gradient_mag > lo + 0.05*(hi - lo)).astype(np.uint8)
+        
+        for _ in xrange(2):
+            bw = cv2.pyrDown(bw)
+
+        # do morphological opening to remove noise
+        w = 2#0
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
+        bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, kernel)
+    
+        # do morphological closing to locate objects
+        w = 2#0
+        bw = cv2.copyMakeBorder(bw, w, w, w, w, cv2.BORDER_CONSTANT, 0)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
+        bw = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, kernel)
+        bw = bw[w:-w, w:-w].copy()
+
+        for _ in xrange(2):
+            bw = cv2.pyrUp(bw)
+        
+        return bw
+        
+        
+    def locate_tails_roughly(self, frame):
+        """ locate tail objects using thresholding """
+        gradient_mag = self.get_gradient_strenght(frame)
+        bw = self.threshold_gradient_strength(gradient_mag)
+
+        labels, num_features = measurements.label(bw)
+    
+        tails = []
+        for label in xrange(1, num_features + 1):
+            mask = (labels == label)
+            if mask.sum() > 50000:
+                w = 30
+                mask = cv2.copyMakeBorder(mask.astype(np.uint8), w, w, w, w, cv2.BORDER_CONSTANT, 0)
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
+                mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+                mask = mask[w:-w, w:-w].copy()
+    
+                # find objects in the image
+                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+                contour = np.squeeze(contours)
+                tails.append(Tail(contour))
+                
+        #debug.show_shape(*[t.outline for t in tails], background=gradient_mag)
+    
+        return tails
+        
+        
     def adapt_tail_contours_initially(self, frame, tails):
         """ adapt tail contour to frame, assuming that they could be quite far
         away """
@@ -192,39 +270,47 @@ class TailSegmentationTracking(object):
         potential = self.get_gradient_strenght(frame)
 
         # setup active contour algorithm
-        ac = ActiveContour(blur_radius=30,
+        ac = ActiveContour(blur_radius=20,
                            closed_loop=True,
                            alpha=0, #< line length is constraint by beta
-                           beta=1e1,
+                           beta=self.snake_beta,
                            gamma=1e0)
         ac.max_iterations = 300
         ac.set_potential(potential)
         
         # iterate through the contours
         for tail in tails:
-            for _ in xrange(10):
+            for _ in xrange(2):
                 tail.contour = ac.find_contour(tail.contour)
 
+        #debug.show_shape(*[t.outline for t in tails], background=potential)
+
     
-    def adapt_tail_contours(self, frame, tails):
+    def adapt_tail_contours(self, frame, tails, blur_radius=5):
         """ adapt tail contour to frame, assuming that they are already close """
 
         # get potential
-        potential = self.get_gradient_strenght(frame)
+        gradient_mag = self.get_gradient_strenght(frame)
+        
+        # threshold the gradient strength
+        #potential_approx = self.threshold_gradient_strength(gradient_mag)
+        
+            
+        # Adapt using actual gradient information    
         
         # setup active contour algorithm
-        ac = ActiveContour(blur_radius=5,
+        ac = ActiveContour(blur_radius=blur_radius,
                            closed_loop=True,
                            alpha=0, #< line length is constraint by beta
-                           beta=1e6,
+                           beta=self.snake_beta,
                            gamma=1e0)
         ac.max_iterations = 300
-        ac.set_potential(potential)
+        ac.set_potential(gradient_mag)
         
         # iterate through the contours
         for tail in tails:
-            tail.update_contour(ac.find_contour(tail.contour))
-
+            contour = ac.find_contour(tail.contour)
+            tail.update_contour(contour)
     
     #===========================================================================
     # SEGMENT FINDING
@@ -312,6 +398,7 @@ class TailSegmentationTracking(object):
     def update_video_output(self, frame):
         """ updates the video output to both the screen and the file """
         video = self.output
+        # add information on all tails
         for tail_id, tail in enumerate(self.tails):
             # mark all the lines that are important in the video
             mark_points = (video.zoom_factor < 1)
@@ -332,7 +419,10 @@ class TailSegmentationTracking(object):
             video.add_circle(tail.endpoints[1], 10, 'b')
             video.add_text(str('tail %d' % tail_id), tail.center,
                            color='w', anchor='center middle')
-            
+        
+        # add general information
+        video.add_text(str(self.frame_id), (20, 20), size=2, anchor='top')
+        
         if self.debug_window:
             self.debug_window.show(video.frame)
     
