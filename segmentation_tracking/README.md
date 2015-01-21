@@ -6,4 +6,10 @@ which can then be plotted as kymographs for further analysis.
 
 TODO
 ----
+* Try separating foreground from background by looking at the statistics in the
+    neighborhood of each pixel
+    => high standard deviation should be inside the tail (background is rather smooth)
+* separate tails that touch in the initial frame
+    - this could be done using watershed segmentation
+* do something about touching tails
 * align the line scans of different times using the patterns found

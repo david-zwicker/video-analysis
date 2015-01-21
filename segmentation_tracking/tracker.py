@@ -10,6 +10,7 @@ from collections import defaultdict
 import cPickle as pickle 
 import itertools
 import math
+import os
 
 import numpy as np
 import cv2
@@ -26,29 +27,34 @@ from video.analysis.active_contour import ActiveContour
 
 from video import debug  # @UnusedImport
 
-from tail import Tail
+from .tail import Tail
+from .parameters import parameters_tracking_default, parameters_tracking_special
 
 
 
 class TailSegmentationTracking(object):
     """ class managing the tracking of mouse tails in videos """
     
-    measurement_line_offset = 0.5 #< determines position of the measurement line
-    spline_smoothing = 20 #< smoothing factor for measurement lines
-    line_scan_width = 40 #< width of the line scan along the measurement lines
-    
-    video_background = 'original' #< ('original', 'gradient')
+    video_background = 'original' #< ('original', 'gradient', 'thresholded')
     video_zoom = 1 #< video zoom factor
-    snake_beta = 1e4
     
-    def __init__(self, video_file, output_file, show_video=False):
+    def __init__(self, video_file, output_file, parameters=None,
+                 show_video=False):
         """
         `video_file` is the input video
         `output_file` is the video file where the output is written to
         `show_video` indicates whether the video should be shown while processing
         """
         self.video_file = video_file
+        self.name = os.path.splitext(video_file)[0]
         self.video = self.load_video(video_file)
+        self.params = parameters_tracking_default.copy()
+        if self.name in parameters_tracking_special:
+            print('There are special parameters for this video.')
+            self.params.update(parameters_tracking_special[self.name])
+        if parameters is not None:
+            self.params.update(parameters)
+        
         # setup debug output 
         self.output = VideoComposer(output_file, size=self.video.size,
                                     fps=self.video.fps, is_color=True,
@@ -102,17 +108,20 @@ class TailSegmentationTracking(object):
         """ sets the background of the video """
         if self.video_background == 'original':
             self.output.set_frame(frame, copy=True)
+            
         elif self.video_background == 'gradient':
             image = self.get_gradient_strenght(frame)
             lo, hi = image.min(), image.max()
             image = 255*(image - lo)/(hi - lo)
             self.output.set_frame(image)
+            
         elif self.video_background == 'thresholded':
             image = self.get_gradient_strenght(frame)
             image = self.threshold_gradient_strength(image)
             lo, hi = image.min(), image.max()
             image = 255*(image - lo)/(hi - lo)
             self.output.set_frame(image)
+            
         else:
             self.output.set_frame(np.zeros_like(frame))
 
@@ -192,7 +201,8 @@ class TailSegmentationTracking(object):
     def get_gradient_strenght(self, frame):
         """ calculates the gradient strength of the image in frame """
         # smooth the frame_blurred to be able to find smoothed edges
-        frame_blurred = cv2.GaussianBlur(frame.astype(np.double), (0, 0), 10)
+        frame_blurred = cv2.GaussianBlur(frame.astype(np.double), (0, 0),
+                                         self.params['gradient/blur_radius'])
         
         # scale frame_blurred to [0, 1]
         cv2.divide(frame_blurred, 256, dst=frame_blurred)
@@ -212,7 +222,8 @@ class TailSegmentationTracking(object):
         """ thresholds the gradient strength such that features are emphasized
         """
         lo, hi = gradient_mag.min(), gradient_mag.max()
-        bw = (gradient_mag > lo + 0.05*(hi - lo)).astype(np.uint8)
+        threshold = lo + self.params['gradient/threshold']*(hi - lo)
+        bw = (gradient_mag > threshold).astype(np.uint8)
         
         for _ in xrange(2):
             bw = cv2.pyrDown(bw)
@@ -235,6 +246,53 @@ class TailSegmentationTracking(object):
         return bw
         
         
+    def _watershed_segmentation(self, mask):
+        """ segments the object in the mask using a watershed segmentation
+        algorithm as explained in
+        http://docs.opencv.org/trunk/doc/py_tutorials/py_imgproc/py_watershed/py_watershed.html 
+        """
+        # do distance transform to measure how many objects there are
+        dist_transform = cv2.distanceTransform(mask, cv2.cv.CV_DIST_L2, 5)
+        
+        # threshold to find the sure foreground and thus the number of objects
+        threshold = self.params['detection/watershed_threshold'] * dist_transform.max()
+        _, sure_fg = cv2.threshold(dist_transform, threshold, 1, 0)
+
+        # find the regions that belong to some object
+        sure_fg = np.uint8(sure_fg)
+        unknown = cv2.subtract(mask, sure_fg)
+
+        # label all the sure regions
+        labels, num_features = measurements.label(sure_fg)
+        labels += 1
+        # mark unknown region with zeros
+        labels[unknown == 1] = 0
+
+        # apply the watershed algorithm to extend the known regions into the
+        # unknown area
+        img = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+        cv2.watershed(img, labels)
+
+#         debug.show_image(dist_transform, mask, sure_fg, labels)
+
+        # locate the contours of the segmented regions
+        results = []
+        for label in xrange(2, num_features + 2):
+            mask = np.uint8(labels == label)
+            
+            w = self.params['detection/mask_size']
+            mask = cv2.copyMakeBorder(mask, w, w, w, w, cv2.BORDER_CONSTANT, 0)
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+            mask = mask[w:-w, w:-w].copy()
+            
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE)
+            results.append(np.squeeze(contours))
+            
+        return results
+        
+        
     def locate_tails_roughly(self, frame):
         """ locate tail objects using thresholding """
         gradient_mag = self.get_gradient_strenght(frame)
@@ -244,21 +302,29 @@ class TailSegmentationTracking(object):
     
         tails = []
         for label in xrange(1, num_features + 1):
-            mask = (labels == label)
-            if mask.sum() > 50000:
-                w = 30
-                mask = cv2.copyMakeBorder(mask.astype(np.uint8), w, w, w, w, cv2.BORDER_CONSTANT, 0)
-                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
-                mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-                mask = mask[w:-w, w:-w].copy()
+            mask = (labels == label).astype(np.uint8)
+            if mask.sum() > self.params['detection/min_area']:
+#                 w = 0*self.params['detection/mask_size']
+#                 mask = cv2.copyMakeBorder(mask, w, w, w, w, cv2.BORDER_CONSTANT, 0)
+#                 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
+#                 mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+#                 mask = mask[w:-w, w:-w].copy()
     
                 # find objects in the image
-                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-                contour = np.squeeze(contours)
-                tails.append(Tail(contour))
+                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+                                               cv2.CHAIN_APPROX_SIMPLE)
+                # fill holes inside the objects
+                cv2.fillPoly(mask, contours, 1)
                 
-        #debug.show_shape(*[t.outline for t in tails], background=gradient_mag)
+                # find the contours of all elements in the image
+                contours = self._watershed_segmentation(mask)
+    
+                for contour in contours:
+                    tail = Tail(contour)
+                    if tail.area > self.params['detection/min_area']:
+                        tails.append(tail)
+                
+#         debug.show_shape(*[t.outline for t in tails], background=gradient_mag)
     
         return tails
         
@@ -270,23 +336,22 @@ class TailSegmentationTracking(object):
         potential = self.get_gradient_strenght(frame)
 
         # setup active contour algorithm
-        ac = ActiveContour(blur_radius=20,
+        ac = ActiveContour(blur_radius=self.params['outline/blur_radius_initial'],
                            closed_loop=True,
                            alpha=0, #< line length is constraint by beta
-                           beta=self.snake_beta,
-                           gamma=1e0)
-        ac.max_iterations = 300
+                           beta=self.params['outline/bending_stiffness'],
+                           gamma=self.params['outline/adaptation_rate'])
+        ac.max_iterations = self.params['outline/max_iterations']
         ac.set_potential(potential)
         
         # iterate through the contours
         for tail in tails:
-            for _ in xrange(2):
-                tail.contour = ac.find_contour(tail.contour)
+            tail.contour = ac.find_contour(tail.contour)
 
-        #debug.show_shape(*[t.outline for t in tails], background=potential)
+#         debug.show_shape(*[t.outline for t in tails], background=potential)
 
     
-    def adapt_tail_contours(self, frame, tails, blur_radius=5):
+    def adapt_tail_contours(self, frame, tails, blur_radius=10):
         """ adapt tail contour to frame, assuming that they are already close """
 
         # get potential
@@ -295,22 +360,20 @@ class TailSegmentationTracking(object):
         # threshold the gradient strength
         #potential_approx = self.threshold_gradient_strength(gradient_mag)
         
-            
-        # Adapt using actual gradient information    
-        
         # setup active contour algorithm
         ac = ActiveContour(blur_radius=blur_radius,
                            closed_loop=True,
                            alpha=0, #< line length is constraint by beta
-                           beta=self.snake_beta,
-                           gamma=1e0)
-        ac.max_iterations = 300
+                           beta=self.params['outline/bending_stiffness'],
+                           gamma=self.params['outline/adaptation_rate'])
+        ac.max_iterations = self.params['outline/max_iterations']
         ac.set_potential(gradient_mag)
         
         # iterate through the contours
         for tail in tails:
             contour = ac.find_contour(tail.contour)
             tail.update_contour(contour)
+    
     
     #===========================================================================
     # SEGMENT FINDING
@@ -321,7 +384,7 @@ class TailSegmentationTracking(object):
         """
         determines the measurement lines that are used for the line sca
         """
-        f_c = self.measurement_line_offset
+        f_c = self.params['measurement/line_offset']
         f_o = 1 - f_c
 
         centerline = tail.centerline
@@ -335,7 +398,7 @@ class TailSegmentationTracking(object):
                                f_c*p_c[1] + f_o*p_o[1]))
                 
             # do spline fitting to smooth the line
-            smoothing = self.spline_smoothing*len(points)
+            smoothing = self.params['measurement/spline_smoothing']*len(points)
             tck, _ = interpolate.splprep(np.transpose(points),
                                          k=2, s=smoothing)
             
@@ -356,7 +419,7 @@ class TailSegmentationTracking(object):
     
     def tail_linescans(self, frame, tail):
         """ do line scans along the measurement lines of the tails """
-        l = self.line_scan_width
+        l = self.params['measurement/line_scan_width']
         w = 2 #< width of each individual line scan
         result = []
         for line in self.get_measurement_lines(tail):

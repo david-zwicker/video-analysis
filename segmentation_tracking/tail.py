@@ -87,6 +87,9 @@ class Tail(object):
     def bounds(self):
         return np.array(self.outline.bounds, np.int)
     
+    @cached_property
+    def area(self):
+        return self.polygon.area
     
     @cached_property
     def mask(self):
