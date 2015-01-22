@@ -257,6 +257,9 @@ class TailSegmentationTracking(object):
         # threshold to find the sure foreground and thus the number of objects
         threshold = self.params['detection/watershed_threshold'] * dist_transform.max()
         _, sure_fg = cv2.threshold(dist_transform, threshold, 1, 0)
+        
+        # remove very small regions
+        cv2.erode(sure_fg, np.ones(7), dst=sure_fg)
 
         # find the regions that belong to some object
         sure_fg = np.uint8(sure_fg)
@@ -267,12 +270,12 @@ class TailSegmentationTracking(object):
         labels += 1
         # mark unknown region with zeros
         labels[unknown == 1] = 0
-
+    
         # apply the watershed algorithm to extend the known regions into the
         # unknown area
         img = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
         cv2.watershed(img, labels)
-
+        
 #         debug.show_image(dist_transform, mask, sure_fg, labels)
 
         # locate the contours of the segmented regions
@@ -281,10 +284,12 @@ class TailSegmentationTracking(object):
             mask = np.uint8(labels == label)
             
             w = self.params['detection/mask_size']
-            mask = cv2.copyMakeBorder(mask, w, w, w, w, cv2.BORDER_CONSTANT, 0)
+            #mask = cv2.copyMakeBorder(mask, w, w, w, w, cv2.BORDER_CONSTANT, 0)
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-            mask = mask[w:-w, w:-w].copy()
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+            #mask = mask[w:-w, w:-w].copy()
+            
+            #mask.
             
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
                                            cv2.CHAIN_APPROX_SIMPLE)
@@ -295,10 +300,23 @@ class TailSegmentationTracking(object):
         
     def locate_tails_roughly(self, frame):
         """ locate tail objects using thresholding """
-        gradient_mag = self.get_gradient_strenght(frame)
-        bw = self.threshold_gradient_strength(gradient_mag)
+#         gradient_mag = self.get_gradient_strenght(frame)
+#         bw = self.threshold_gradient_strength(gradient_mag)
+        
+        # calculate image statistics
+        mean, var = image.get_image_statistics(frame, kernel='circle', ksize=20)
+
+        # threshold the variance to locate features
+        threshold = 5*np.median(var)
+        bw = (var > threshold)
+        
+        image.set_image_border(bw, size=10, color=0)
+        
+#         debug.show_image(frame, mean, var, bw)
+#         exit()
 
         labels, num_features = measurements.label(bw)
+        print num_features
     
         tails = []
         for label in xrange(1, num_features + 1):
@@ -324,7 +342,7 @@ class TailSegmentationTracking(object):
                     if tail.area > self.params['detection/min_area']:
                         tails.append(tail)
                 
-#         debug.show_shape(*[t.outline for t in tails], background=gradient_mag)
+#         debug.show_shape(*[t.outline for t in tails], background=frame)
     
         return tails
         

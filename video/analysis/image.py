@@ -9,6 +9,8 @@ contains functions that are useful for image analysis
 
 from __future__ import division
 
+import functools
+
 import numpy as np
 from scipy import ndimage
 
@@ -96,6 +98,89 @@ def get_steepest_point(profile, direction=1, smoothing=0):
     
     return i_max + 0.5
 
+
+
+def get_image_statistics(img, kernel='box', ksize=5, ret_var=True,
+                         prior=None, exclude_center=False):
+    """ calculate mean and variance in a window around all points of an image
+    `kernel` chooses the kernel that is used for the local sum
+    `ksize` determines the size of that kernel
+    `ret_var` determines whether the variance is returned alongside the mean
+    `prior` denotes a value that is subtracted from the image before
+        calculating statistics. This can be necessary for numerical stability.
+        The prior should be close to the mean of the values. If prior is None,
+        it is automatically set to the mean of the image.
+    `exclude_center` determines whether also the color value at the current
+        point or only the points around it are considered.
+    """
+    # determine the prior automatically
+    if prior is None:
+        prior = img.mean()
+
+    # calculate the window size
+    ksize = 2*int(ksize) + 1
+    
+    # check for possible integer overflow (very conservatively)
+    if np.iinfo(np.int).max < (ksize*max(prior, 255 - prior))**2:
+        raise RuntimeError('Window is too large and an integer overflow '
+                           'could happen.')
+
+    # prepare the function that does the actual filtering
+    if kernel == 'box':
+        filter_image = functools.partial(cv2.boxFilter, ddepth=-1,
+                                         ksize=(ksize, ksize), normalize=False,
+                                         borderType=cv2.BORDER_CONSTANT)
+        count = ksize**2
+    
+    elif kernel == 'ellipse' or kernel == 'circle':        
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
+                                           ksize=(ksize, ksize))
+        filter_image = functools.partial(cv2.filter2D, ddepth=-1,
+                                         kernel=kernel,
+                                         borderType=cv2.BORDER_CONSTANT)
+        count = kernel.sum()
+        
+    else:
+        raise ValueError('Unknown filter kernel `%s`' % kernel)
+
+    # create the image from which the statistics will be calculated
+    data = img.astype(np.int) - prior           
+    
+    # calculate how many on pixel there are in each region
+    
+    # calculate the local sums
+    s1 = filter_image(data)
+    if exclude_center:
+        # remove the central point from the calculation
+        s1 = s1 - data
+        count -= 1
+        # don't use -= here, since s1 seems to be int32 only 
+    
+    # calculate mean and variance
+    mean = s1/count + prior
+
+    if ret_var:
+        # calculate the local sums of squares
+        np.square(data, data) #< square the data in-place
+        s2 = filter_image(data)
+        if exclude_center:
+            s2 = s2 - data
+        var = (s2 - s1**2/count)/(count - 1)
+
+        return mean, var
+
+    else:
+        return mean
+    
+    
+    
+def set_image_border(img, size=1, color=0):
+    """ sets the border of an image to `color` """
+    img[ :size, :] = color
+    img[-size:, :] = color
+    img[:,  :size] = color
+    img[:, -size:] = color
+    
 
 
 class regionprops(object):

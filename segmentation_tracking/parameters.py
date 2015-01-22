@@ -29,6 +29,6 @@ parameters_tracking_default = {
 
 # special tracking parameters for individual videos
 parameters_tracking_special = {
-    '20140831_BW_E14-15_tl_edf': {'gradient/threshold': 0.1,
-                                  'outline/bending_stiffness': 1e5}
+    '20140831_BW_E14-15_tl_edf': {'detection/watershed_threshold': 0.4,
+                                  }
 }
