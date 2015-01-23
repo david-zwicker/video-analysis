@@ -195,6 +195,7 @@ def get_external_contour(points, resolution=None):
     return np.array(np.squeeze(contours))*resolution
 
 
+
 def get_enclosing_outline(polygon):
     """ gets the enclosing outline of a (possibly complex) polygon """
     polygon = regularize_polygon(polygon)
@@ -213,7 +214,10 @@ def get_enclosing_outline(polygon):
             poly = geometry.Polygon(line)
             if largest_polygon is None or poly.area > largest_polygon.area:
                 largest_polygon = poly
-        outline = largest_polygon.boundary
+        if largest_polygon is None:
+            outline = geometry.LinearRing()
+        else:
+            outline = largest_polygon.boundary
     return outline
     
     

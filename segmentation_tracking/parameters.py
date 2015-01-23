@@ -9,14 +9,21 @@ from __future__ import division
 
 # general tracking parameters 
 parameters_tracking_default = {
-    'video/zoom_factor': 2,
-    'video/background': 'original', #< ('original', 'gradient', 'thresholded')
+    'input/frames': None,
+    
+    'output/zoom_factor': 2,
+    'output/background': 'original', #< ('original', 'gradient', 'thresholded')
                                
     'gradient/blur_radius': 10, 
     'gradient/threshold': 0.05, 
                 
+#     'detection/statistics_window': 10,
+    'detection/statistics_window': 50,
+    'detection/statistics_threshold': 5,
+    'detection/border_distance': 20,
     'detection/mask_size': 30,
-    'detection/min_area': 50000,
+    'detection/area_min': 50000,
+    'detection/area_max': 500000,
     'detection/watershed_threshold': 0.2,
     
     'outline/blur_radius_initial': 20,
@@ -35,7 +42,10 @@ parameters_tracking_default = {
 parameters_tracking_special = {
     # video with two touching tails
     '20140804_bw_tl_edf': {
-        'detection/watershed_threshold': 0.5 }, 
+        'detection/watershed_threshold': 0.5 },
+    # video with loads to particles in background
+    '20140808_nub_e15-16_tl_edf': {
+        'detection/statistics_window': 50,}, 
     # video with three tails
     '20140831_BW_E14-15_tl_edf': { 
         'detection/watershed_threshold': 0.4,},

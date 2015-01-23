@@ -13,3 +13,4 @@ TODO
     - this could be done using watershed segmentation
 * do something about touching tails
 * align the line scans of different times using the patterns found
+* introduce logging for easy debugging
