@@ -65,16 +65,17 @@ class VideoComposer(VideoFileWriter):
     def set_frame(self, frame, copy=True):
         """ set the current frame from an image """
         self.next_frame += 1
+        
         if self.output_this_frame:
             # scale current frame if necessary 
             if self.zoom_factor != 1:
                 frame = cv2.resize(frame, self.size)
                 copy = False #< copy already happened
-            
+
             if self.frame is None:
                 # first frame => initialize the video 
                 if self.is_color and frame.ndim == 2:
-                    # turn the monochrome image into a color image
+                    # copy the monochrome frame into the color video
                     self.frame = np.repeat(frame[:, :, None], 3, axis=2)
                 elif not self.is_color and frame.ndim == 3:
                     raise ValueError('Cannot copy a color image into a '
@@ -95,7 +96,7 @@ class VideoComposer(VideoFileWriter):
                     for c in xrange(3): 
                         self.frame[:, :, c] = frame
                 elif copy:
-                    self.frame[:] = frame[:]
+                    self.frame[:] = frame
                 else:
                     self.frame = frame
 
@@ -202,13 +203,15 @@ class VideoComposer(VideoFileWriter):
         if self.zoom_factor != 1:
             contours = np.asarray(contours, np.double) / self.zoom_factor
             contours = contours.astype(np.int)
+            thickness = np.ceil(thickness / self.zoom_factor)
             
         cv2.drawContours(self.frame, contours, -1,
                          get_color(color), thickness=int(thickness))
     
     
     @skip_if_no_output
-    def add_line(self, points, color='w', is_closed=True, mark_points=False, width=1):
+    def add_line(self, points, color='w', is_closed=True, mark_points=False,
+                 width=1):
         """ adds a polygon to the frame """
         if len(points) == 0:
             return
@@ -222,7 +225,7 @@ class VideoComposer(VideoFileWriter):
         for start, end in indices:
             # add the line
             line_points = (points[start:end, :]/self.zoom_factor).astype(np.int)
-            thickness = int(np.ceil(width/self.zoom_factor))
+            thickness = int(np.ceil(width / self.zoom_factor))
             cv2.polylines(self.frame, [line_points],
                           isClosed=is_closed, color=get_color(color),
                           thickness=thickness)
@@ -238,7 +241,7 @@ class VideoComposer(VideoFileWriter):
         """ add a rect=(left, top, width, height) to the frame """
         if self.zoom_factor != 1:
             rect = np.asarray(rect) / self.zoom_factor
-            thickness = int(np.ceil(width/self.zoom_factor))
+            thickness = int(np.ceil(width / self.zoom_factor))
         else:
             thickness = int(width)
         cv2.rectangle(self.frame, *rect_to_corners(rect),
@@ -252,9 +255,11 @@ class VideoComposer(VideoFileWriter):
         """
         try:
             pos = (int(pos[0]/self.zoom_factor), int(pos[1]/self.zoom_factor))
-            radius = int(np.ceil(radius/self.zoom_factor))
+            radius = int(np.ceil(radius / self.zoom_factor))
+            if thickness > 0:
+                thickness = int(np.ceil(thickness / self.zoom_factor))
             cv2.circle(self.frame, pos, radius, get_color(color),
-                       thickness=int(thickness))
+                       thickness=thickness)
         except (ValueError, OverflowError):
             pass
         
@@ -276,6 +281,7 @@ class VideoComposer(VideoFileWriter):
         """
         if self.zoom_factor != 1:
             pos = [int(pos[0]/self.zoom_factor), int(pos[1]/self.zoom_factor)]
+            size /= self.zoom_factor
         else:
             pos = [int(pos[0]), int(pos[1])]
     

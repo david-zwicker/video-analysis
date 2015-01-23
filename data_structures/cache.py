@@ -55,25 +55,53 @@ class cached_property(object):
     Adapted from <http://wiki.python.org/moin/PythonDecoratorLibrary>.
     """
 
-    def __init__(self, func, name=None, doc=None):
+    def __init__(self, *args, **kwargs):
+        """ setup the decorator """
+        self.cache = None
+        if len(args) > 0:
+            if callable(args[0]):
+                # called as a plain decorator
+                self.__call__(*args, **kwargs)
+            else:
+                # called with arguments
+                self.cache = args[0]
+        else:
+            # called with arguments
+            self.cache = kwargs.pop('cache', self.cache)
+            
+
+    def __call__(self, func, doc=None, name=None):
+        """ save the function to decorate """
+        self.func = func
+        self.__doc__ = doc or func.__doc__
         self.__name__ = name or func.__name__
         self.__module__ = func.__module__
-        self.__doc__ = doc or func.__doc__
-        self.func = func
+        return self
 
 
     def __get__(self, obj, owner):
         if obj is None:
             return self
 
+        # load the cache structure
+        if self.cache is None:
+            try:
+                cache = obj._cache
+            except AttributeError:
+                cache = obj._cache = {}
+        else:
+            try:
+                cache = getattr(obj, self.cache)
+            except:
+                cache = {}
+                print self.cache
+                setattr(obj, self.cache, cache)
+                
         # try to retrieve from cache or call and store result in cache
         try:
-            value = obj._cache[self.__name__]
+            value = cache[self.__name__]
         except KeyError:
             value = self.func(obj)
-            obj._cache[self.__name__] = value
-        except AttributeError:
-            value = self.func(obj)
-            obj._cache = {self.__name__: value}
+            cache[self.__name__] = value
         return value
     
