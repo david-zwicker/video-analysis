@@ -97,10 +97,10 @@ class Tail(object):
         offset the determines the position of the mask in global coordinates """
         x_min, y_min, x_max, y_max = self.bounds
         shape = (y_max - y_min) + 3, (x_max - x_min) + 3
-        offset =  (-x_min + 1, -y_min + 1)
+        offset =  (x_min - 1, y_min - 1)
         mask = np.zeros(shape, np.uint8)
-        cv2.fillPoly(mask, [self._contour.astype(np.int)], 255,
-                     offset=offset)
+        cv2.fillPoly(mask, [self._contour.astype(np.int)], 1,
+                     offset=(-offset[0], -offset[1]))
         return mask, offset
     
     
@@ -260,12 +260,13 @@ class Tail(object):
         ac.set_potential(dist_map)
         
         # find centerline starting from the ventral_side
-        points = curves.translate_points(self.ventral_side, *offset)
+        points = curves.translate_points(self.ventral_side,
+                                         -offset[0], -offset[1])
         points = curves.make_curve_equidistant(points, spacing=50)
         # use the active contour algorithm
         points = ac.find_contour(points)
         # translate points back into global coordinate system
-        points = curves.translate_points(points, -offset[0], -offset[1])
+        points = curves.translate_points(points, offset[0], offset[1])
         
         # orient the centerline such that it starts at the posterior end
         dist1 = curves.point_distance(points[0], self.endpoints[0])

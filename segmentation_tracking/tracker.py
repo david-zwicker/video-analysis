@@ -18,6 +18,7 @@ from scipy import interpolate
 from scipy.ndimage import measurements
 from shapely import geometry
 
+from data_structures.cache import cached_property
 from video.io import VideoFile, ImageWindow
 from video.composer import VideoComposer
 from video.utils import display_progress
@@ -34,9 +35,6 @@ from .parameters import parameters_tracking_default, parameters_tracking_special
 
 class TailSegmentationTracking(object):
     """ class managing the tracking of mouse tails in videos """
-    
-    video_background = 'original' #< ('original', 'gradient', 'thresholded')
-    video_zoom = 1 #< video zoom factor
     
     def __init__(self, video_file, output_file, parameters=None,
                  show_video=False):
@@ -56,9 +54,10 @@ class TailSegmentationTracking(object):
             self.params.update(parameters)
         
         # setup debug output 
+        zoom_factor = self.params['video/zoom_factor']
         self.output = VideoComposer(output_file, size=self.video.size,
                                     fps=self.video.fps, is_color=True,
-                                    zoom_factor=self.video_zoom)
+                                    zoom_factor=zoom_factor)
         if show_video:
             self.debug_window = ImageWindow(self.output.shape, title=video_file,
                                             multiprocessing=False)
@@ -68,11 +67,12 @@ class TailSegmentationTracking(object):
         # setup structure for saving data
         self.kymographs = defaultdict(lambda: [[], []])
         self.tails = None
+        self._frame_cache = {}
 
 
     def load_video(self, filename):
         """ loads and returns the video """
-        video = VideoFile(filename) 
+        video = VideoFile(filename)#[35:]
         video = FilterMonochrome(video)
         return video
 
@@ -80,61 +80,77 @@ class TailSegmentationTracking(object):
     def process(self):
         """ processes the video """
         # process first frame to find objects
-        self.process_first_frame(self.video[0])
+        self.frame_id = 0
+        self.frame = self.video[0]
+        self.process_first_frame()
     
         # iterate through all frames
-        for self.frame_id, frame in enumerate(display_progress(self.video)):
-            self.set_video_background(frame)
+        for self.frame_id, self.frame in enumerate(display_progress(self.video)):
+            self._frame_cache = {} #< delete cache per frame
+            self.set_video_background()
 
             # adapt the object outlines
-            #self.adapt_tail_contours(frame, self.tails, blur_radius=30)
-            self.adapt_tail_contours(frame, self.tails)#, blur_radius=5)
+            #self.adapt_tail_contours(self.tails, blur_radius=30)
+            self.adapt_tail_contours(self.tails)#, blur_radius=5)
             
             # do the line scans in each object
             for tail_id, tail in enumerate(self.tails):
-                linescans = self.tail_linescans(frame, tail)
+                linescans = self.tail_linescans(self.frame, tail)
                 self.kymographs[tail_id][0].append(linescans[0]) 
                 self.kymographs[tail_id][1].append(linescans[1])
             
             # update the debug output
-            self.update_video_output(frame)
+            self.update_video_output(self.frame)
             
         # save the data and close the videos
         self.save_kymographs()
         self.close()
 
     
-    def set_video_background(self, frame):
+    def set_video_background(self):
         """ sets the background of the video """
-        if self.video_background == 'original':
-            self.output.set_frame(frame, copy=True)
+        if self.params['video/background'] == 'original':
+            self.output.set_frame(self.frame, copy=True)
             
-        elif self.video_background == 'gradient':
-            image = self.get_gradient_strenght(frame)
+        elif self.params['video/background'] == 'potential':
+            image = self.contour_potential
             lo, hi = image.min(), image.max()
             image = 255*(image - lo)/(hi - lo)
             self.output.set_frame(image)
             
-        elif self.video_background == 'thresholded':
-            image = self.get_gradient_strenght(frame)
+        elif self.params['video/background'] == 'gradient':
+            image = self.get_gradient_strenght(self.frame)
+            lo, hi = image.min(), image.max()
+            image = 255*(image - lo)/(hi - lo)
+            self.output.set_frame(image)
+            
+        elif self.params['video/background'] == 'gradient_thresholded':
+            image = self.get_gradient_strenght(self.frame)
             image = self.threshold_gradient_strength(image)
             lo, hi = image.min(), image.max()
             image = 255*(image - lo)/(hi - lo)
             self.output.set_frame(image)
             
+        elif self.params['video/background'] == 'features':
+            image, num_features = self.features_from_image_statistics
+            if num_features > 0:
+                self.output.set_frame(image*(128//num_features))
+            else:
+                self.output.set_frame(np.zeros_like(self.frame))
+            
         else:
-            self.output.set_frame(np.zeros_like(frame))
+            self.output.set_frame(np.zeros_like(self.frame))
 
     
-    def process_first_frame(self, frame):
+    def process_first_frame(self):
         """ process the first frame to localize the tails """
         # locate tails roughly
-        self.tails = self.locate_tails_roughly(frame)
+        self.tails = self.locate_tails_roughly()
         # refine tails
-        self.adapt_tail_contours_initially(frame, self.tails)
+        self.adapt_tail_contours_initially(self.tails)
         # refine tails a couple of times because convergence is sometimes bad
-        for _ in xrange(2):#0):
-            self.adapt_tail_contours(frame, self.tails)
+        #for _ in xrange(2):#0):
+        #self.adapt_tail_contours(self.tails)
         
                     
     #===========================================================================
@@ -257,27 +273,42 @@ class TailSegmentationTracking(object):
         # threshold to find the sure foreground and thus the number of objects
         threshold = self.params['detection/watershed_threshold'] * dist_transform.max()
         _, sure_fg = cv2.threshold(dist_transform, threshold, 1, 0)
-        
+
         # remove very small regions
         cv2.erode(sure_fg, np.ones(7), dst=sure_fg)
 
         # find the regions that belong to some object
-        sure_fg = np.uint8(sure_fg)
+        sure_fg = sure_fg.astype(np.uint8)
         unknown = cv2.subtract(mask, sure_fg)
-
+    
         # label all the sure regions
-        labels, num_features = measurements.label(sure_fg)
+        if self.tails:
+            # segment the tails using the previous tail information
+            labels = sure_fg.astype(np.int32)
+            for k, tail in enumerate(self.tails):
+                roi, offset = tail.mask
+                s0 = slice(offset[1], offset[1] + roi.shape[0])
+                s1 = slice(offset[0], offset[0] + roi.shape[1])
+                labels[s0, s1][roi.astype(np.bool)] *= k + 1
+                
+            num_features = len(self.tails)
+        else:
+            # automatic segmentation based on thresholding
+            labels, num_features = measurements.label(sure_fg)
+        
         labels += 1
+            
         # mark unknown region with zeros
         labels[unknown == 1] = 0
-    
+
         # apply the watershed algorithm to extend the known regions into the
         # unknown area
         img = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
         cv2.watershed(img, labels)
-        
-#         debug.show_image(dist_transform, mask, sure_fg, labels)
 
+#         debug.show_image(dist_transform, mask, sure_fg, labels,
+#                          wait_for_key=False)
+        
         # locate the contours of the segmented regions
         results = []
         for label in xrange(2, num_features + 2):
@@ -287,105 +318,169 @@ class TailSegmentationTracking(object):
             #mask = cv2.copyMakeBorder(mask, w, w, w, w, cv2.BORDER_CONSTANT, 0)
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-            #mask = mask[w:-w, w:-w].copy()
-            
-            #mask.
             
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
                                            cv2.CHAIN_APPROX_SIMPLE)
-            results.append(np.squeeze(contours))
+            
+            if len(contours) == 0:
+                continue
+            elif len(contours) == 1:
+                idx = 0
+            else:
+                idx = np.argmax([cv2.contourArea(cnt) for cnt in contours])
+
+            results.append(np.squeeze(contours[idx]))
             
         return results
         
-        
-    def locate_tails_roughly(self, frame):
-        """ locate tail objects using thresholding """
-#         gradient_mag = self.get_gradient_strenght(frame)
-#         bw = self.threshold_gradient_strength(gradient_mag)
-        
+    
+    @cached_property(cache='_frame_cache')
+    def features_from_image_statistics(self):
+        """ calculates a feature mask based on the image statistics """
         # calculate image statistics
-        mean, var = image.get_image_statistics(frame, kernel='circle', ksize=20)
+        mean, var = image.get_image_statistics(self.frame, kernel='circle', ksize=10)
 
         # threshold the variance to locate features
         threshold = 5*np.median(var)
         bw = (var > threshold)
         
+        # remove features at the edge of the image
         image.set_image_border(bw, size=10, color=0)
         
-#         debug.show_image(frame, mean, var, bw)
+#         debug.show_image(self.frame, mean, var, bw)
 #         exit()
 
-        labels, num_features = measurements.label(bw)
-        print num_features
+        #labels, num_labels = measurements.label(bw)
+    
+        contours, _ = cv2.findContours(bw.astype(np.uint8), cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_SIMPLE)
+
+        result = np.zeros_like(bw, np.uint8)
+        num_features = 0  
+        for contour in contours:
+            if  cv2.contourArea(contour) > self.params['detection/min_area']:
+                # fill holes inside the objects
+                num_features += 1
+                cv2.fillPoly(result, [contour], num_features)
+
+        return result, num_features
+        
+        
+    def locate_tails_roughly(self):
+        """ locate tail objects using thresholding """
+#         gradient_mag = self.get_gradient_strenght(frame)
+#         bw = self.threshold_gradient_strength(gradient_mag)
+        
+        labels, num_features = self.features_from_image_statistics
+
+        #labels, num_features = measurements.label(bw)
     
         tails = []
         for label in xrange(1, num_features + 1):
             mask = (labels == label).astype(np.uint8)
-            if mask.sum() > self.params['detection/min_area']:
+            
+#             if mask.sum() > self.params['detection/min_area']:
 #                 w = 0*self.params['detection/mask_size']
 #                 mask = cv2.copyMakeBorder(mask, w, w, w, w, cv2.BORDER_CONSTANT, 0)
 #                 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
 #                 mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 #                 mask = mask[w:-w, w:-w].copy()
     
-                # find objects in the image
-                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                               cv2.CHAIN_APPROX_SIMPLE)
-                # fill holes inside the objects
-                cv2.fillPoly(mask, contours, 1)
+#                 # find objects in the image
+#                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+#                                                cv2.CHAIN_APPROX_SIMPLE)
+#                 # fill holes inside the objects
+#                 cv2.fillPoly(mask, contours, 1)
+
+            # find the contours of all elements in the image
+            contours = self._watershed_segmentation(mask)
+
+            for contour in contours:
+                tail = Tail(contour)
+                if tail.area > self.params['detection/min_area']:
+                    tails.append(tail)
                 
-                # find the contours of all elements in the image
-                contours = self._watershed_segmentation(mask)
+#         debug.show_shape(*[t.outline for t in tails], background=frame,
+#                          wait_for_key=False)
     
-                for contour in contours:
-                    tail = Tail(contour)
-                    if tail.area > self.params['detection/min_area']:
-                        tails.append(tail)
-                
-#         debug.show_shape(*[t.outline for t in tails], background=frame)
-    
+        print('Found %d tail(s) in frame %d' % (len(tails), self.frame_id))
         return tails
         
         
-    def adapt_tail_contours_initially(self, frame, tails):
+    @cached_property(cache='_frame_cache')
+    def contour_potential(self):
+        """ calculates the contour potential """ 
+        features = self.features_from_image_statistics[0]
+        
+        gradient_mag = self.get_gradient_strenght(features > 0)
+        return gradient_mag
+        
+        
+    def adapt_tail_contours_initially(self, tails):
         """ adapt tail contour to frame, assuming that they could be quite far
         away """
-        # get potential
-        potential = self.get_gradient_strenght(frame)
-
         # setup active contour algorithm
         ac = ActiveContour(blur_radius=self.params['outline/blur_radius_initial'],
                            closed_loop=True,
-                           alpha=0, #< line length is constraint by beta
+                           alpha=self.params['outline/line_tension'], 
                            beta=self.params['outline/bending_stiffness'],
                            gamma=self.params['outline/adaptation_rate'])
         ac.max_iterations = self.params['outline/max_iterations']
-        ac.set_potential(potential)
+        ac.set_potential(self.contour_potential)
         
         # iterate through the contours
         for tail in tails:
             tail.contour = ac.find_contour(tail.contour)
 
-#         debug.show_shape(*[t.outline for t in tails], background=potential)
+#         debug.show_shape(*[t.outline for t in tails], background=frame)
 
-    
-    def adapt_tail_contours(self, frame, tails, blur_radius=10):
+
+    def adapt_tail_contours(self, tails, blur_radius=10):
         """ adapt tail contour to frame, assuming that they are already close """
-
-        # get potential
-        gradient_mag = self.get_gradient_strenght(frame)
+        tails_new = self.locate_tails_roughly()
+        self.adapt_tail_contours_initially(tails)
+        
+        assert len(tails_new) == len(tails)
+        
+        for k, tail in enumerate(tails):
+            idx = np.argmin([curves.point_distance(tail.center, t.center)
+                             for t in tails_new])
+            tails[k] = tails_new.pop(idx)
+        
+        return
         
         # threshold the gradient strength
         #potential_approx = self.threshold_gradient_strength(gradient_mag)
         
         # setup active contour algorithm
-        ac = ActiveContour(blur_radius=blur_radius,
+        ac = ActiveContour(blur_radius=20,#blur_radius,
                            closed_loop=True,
-                           alpha=0, #< line length is constraint by beta
+                           alpha=self.params['outline/line_tension'],
                            beta=self.params['outline/bending_stiffness'],
                            gamma=self.params['outline/adaptation_rate'])
         ac.max_iterations = self.params['outline/max_iterations']
-        ac.set_potential(gradient_mag)
+        ac.set_potential(self.contour_potential)
+        
+        # iterate through the contours
+        for tail in tails:
+            contour = ac.find_contour(tail.contour)
+            tail.update_contour(contour)
+    
+    
+    def adapt_tail_contours_old(self, frame, tails, blur_radius=10):
+        """ adapt tail contour to frame, assuming that they are already close """
+
+        # threshold the gradient strength
+        #potential_approx = self.threshold_gradient_strength(gradient_mag)
+        
+        # setup active contour algorithm
+        ac = ActiveContour(blur_radius=20,#blur_radius,
+                           closed_loop=True,
+                           alpha=self.params['outline/line_tension'],
+                           beta=self.params['outline/bending_stiffness'],
+                           gamma=self.params['outline/adaptation_rate'])
+        ac.max_iterations = self.params['outline/max_iterations']
+        ac.set_potential(self.contour_potential)
         
         # iterate through the contours
         for tail in tails:

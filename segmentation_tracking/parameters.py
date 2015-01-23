@@ -9,6 +9,9 @@ from __future__ import division
 
 # general tracking parameters 
 parameters_tracking_default = {
+    'video/zoom_factor': 2,
+    'video/background': 'original', #< ('original', 'gradient', 'thresholded')
+                               
     'gradient/blur_radius': 10, 
     'gradient/threshold': 0.05, 
                 
@@ -17,7 +20,8 @@ parameters_tracking_default = {
     'detection/watershed_threshold': 0.2,
     
     'outline/blur_radius_initial': 20,
-    'outline/max_iterations': 300,  
+    'outline/max_iterations': 300,
+    'outline/line_tension': 0,  
     'outline/bending_stiffness': 1e4, #< bending stiffness for the tail outline
     'outline/adaptation_rate': 1e0, #< rate with which the active snake adapts
     
@@ -29,6 +33,10 @@ parameters_tracking_default = {
 
 # special tracking parameters for individual videos
 parameters_tracking_special = {
-    '20140831_BW_E14-15_tl_edf': {'detection/watershed_threshold': 0.4,
-                                  }
+    # video with two touching tails
+    '20140804_bw_tl_edf': {
+        'detection/watershed_threshold': 0.5 }, 
+    # video with three tails
+    '20140831_BW_E14-15_tl_edf': { 
+        'detection/watershed_threshold': 0.4,},
 }
