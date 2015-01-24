@@ -133,7 +133,7 @@ def _check_coordinate(value, max_value):
     
 
 class FilterCrop(VideoFilterBase):
-    """ crops the video to the given rect=(top, left, height, width) """
+    """ crops the video to the given region """
 
     def __init__(self, source, rect=None, region='', color_channel=None):
         """
@@ -172,7 +172,7 @@ class FilterCrop(VideoFilterBase):
         
         # contract with parent crop filters, if they exist 
         while isinstance(source, FilterCrop):
-            logger.debug('Combine this crop filter with the parent crop filter.')
+            logger.debug('Combine this crop filter with the parent one.')
             left += source.rect[0]
             top += source.rect[1]
             if source.color_channel is not None:
@@ -204,6 +204,73 @@ class FilterCrop(VideoFilterBase):
         # pass the frame to the parent function
         return super(FilterCrop, self)._process_frame(frame)
 
+
+
+class FilterResize(VideoFilterBase):
+    """ resizes the video to a new size """
+
+    def __init__(self, source, size=None, interpolation='auto',
+                 even_dimensions=False):
+        """
+        initialized the filter that crops to the given size=(width, height)
+        If size is a single value it is interpreted as a factor of the input
+        video size.
+            `interpolation` chooses the interpolation used for the resizing
+            `even_dimensions` is a flag that determines whether the image
+                dimensions are enforced to be even numbers
+        """
+        # determine target size
+        if hasattr(size, '__iter__'):
+            width, height = size
+        else:
+            width = int(source.size[0] * size)
+            height = int(source.size[1] * size)
+        if even_dimensions:
+            width += (width % 2)
+            height += (height % 2)
+            
+        # set interpolation method
+        if (width, height) == source.size:
+            self.interpolation = None
+        elif interpolation == 'auto':
+            if width*height < source.size[0]*source.size[1]:
+                # image size is decreased
+                self.interpolation = cv2.INTER_AREA
+            else:
+                # image size is increased
+                self.interpolation = cv2.INTER_CUBIC                
+        elif interpolation == 'nearest':
+            self.interpolation = cv2.INTER_NEAREST
+        elif interpolation == 'linear':
+            self.interpolation = cv2.INTER_LINEAR
+        elif interpolation == 'area':
+            self.interpolation = cv2.INTER_AREA
+        elif interpolation == 'cubic':
+            self.interpolation = cv2.INTER_CUBIC
+        elif interpolation == 'lanczos':
+            self.interpolation = cv2.INTER_LANCZOS4
+        else:
+            raise ValueError('Unknown interpolation method: %s', interpolation)
+             
+        # contract with parent crop filters, if they exist 
+        while isinstance(source, FilterResize):
+            logger.debug('Combine this resize filter with the parent one.')
+            source = source._source
+
+        # correct the size, since we are going to crop the movie
+        super(FilterResize, self).__init__(source, size=(width, height))
+        logger.debug('Created filter for resizing to size %dx%d', width, height)
+        
+       
+    def _process_frame(self, frame):
+        # resize the frame if necessary
+        if self.interpolation:
+            frame = cv2.resize(frame, self.size,
+                               interpolation=self.interpolation)
+
+        # pass the frame to the parent function
+        return super(FilterResize, self)._process_frame(frame)
+    
 
 
 class FilterMonochrome(VideoFilterBase):
