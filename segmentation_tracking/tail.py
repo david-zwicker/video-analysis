@@ -219,7 +219,11 @@ class Tail(object):
         sides = self.determine_sides(line_ref=None)
         for c in sides:
             mp = geometry.MultiPoint(c)
-            frac = len(mp.intersection(polygon))/len(mp)
+            intersection = mp.intersection(polygon)
+            if isinstance(intersection, geometry.Point):
+                frac = 1/len(mp)
+            else:
+                frac = len(intersection)/len(mp)
             fs.append(frac)
 
         return sides[np.argmax(fs)]
@@ -251,6 +255,7 @@ class Tail(object):
         dist_map = cv2.distanceTransform(mask, cv2.cv.CV_DIST_L2, 5)
         
         # setup active contour algorithm
+        # TODO: move the parameters of the algorithm to class parameters
         ac = ActiveContour(blur_radius=5,
                            closed_loop=False,
                            alpha=0, #< line length is constraint by beta
