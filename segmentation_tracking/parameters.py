@@ -82,7 +82,7 @@ parameters_tracking_special = {
         #'detection/statistics_window': 50,}, 
     # video with three tails
     '20140831_BW_E14-15_tl_edf': { 
-        'detection/statistics_window': 20//5,
-        'detection/statistics_threshold': 5,                 
+        #'detection/statistics_window': 20//5,
+        #'detection/statistics_threshold': 5,                 
         'detection/watershed_threshold': 0.3 },#0.4,},
 }

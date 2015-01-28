@@ -31,6 +31,7 @@ from video import debug  # @UnusedImport
 
 from .tail import Tail
 from .parameters import parameters_tracking, parameters_tracking_special
+from segmentation_tracking.annotation import TackingAnnotations, SegmentPicker
 
 
 
@@ -46,6 +47,7 @@ class TailSegmentationTracking(object):
         """
         self.video_file = video_file
         self.name = os.path.splitext(video_file)[0]
+        self.annotations = TackingAnnotations(self.name)
         
         # load the parameters for the tracking
         self.params = parameters_tracking[parameter_set].copy()
@@ -74,6 +76,8 @@ class TailSegmentationTracking(object):
         # setup structure for saving data
         self.kymographs = defaultdict(lambda: [[], []])
         self.tails = None
+        self.frame_id = None
+        self.frame = None
         self._frame_cache = {}
 
 
@@ -94,16 +98,24 @@ class TailSegmentationTracking(object):
             
         return video
 
+
+    def load_first_frame(self):
+        """ loads the first frame into self.frame """
+        # TODO: correct the frame id for skipping
+        if self.frame_id != 0:
+            self._frame_cache = {} #< delete cache per frame
+            self.frame_id = 0
+            self.frame = self.video[0]
+        return self.frame
+
     
     def process(self):
         """ processes the video """
         # process first frame to find objects
-        # TODO: correct the frame id for skipping
-        self.frame_id = 0
-        self.frame = self.video[0]
         self.process_first_frame()
     
         # iterate through all frames
+        # TODO: correct the frame id for skipping
         for self.frame_id, self.frame in enumerate(display_progress(self.video)):
             self._frame_cache = {} #< delete cache per frame
             self.set_video_background()
@@ -163,6 +175,7 @@ class TailSegmentationTracking(object):
     
     def process_first_frame(self):
         """ process the first frame to localize the tails """
+        self.load_first_frame() #< stores frame in self.frame
         # locate tails roughly
         self.tails = self.locate_tails_roughly()
         # refine tails
@@ -291,6 +304,84 @@ class TailSegmentationTracking(object):
         
         return bw
         
+
+    @cached_property(cache='_frame_cache')
+    def features_from_image_statistics(self):
+        """ calculates a feature mask based on the image statistics """
+        # calculate image statistics
+        ksize = self.params['detection/statistics_window']
+        mean, var = image.get_image_statistics(self.frame, kernel='circle',
+                                            ksize=ksize)
+
+        # threshold the variance to locate features
+        threshold = self.params['detection/statistics_threshold']*np.median(var)
+        bw = (var > threshold).astype(np.uint8)
+        
+        # add features from the previous frames if present
+        if self.tails:
+            for tail in self.tails:
+                polys = tail.polygon.buffer(-self.params['detection/shape_max_speed'])
+                if not isinstance(polys, geometry.MultiPolygon):
+                    polys = [polys]
+                for poly in polys: 
+                    cv2.fillPoly(bw, [np.array(poly.exterior.coords, np.int)], 1)
+        
+        # remove features at the edge of the image
+        border = self.params['detection/border_distance']
+        image.set_image_border(bw, size=border, color=0)
+        
+        # remove very thin features
+        cv2.morphologyEx(bw, cv2.MORPH_OPEN, np.ones((3, 3)), dst=bw)
+
+        # find features in the binary image
+        contours, _ = cv2.findContours(bw.astype(np.uint8), cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_SIMPLE)
+
+        # determine the rectangle where objects can lie in
+        h, w = self.frame.shape
+        rect = regions.Rectangle(x=0, y=0, width=w, height=h)
+        rect.buffer(-2*border)
+        rect = geometry.Polygon(rect.outline)
+
+        bw[:] = 0
+        num_features = 0  
+        for contour in contours:
+            if cv2.contourArea(contour) > self.params['detection/area_min']:
+                # check whether the object touches the border
+                feature = geometry.Polygon(np.squeeze(contour))
+                if rect.exterior.intersects(feature):
+                    # fill the hole in the feature
+                    difference = rect.difference(feature)
+                    
+                    if isinstance(difference, geometry.Polygon):
+                        difference = [difference] #< make sure we handle a list
+                        
+                    for diff in difference:
+                        if diff.area < self.params['detection/area_max']:
+                            feature = feature.union(diff)
+                
+                # reduce feature, since detection typically overshoots
+                features = feature.buffer(-0.5*self.params['detection/statistics_window'])
+                
+                if not isinstance(features, geometry.MultiPolygon):
+                    features = [features]
+                
+                for feature in features:
+                    if feature.area > self.params['detection/area_min']:
+                        #debug.show_shape(feature, background=self.frame)
+                        
+                        # extract the contour of the feature 
+                        contour = regions.get_enclosing_outline(feature)
+                        contour = np.array(contour.coords, np.int)
+                        
+                        # fill holes inside the objects
+                        num_features += 1
+                        cv2.fillPoly(bw, [contour], num_features)
+
+#         debug.show_image(self.frame, var, var>5*threshold, bw, wait_for_key=False)
+
+        return bw, num_features
+        
         
     def _watershed_segmentation(self, mask):
         """ segments the object in the mask using a watershed segmentation
@@ -394,84 +485,6 @@ class TailSegmentationTracking(object):
                 idx += 1
                         
         return contours
-        
-    
-    @cached_property(cache='_frame_cache')
-    def features_from_image_statistics(self):
-        """ calculates a feature mask based on the image statistics """
-        # calculate image statistics
-        ksize = self.params['detection/statistics_window']
-        _, var = image.get_image_statistics(self.frame, kernel='circle',
-                                            ksize=ksize)
-
-        # threshold the variance to locate features
-        threshold = self.params['detection/statistics_threshold']*np.median(var)
-        bw = (var > threshold).astype(np.uint8)
-        
-        # add features from the previous frames if present
-        if self.tails:
-            for tail in self.tails:
-                polys = tail.polygon.buffer(-self.params['detection/shape_max_speed'])
-                if not isinstance(polys, geometry.MultiPolygon):
-                    polys = [polys]
-                for poly in polys: 
-                    cv2.fillPoly(bw, [np.array(poly.exterior.coords, np.int)], 1)
-        
-        # remove features at the edge of the image
-        border = self.params['detection/border_distance']
-        image.set_image_border(bw, size=border, color=0)
-        
-        # remove very thin features
-        cv2.morphologyEx(bw, cv2.MORPH_OPEN, np.ones((3, 3)), dst=bw)
-
-        # find features in the binary image
-        contours, _ = cv2.findContours(bw.astype(np.uint8), cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
-
-        # determine the rectangle where objects can lie in
-        h, w = self.frame.shape
-        rect = regions.Rectangle(x=0, y=0, width=w, height=h)
-        rect.buffer(-2*border)
-        rect = geometry.Polygon(rect.outline)
-
-        bw[:] = 0
-        num_features = 0  
-        for contour in contours:
-            if cv2.contourArea(contour) > self.params['detection/area_min']:
-                # check whether the object touches the border
-                feature = geometry.Polygon(np.squeeze(contour))
-                if rect.exterior.intersects(feature):
-                    # fill the hole in the feature
-                    difference = rect.difference(feature)
-                    
-                    if isinstance(difference, geometry.Polygon):
-                        difference = [difference] #< make sure we handle a list
-                        
-                    for diff in difference:
-                        if diff.area < self.params['detection/area_max']:
-                            feature = feature.union(diff)
-                
-                # reduce feature, since detection typically overshoots
-                features = feature.buffer(-0.5*self.params['detection/statistics_window'])
-                
-                if not isinstance(features, geometry.MultiPolygon):
-                    features = [features]
-                
-                for feature in features:
-                    if feature.area > self.params['detection/area_min']:
-                        #debug.show_shape(feature, background=self.frame)
-                        
-                        # extract the contour of the feature 
-                        contour = regions.get_enclosing_outline(feature)
-                        contour = np.array(contour.coords, np.int)
-                        
-                        # fill holes inside the objects
-                        num_features += 1
-                        cv2.fillPoly(bw, [contour], num_features)
-
-#         debug.show_image(self.frame, var, bw, wait_for_key=False)
-
-        return bw, num_features
         
         
     def locate_tails_roughly(self):
@@ -601,13 +614,35 @@ class TailSegmentationTracking(object):
     
     
     #===========================================================================
+    # TRACKING ANNOTATIONS
+    #===========================================================================
+    
+    
+    def annotate(self):
+        """ add annotations to the video to help the segmentation """
+        # determine the features of the first frame
+        self.load_first_frame()
+        features, _ = self.features_from_image_statistics
+
+        # load previous annotations
+        lines = self.annotations['segmentation_dividers']
+        
+        # use the segmentation picker to alter these segments
+        picker = SegmentPicker(self.frame, features, lines)
+        result = picker.run()
+        if result == 'ok':
+            # save the result if desired
+            self.annotations['segmentation_dividers'] = picker.segments
+            
+    
+    #===========================================================================
     # SEGMENT FINDING
     #===========================================================================
     
     
     def get_measurement_lines(self, tail):
         """
-        determines the measurement lines that are used for the line sca
+        determines the measurement segments that are used for the line sca
         """
         f_c = self.params['measurement/line_offset']
         f_o = 1 - f_c
@@ -643,7 +678,7 @@ class TailSegmentationTracking(object):
     
     
     def tail_linescans(self, frame, tail):
-        """ do line scans along the measurement lines of the tails """
+        """ do line scans along the measurement segments of the tails """
         l = self.params['measurement/line_scan_width']
         w = 2 #< width of each individual line scan
         result = []
@@ -688,7 +723,7 @@ class TailSegmentationTracking(object):
         video = self.output
         # add information on all tails
         for tail_id, tail in enumerate(self.tails):
-            # mark all the lines that are important in the video
+            # mark all the segments that are important in the video
             mark_points = (video.zoom_factor < 1)
             video.add_line(tail.contour, color='b', is_closed=True,
                            width=3, mark_points=mark_points)
