@@ -22,12 +22,11 @@ parameters_tracking = {
     #     'detection/statistics_window': 10,
         'detection/statistics_window': 50,
         'detection/statistics_threshold': 3,
-        'detection/shape_max_speed': 20,
+        'detection/shape_max_speed': 50,
         'detection/border_distance': 20,
         'detection/mask_size': 30,
-        'detection/area_min': 50000,
-        'detection/area_max': 500000,
-        'detection/watershed_threshold': 0.2,
+        'detection/area_min': 100000,
+        'detection/area_max': 1000000,
         
         'outline/blur_radius_initial': 20,
         'outline/max_iterations': 300,
@@ -52,14 +51,13 @@ parameters_tracking = {
     #     'detection/statistics_window': 10,
         'detection/statistics_window': 50//5,
         'detection/statistics_threshold': 3,
-        'detection/shape_max_speed': 20//5,
+        'detection/shape_max_speed': 50//5,
         'detection/border_distance': 50//5,
         'detection/mask_size': 30//5,
         'detection/area_min': 50000//(5*5),
         'detection/area_max': 500000//(5*5),
-        'detection/watershed_threshold': 0.2,
         
-        'outline/blur_radius_initial': 20//5,
+        'outline/blur_radius_initial': 50//5,
         'outline/max_iterations': 300,
         'outline/line_tension': 0,  
         'outline/bending_stiffness': 1e4//(5*5), #< bending stiffness for the tail outline
@@ -75,14 +73,12 @@ parameters_tracking = {
 # special tracking parameters for individual videos
 parameters_tracking_special = {
     # video with two touching tails
-    '20140804_bw_tl_edf': {
-        'detection/watershed_threshold': 0.5 },
+    '20140804_bw_tl_edf': {},
     # video with lots of particles in background
     #'20140808_nub_e15-16_tl_edf': {
         #'detection/statistics_window': 50,}, 
     # video with three tails
     '20140831_BW_E14-15_tl_edf': { 
         #'detection/statistics_window': 20//5,
-        #'detection/statistics_threshold': 5,                 
-        'detection/watershed_threshold': 0.3 },#0.4,},
+        'detection/statistics_threshold': 2},#0.4,},
 }

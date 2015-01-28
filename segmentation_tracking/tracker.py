@@ -163,7 +163,7 @@ class TailSegmentationTracking(object):
             self.output.set_frame(image)
             
         elif self.params['output/background'] == 'features':
-            image, num_features = self.features_from_image_statistics
+            image, num_features = self.get_features(use_annotations=False)
             if num_features > 0:
                 self.output.set_frame(image*(128//num_features))
             else:
@@ -305,27 +305,49 @@ class TailSegmentationTracking(object):
         return bw
         
 
-    @cached_property(cache='_frame_cache')
-    def features_from_image_statistics(self):
+    def get_features(self, use_annotations=False, ret_raw=False):
         """ calculates a feature mask based on the image statistics """
         # calculate image statistics
         ksize = self.params['detection/statistics_window']
-        mean, var = image.get_image_statistics(self.frame, kernel='circle',
+        _, var = image.get_image_statistics(self.frame, kernel='circle',
                                             ksize=ksize)
 
         # threshold the variance to locate features
         threshold = self.params['detection/statistics_threshold']*np.median(var)
         bw = (var > threshold).astype(np.uint8)
         
+        if ret_raw:
+            return bw
+        
         # add features from the previous frames if present
         if self.tails:
             for tail in self.tails:
+                # fill the features with the interior of the former tail
                 polys = tail.polygon.buffer(-self.params['detection/shape_max_speed'])
                 if not isinstance(polys, geometry.MultiPolygon):
                     polys = [polys]
                 for poly in polys: 
-                    cv2.fillPoly(bw, [np.array(poly.exterior.coords, np.int)], 1)
+                    cv2.fillPoly(bw, [np.array(poly.exterior.coords, np.int)],
+                                 color=1)
+                
+                # calculate the distance to other tails to bound the current one
+                buffer_dist = self.params['detection/shape_max_speed']
+                for tail2 in self.tails:
+                    if tail is not tail2:
+                        dist = tail.polygon.distance(tail2.polygon)
+                        buffer_dist = min(dist/2, buffer_dist)
+                    
+                # make sure that this tail is separated from all the others
+                bound = tail.polygon.buffer(buffer_dist).exterior
+                cv2.polylines(bw, [np.array(bound.coords, np.int)],
+                              isClosed=True, color=0, thickness=2)
         
+        if use_annotations:
+            lines = self.annotations['segmentation_dividers']
+            if lines:
+                for line in lines:
+                    cv2.line(bw, tuple(line[0]), tuple(line[1]), 0, thickness=3)
+
         # remove features at the edge of the image
         border = self.params['detection/border_distance']
         image.set_image_border(bw, size=border, color=0)
@@ -378,151 +400,27 @@ class TailSegmentationTracking(object):
                         num_features += 1
                         cv2.fillPoly(bw, [contour], num_features)
 
-#         debug.show_image(self.frame, var, var>5*threshold, bw, wait_for_key=False)
+#         debug.show_image(self.frame, var, bw, wait_for_key=False)
 
         return bw, num_features
         
         
-    def _watershed_segmentation(self, mask):
-        """ segments the object in the mask using a watershed segmentation
-        algorithm as explained in
-        http://docs.opencv.org/trunk/doc/py_tutorials/py_imgproc/py_watershed/py_watershed.html 
-        """
-        # do distance transform to measure how many objects there are
-        dist_transform = cv2.distanceTransform(mask, cv2.cv.CV_DIST_L2, 5)
-        
-        # threshold to find the sure foreground and thus the number of objects
-        threshold = self.params['detection/watershed_threshold'] * dist_transform.max()
-        _, sure_fg = cv2.threshold(dist_transform, threshold, 1, 0)
-
-        # remove very small regions
-        cv2.erode(sure_fg, np.ones(7), dst=sure_fg)
-
-        # find the regions that belong to some object
-        sure_fg = sure_fg.astype(np.uint8)
-        unknown = cv2.subtract(mask, sure_fg)
-    
-        # label all the sure regions
-        if self.tails:
-            # segment the tails using the previous tail information
-            labels = sure_fg.astype(np.int32)
-            for k, tail in enumerate(self.tails):
-                roi, offset = tail.mask
-                s0 = slice(offset[1], offset[1] + roi.shape[0])
-                s1 = slice(offset[0], offset[0] + roi.shape[1])
-                labels[s0, s1][roi.astype(np.bool)] *= k + 1
-                
-            num_features = len(self.tails)
-        else:
-            # automatic segmentation based on thresholding
-            labels, num_features = measurements.label(sure_fg)
-        
-        labels += 1
-            
-        # mark unknown region with zeros
-        labels[unknown == 1] = 0
-
-#         if self.tails:
-#             debug.show_shape(*[t.outline for t in self.tails], background=sure_fg,
-#                              wait_for_key=False)
-#  
-#         debug.show_image(dist_transform, mask, sure_fg, labels,
-#                          wait_for_key=False)
-        
-        # apply the watershed algorithm to extend the known regions into the
-        # unknown area
-        img = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-        cv2.watershed(img, labels)
-
-#         debug.show_image(self.frame, mask, dist_transform, 
-#                          sure_fg, labels,
-#                          wait_for_key=True)
-        
-        # locate the contours of the segmented regions
-        results = []
-        for label in xrange(2, num_features + 2):
-            mask = np.uint8(labels == label)
-            
-#             w = self.params['detection/mask_size']
-#             #mask = cv2.copyMakeBorder(mask, w, w, w, w, cv2.BORDER_CONSTANT, 0)
-#             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
-#             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-            
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                           cv2.CHAIN_APPROX_SIMPLE)
-            
-            if len(contours) == 0:
-                continue
-            elif len(contours) == 1:
-                idx = 0
-            else:
-                idx = np.argmax([cv2.contourArea(cnt) for cnt in contours])
-
-            contour = contours[idx][:, 0, :]
-            if len(contour) > 2:
-                results.append(contour)
-            
-        # sort result by area
-        contours = sorted(results, key=lambda c: cv2.contourArea(c))
-        idx = 0
-        while idx < len(contours):
-            contour = contours[idx]
-            if cv2.contourArea(contour) < self.params['detection/area_min']:
-                # this contour is very small
-                # => try adding it to one of the earlier ones
-                poly_s = geometry.Polygon(contour)
-                for k in xrange(idx):
-                    # find a touching polygon
-                    poly_l = geometry.Polygon(contours[k])
-                    if poly_l.distance(poly_s) < 2:
-                        poly_l = poly_l.union(poly_s)
-                        contours[k] = np.array(poly_l.exterior.coords)
-                        break
-                # remove the contour from the list
-                del contours[idx]
-            else:
-                # check next contour
-                idx += 1
-                        
-        return contours
-        
-        
     def locate_tails_roughly(self):
         """ locate tail objects using thresholding """
-#         gradient_mag = self.get_gradient_strenght(frame)
-#         bw = self.threshold_gradient_strength(gradient_mag)
-        
-        labels, num_features = self.features_from_image_statistics
+        # find features, using annotations in the first frame        
+        use_annotations = (self.frame_id == 0)
+        labels, _ = self.get_features(use_annotations)
 
-        #labels, num_features = measurements.label(bw)
-    
+        # find the contours of these features
+        contours, _ = cv2.findContours(labels, cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_SIMPLE)
+
+        # locate the tails using these contours
         tails = []
-        for label in xrange(1, num_features + 1):
-            mask = (labels == label).astype(np.uint8)
-            
-#             if mask.sum() > self.params['detection/area_min']:
-#                 w = 0*self.params['detection/mask_size']
-#                 mask = cv2.copyMakeBorder(mask, w, w, w, w, cv2.BORDER_CONSTANT, 0)
-#                 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
-#                 mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-#                 mask = mask[w:-w, w:-w].copy()
-    
-#                 # find objects in the image
-#                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-#                                                cv2.CHAIN_APPROX_SIMPLE)
-#                 # fill holes inside the objects
-#                 cv2.fillPoly(mask, contours, 1)
-
-            # find the contours of all elements in the image
-            contours = self._watershed_segmentation(mask)
-
-            # sort contours by area
-            contours = sorted(contours, key=lambda c: cv2.contourArea(c))
-
-            for contour in contours:
-                tail = Tail(contour)
-                if tail.area > self.params['detection/area_min']:
-                    tails.append(tail)
+        for contour in contours:
+            print 'Area', cv2.contourArea(contour)
+            if cv2.contourArea(contour) > self.params['detection/area_min']:
+                tails.append(Tail(contour[:, 0, :]))
                 
 #         debug.show_shape(*[t.outline for t in tails], background=self.frame,
 #                          wait_for_key=False)
@@ -534,7 +432,7 @@ class TailSegmentationTracking(object):
     @cached_property(cache='_frame_cache')
     def contour_potential(self):
         """ calculates the contour potential """ 
-        #features = self.features_from_image_statistics[0]
+        #features = self.get_features[0]
         #gradient_mag = self.get_gradient_strenght(features > 0)
         
         gradient_mag = self.get_gradient_strenght(self.frame)
@@ -557,7 +455,8 @@ class TailSegmentationTracking(object):
         for tail in tails:
             tail.contour = ac.find_contour(tail.contour)
 
-        #debug.show_shape(*[t.outline for t in tails], background=self.frame)
+#         debug.show_shape(*[t.outline for t in tails],
+#                          background=self.contour_potential)
 
 
     def adapt_tail_contours(self, tails, blur_radius=10):
@@ -578,6 +477,8 @@ class TailSegmentationTracking(object):
         #potential_approx = self.threshold_gradient_strength(gradient_mag)
         ac.set_potential(self.contour_potential)
 
+#         debug.show_shape(*[t.outline for t in tails],
+#                          background=self.contour_potential)        
         
         for k, tail in enumerate(tails):
             # find the tail that is closest
@@ -590,7 +491,10 @@ class TailSegmentationTracking(object):
             
             # update the old tail to keep the identity of sides
             tails[k].update_contour(contour)
-        
+            
+#         debug.show_shape(*[t.outline for t in tails],
+#                          background=self.contour_potential)        
+    
     
     def adapt_tail_contours_old(self, frame, tails, blur_radius=10):
         """ adapt tail contour to frame, assuming that they are already close """
@@ -622,7 +526,7 @@ class TailSegmentationTracking(object):
         """ add annotations to the video to help the segmentation """
         # determine the features of the first frame
         self.load_first_frame()
-        features, _ = self.features_from_image_statistics
+        features = self.get_features(ret_raw=True)
 
         # load previous annotations
         lines = self.annotations['segmentation_dividers']
