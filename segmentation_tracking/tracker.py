@@ -15,8 +15,7 @@ import os
 
 import numpy as np
 import cv2
-from scipy import interpolate
-from scipy.ndimage import measurements
+from scipy import interpolate, spatial
 from shapely import geometry
 
 from data_structures.cache import cached_property
@@ -472,8 +471,13 @@ class TailSegmentationTracking(object):
             # determine the points close to the boundary that will be anchored
             # at their position, because there are no features to track at the
             # boundary 
-            # TODO: disable anchoring for points at the tip of the tail
             anchor_idx = ~region_center.points_inside(tail.contour)
+            
+            # disable anchoring for points at the posterior end of the tail
+            ps = tail.contour[anchor_idx]
+            dists = spatial.distance.cdist(ps, [tail.endpoints[0]])
+            dist_threshold = self.params['outline/typical_width']
+            anchor_idx[anchor_idx] = (dists.flat > dist_threshold)
             
             # use an active contour algorithm to adapt the contour points
             contour = ac.find_contour(tail.contour, anchor_idx, anchor_idx)
@@ -612,8 +616,14 @@ class TailSegmentationTracking(object):
                                anchor='center middle')
             
             # mark the points that we identified
-            video.add_circle(tail.endpoints[0], 10, 'g')
-            video.add_circle(tail.endpoints[1], 10, 'b')
+            p_P, p_A = tail.endpoints
+            n = (p_P - p_A)
+            n = 50 * n / np.hypot(n[0], n[1])
+            video.add_circle(p_P, 10, 'g')
+            video.add_text('P', p_P + n, color='g', anchor='center middle')
+            video.add_circle(p_A, 10, 'b')
+            video.add_text('A', p_A - n, color='b', anchor='center middle')
+            
             video.add_text(str('tail %d' % tail_id), tail.center,
                            color='w', anchor='center middle')
         

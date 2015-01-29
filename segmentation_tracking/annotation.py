@@ -18,6 +18,7 @@ from matplotlib import widgets
 from video.analysis import curves
 
 
+
 class TackingAnnotations(object):
     """ class managing annotations for a tracking object
     TODO: implement locking mechanism to avoid race conditions
@@ -35,7 +36,8 @@ class TackingAnnotations(object):
         
     def __get__(self):
         """ return the annotations stored for this video """
-        db = yaml.load(open(self.database, 'r'))
+        with open(self.database, 'r') as fp:
+            db = yaml.load(fp)
         if db:
             return db.get(self.name, {})
         else:
@@ -50,9 +52,11 @@ class TackingAnnotations(object):
         
     def __set__(self, value):
         """ stores annotations for this video """
-        db = yaml.load(open(self.database, 'r'))
+        with open(self.database, 'r') as fp:
+            db = yaml.load(fp)
         db[self.name] = value
-        yaml.dump(db, open(self.database, 'w'))
+        with open(self.database, 'w') as fp:
+            yaml.dump(db, fp)
         
     
     def __setitem__(self, key, value):

@@ -29,6 +29,7 @@ parameters_tracking = {
         'detection/area_max': 1000000,
         'detection/every_frame': True,
         
+        'outline/typical_width': 150,
         'outline/blur_radius_initial': 20,
         'outline/blur_radius': 20,
         'outline/border_anchor_distance': 100,
