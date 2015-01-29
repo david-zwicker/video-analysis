@@ -626,3 +626,10 @@ class Rectangle(object):
     @property
     def area(self):
         return self.width * self.height
+    
+    
+    def points_inside(self, points):
+        """ returns a boolean array indicating which of the points are inside
+        this rectangle """
+        return ((self.left <= points[:, 0]) & (points[:, 0] <= self.right) &
+                (self.top  <= points[:, 1]) & (points[:, 1] <= self.bottom))

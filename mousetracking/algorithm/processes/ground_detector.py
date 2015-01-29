@@ -361,12 +361,11 @@ class GroundDetectorGlobal(GroundDetectorBase):
                 self.contour_finder = \
                     ActiveContour(blur_radius=self.blur_radius,
                                   closed_loop=False,
-                                  keep_end_x=True,
                                   alpha=0, #< line length is constraint by beta
                                   beta=self.params['ground/active_snake_beta'],
                                   gamma=self.params['ground/active_snake_gamma'])
                 self.contour_finder.set_potential(potential)
-                points = self.contour_finder.find_contour(points)
+                points = self.contour_finder.find_contour(points, anchor_x=(0, -1))
                 if self.blur_radius < 2:
                     self.blur_radius = 0
                 else:
@@ -374,7 +373,7 @@ class GroundDetectorGlobal(GroundDetectorBase):
         else:
             # reuse the previous contour finder
             self.contour_finder.set_potential(potential)
-            points = self.contour_finder.find_contour(points)
+            points = self.contour_finder.find_contour(points, anchor_x=(0, -1))
 
         points = points.tolist()
 

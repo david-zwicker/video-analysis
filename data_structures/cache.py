@@ -10,14 +10,14 @@ import collections
 
 
 
-class DictFinite(collections.OrderedDict):
+class DictFiniteCapacity(collections.OrderedDict):
     """ cache with a limited number of items """
     
     default_capacity = 100    
     
     def __init__(self, *args, **kwargs):
         self.capacity = kwargs.pop('capacity', self.default_capacity)
-        super(DictFinite, self).__init__(*args, **kwargs)
+        super(DictFiniteCapacity, self).__init__(*args, **kwargs)
 
 
     def check_length(self):
@@ -27,12 +27,12 @@ class DictFinite(collections.OrderedDict):
             
 
     def __setitem__(self, key, value):
-        super(DictFinite, self).__setitem__(key, value)
+        super(DictFiniteCapacity, self).__setitem__(key, value)
         self.check_length()
         
         
     def update(self, values):
-        super(DictFinite, self).update(values)
+        super(DictFiniteCapacity, self).update(values)
         self.check_length()
         
     

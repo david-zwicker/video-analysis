@@ -96,7 +96,10 @@ def make_curve_equidistant(points, spacing=None, count=None):
         if dist > 1e-8:
             result.append(points[-1])
             
-    elif count is not None:
+    else:
+        if count is None:
+            count = len(points)
+            
         # get arc length of support points
         s = np.cumsum([point_distance(p1, p2)
                        for p1, p2 in itertools.izip(points, points[1:])])
@@ -106,9 +109,6 @@ def make_curve_equidistant(points, spacing=None, count=None):
         # interpolate points
         result = np.transpose((np.interp(sp, s, points[:, 0]),
                                np.interp(sp, s, points[:, 1])))
-    
-    else:
-        raise ValueError('Either spacing or counts of points must be provided.')
         
     return result
 

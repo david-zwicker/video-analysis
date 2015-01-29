@@ -6,11 +6,11 @@ Created on Dec 19, 2014
 
 from __future__ import division
 
-
-import numpy as np
 import cv2
+import numpy as np
+from scipy import spatial
 
-from data_structures.cache import DictFinite
+from data_structures.cache import DictFiniteCapacity
 import curves
 import image
 
@@ -31,7 +31,7 @@ class ActiveContour(object):
     
     
     def __init__(self, blur_radius=10, alpha=0, beta=1e2, gamma=0.001,
-                 point_spacing=None, closed_loop=False, keep_end_x=False):
+                 point_spacing=None, closed_loop=False):
         """ initializes the active contour model
         blur_radius sets the length scale of the attraction to features.
             As a drawback, this is also the largest feature size that can be
@@ -45,8 +45,6 @@ class ActiveContour(object):
         point_spacing should only be set in production runs. It can help
             speeding up the process since matrices can be reused
         closed_loop indicates whether the contour is a closed loop
-        keep_end_x indicates whether the x coordinates of the end points of the
-            contour are kept fixed
         """
         
         self.blur_radius = blur_radius
@@ -55,7 +53,6 @@ class ActiveContour(object):
         self.gamma = gamma  #< convergence rate
         self.point_spacing = point_spacing
         self.closed_loop = closed_loop
-        self.keep_end_x = keep_end_x
         
         self.clear_cache() #< also initializes the cache
         self.fx = self.fy = None
@@ -65,7 +62,7 @@ class ActiveContour(object):
     def clear_cache(self):
         """ clears the cache. This method should be called if any of the
         parameters of the model are changed """
-        self._Pinv_cache = DictFinite(capacity=self.max_cache_count)
+        self._Pinv_cache = DictFiniteCapacity(capacity=self.max_cache_count)
 
         
     def get_evolution_matrix(self, N, ds):
@@ -116,20 +113,44 @@ class ActiveContour(object):
         self.fy = cv2.Sobel(potential, cv2.CV_64F, 0, 1, ksize=5)
     
         
-    def find_contour(self, points):
-        """ adapts the contour given by points to the potential image """
+    def find_contour(self, curve, anchor_x=None, anchor_y=None):
+        """ adapts the contour given by points to the potential image
+        anchor_x can be a list of indices for those points whose x-coordinate
+            should be kept fixed.
+        anchor_y is the respective argument for the y-coordinate
+        """
         if self.fx is None:
             raise RuntimeError('Potential must be set before the contour can '
                                'be adapted.')
+
+        # curve must be equidistant for this implementation to work
+        curve = np.asarray(curve)    
+        points = curves.make_curve_equidistant(curve)
         
-        points = np.asarray(points, np.double)
+        def _get_anchors(indices, coord):
+            """ helper function for determining the anchor points """
+            if indices is None or len(indices) == 0:
+                return tuple(), tuple()
+            # get points where the coordinate `coord` has to be kept fixed
+            ps = curve[indices, :] 
+            # find the points closest to the anchor points
+            dist = spatial.distance.cdist(points, ps)
+            return np.argmin(dist, axis=0), ps[:, coord] 
         
+        # determine anchor_points if requested
+        if anchor_x is not None or anchor_y is not None:
+            has_anchors = True
+            x_idx, x_vals = _get_anchors(anchor_x, 0)
+            y_idx, y_vals = _get_anchors(anchor_y, 1)
+        else:
+            has_anchors = False
+
         # determine point spacing if it is not given
         if self.point_spacing is None:
             ds = curves.curve_length(points)/(len(points) - 1)
         else:
             ds = self.point_spacing
-
+            
         # try loading the evolution matrix from the cache            
         cache_key = (len(points), ds)
         Pinv = self._Pinv_cache.get(cache_key, None)
@@ -147,15 +168,13 @@ class ActiveContour(object):
             fey = image.subpixels(self.fy, points)
             
             # Move control points
-            if self.keep_end_x:
-                # move all but end points in x direction
-                ps[1:-1, 0] = np.dot(Pinv[1:-1, :],
-                                     points[:, 0] + self.gamma*fex)
-            else:
-                # move all points in x-direction
-                ps[:, 0] = np.dot(Pinv, points[:, 0] + self.gamma*fex)
-            # move all points in y-direction
+            ps[:, 0] = np.dot(Pinv, points[:, 0] + self.gamma*fex)
             ps[:, 1] = np.dot(Pinv, points[:, 1] + self.gamma*fey)
+            
+            # enforce the position of the anchor points
+            if has_anchors:
+                ps[x_idx, 0] = x_vals
+                ps[y_idx, 1] = y_vals
             
             # check the distance that we evolved
             residual = np.abs(ps - points).sum()

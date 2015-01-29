@@ -27,8 +27,11 @@ parameters_tracking = {
         'detection/mask_size': 30,
         'detection/area_min': 100000,
         'detection/area_max': 1000000,
+        'detection/every_frame': True,
         
         'outline/blur_radius_initial': 20,
+        'outline/blur_radius': 20,
+        'outline/border_anchor_distance': 100,
         'outline/max_iterations': 300,
         'outline/line_tension': 0,  
         'outline/bending_stiffness': 1e4, #< bending stiffness for the tail outline
@@ -58,6 +61,7 @@ parameters_tracking = {
         'detection/area_max': 500000//(5*5),
         
         'outline/blur_radius_initial': 50//5,
+        'outline/blur_radius_initial': 20//5,
         'outline/max_iterations': 300,
         'outline/line_tension': 0,  
         'outline/bending_stiffness': 1e4//(5*5), #< bending stiffness for the tail outline
@@ -73,12 +77,13 @@ parameters_tracking = {
 # special tracking parameters for individual videos
 parameters_tracking_special = {
     # video with two touching tails
-    '20140804_bw_tl_edf': {},
-    # video with lots of particles in background
-    #'20140808_nub_e15-16_tl_edf': {
-        #'detection/statistics_window': 50,}, 
+    '20140804_bw_tl_edf': {
+        'detection/statistics_threshold': 10},
     # video with three tails
     '20140831_BW_E14-15_tl_edf': { 
-        #'detection/statistics_window': 20//5,
-        'detection/statistics_threshold': 2},#0.4,},
+        'detection/statistics_window': 30,
+        'detection/statistics_threshold': 3,
+        'detection/every_frame': False,
+        'outline/max_iterations': 1000,
+    },
 }
