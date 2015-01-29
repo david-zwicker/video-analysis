@@ -302,7 +302,7 @@ class FilterMonochrome(VideoFilterBase):
     
 
 class FilterBlur(VideoFilterBase):
-    """ returns the mouse video with a Gaussian blur filter """
+    """ returns the video with a Gaussian blur filter """
 
     def __init__(self, source, sigma=3):
         self.sigma = sigma
@@ -318,83 +318,6 @@ class FilterBlur(VideoFilterBase):
         return cv2.GaussianBlur(frame.astype(np.uint8), (0, 0), self.sigma)
 
 
-
-class FilterFeatures(VideoFilterBase):
-    """ detects features and draws them onto the image """
-    
-    def _process_frame(self, frame):
-        frame = frame.copy()
-        
-        corners = cv2.goodFeaturesToTrack(frame, maxCorners=100,
-                                          qualityLevel=0.01,minDistance=10)
-   
-        for i in corners:
-            x,y = i.ravel()
-            cv2.circle(frame, (x,y), 5, 255, -1)
-            
-        # pass the frame to the parent function
-        return super(FilterFeatures, self)._process_frame(frame)
-    
-    
-
-class FilterBackground(VideoFilterBase):
-    """ filter that filters out the background of a video """
-    
-    def __init__(self, source, timescale=128):
-        self.background = None
-        self.timescale = timescale
-        super(FilterBackground, self).__init__(source)
-    
-    
-    def _process_frame(self, frame):
-        # adapt the current background model
-        # Here, the cut-off sets the relaxation time scale
-        #diff_max = 128/self.background_history
-        #self.background += np.clip(diff, -diff_max, diff_max)
-        self.background = np.minimum(self.background, frame)
-
-        # pass the frame to the parent function
-        return super(FilterBackground, self)._process_frame(self.background)
-    
-    
-    
-class FilterMoveTowards(VideoFilterBase):
-    """
-    Implementation copied from
-    http://www.aforgenet.com/framework/docs/html/f7f4ad2c-fb50-a76b-38fc-26355e0eafcf.htm
-    """
-    def __init__(self, step):
-        raise NotImplementedError # this filter might not be useful after all
-        self._prev_frame = None
-        self.step = step
-        
-        
-    def set_frame_pos(self, index):
-        super(FilterMoveTowards, self).get_frame(index)
-        # set the cache to the right value
-        if index == 0:
-            self._prev_frame = None
-        else:
-            self._prev_frame = self.get_frame(index - 1)
-        
-    
-    def get_frame(self, index):
-        raise NotImplementedError
-        
-        
-    def _process_frame(self, frame):
-        
-        if self._prev_frame is None:
-            self._prev_frame = frame
-        else:
-            diff = self._prev_frame - frame
-            frame = self._prev_frame + \
-                np.min(np.abs(diff), self.step)*np.sign(diff)
-
-        # pass the frame to the parent function
-        return super(FilterMoveTowards, self)._process_frame(frame)
-    
-    
     
 class FilterReplicate(VideoFilterBase):
     """ replicates the video `count` times """
@@ -430,11 +353,9 @@ class FilterReplicate(VideoFilterBase):
         return frame
 
     
-    
 #===============================================================================
 # FILTERS THAT ANALYZE CONSECUTIVE FRAMES
 #===============================================================================
-
 
 
 class FilterDiffBase(VideoFilterBase):

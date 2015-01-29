@@ -348,7 +348,7 @@ class VideoSlice(VideoFilterBase):
         # seek the source video to the start position
         source.set_frame_pos(start)
         
-        # correct the size, since we are going to crop the movie
+        # set the new frame count 
         super(VideoSlice, self).__init__(source, frame_count=frame_count)
 
         logger.debug('Created video slice [%d:%d:%d] of length %d.' % 
