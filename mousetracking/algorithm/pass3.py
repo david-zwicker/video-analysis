@@ -422,7 +422,7 @@ class ThirdPass(PassBase):
 
 
 #     def get_burrow_contour_from_mask(self, mask, offset=None):
-#         """ creates a burrow object given a contour outline.
+#         """ creates a burrow object given a contour contour.
 #         If offset=(xoffs, yoffs) is given, all the points are translate.
 #         May return None if no burrow was found 
 #         """
@@ -491,7 +491,7 @@ class ThirdPass(PassBase):
 #         """ refines the centerline of an elongated burrow """
 #         spacing = self.params['burrows/centerline_segment_length']
 #         centerline = curves.make_curve_equidistant(burrow.centerline, spacing)
-#         outline = burrow.outline_ring
+#         contour = burrow.outline_ring
 #         
 #         # iterate over all but the boundary points
 #         ray_len = 10000
@@ -513,13 +513,13 @@ class ThirdPass(PassBase):
 #                 continue #< skip this point
 #             dx /= dist; dy /= dist
 # 
-#             # determine the points of intersection with the burrow outline         
+#             # determine the points of intersection with the burrow contour         
 #             p_a = (p_m[0] - ray_len*dy, p_m[1] + ray_len*dx)
 #             p_b = (p_m[0] + ray_len*dy, p_m[1] - ray_len*dx)
 #             line = geometry.LineString((p_a, p_b))
 #             
-#             # find the intersections between the ray and the burrow outline
-#             inter = regions.get_intersections(outline, line)
+#             # find the intersections between the ray and the burrow contour
+#             inter = regions.get_intersections(contour, line)
 # 
 #             if len(inter) < 2:
 #                 # not enough information to proceed
@@ -557,7 +557,7 @@ class ThirdPass(PassBase):
 #             # => extend the centerline to the burrow front
 #             angle = np.arctan2(-dp[-1][0], dp[-1][1])
 #             angles = np.linspace(angle - np.pi/4, angle + np.pi/4, 32)
-#             p_far, _, _ = regions.get_farthest_ray_intersection(points[-1], angles, outline)
+#             p_far, _, _ = regions.get_farthest_ray_intersection(points[-1], angles, contour)
 #     
 #             if p_far is not None:
 #                 points = points + [p_far]
@@ -573,13 +573,13 @@ class ThirdPass(PassBase):
     
 #     def refine_burrow_centerline(self, burrow):
 #         """ refines the centerline of a burrow """
-#         # check the percentage of outline points close to the ground
+#         # check the percentage of contour points close to the ground
 #         spacing = self.params['burrows/ground_point_distance']
-#         outline = curves.make_curve_equidistant(burrow.outline, spacing)
+#         contour = curves.make_curve_equidistant(burrow.contour, spacing)
 #         groundline = self.ground.linestring
 # 
 #         dist_far, p_far = 0, None
-#         for p in outline:
+#         for p in contour:
 #             dist = groundline.distance(geometry.Point(p))
 #             if dist > dist_far:
 #                 dist_far = dist
@@ -627,7 +627,7 @@ class ThirdPass(PassBase):
 #         spacing = self.params['burrows/centerline_segment_length']
 #         centerline = curves.make_curve_equidistant(centerline, spacing) 
 # 
-#         if burrow.outline is not None and len(centerline) > 2:
+#         if burrow.contour is not None and len(centerline) > 2:
 #             centerline = geometry.LineString(centerline[:-1])
 #         else:
 #             centerline = geometry.LineString(centerline)
@@ -672,7 +672,7 @@ class ThirdPass(PassBase):
 #         try:
 #             contour = self.get_burrow_contour_from_mask(mask.astype(np.uint8),
 #                                                         offset=rect[:2])
-#             burrow.outline = contour
+#             burrow.contour = contour
 #             self.refine_burrow_centerline(burrow)
 #             burrow.refined = True
 #         except RuntimeError as err:
@@ -714,7 +714,7 @@ class ThirdPass(PassBase):
 #             for burrow_with_mouse, burrow in self.active_burrows(time_interval=0):
 #                 # determine whether we are inside this burrow
 #                 trail_line = geometry.LineString(self.mouse_trail)
-#                 if burrow.outline is not None:
+#                 if burrow.contour is not None:
 #                     dist = burrow.polygon.distance(trail_line)
 #                     mouse_is_close = (dist < self.params['burrows/width']) 
 #                 else:
@@ -812,7 +812,7 @@ class ThirdPass(PassBase):
         # save centerline such that burrow exit is first point
         centerline = centerline[::-1]
         
-        # add points that might be outside of the burrow outline
+        # add points that might be outside of the burrow contour
         ground_start = curves.get_projection_point(ground_line, centerline[0]) 
         centerline.insert(0, ground_start)
             
@@ -856,7 +856,7 @@ class ThirdPass(PassBase):
                 continue
             if polygon.is_empty:
                 continue
-            burrow.outline = regions.get_enclosing_outline(polygon)
+            burrow.contour = regions.get_enclosing_outline(polygon)
             
             # make sure that the burrow centerline lies within the ground region
             ground_poly = geometry.Polygon(self.get_ground_polygon_points())
@@ -869,7 +869,7 @@ class ThirdPass(PassBase):
             is_line = isinstance(line, geometry.linestring.LineString)
             if not is_line or line.is_empty or line.length <= 1:
                 # the centerline disappeared
-                # => calculate a new centerline from the burrow outline
+                # => calculate a new centerline from the burrow contour
                 self.calculate_burrow_centerline(burrow)
             
             else:
@@ -913,11 +913,11 @@ class ThirdPass(PassBase):
         mouse_trail = geometry.LineString(self.mouse_trail)
         mouse_trail_buffered = mouse_trail.buffer(trail_width)
         
-        # extend the burrow outline by the mouse trail and restrict it to the
+        # extend the burrow contour by the mouse trail and restrict it to the
         # cage interior
         polygon = burrow.polygon.union(mouse_trail_buffered)
         polygon = polygon.intersection(cage_interior_rect)
-        burrow.outline = regions.get_enclosing_outline(polygon)
+        burrow.contour = regions.get_enclosing_outline(polygon)
             
         # update the centerline if the mouse trail is longer
         if mouse_trail.length > burrow.length:
@@ -959,12 +959,12 @@ class ThirdPass(PassBase):
             mouse_trail = geometry.LineString(self.mouse_trail)
             trail_width = self.params['burrows/width_min']
             mouse_trail_buffered = mouse_trail.buffer(trail_width)
-            outline = mouse_trail_buffered.boundary.coords
+            contour = mouse_trail_buffered.boundary.coords
 
-            burrow_mouse = Burrow(outline, centerline=self.mouse_trail)
+            burrow_mouse = Burrow(contour, centerline=self.mouse_trail)
             self.burrows.append(burrow_mouse)
 
-        # simplify the burrow outline
+        # simplify the burrow contour
         burrow_mouse.simplify_outline(tolerance=0.001)
 
                                         
@@ -1036,8 +1036,8 @@ class ThirdPass(PassBase):
                         burrow_color = 'DarkOrange'
                     debug_video.add_line(burrow.centerline, burrow_color, is_closed=False,
                                          mark_points=True, width=2)
-                    if burrow.outline is not None:
-                        debug_video.add_line(burrow.outline, burrow_color, is_closed=True,
+                    if burrow.contour is not None:
+                        debug_video.add_line(burrow.contour, burrow_color, is_closed=True,
                                              mark_points=False, width=1)
                 
             # indicate the mouse state

@@ -108,6 +108,7 @@ def get_dawn_from_brightness(brightness, output_file=None,
 
 
 def main():
+    """ main routine of the program """
     # determine the video file
     try:
         video_file = sys.argv[1]

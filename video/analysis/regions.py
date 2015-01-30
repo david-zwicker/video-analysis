@@ -15,6 +15,7 @@ from scipy import ndimage
 from shapely import geometry, geos
 
 import curves
+from data_structures.cache import cached_property
 from external import simplify_polygon_visvalingam as simple_poly 
 
 
@@ -197,28 +198,28 @@ def get_external_contour(points, resolution=None):
 
 
 def get_enclosing_outline(polygon):
-    """ gets the enclosing outline of a (possibly complex) polygon """
+    """ gets the enclosing contour of a (possibly complex) polygon """
     polygon = regularize_polygon(polygon)
 
-    # get the outline
+    # get the contour
     try:
-        outline = polygon.boundary
+        contour = polygon.boundary
     except ValueError:
         # return empty feature since `polygon` was not a valid polygon
         return geometry.LinearRing()
     
-    if isinstance(outline, geometry.multilinestring.MultiLineString):
+    if isinstance(contour, geometry.multilinestring.MultiLineString):
         largest_polygon = None
-        # find the largest polygon, which should be the enclosing outline
-        for line in outline:
+        # find the largest polygon, which should be the enclosing contour
+        for line in contour:
             poly = geometry.Polygon(line)
             if largest_polygon is None or poly.area > largest_polygon.area:
                 largest_polygon = poly
         if largest_polygon is None:
-            outline = geometry.LinearRing()
+            contour = geometry.LinearRing()
         else:
-            outline = largest_polygon.boundary
-    return outline
+            contour = largest_polygon.boundary
+    return contour
     
     
 def regularize_polygon(polygon):
@@ -286,7 +287,7 @@ def simplify_contour(contour, threshold):
 
 def get_intersections(geometry1, geometry2):
     """ get intersection points between two (line) geometries """
-    # find the intersections between the ray and the burrow outline
+    # find the intersections between the ray and the burrow contour
     try:
         inter = geometry1.intersection(geometry2)
     except geos.TopologicalError:
@@ -316,7 +317,7 @@ def get_ray_hitpoint(point_anchor, point_far, line_string, ret_dist=False):
     # define the ray
     ray = geometry.LineString((point_anchor, point_far))
     
-    # find the intersections between the ray and the burrow outline
+    # find the intersections between the ray and the burrow contour
     try:
         inter = line_string.intersection(ray)
     except geos.TopologicalError:
@@ -415,7 +416,7 @@ def make_distance_map(data, start_points, end_points=None):
     The values are based on the distance to the start points `start_points`,
     which must lie in the domain.
     If end_points are supplied, the functions stops when any of these
-    points is reached    
+    points is reached
     """
     if end_points is None:
         end_points = set()
@@ -583,7 +584,7 @@ class Rectangle(object):
         self.set_corners(ps[0], ps[1])
     
     @property
-    def outline(self):
+    def contour(self):
         x2, y2 = self.x + self.width, self.y + self.height
         return ((self.x, self.y), (x2, self.y),
                 (x2, y2), (self.x, y2))
@@ -633,3 +634,113 @@ class Rectangle(object):
         this rectangle """
         return ((self.left <= points[:, 0]) & (points[:, 0] <= self.right) &
                 (self.top  <= points[:, 1]) & (points[:, 1] <= self.bottom))
+
+
+
+class Polygon(object):
+    """ class that represents a single polygon """
+    
+    def __init__(self, contour):
+        if len(contour) < 3:
+            raise ValueError("Polygon must have at least three points.")
+        self.contour = np.asarray(contour, np.double)
+
+
+    def copy(self):
+        return Polygon(self.contour.copy())
+
+
+    @property
+    def contour(self):
+        return self._contour
+    
+    @contour.setter 
+    def contour(self, points):
+        """ set the contour of the burrow.
+        `point_list` can be a list/array of points or a shapely LinearRing
+        """ 
+        if points is None:
+            self._contour = None
+        else:
+            if isinstance(points, geometry.LinearRing):
+                ring = points
+            else:
+                ring = geometry.LinearRing(points)
+                
+            # make sure that the contour is given in clockwise direction
+            self._contour = np.array(points, np.double)
+            if ring.is_ccw:
+                self._contour = self._contour[::-1]
+            
+        self._cache = {} #< reset cache
+        
+        
+    @cached_property
+    def contour_ring(self):
+        """ return the linear ring of the burrow contour """
+        return geometry.LinearRing(self.contour)
+    
+        
+    @cached_property
+    def polygon(self):
+        """ return the polygon of the burrow contour """
+        return geometry.Polygon(self.contour)
+    
+    
+    @cached_property
+    def position(self):
+        return self.polygon.representative_point()
+    
+    
+    @cached_property
+    def area(self):
+        """ return the area of the burrow shape """
+        return self.polygon.area
+    
+    
+    @cached_property
+    def eccentricity(self):
+        """ return the eccentricity of the burrow shape
+        The eccentricity will be between 0 and 1, corresponding to a circle
+        and a straight line, respectively.
+        """
+        m = cv2.moments(np.asarray(self.contour, np.uint8))
+        a, b, c = m['mu20'], -m['mu11'], m['mu02']
+        e1 = (a + c) + np.sqrt(4*b**2 + (a - c)**2)
+        e2 = (a + c) - np.sqrt(4*b**2 + (a - c)**2)
+        if e1 == 0:
+            return 0
+        else:
+            return np.sqrt(1 - e2/e1)
+    
+                
+    def contains(self, point):
+        """ returns True if the point is inside the burrow """
+        return self.polygon.contains(geometry.Point(point))
+    
+    
+    def get_bounding_rect(self, margin=0):
+        """ returns the bounding rectangle of the burrow """
+        bounds = geometry.MultiPoint(self.contour).bounds
+        bound_rect = corners_to_rect(bounds[:2], bounds[2:])
+        if margin:
+            bound_rect = expand_rectangle(bound_rect, margin)
+        return np.asarray(bound_rect, np.int)
+            
+        
+    def get_mask(self, margin=0, dtype=np.uint8, ret_shift=False):
+        """ builds a mask of the burrow """
+        # prepare the array to store the mask into
+        rect = self.get_bounding_rect(margin=margin)
+        mask = np.zeros((rect[3], rect[2]), dtype)
+
+        # draw the burrow into the mask
+        contour = np.asarray(self.contour, np.int)
+        offset = (-rect[0], -rect[1])
+        cv2.fillPoly(mask, [contour], color=1, offset=offset)
+        
+        if ret_shift:
+            return mask, (-offset[0], -offset[1])
+        else:
+            return mask
+        

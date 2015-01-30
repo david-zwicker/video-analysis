@@ -1351,7 +1351,7 @@ class FirstPass(PassBase):
     
         
     def get_burrow_from_mask(self, mask, offset=None):
-        """ creates a burrow object given a contour outline.
+        """ creates a burrow object given a contour.
         If offset=(xoffs, yoffs) is given, all the points are translate.
         May return None if no burrow was found 
         """
@@ -1477,7 +1477,7 @@ class FirstPass(PassBase):
     
     
     def get_burrow_centerline(self, burrow):
-        """ determine the centerline of a burrow from its outline.
+        """ determine the centerline of a burrow from its contour.
         The ground profile is used to determine the burrow exit. """
         
         if burrow.centerline is not None:
@@ -1486,22 +1486,22 @@ class FirstPass(PassBase):
         # get the ground line
         ground_line = self.ground.linestring
         
-        # reparameterize the burrow outline to locate the burrow exit reliably
+        # reparameterize the burrow contour to locate the burrow exit reliably
         ground_point_distance = self.params['burrows/ground_point_distance']
-        outline = curves.make_curve_equidistant(burrow.outline,
+        contour = curves.make_curve_equidistant(burrow.contour,
                                                 ground_point_distance)
-        outline = np.asarray(outline, np.double)
+        contour = np.asarray(contour, np.double)
 
-        # calculate the distance of each outline point to the ground
+        # calculate the distance of each contour point to the ground
         dist = np.array([ground_line.distance(geometry.Point(p))
-                         for p in outline])
+                         for p in contour])
         
         # get points at the burrow exit (close to the ground profile)
         indices = (dist < ground_point_distance)
         if np.any(indices):
-            p_exit = outline[indices, :].mean(axis=0)
+            p_exit = contour[indices, :].mean(axis=0)
         else:
-            p_exit = outline[np.argmin(dist)]
+            p_exit = contour[np.argmin(dist)]
         p_exit = curves.get_projection_point(ground_line, p_exit)
             
         # get the two ground points closest to the exit point
@@ -1517,7 +1517,7 @@ class FirstPass(PassBase):
         # send out rays perpendicular to the ground profile
         angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0]) + np.pi/2
         point_anchor = (p_exit[0] + 5*np.cos(angle), p_exit[1] + 5*np.sin(angle))
-        outline_poly = burrow.outline_ring
+        outline_poly = burrow.contour_ring
         
         # calculate the angle each segment is allowed to deviate from the 
         # previous one based on the maximal radius of curvature
@@ -1563,11 +1563,11 @@ class FirstPass(PassBase):
         ground_line = self.ground.linestring
         distance_threshold = self.params['burrows/ground_point_distance']
         outline_new = sorted([p.coords[0]
-                              for p in geometry.asMultiPoint(burrow.outline)
+                              for p in geometry.asMultiPoint(burrow.contour)
                               if p.distance(ground_line) < distance_threshold])
 
         # replace the remaining points by fitting perpendicular to the center line
-        outline = burrow.outline_ring
+        contour = burrow.contour_ring
         self.get_burrow_centerline(burrow)
         centerline = burrow.centerline
         if len(centerline) < 4:
@@ -1591,10 +1591,10 @@ class FirstPass(PassBase):
             dist = np.hypot(dx, dy)
             dx /= dist; dy /= dist
 
-            # find the intersection points with the burrow outline
+            # find the intersection points with the burrow contour
             d = 1000 #< make sure the ray is outside the polygon
-            pa = regions.get_ray_hitpoint(p, (p[0] + d*dy, p[1] - d*dx), outline)
-            pb = regions.get_ray_hitpoint(p, (p[0] - d*dy, p[1] + d*dx), outline)
+            pa = regions.get_ray_hitpoint(p, (p[0] + d*dy, p[1] - d*dx), contour)
+            pb = regions.get_ray_hitpoint(p, (p[0] - d*dy, p[1] + d*dx), contour)
             if pa is not None and pb is not None:
                 # put the centerline point into the middle 
                 p = ((pa[0] + pb[0])/2, (pa[1] + pb[1])/2)
@@ -1645,7 +1645,7 @@ class FirstPass(PassBase):
 
         # shoot out rays in several angles        
         angles = angle + np.pi/8*np.array((-2, -1, 0, 1, 2))
-        points = regions.get_ray_intersections(centerline_new[-1], angles, outline)
+        points = regions.get_ray_intersections(centerline_new[-1], angles, contour)
         # filter unsuccessful points
         points = (p for p in points if p is not None)
         
@@ -1665,7 +1665,7 @@ class FirstPass(PassBase):
             distance_threshold = 3*self.params['burrows/width']
             for track in self.tracks:
                 pos = geometry.Point(track.last.pos)
-                if outline.distance(pos) <  distance_threshold:
+                if contour.distance(pos) <  distance_threshold:
                     mouse_absent = False
                     break
         
@@ -1691,7 +1691,7 @@ class FirstPass(PassBase):
                 if l is not None:
                     point = (point_anchor[0] + l*dx, point_anchor[1] + l*dy)
 
-            # add the point to the outline                
+            # add the point to the contour                
             outline_new.append(point)
             
             # find the point with a maximal distance from the anchor point
@@ -1751,17 +1751,17 @@ class FirstPass(PassBase):
 
         # create a mask representing the current estimate of the burrow
         mask_burrow = np.zeros_like(mask)
-        outline = curves.translate_points(burrow.outline,
+        contour = curves.translate_points(burrow.contour,
                                           xoff=-rect[0],
                                           yoff=-rect[1])
-        cv2.fillPoly(mask_burrow, [np.asarray(outline, np.int)], 255)
+        cv2.fillPoly(mask_burrow, [np.asarray(contour, np.int)], 255)
 
         # add to this mask the previous burrow
         if burrow_prev:
-            outline = curves.translate_points(burrow_prev.outline,
+            contour = curves.translate_points(burrow_prev.contour,
                                               xoff=-rect[0],
                                               yoff=-rect[1])
-            cv2.fillPoly(mask_burrow, [np.asarray(outline, np.int)], 255)
+            cv2.fillPoly(mask_burrow, [np.asarray(contour, np.int)], 255)
 
         # prepare the input mask for the GrabCut algorithm by defining 
         # foreground and background regions  
@@ -1852,7 +1852,7 @@ class FirstPass(PassBase):
 
             # add the unrefined burrow to the debug video
             if 'video' in self.output:
-                self.output['video'].add_line(burrow.outline, 'w',
+                self.output['video'].add_line(burrow.contour, 'w',
                                               is_closed=True, width=2)
 
             # check whether this burrow belongs to a previously found one                
@@ -1889,7 +1889,7 @@ class FirstPass(PassBase):
             
             # add the burrow to our result list if it is valid
             if burrow is not None and burrow.is_valid:
-                cv2.fillPoly(burrows_mask, np.array([burrow.outline], np.int32), color=1)
+                cv2.fillPoly(burrows_mask, np.array([burrow.contour], np.int32), color=1)
                 
                 if track_id is not None:
                     # add the burrow to the current mask
@@ -1986,7 +1986,7 @@ class FirstPass(PassBase):
                     if burrow_track.track_end > self.frame_id - time_interval:
                         burrow = burrow_track.last
                         burrow_color = 'red' if burrow.refined else 'orange'
-                        debug_video.add_line(burrow.outline, burrow_color,
+                        debug_video.add_line(burrow.contour, burrow_color,
                                              is_closed=True, mark_points=True)
                         centerline = burrow.centerline
                         if centerline is not None:

@@ -215,10 +215,10 @@ class FourthPass(PassBase):
     #===========================================================================
 
 
-    def _get_burrow_exits(self, outline):
+    def _get_burrow_exits(self, contour):
         """ determines the exits of a burrow.
         Returns a list of exits, where each exit is described by a list of
-        points lying on the burrow outline
+        points lying on the burrow contour
         """
         
         ground_line = self.ground.linestring
@@ -226,10 +226,10 @@ class FourthPass(PassBase):
         #/2
 #         dist_max = dist + self.params['burrows/width']
         
-        outline = curves.make_curve_equidistant(outline, spacing=2)
+        contour = curves.make_curve_equidistant(contour, spacing=2)
         
         # determine burrow points close to the ground
-        exit_points = [point for point in outline
+        exit_points = [point for point in contour
                        if ground_line.distance(geometry.Point(point)) < dist_max]
 
         if len(exit_points) < 2:
@@ -312,7 +312,7 @@ class FourthPass(PassBase):
         # save centerline such that burrow exit is first point
         centerline = centerline[::-1]
         
-        # add points that might be outside of the burrow outline
+        # add points that might be outside of the burrow contour
         ground_start = curves.get_projection_point(ground_line, centerline[0]) 
         centerline.insert(0, ground_start)
         if points_end is not None:
@@ -329,7 +329,7 @@ class FourthPass(PassBase):
 
     def determine_burrow_centerline(self, burrow):
         """ determines the burrow centerlines """
-        exits = self._get_burrow_exits(burrow.outline)
+        exits = self._get_burrow_exits(burrow.contour)
         
         # check the different number of possible exits
         if len(exits) == 0:
@@ -362,7 +362,7 @@ class FourthPass(PassBase):
         ground_points[:-4, :] = self.ground.points
         ground_points[:, 1] += y_displacement
         
-        # extend the outline points to the edges of the mask
+        # extend the contour points to the edges of the mask
         ground_points[-4, :] = (width - margin, ground_points[-5, 1])
         ground_points[-3, :] = (width - margin, height - margin)
         ground_points[-2, :] = (margin, height - margin)
@@ -553,7 +553,7 @@ class FourthPass(PassBase):
             if area < self.params['burrows/chunk_area_min']:
                 continue
 
-            # remove problematic parts of the outline
+            # remove problematic parts of the contour
             polygon = geometry.Polygon(np.array(contour[:, 0, :], np.double))
             polygon_buffered = polygon.buffer(0)
             if isinstance(polygon_buffered, geometry.Polygon):
@@ -570,7 +570,7 @@ class FourthPass(PassBase):
 
 
     def _connect_burrow_to_structure(self, contour, structure):
-        """ extends the burrow outline such that it connects to the ground line 
+        """ extends the burrow contour such that it connects to the ground line 
         or to other burrows """
 
         outline = geometry.Polygon(contour)
@@ -607,16 +607,16 @@ class FourthPass(PassBase):
             # add this to the burrow outline
             outline = outline.union(tunnel.buffer(0.1))
         
-        # get the outline points
+        # get the contour points
         outline = regions.get_enclosing_outline(outline)
         outline = regions.regularize_linear_ring(outline)
-        outline = np.array(outline.coords)
+        contour = np.array(outline.coords)
         
         # fill the burrow mask, such that this extension does not have to be
         # done next time again
-        cv2.fillPoly(self.burrow_mask, [np.asarray(outline, np.int32)], 1) 
+        cv2.fillPoly(self.burrow_mask, [np.asarray(contour, np.int32)], 1) 
 
-        return outline
+        return contour
         
         
     def connect_burrow_chunks(self, burrow_chunks):
@@ -675,19 +675,19 @@ class FourthPass(PassBase):
             poly2 = regions.regularize_polygon(geometry.Polygon(structure))
             poly = poly1.union(poly2).buffer(0.1)
             
-            # find and regularize the common outline
-            outline = regions.get_enclosing_outline(poly)
-            outline = regions.regularize_linear_ring(outline)
-            outline = outline.coords
+            # find and regularize the common contour
+            contour = regions.get_enclosing_outline(poly)
+            contour = regions.regularize_linear_ring(contour)
+            contour = contour.coords
             
             # replace the current chunk by the merged one
-            burrow_chunks[c1] = outline
+            burrow_chunks[c1] = contour
             
             # replace all other burrow chunks with the same id
             id_c2 = id(burrow_chunks[c2])
             for k, bc in enumerate(burrow_chunks):
                 if id(bc) == id_c2:
-                    burrow_chunks[k] = outline
+                    burrow_chunks[k] = contour
             
             # mark the cluster as connected
             del disconnected[k1]
@@ -696,10 +696,10 @@ class FourthPass(PassBase):
         # return the unique burrow structures
         burrows = []
         connected_chunks = (burrow_chunks[k] for k in connected) 
-        for outline in unique_based_on_id(connected_chunks):
-            outline = regions.regularize_contour_points(outline)
+        for contour in unique_based_on_id(connected_chunks):
+            contour = regions.regularize_contour_points(contour)
             try:
-                burrow = Burrow(outline)
+                burrow = Burrow(contour)
             except ValueError:
                 continue
             else:
@@ -821,7 +821,7 @@ class FourthPass(PassBase):
             if self.params['burrows/enabled_pass4']:
                 debug_video.highlight_mask(self.burrow_mask == 1, 'b', strength=128)
                 for _, burrow in self.active_burrows():
-                    debug_video.add_line(burrow.outline, 'r')
+                    debug_video.add_line(burrow.contour, 'r')
                     if burrow.centerline is not None:
                         debug_video.add_line(burrow.centerline, 'r',
                                              is_closed=False, width=2,
