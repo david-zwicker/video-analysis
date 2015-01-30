@@ -31,7 +31,7 @@ sand boxes.
 Another video analysis project where we track growing mice tails under the
 microscope.
 </dd>
-<dt>lib</dt>
+<dt>external</dt>
 <dd>
 Small package that collects modules copied from other authors.
 </dd>
