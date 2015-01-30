@@ -15,7 +15,7 @@ from scipy import ndimage
 from shapely import geometry, geos
 
 import curves
-from lib import simplify_polygon_visvalingam as simple_poly 
+from external import simplify_polygon_visvalingam as simple_poly 
 
 
 def corners_to_rect(p1, p2):

@@ -10,7 +10,7 @@ the MIT license at github:
 https://github.com/Zulko/moviepy/blob/master/moviepy/video/io
 
 The MIT license text is included in the present package in the file
-/lib/LICENSE_MIT.txt
+/external/LICENSE_MIT.txt
 '''
 
 from __future__ import division

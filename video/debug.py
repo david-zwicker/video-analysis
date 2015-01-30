@@ -58,6 +58,9 @@ def show_image(*images, **kwargs):
     # determine the number of rows and columns to show
     num_rows, num_cols = get_subplot_shape(len(images))
     
+    # get additional parameters
+    aspect = kwargs.get('aspect', 'equal')
+    
     # get the color scale
     if kwargs.pop('equalize_colors', False):
         vmin, vmax = np.inf, -np.inf
@@ -104,7 +107,7 @@ def show_image(*images, **kwargs):
             
         # plot the image
         if isinstance(image, np.ndarray):
-            img = ax.imshow(image, interpolation='nearest',
+            img = ax.imshow(image, interpolation='none', aspect=aspect,
                             vmin=vmin, vmax=vmax, norm=norm)
             # add the colorbar
             if image.min() != image.max():

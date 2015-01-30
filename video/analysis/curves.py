@@ -15,7 +15,7 @@ import numpy as np
 from shapely import geometry
 
 # make simplify_curve available under current scope 
-from lib.simplify_polygon_rdp import rdp as simplify_curve # @UnusedImport
+from external.simplify_polygon_rdp import rdp as simplify_curve # @UnusedImport
 
 
 
