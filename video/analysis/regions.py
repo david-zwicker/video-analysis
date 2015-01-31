@@ -877,8 +877,13 @@ class Polygon(object):
         except ValueError:
             pass
         else:
-            num_points = length/spacing
-            points = interpolate.splev(np.linspace(-0.2, 1.2, num_points), tck)
+            # extend the center line in both directions to make sure that it
+            # crosses the outline
+            overshoot = 5*skip_length #< absolute overshoot
+            num_points = (length + 2*overshoot)/spacing
+            overshoot /= length #< overshoot relative to total length
+            s = np.linspace(-overshoot, 1 + overshoot, num_points)
+            points = interpolate.splev(s, tck)
             points = zip(*points) #< transpose list
         
             # restrict center line to burrow shape

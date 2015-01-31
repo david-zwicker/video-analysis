@@ -124,14 +124,15 @@ class PolygonCollection(object):
             if len(points) <= 2:
                 continue
 
-            area = cv2.contourArea(contour)
+            area = cv2.contourArea(contour) #< get area of burrow
 
             if area < self.params['scale_bar/area_max']:
                 # object could be a scale bar
                 rect = regions.Rectangle(*cv2.boundingRect(contour))
 
                 at_left = (rect.left < self.params['scale_bar/dist_left']*width)
-                at_bottom = (rect.bottom > (1 - self.params['scale_bar/dist_bottom'])*height)
+                max_dist_bottom = self.params['scale_bar/dist_bottom']
+                at_bottom = (rect.bottom > (1 - max_dist_bottom)*height)
                 hull = cv2.convexHull(contour) 
                 hull_area = cv2.contourArea(hull)
                 is_simple = (hull_area < 2*area)
