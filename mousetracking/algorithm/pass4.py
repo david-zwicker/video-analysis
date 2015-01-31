@@ -263,7 +263,7 @@ class FourthPass(PassBase):
         ground_line = self.ground.linestring
             
         # get a binary image of the burrow
-        mask, shift = burrow.get_mask(margin=2, dtype=np.int32, ret_shift=True)
+        mask, shift = burrow.get_mask(margin=2, dtype=np.int32, ret_offset=True)
         
         # mark the start points according to their distance to the ground line
 #         dists_g = [ground_line.distance(geometry.Point(p))

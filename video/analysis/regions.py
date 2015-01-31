@@ -410,13 +410,14 @@ def triangle_area(a, b, c):
 
 
 
-def make_distance_map(data, start_points, end_points=None):
+def make_distance_map(mask, start_points, end_points=None):
     """
-    fills a binary region of the array `data` with new values.
+    fills a binary region of the array `mask` with new values.
     The values are based on the distance to the start points `start_points`,
     which must lie in the domain.
     If end_points are supplied, the functions stops when any of these
-    points is reached
+    points is reached.
+    The function does not return anything but rather modifies the mask itself
     """
     if end_points is None:
         end_points = set()
@@ -426,9 +427,9 @@ def make_distance_map(data, start_points, end_points=None):
     SQRT2 = np.sqrt(2)
     
     # initialize the shape
-    xmax, ymax = data.shape[0], data.shape[1]
+    ymax, xmax = mask.shape[:2]
     stack = defaultdict(set)
-    stack[2] = set(start_points) #< initialize the dictionary with the start points
+    stack[2] = set(start_points) #< initialize the stack with the start points
 
     # loop until all points are filled
     while stack:
@@ -440,9 +441,9 @@ def make_distance_map(data, start_points, end_points=None):
             # Note that we only write and check each point once. This is valid
             # since we fill points one after another and can thus ensure that
             # we write the closest points first. We tested that changing the
-            # condition to data[x, y] > dist does not change the result
-            if 0 <= x < xmax and 0 <= y < ymax and data[x, y] == 1:
-                data[x, y] = dist
+            # condition to mask[x, y] > dist does not change the result
+            if 0 <= x < xmax and 0 <= y < ymax and mask[y, x] == 1:
+                mask[y, x] = dist
                 
                 # finish if we found an end point
                 if (x, y) in end_points:
@@ -461,32 +462,33 @@ MASK = np.zeros((3, 3))
 MASK[1, :] = MASK[:, 1] = 1
 MASK[0, 0] = MASK[2, 0] = MASK[0, 2] = MASK[2, 2] = np.sqrt(2)
 
-def shortest_path_in_distance_map(data, end_point):
-    """ finds and returns the shortest path in the distance map `data` that
+def shortest_path_in_distance_map(distance_map, end_point):
+    """ finds and returns the shortest path in the distance map `distance_map` that
     leads from the given `end_point` to a start point (defined by having the
-    shortest distance) """
+    minimal distance value in the map) """
+    # make sure points outside the shape are not included in the distance
+    distance_map[distance_map <= 1] = np.iinfo(distance_map.dtype).max
     
-    data[data == 0] = np.iinfo(data.dtype).max
-    
-    xmax = data.shape[1] - 1
-    ymax = data.shape[0] - 1
+    xmax = distance_map.shape[1] - 1
+    ymax = distance_map.shape[0] - 1
     x, y = end_point
-    points = []
-    d = data[y, x]
+    points = [end_point]
+    d = distance_map[y, x]
+
     # iterate through path until we reached the minimum
     while True:
         if 0 < x < xmax and 0 < y < ymax:
             # find point with minimal distance in surrounding
-            surrounding = data[y-1:y+2, x-1:x+2] / MASK
-            dy, dx = np.unravel_index(surrounding.argmin(), surrounding.shape)
+            surrounding = (distance_map[y-1:y+2, x-1:x+2] - d) / MASK
+            dy, dx = np.unravel_index(surrounding.argmin(), (3, 3))
             # get new coordinates
-            y += dy - 1
             x += dx - 1
+            y += dy - 1
             # check whether the new point is viable
-            if data[y, x] < d:
+            if distance_map[y, x] < d:
                 # distance decreased
-                d = data[y, x]
-            elif data[y, x] == d:
+                d = distance_map[y, x]
+            elif distance_map[y, x] == d:
                 # distance stayed constant
                 if (x, y) in points:
                     # we already saw this point
@@ -728,7 +730,7 @@ class Polygon(object):
         return np.asarray(bound_rect, np.int)
             
         
-    def get_mask(self, margin=0, dtype=np.uint8, ret_shift=False):
+    def get_mask(self, margin=0, dtype=np.uint8, ret_offset=False):
         """ builds a mask of the burrow """
         # prepare the array to store the mask into
         rect = self.get_bounding_rect(margin=margin)
@@ -739,8 +741,70 @@ class Polygon(object):
         offset = (-rect[0], -rect[1])
         cv2.fillPoly(mask, [contour], color=1, offset=offset)
         
-        if ret_shift:
+        if ret_offset:
             return mask, (-offset[0], -offset[1])
         else:
             return mask
+        
+        
+    def get_centerline_estimate(self, end_points=None):
+        """ determines the center line of the polygon
+        `end_points` can either be None, a single Point, or two points.
+        """
+        
+        def _find_point_connection(p1, p2=None, maximize_distance=False):
+            """ estimate centerline between the one or two points """
+            mask, offset = self.get_mask(margin=1, dtype=np.int32,
+                                         ret_offset=True)
+            p1 = (p1[0] - offset[0], p1[1] - offset[1])
+            if maximize_distance or p2 is None:
+                dist_prev = 0 if maximize_distance else np.inf
+                # iterate until second point is found
+                while True:
+                    # make distance map starting from point p1
+                    distance_map = mask.copy()
+                    make_distance_map(distance_map, start_points=(p1,))
+                    # find point farthest point away from p1
+                    idx_max = np.unravel_index(distance_map.argmax(),
+                                               distance_map.shape)
+                    dist = distance_map[idx_max]
+                    p2 = idx_max[1], idx_max[0]
+                    # print 'p1', p1, 'p2', p2
+                    if dist <= dist_prev:
+                        break
+                    dist_prev = dist
+                    # take farthest point as new start point
+                    p1 = p2
+            else:
+                # locate the centerline between the two given points
+                p2 = (p2[0] - offset[0], p2[1] - offset[1])
+                distance_map = mask
+                make_distance_map(distance_map,
+                                  start_points=(p1,),end_points=(p2,))
+                
+            # find path between p1 and p2
+            path = shortest_path_in_distance_map(distance_map, p2)
+            return curves.translate_points(path, *offset)
+        
+        
+        if end_points is None:
+            # determine both end points
+            path = _find_point_connection(np.array(self.position),
+                                        maximize_distance=True)
+        else:
+            end_points = np.squeeze(end_points)
+            if end_points.shape == (2, ):
+                # determine one end point
+                path = _find_point_connection(end_points, maximize_distance=False)
+            elif end_points.shape == (2, 2):
+                # both end points are already determined
+                path = _find_point_connection(end_points[0], end_points[1])
+            else:
+                raise TypeError('`end_points` must have shape (2,) or (2, 2)')
+            
+        return path
+        
+        
+    def get_centerline(self, end_points=None):
+        return self.get_centerline_estimate(end_points)
         

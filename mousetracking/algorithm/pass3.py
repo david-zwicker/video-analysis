@@ -788,7 +788,7 @@ class ThirdPass(PassBase):
             point_start = burrow.centerline[0]
         
         # get a binary image of the burrow
-        mask, shift = burrow.get_mask(margin=2, dtype=np.int32, ret_shift=True)
+        mask, shift = burrow.get_mask(margin=2, dtype=np.int32, ret_offset=True)
         
         # move starting point onto ground line
         ground_line = self.ground.linestring
