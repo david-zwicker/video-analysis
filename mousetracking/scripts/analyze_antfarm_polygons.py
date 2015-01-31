@@ -188,8 +188,11 @@ def process_polygon_file(path, output_folder=None, suppress_exceptions=False):
         # run the function within a catch-all try-except-block
         try:
             result = process_polygon_file(path, output_folder, False)
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except:
             traceback.print_exc()
+            result = []
             
     else:
         # do the actual computation
@@ -222,15 +225,18 @@ def main():
     
     # collect burrows from all files
     if args.multiprocessing:
+        # use multiple processes to analyze data
         job_func = functools.partial(process_polygon_file,
                                      output_folder=args.folder,
                                      suppress_exceptions=True)
         pool = mp.Pool()
         result = pool.map(job_func, files)
+        
     else:
+        # analyze data in the current process
         job_func = functools.partial(process_polygon_file,
                                      output_folder=args.folder,
-                                     suppress_exceptions=True)
+                                     suppress_exceptions=False)
         result = map(job_func, files)
         
     # create a dictionary of lists
