@@ -11,12 +11,15 @@ import itertools
 
 import cv2
 import numpy as np
-from scipy import ndimage
+from scipy import ndimage, interpolate
 from shapely import geometry, geos
 
 import curves
+from active_contour import ActiveContour
 from data_structures.cache import cached_property
 from external import simplify_polygon_visvalingam as simple_poly 
+
+from .. import debug  # @UnusedImport
 
 
 def corners_to_rect(p1, p2):
@@ -26,6 +29,7 @@ def corners_to_rect(p1, p2):
     xmin, xmax = min(p1[0], p2[0]), max(p1[0], p2[0]) 
     ymin, ymax = min(p1[1], p2[1]), max(p1[1], p2[1])
     return (xmin, ymin, xmax - xmin + 1, ymax - ymin + 1)
+
 
 
 def rect_to_corners(rect, count=2):
@@ -43,11 +47,13 @@ def rect_to_corners(rect, count=2):
         raise ValueError('count must be 2 or 4 (cannot be %d)' % count)
 
 
+
 def rect_to_slices(rect):
     """ creates slices for an array from a rectangle """
     slice_x = slice(rect[0], rect[2] + rect[0])
     slice_y = slice(rect[1], rect[3] + rect[1])
     return slice_y, slice_x
+
 
 
 def get_overlapping_slices(t_pos, t_shape, i_shape, anchor='center', ret_rect=False):
@@ -105,6 +111,7 @@ def get_overlapping_slices(t_pos, t_shape, i_shape, anchor='center', ret_rect=Fa
         return slices
 
 
+
 def find_bounding_box(mask):
     """ finds the rectangle, which bounds a white region in a mask.
     The rectangle is returned as [left, top, width, height]
@@ -143,11 +150,13 @@ def find_bounding_box(mask):
     
     return (left, top, right - left, bottom - top)
 
+
        
 def expand_rectangle(rect, amount=1):
     """ expands a rectangle by a given amount """
     return (rect[0] - amount, rect[1] - amount, rect[2] + 2*amount, rect[3] + 2*amount)
     
+       
        
 def get_largest_region(mask, ret_area=False):
     """ returns a mask only containing the largest region """
@@ -160,6 +169,7 @@ def get_largest_region(mask, ret_area=False):
     ) + 1
     
     return labels == label_max
+
 
 
 def get_external_contour(points, resolution=None):
@@ -222,6 +232,7 @@ def get_enclosing_outline(polygon):
     return contour
     
     
+    
 def regularize_polygon(polygon):
     """ regularize a shapely polygon using polygon.buffer(0) """
     area_orig = polygon.area #< the result should have a similar area
@@ -242,6 +253,7 @@ def regularize_polygon(polygon):
     return result
 
 
+
 def regularize_linear_ring(linear_ring):
     """ regularize a list of points defining a contour """
     polygon = geometry.Polygon(linear_ring)
@@ -250,6 +262,7 @@ def regularize_linear_ring(linear_ring):
         return geometry.LinearRing() #< empty linear ring
     else:
         return regular_polygon.exterior
+
 
 
 def regularize_contour_points(contour):
@@ -262,6 +275,7 @@ def regularize_contour_points(contour):
         else:
             contour = regular_polygon.exterior.coords
     return contour
+
 
 
 def simplify_contour(contour, threshold):
@@ -283,6 +297,7 @@ def simplify_contour(contour, threshold):
             return None
         else:
             return ring.coords[:-1]
+
 
 
 def get_intersections(geometry1, geometry2):
@@ -307,6 +322,7 @@ def get_intersections(geometry1, geometry2):
         # => we cannot do anything sensible and thus return nothing
         return []
 
+    
     
 def get_ray_hitpoint(point_anchor, point_far, line_string, ret_dist=False):
     """ returns the point where a ray anchored at point_anchor hits the polygon
@@ -748,7 +764,7 @@ class Polygon(object):
         
         
     def get_centerline_estimate(self, end_points=None):
-        """ determines the center line of the polygon
+        """ determines an estimate to a center line of the polygon
         `end_points` can either be None, a single Point, or two points.
         """
         
@@ -795,7 +811,8 @@ class Polygon(object):
             end_points = np.squeeze(end_points)
             if end_points.shape == (2, ):
                 # determine one end point
-                path = _find_point_connection(end_points, maximize_distance=False)
+                path = _find_point_connection(end_points,
+                                              maximize_distance=False)
             elif end_points.shape == (2, 2):
                 # both end points are already determined
                 path = _find_point_connection(end_points[0], end_points[1])
@@ -805,6 +822,71 @@ class Polygon(object):
         return path
         
         
-    def get_centerline(self, end_points=None):
-        return self.get_centerline_estimate(end_points)
+    def get_centerline_optimized(self, alpha=1e3, beta=1e6, gamma=0.01,
+                                 spacing=20, max_iterations=1000):
+        """ determines the center line of the polygon using an active contour
+        algorithm """
+        # use an active contour algorithm to find centerline
+        ac = ActiveContour(blur_radius=1, alpha=alpha, beta=beta,
+                           gamma=gamma, closed_loop=False)
+        ac.max_iterations = max_iterations
+
+        # set the potential from the  distance map
+        mask, offset = self.get_mask(1, ret_offset=True)
+        potential = cv2.distanceTransform(mask, cv2.cv.CV_DIST_L2, 5)
+        ac.set_potential(potential)
+        
+        # initialize the centerline from the estimate
+        points = self.get_centerline_estimate()
+        points = curves.make_curve_equidistant(points, spacing=spacing)        
+        points = curves.translate_points(points, -offset[0], -offset[1])
+        # anchor the end points
+        anchor = np.zeros(len(points), np.bool)
+        anchor[0] = anchor[-1] = True
+        # find the best contour
+        points = ac.find_contour(points, anchor, anchor)
+        
+        points = curves.make_curve_equidistant(points, spacing=spacing)        
+        return curves.translate_points(points, *offset)
+        
+
+    def get_centerline_smoothed(self, points=None, skip_length=70):
+        """ determines the center line of the polygon using an active contour
+        algorithm. If `points` are given, they are used for getting the
+        smoothed centerline. Otherwise, we determine the optimized centerline 
+        """
+        if points is None:
+            points = self.get_centerline_optimized()
+        
+        spacing = 10
+        length = curves.curve_length(points)
+        
+        # get the points to interpolate
+        points = curves.make_curve_equidistant(points, spacing=spacing)
+        skip_points = skip_length // spacing
+        points = points[skip_points:-skip_points]
+        
+        # do spline fitting to smooth the line
+        tck, _ = interpolate.splprep(np.transpose(points), k=3, s=length)
+    
+        num_points = length/spacing
+        points = interpolate.splev(np.linspace(-0.2, 1.2, num_points), tck)
+        points = zip(*points) #< transpose list
+        
+        # restrict center line to burrow shape
+        cline = geometry.LineString(points).intersection(self.polygon)
+        
+        return np.array(cline.coords)
+    
+    
+    def get_centerline(self, method='smoothed', **kwargs):
+        """ get the centerline of the polygon """
+        if method == 'smoothed':
+            return self.get_centerline_smoothed(**kwargs)
+        elif method == 'optimized':
+            return self.get_centerline_optimized(**kwargs)
+        elif method == 'estimate':
+            return self.get_centerline_estimate(**kwargs)
+        else:
+            raise ValueError('Unknown method `%s`' % method)
         

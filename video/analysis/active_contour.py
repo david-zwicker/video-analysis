@@ -31,7 +31,7 @@ class ActiveContour(object):
     
     
     def __init__(self, blur_radius=10, alpha=0, beta=1e2, gamma=0.001,
-                 point_spacing=None, closed_loop=False):
+                 closed_loop=False):
         """ initializes the active contour model
         blur_radius sets the length scale of the attraction to features.
             As a drawback, this is also the largest feature size that can be
@@ -42,8 +42,6 @@ class ActiveContour(object):
             contours)
         gamma is the time scale of the convergence (high gamma might lead to 
             overshoot)
-        point_spacing should only be set in production runs. It can help
-            speeding up the process since matrices can be reused
         closed_loop indicates whether the contour is a closed loop
         """
         
@@ -51,7 +49,6 @@ class ActiveContour(object):
         self.alpha = alpha  #< line tension
         self.beta = beta    #< stiffness 
         self.gamma = gamma  #< convergence rate
-        self.point_spacing = point_spacing
         self.closed_loop = closed_loop
         
         self.clear_cache() #< also initializes the cache
@@ -146,10 +143,7 @@ class ActiveContour(object):
             has_anchors = False
 
         # determine point spacing if it is not given
-        if self.point_spacing is None:
-            ds = curves.curve_length(points)/(len(points) - 1)
-        else:
-            ds = self.point_spacing
+        ds = curves.curve_length(points)/(len(points) - 1)
             
         # try loading the evolution matrix from the cache            
         cache_key = (len(points), ds)
@@ -160,6 +154,7 @@ class ActiveContour(object):
             self._Pinv_cache[cache_key] = Pinv
     
         # create intermediate array
+        points_initial = points.copy()
         ps = points.copy()
     
         for k in xrange(self.max_iterations):
@@ -187,6 +182,7 @@ class ActiveContour(object):
                 break
             
         self.info['iteration_count'] = k + 1
+        self.info['total_variation'] = np.abs(points_initial - points).sum()
     
         return points
     
