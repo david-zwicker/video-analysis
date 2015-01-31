@@ -706,8 +706,13 @@ class Polygon(object):
     
     
     @cached_property
+    def centroid(self):
+        return np.array(self.polygon.centroid)
+    
+    
+    @cached_property
     def position(self):
-        return self.polygon.representative_point()
+        return np.array(self.polygon.representative_point())
     
     
     @cached_property
@@ -850,7 +855,7 @@ class Polygon(object):
         return curves.translate_points(points, *offset)
         
 
-    def get_centerline_smoothed(self, points=None, skip_length=70):
+    def get_centerline_smoothed(self, points=None, skip_length=90):
         """ determines the center line of the polygon using an active contour
         algorithm. If `points` are given, they are used for getting the
         smoothed centerline. Otherwise, we determine the optimized centerline 
@@ -867,16 +872,24 @@ class Polygon(object):
         points = points[skip_points:-skip_points]
         
         # do spline fitting to smooth the line
-        tck, _ = interpolate.splprep(np.transpose(points), k=3, s=length)
-    
-        num_points = length/spacing
-        points = interpolate.splev(np.linspace(-0.2, 1.2, num_points), tck)
-        points = zip(*points) #< transpose list
+        try:
+            tck, _ = interpolate.splprep(np.transpose(points), k=3, s=length)
+        except ValueError:
+            pass
+        else:
+            num_points = length/spacing
+            points = interpolate.splev(np.linspace(-0.2, 1.2, num_points), tck)
+            points = zip(*points) #< transpose list
         
-        # restrict center line to burrow shape
-        cline = geometry.LineString(points).intersection(self.polygon)
+            # restrict center line to burrow shape
+            cline = geometry.LineString(points).intersection(self.polygon)
+            
+            if isinstance(cline, geometry.MultiLineString):
+                points = max(cline, key=lambda obj: obj.length).coords
+            else:
+                points = np.array(cline.coords)
         
-        return np.array(cline.coords)
+        return points
     
     
     def get_centerline(self, method='smoothed', **kwargs):
