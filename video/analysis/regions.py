@@ -811,7 +811,7 @@ class Polygon(object):
         if end_points is None:
             # determine both end points
             path = _find_point_connection(np.array(self.position),
-                                        maximize_distance=True)
+                                          maximize_distance=True)
         else:
             end_points = np.squeeze(end_points)
             if end_points.shape == (2, ):

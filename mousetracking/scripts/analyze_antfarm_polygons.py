@@ -33,8 +33,9 @@ from video import debug  # @UnusedImport
 
 
 default_parameters = {
-    'burrow/area_min': 500,
+    'burrow/area_min': 10000,
     'scale_bar/area_max': 1000,
+    'scale_bar/length_min': 100,
     'scale_bar/dist_bottom': 0.1,
     'scale_bar/dist_left': 0.1,
 }
@@ -140,11 +141,14 @@ class PolygonCollection(object):
                 if at_left and at_bottom and is_simple:
                     # the current polygon is the scale bar
                     _, (w, h), rot = cv2.minAreaRect(contour)
-                    if w > h:
-                        scale_bar = ScaleBar(size=w, angle=rot)
-                    else:
-                        scale_bar = ScaleBar(size=h, angle=(rot + 90) % 180)
-                    continue #< object has been processed
+                    
+                    if max(w, h) > self.params['scale_bar/length_min']:
+                        # we found the scale bar
+                        if w > h:
+                            scale_bar = ScaleBar(size=w, angle=rot)
+                        else:
+                            scale_bar = ScaleBar(size=h, angle=(rot + 90) % 180)
+                        continue #< object has been processed
 
             if area > self.params['burrow/area_min']:
                 self.polygons.append(BurrowPolygon(points))
