@@ -6,7 +6,6 @@ Created on Dec 19, 2014
 
 from __future__ import division
 
-from collections import defaultdict
 import cPickle as pickle 
 import itertools
 import logging
@@ -73,7 +72,7 @@ class TailSegmentationTracking(object):
             self.debug_window = None
         
         # setup structure for saving data
-        self.kymographs = defaultdict(lambda: [[], []])
+        self.result = {'parameters': self.params.copy()}
         self.tails = None
         self.frame_id = None
         self.frame = None
@@ -124,6 +123,10 @@ class TailSegmentationTracking(object):
         """ processes the video """
         # process first frame to find objects
         self.process_first_frame()
+        
+        # initialize line scan data
+        tail_data = [{'line_scans': [[], []]} for _ in xrange(len(self.tails))]
+        self.result['tails'] = tail_data
     
         # iterate through all frames
         iterator = display_progress(self.video)
@@ -136,15 +139,15 @@ class TailSegmentationTracking(object):
             
             # do the line scans in each object
             for tail_id, tail in enumerate(self.tails):
-                linescans = self.tail_linescans(self.frame, tail)
-                self.kymographs[tail_id][0].append(linescans[0]) 
-                self.kymographs[tail_id][1].append(linescans[1])
+                linescans= self.tail_linescans(self.frame, tail)
+                tail_data[tail_id]['line_scans'][0].append(linescans[0]) 
+                tail_data[tail_id]['line_scans'][1].append(linescans[1])
             
             # update the debug output
             self.update_video_output(self.frame)
             
         # save the data and close the videos
-        self.save_kymographs()
+        self.save_result()
         self.close()
         
     
@@ -323,7 +326,7 @@ class TailSegmentationTracking(object):
         h, w = self.frame.shape
         rect = regions.Rectangle(x=0, y=0, width=w, height=h)
         rect.buffer(-2*border)
-        rect = geometry.Polygon(rect.outline)
+        rect = geometry.Polygon(rect.contour)
 
         bw[:] = 0
         num_features = 0  
@@ -384,7 +387,7 @@ class TailSegmentationTracking(object):
                 points = curves.simplify_curve(points, threshold)
                 tails.append(Tail(points))
         
-#         debug.show_shape(*[t.outline for t in tails], background=self.frame,
+#         debug.show_shape(*[t.contour for t in tails], background=self.frame,
 #                          wait_for_key=False)
     
         logging.info('Found %d tail(s) in frame %d', len(tails), self.frame_id)
@@ -406,18 +409,18 @@ class TailSegmentationTracking(object):
         away """
         
         # setup active contour algorithm
-        ac = ActiveContour(blur_radius=self.params['outline/blur_radius_initial'],
+        ac = ActiveContour(blur_radius=self.params['contour/blur_radius_initial'],
                            closed_loop=True,
-                           alpha=self.params['outline/line_tension'], 
-                           beta=self.params['outline/bending_stiffness'],
-                           gamma=self.params['outline/adaptation_rate'])
-        ac.max_iterations = self.params['outline/max_iterations']
+                           alpha=self.params['contour/line_tension'], 
+                           beta=self.params['contour/bending_stiffness'],
+                           gamma=self.params['contour/adaptation_rate'])
+        ac.max_iterations = self.params['contour/max_iterations']
         ac.set_potential(self.contour_potential)
         
         # get rectangle describing the interior of the frame
         height, width = self.frame.shape
         region_center = regions.Rectangle(0, 0, width, height)
-        region_center.buffer(-self.params['outline/border_anchor_distance'])
+        region_center.buffer(-self.params['contour/border_anchor_distance'])
 
         # adapt all the tails
         for tail in tails:
@@ -428,7 +431,7 @@ class TailSegmentationTracking(object):
             logging.debug('Active contour took %d iterations.',
                           ac.info['iteration_count'])
 
-#         debug.show_shape(*[t.outline for t in tails],
+#         debug.show_shape(*[t.contour for t in tails],
 #                          background=self.contour_potential)
 
 
@@ -443,22 +446,22 @@ class TailSegmentationTracking(object):
         assert len(tails_new) == len(tails)
         
         # setup active contour algorithm
-        ac = ActiveContour(blur_radius=self.params['outline/blur_radius'],
+        ac = ActiveContour(blur_radius=self.params['contour/blur_radius'],
                            closed_loop=True,
-                           alpha=self.params['outline/line_tension'],
-                           beta=self.params['outline/bending_stiffness'],
-                           gamma=self.params['outline/adaptation_rate'])
-        ac.max_iterations = self.params['outline/max_iterations']
+                           alpha=self.params['contour/line_tension'],
+                           beta=self.params['contour/bending_stiffness'],
+                           gamma=self.params['contour/adaptation_rate'])
+        ac.max_iterations = self.params['contour/max_iterations']
         #potential_approx = self.threshold_gradient_strength(gradient_mag)
         ac.set_potential(self.contour_potential)
 
-#         debug.show_shape(*[t.outline for t in tails],
+#         debug.show_shape(*[t.contour for t in tails],
 #                          background=self.contour_potential)        
         
         # get rectangle describing the interior of the frame
         height, width = self.frame.shape
         region_center = regions.Rectangle(0, 0, width, height)
-        region_center.buffer(-self.params['outline/border_anchor_distance'])
+        region_center.buffer(-self.params['contour/border_anchor_distance'])
         
         for k, tail in enumerate(tails):
             # find the tail that is closest
@@ -476,7 +479,7 @@ class TailSegmentationTracking(object):
             # disable anchoring for points at the posterior end of the tail
             ps = tail.contour[anchor_idx]
             dists = spatial.distance.cdist(ps, [tail.endpoints[0]])
-            dist_threshold = self.params['outline/typical_width']
+            dist_threshold = self.params['contour/typical_width']
             anchor_idx[anchor_idx] = (dists.flat > dist_threshold)
             
             # use an active contour algorithm to adapt the contour points
@@ -487,7 +490,7 @@ class TailSegmentationTracking(object):
             # update the old tail to keep the identity of sides
             tails[k].update_contour(contour)
             
-#         debug.show_shape(*[t.outline for t in tails],
+#         debug.show_shape(*[t.contour for t in tails],
 #                          background=self.contour_potential)        
     
     
@@ -583,19 +586,18 @@ class TailSegmentationTracking(object):
         return result
     
     
-    def save_kymographs(self):
-        """ saves all kymographs as pickle files """
-        for key, tail_data in self.kymographs.iteritems():
-            outfile = self.video_file.replace('.avi', '_kymo_%s.pkl' % key)
-            with open(outfile, 'w') as fp:
-                pickle.dump(tail_data, fp)
-                
-    
     #===========================================================================
     # OUTPUT
     #===========================================================================
     
 
+    def save_result(self):
+        """ saves all kymographs as pickle files """
+        outfile = self.video_file.replace('.avi', '.pkl')
+        with open(outfile, 'w') as fp:
+            pickle.dump(self.result, fp)
+                
+    
     def update_video_output(self, frame):
         """ updates the video output to both the screen and the file """
         video = self.output

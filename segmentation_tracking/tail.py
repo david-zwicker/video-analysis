@@ -26,6 +26,16 @@ class Tail(object):
     Every tail is defined by its contour.
     """
     
+    endpoint_mass_radius = 500 #< radius for identifying the end points
+    contour_spacing = 20       #< spacing of the contour points 
+    centerline_spacing = 50    #< spacing of centerline points
+    
+    # parameters for the active snake algorithm for finding the centerline
+    centerline_blur_radius = 5
+    centerline_bending_stiffness = 1e6
+    centerline_adaptation_rate = 1e-2
+    centerline_max_iterations = 500
+    
     line_names = ['ventr', 'dors']
     
     
@@ -46,7 +56,8 @@ class Tail(object):
     @contour.setter
     def contour(self, points):
         points = regions.regularize_contour_points(points)
-        points = curves.make_curve_equidistant(points, spacing=20)
+        spacing = self.contour_spacing
+        points = curves.make_curve_equidistant(points, spacing=spacing)
 
         # sometimes the polygon has to be regularized again
         if not geometry.Polygon(points).is_valid:
@@ -72,7 +83,7 @@ class Tail(object):
         
 
     @cached_property
-    def outline(self):
+    def contour(self):
         return geometry.LinearRing(self._contour)
     
     @cached_property
@@ -85,7 +96,7 @@ class Tail(object):
 
     @cached_property
     def bounds(self):
-        return np.array(self.outline.bounds, np.int)
+        return np.array(self.contour.bounds, np.int)
     
     @cached_property
     def area(self):
@@ -116,7 +127,8 @@ class Tail(object):
             # determine the mass of tissue to determine posterior end
             mass = []
             for k in indices:
-                p = geometry.Point(self._contour[k]).buffer(500)
+                radius = self.endpoint_mass_radius
+                p = geometry.Point(self._contour[k]).buffer(radius)
                 mass.append(self.polygon.intersection(p).area)
                 
             # determine posterior end point by measuring the surrounding
@@ -255,19 +267,19 @@ class Tail(object):
         dist_map = cv2.distanceTransform(mask, cv2.cv.CV_DIST_L2, 5)
         
         # setup active contour algorithm
-        # TODO: move the parameters of the algorithm to class parameters
-        ac = ActiveContour(blur_radius=5,
+        ac = ActiveContour(blur_radius=self.centerline_blur_radius,
                            closed_loop=False,
                            alpha=0, #< line length is constraint by beta
-                           beta=1e6,
-                           gamma=1e-2)
-        ac.max_iterations = 500
+                           beta=self.centerline_bending_stiffness,
+                           gamma=self.centerline_adaptation_rate)
+        ac.max_iterations = self.centerline_max_iterations
         ac.set_potential(dist_map)
         
         # find centerline starting from the ventral_side
         points = curves.translate_points(self.ventral_side,
                                          -offset[0], -offset[1])
-        points = curves.make_curve_equidistant(points, spacing=50)
+        spacing = self.centerline_spacing
+        points = curves.make_curve_equidistant(points, spacing=spacing)
         # use the active contour algorithm
         points = ac.find_contour(points)
         # translate points back into global coordinate system
