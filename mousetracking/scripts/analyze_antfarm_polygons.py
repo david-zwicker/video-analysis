@@ -9,10 +9,13 @@ from __future__ import division
 
 import argparse
 import collections
+import functools
+import logging
+import multiprocessing as mp
 import os.path
 import operator
 import sys
-import logging
+import traceback
 
 import cv2
 import numpy as np
@@ -160,7 +163,7 @@ class PolygonCollection(object):
                               isClosed=False, color=(255, 0, 0), thickness=3)
             cv2.imwrite(output_file, image)
             
-            logging.info('Wrote output file')
+            logging.info('Wrote output file `%s`' % output_file)
         
         
     def get_statistics(self):
@@ -179,10 +182,22 @@ class PolygonCollection(object):
         
         
 
-def process_file(path, output_folder=None):
+def process_polygon_file(path, output_folder=None, suppress_exceptions=False):
     """ process a single shape file given by path """
-    pc = PolygonCollection.load_from_file(path, output_folder=output_folder)
-    return pc.get_statistics()
+    if suppress_exceptions:
+        # run the function within a catch-all try-except-block
+        try:
+            result = process_polygon_file(path, output_folder, False)
+        except:
+            traceback.print_exc()
+            
+    else:
+        # do the actual computation
+        logging.info('Analyzing file `%s`' % path)
+        pc = PolygonCollection.load_from_file(path, output_folder=output_folder)
+        result = pc.get_statistics()
+
+    return result
 
 
 
@@ -194,32 +209,43 @@ def main():
                         help='file to which the output statistics are written')
     parser.add_argument('-f', '--folder', dest='folder', type=str,
                         help='folder where output will be written to')
+    parser.add_argument('-m', '--multi-processing', dest='multiprocessing',
+                        action='store_true', help='turns on multiprocessing')
     parser.add_argument('files', metavar='file', type=str, nargs='+',
                         help='files to analyze')
 
     args = parser.parse_args()
     
-    # collect all burrows
-    result = []
-    for path in args.files[:2]:
-        # get all burrows from this file 
-        burrows = process_file(path, args.folder)
+    # get files to analyze
+    files = args.files
+    logging.info('Analyzing %d files.' % len(files))
+    
+    # collect burrows from all files
+    if args.multiprocessing:
+        job_func = functools.partial(process_polygon_file,
+                                     output_folder=args.folder,
+                                     suppress_exceptions=True)
+        pool = mp.Pool()
+        result = pool.map(job_func, files)
+    else:
+        job_func = functools.partial(process_polygon_file,
+                                     output_folder=args.folder,
+                                     suppress_exceptions=True)
+        result = map(job_func, files)
+        
+    # create a dictionary of lists
+    table = collections.defaultdict(list) 
+    for burrows in result: #< iterate through all experiments
         # sort the burrows from left to right
         burrows = sorted(burrows, key=operator.itemgetter('pos_x'))
-        for burrow_id, burrow in enumerate(burrows, 1):
-            burrow['burrow_id'] = burrow_id
-            result.append(burrow)
-            
-    # create a dictionary of lists
-    result_dict = collections.defaultdict(list)
-    for item in result:
-        print item
-        for k, v in item.iteritems():
-            result_dict[k].append(v)
+        for burrow_id, properties in enumerate(burrows, 1): #< iter. all burrows
+            properties['burrow_id'] = burrow_id
+            for k, v in properties.iteritems(): #< iter. all burrow properties
+                table[k].append(v)
                    
     # write the data to a csv file     
     first_columns = ['name', 'burrow_id']
-    save_dict_to_csv(result_dict, args.output, first_columns=first_columns)
+    save_dict_to_csv(table, args.output, first_columns=first_columns)
 
 
 
