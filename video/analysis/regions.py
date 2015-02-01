@@ -665,7 +665,8 @@ class Polygon(object):
 
 
     def copy(self):
-        return Polygon(self.contour.copy())
+        """ create copy of the current object """
+        return self.__class__(self.contour.copy())
 
 
     @property

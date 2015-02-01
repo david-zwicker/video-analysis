@@ -29,14 +29,14 @@ parameters_tracking = {
         'detection/area_max': 1000000,
         'detection/every_frame': True,
         
-        'outline/typical_width': 150,
-        'outline/blur_radius_initial': 20,
-        'outline/blur_radius': 20,
-        'outline/border_anchor_distance': 100,
-        'outline/max_iterations': 300,
-        'outline/line_tension': 0,  
-        'outline/bending_stiffness': 1e4, #< bending stiffness for the tail outline
-        'outline/adaptation_rate': 1e0, #< rate with which the active snake adapts
+        'contour/typical_width': 150,
+        'contour/blur_radius_initial': 20,
+        'contour/blur_radius': 20,
+        'contour/border_anchor_distance': 100,
+        'contour/max_iterations': 300,
+        'contour/line_tension': 0,  
+        'contour/bending_stiffness': 1e4, #< bending stiffness for the tail outline
+        'contour/adaptation_rate': 1e0, #< rate with which the active snake adapts
         
         'measurement/spline_smoothing': 20, #< smoothing factor for measurement lines
         'measurement/line_offset': 0.5, #< determines position of the measurement line
@@ -61,12 +61,12 @@ parameters_tracking = {
         'detection/area_min': 50000//(5*5),
         'detection/area_max': 500000//(5*5),
         
-        'outline/blur_radius_initial': 50//5,
-        'outline/blur_radius_initial': 20//5,
-        'outline/max_iterations': 300,
-        'outline/line_tension': 0,  
-        'outline/bending_stiffness': 1e4//(5*5), #< bending stiffness for the tail outline
-        'outline/adaptation_rate': 1e0//5, #< rate with which the active snake adapts
+        'contour/blur_radius_initial': 50//5,
+        'contour/blur_radius_initial': 20//5,
+        'contour/max_iterations': 300,
+        'contour/line_tension': 0,  
+        'contour/bending_stiffness': 1e4//(5*5), #< bending stiffness for the tail outline
+        'contour/adaptation_rate': 1e0//5, #< rate with which the active snake adapts
         
         'measurement/spline_smoothing': 20//5, #< smoothing factor for measurement lines
         'measurement/line_offset': 0.5, #< determines position of the measurement line
@@ -85,6 +85,6 @@ parameters_tracking_special = {
         'detection/statistics_window': 30,
         'detection/statistics_threshold': 3,
         'detection/every_frame': False,
-        'outline/max_iterations': 1000,
+        'contour/max_iterations': 1000,
     },
 }

@@ -7,6 +7,7 @@ Created on Dec 19, 2014
 from __future__ import division
 
 import cPickle as pickle 
+import collections
 import itertools
 import logging
 import math
@@ -36,14 +37,17 @@ from segmentation_tracking.annotation import TackingAnnotations, SegmentPicker
 class TailSegmentationTracking(object):
     """ class managing the tracking of mouse tails in videos """
     
-    def __init__(self, video_file, output_file, parameter_set='default',
+    def __init__(self, video_file, output_video=None, parameter_set='default',
                  parameters=None, show_video=False):
         """
         `video_file` is the input video
-        `output_file` is the video file where the output is written to
+        `output_video` is the video file where the output is written to
         `show_video` indicates whether the video should be shown while processing
         """
         self.video_file = video_file
+        self.output_video = output_video
+        self.show_video = show_video
+
         self.name = os.path.splitext(video_file)[0]
         self.annotations = TackingAnnotations(self.name)
         
@@ -57,20 +61,6 @@ class TailSegmentationTracking(object):
         if parameters is not None:
             self.params.update(parameters)
 
-        # initialize the video
-        self.video = self.load_video(video_file)
-        
-        # setup debug output 
-        zoom_factor = self.params['output/zoom_factor']
-        self.output = VideoComposer(output_file, size=self.video.size,
-                                    fps=self.video.fps, is_color=True,
-                                    zoom_factor=zoom_factor)
-        if show_video:
-            self.debug_window = ImageWindow(self.output.shape, title=video_file,
-                                            multiprocessing=False)
-        else:
-            self.debug_window = None
-        
         # setup structure for saving data
         self.result = {'parameters': self.params.copy()}
         self.tails = None
@@ -79,22 +69,40 @@ class TailSegmentationTracking(object):
         self._frame_cache = {}
 
 
-    def load_video(self, filename):
+    def load_video(self, make_video=False):
         """ loads and returns the video """
         # load video and make it grey scale
-        video = VideoFile(filename)
-        video = FilterMonochrome(video)
+        self.video = VideoFile(self.video_file)
+        self.video = FilterMonochrome(self.video)
         
         if self.params['input/zoom_factor'] != 1:
-            video = FilterResize(video, self.params['input/zoom_factor'],
-                                 even_dimensions=True)
+            self.video = FilterResize(self.video,
+                                      self.params['input/zoom_factor'],
+                                      even_dimensions=True)
         
         # restrict video to requested frames
         if self.params['input/frames']:
             frames = self.params['input/frames']
-            video = video[frames[0]: frames[1]]
+            self.video = self.video[frames[0]: frames[1]]
             
-        return video
+        
+        # setup debug output 
+        zoom_factor = self.params['output/zoom_factor']
+        if make_video:
+            if self.output_video is None:
+                raise ValueError('Video output filename is not set.')
+            self.output = VideoComposer(self.output_video, size=self.video.size,
+                                        fps=self.video.fps, is_color=True,
+                                        zoom_factor=zoom_factor)
+            if self.show_video:
+                self.debug_window = ImageWindow(self.output.shape,
+                                                title=self.video_file,
+                                                multiprocessing=False)
+            else:
+                self.debug_window = None
+                
+        else:
+            self.output = None
 
 
     @cached_property
@@ -119,32 +127,35 @@ class TailSegmentationTracking(object):
         return self.frame
 
     
-    def process(self):
-        """ processes the video """
+    def track_tails(self, make_video=False):
+        """ processes the video and locates the tails """
+        # initialize the video
+        self.load_video(make_video)
+        
         # process first frame to find objects
         self.process_first_frame()
         
-        # initialize line scan data
-        tail_data = [{'line_scans': [[], []]} for _ in xrange(len(self.tails))]
-        self.result['tails'] = tail_data
-    
+        # initialize the result structure
+        result_tails = collections.defaultdict(dict)
+        self.result['tails'] = result_tails
+        
         # iterate through all frames
         iterator = display_progress(self.video)
         for self.frame_id, self.frame in enumerate(iterator, self.frame_start):
             self._frame_cache = {} #< delete cache per frame
-            self.set_video_background()
+            if make_video:
+                self.set_video_background()
 
             # adapt the object outlines
             self.adapt_tail_contours(self.tails)
             
-            # do the line scans in each object
+            # store tail data in the result
             for tail_id, tail in enumerate(self.tails):
-                linescans= self.tail_linescans(self.frame, tail)
-                tail_data[tail_id]['line_scans'][0].append(linescans[0]) 
-                tail_data[tail_id]['line_scans'][1].append(linescans[1])
+                result_tails[tail_id][self.frame_id] = tail.copy()
             
             # update the debug output
-            self.update_video_output(self.frame)
+            if make_video:
+                self.update_video_output(self.frame, show_measurement_line=False)
             
         # save the data and close the videos
         self.save_result()
@@ -465,7 +476,7 @@ class TailSegmentationTracking(object):
         
         for k, tail in enumerate(tails):
             # find the tail that is closest
-            idx = np.argmin([curves.point_distance(tail.center, t.center)
+            idx = np.argmin([curves.point_distance(tail.centroid, t.centroid)
                              for t in tails_new])
             
             # adapt this contour to the potential
@@ -517,13 +528,53 @@ class TailSegmentationTracking(object):
             
     
     #===========================================================================
-    # SEGMENT FINDING
+    # LINE SCANNING
     #===========================================================================
+    
+    
+    def do_linescans(self, make_video=True):
+        """ do the line scans for all tails """
+        # initialize the video
+        self.load_video(make_video)
+        self.load_result()
+        
+        # load the previously track tail data
+        try:
+            tails = self.result['tails']
+        except KeyError:
+            raise ValueError('Tails have to be tracked before line scans can'
+                             'done.')
+        tail_data = [{'line_scans': [[], []]} for _ in xrange(len(tails))]
+            
+        # iterate through all frames
+        iterator = display_progress(self.video)
+        for self.frame_id, self.frame in enumerate(iterator, self.frame_start):
+            self._frame_cache = {} #< delete cache per frame
+            if make_video:
+                self.set_video_background()
+
+            # do the line scans in each object
+            self.tails = []
+            for tail_id, tail_trajectory in tails.iteritems():
+                tail = tail_trajectory[self.frame_id]
+                linescans= self.measure_single_tail(self.frame, tail)
+                tail_data[tail_id]['line_scans'][0].append(linescans[0]) 
+                tail_data[tail_id]['line_scans'][1].append(linescans[1])
+                self.tails.append(tail) #< safe for video output
+            
+            # update the debug output
+            if make_video:
+                self.update_video_output(self.frame, show_measurement_line=True)
+            
+        # save the data and close the videos
+        self.result['tail_data'] = tail_data
+        self.save_result()
+        self.close()
     
     
     def get_measurement_lines(self, tail):
         """
-        determines the measurement segments that are used for the line sca
+        determines the measurement segments that are used for the line scan
         """
         f_c = self.params['measurement/line_offset']
         f_o = 1 - f_c
@@ -558,7 +609,7 @@ class TailSegmentationTracking(object):
         return result   
     
     
-    def tail_linescans(self, frame, tail):
+    def measure_single_tail(self, frame, tail):
         """ do line scans along the measurement segments of the tails """
         l = self.params['measurement/line_scan_width']
         w = 2 #< width of each individual line scan
@@ -587,18 +638,31 @@ class TailSegmentationTracking(object):
     
     
     #===========================================================================
-    # OUTPUT
+    # INPUT/OUTPUT
     #===========================================================================
     
+    
+    @property
+    def outfile(self):
+        """ return the file name under which the results will be saved """
+        return self.video_file.replace('.avi', '.pkl')
+
+
+    def load_result(self):
+        """ load data from a result file """
+        with open(self.outfile, 'r') as fp:
+            self.result.update(pickle.load(fp))
+        logging.debug('Read results from file `%s`', self.outfile)
+
 
     def save_result(self):
-        """ saves all kymographs as pickle files """
-        outfile = self.video_file.replace('.avi', '.pkl')
-        with open(outfile, 'w') as fp:
+        """ saves results as a pickle file """
+        with open(self.outfile, 'w') as fp:
             pickle.dump(self.result, fp)
+        logging.debug('Wrote results to file `%s`', self.outfile)
                 
     
-    def update_video_output(self, frame):
+    def update_video_output(self, frame, show_measurement_line=True):
         """ updates the video output to both the screen and the file """
         video = self.output
         # add information on all tails
@@ -611,12 +675,7 @@ class TailSegmentationTracking(object):
                            width=4, mark_points=mark_points)
             video.add_line(tail.centerline, color='g',
                            is_closed=False, width=5, mark_points=mark_points)
-            for k, line in enumerate(self.get_measurement_lines(tail)):
-                video.add_line(line[:-3], color='r', is_closed=False, width=5,
-                               mark_points=mark_points)
-                video.add_text(tail.line_names[k], line[-1], color='r',
-                               anchor='center middle')
-            
+
             # mark the points that we identified
             p_P, p_A = tail.endpoints
             n = (p_P - p_A)
@@ -626,8 +685,15 @@ class TailSegmentationTracking(object):
             video.add_circle(p_A, 10, 'b')
             video.add_text('A', p_A - n, color='b', anchor='center middle')
             
-            video.add_text(str('tail %d' % tail_id), tail.center,
+            video.add_text(str('tail %d' % tail_id), tail.centroid,
                            color='w', anchor='center middle')
+            
+            if show_measurement_line:
+                for k, line in enumerate(self.get_measurement_lines(tail)):
+                    video.add_line(line[:-3], color='r', is_closed=False,
+                                   width=5, mark_points=mark_points)
+                    video.add_text(tail.line_names[k], line[-1], color='r',
+                                   anchor='center middle')
         
         # add general information
         video.add_text(str(self.frame_id), (20, 20), size=2, anchor='top')
@@ -637,7 +703,9 @@ class TailSegmentationTracking(object):
     
     
     def close(self):
-        self.output.close()
-        if self.debug_window:
-            self.debug_window.close()
+        """ close the output video and the debug video """
+        if self.output:
+            self.output.close()
+            if self.debug_window:
+                self.debug_window.close()
         

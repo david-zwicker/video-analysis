@@ -21,7 +21,7 @@ from video import debug  # @UnusedImport
 
 
 
-class Tail(object):
+class Tail(regions.Polygon):
     """ class representing a single mouse tail in a single frame.
     Every tail is defined by its contour.
     """
@@ -38,37 +38,20 @@ class Tail(object):
     
     line_names = ['ventr', 'dors']
     
-    
-    def __init__(self, contour):
-        self.contour = contour
-        
         
     def __repr__(self):
         return '%s(pos=(%d, %d), %d contour points)' % \
-                (self.__class__.__name__, self.center[0], self.center[1],
+                (self.__class__.__name__, self.centroid[0], self.centroid[1],
                  len(self.contour))
     
-        
-    @property
-    def contour(self):
-        return self._contour.copy()
-    
-    @contour.setter
+
+    @regions.Polygon.contour.setter
     def contour(self, points):
         points = regions.regularize_contour_points(points)
         spacing = self.contour_spacing
         points = curves.make_curve_equidistant(points, spacing=spacing)
-
-        # sometimes the polygon has to be regularized again
-        if not geometry.Polygon(points).is_valid:
-            points = regions.regularize_contour_points(points)
-                    
-        if geometry.LinearRing(points).is_ccw:
-            self._contour = np.array(points[::-1])
-        else:
-            self._contour = np.array(points)
-        
-        self._cache = {} #< clear cache
+        # call parent setter
+        regions.Polygon.contour.fset(self, points)
         
         
     def update_contour(self, points):
@@ -83,36 +66,10 @@ class Tail(object):
         
 
     @cached_property
-    def contour(self):
-        return geometry.LinearRing(self._contour)
-    
-    @cached_property
-    def polygon(self):
-        return geometry.Polygon(self._contour)
-
-    @cached_property
-    def center(self):
-        return self.polygon.centroid.coords[0]
-
-    @cached_property
-    def bounds(self):
-        return np.array(self.contour.bounds, np.int)
-    
-    @cached_property
-    def area(self):
-        return self.polygon.area
-    
-    @cached_property
     def mask(self):
         """ return a binary mask large enough to hold the tails image and an
         offset the determines the position of the mask in global coordinates """
-        x_min, y_min, x_max, y_max = self.bounds
-        shape = (y_max - y_min) + 3, (x_max - x_min) + 3
-        offset =  (x_min - 1, y_min - 1)
-        mask = np.zeros(shape, np.uint8)
-        cv2.fillPoly(mask, [self._contour.astype(np.int)], 1,
-                     offset=(-offset[0], -offset[1]))
-        return mask, offset
+        return self.get_mask(2, ret_offset=True)
     
     
     def get_endpoint_indices(self, tail_prev=None):
@@ -120,7 +77,7 @@ class Tail(object):
         The posterior point is returned first.
         """
         # get the points which are farthest away from each other
-        dist = distance.squareform(distance.pdist(self._contour))
+        dist = distance.squareform(distance.pdist(self.contour))
         indices = np.unravel_index(np.argmax(dist), dist.shape)
         
         if tail_prev is None:
@@ -128,7 +85,7 @@ class Tail(object):
             mass = []
             for k in indices:
                 radius = self.endpoint_mass_radius
-                p = geometry.Point(self._contour[k]).buffer(radius)
+                p = geometry.Point(self.contour[k]).buffer(radius)
                 mass.append(self.polygon.intersection(p).area)
                 
             # determine posterior end point by measuring the surrounding
@@ -138,8 +95,8 @@ class Tail(object):
         else:
             # sort end points according to previous frame
             prev_p, prev_a = tail_prev.endpoints
-            this_1 = self._contour[indices[0]]
-            this_2 = self._contour[indices[1]]
+            this_1 = self.contour[indices[0]]
+            this_2 = self.contour[indices[1]]
             dist1 = curves.point_distance(this_1, prev_p) + \
                     curves.point_distance(this_2, prev_a)
             dist2 = curves.point_distance(this_1, prev_a) + \
@@ -164,7 +121,7 @@ class Tail(object):
     def endpoints(self):
         """ returns the posterior and the anterior end point """
         j, k = self.endpoint_indices
-        return self._contour[j], self._contour[k]
+        return self.contour[j], self.contour[k]
     
     
     def _sort_sides(self, sides, first_line):
@@ -177,11 +134,11 @@ class Tail(object):
         # get the two sides
         k1, k2 = self.endpoint_indices
         if k2 > k1:
-            sides = [self._contour[k1:k2 + 1],
-                     np.r_[self._contour[k2:], self._contour[:k1 + 1]]]
+            sides = [self.contour[k1:k2 + 1],
+                     np.r_[self.contour[k2:], self.contour[:k1 + 1]]]
         else:
-            sides = [self._contour[k2:k1 + 1][::-1],
-                     np.r_[self._contour[k1:], self._contour[:k2 + 1]][::-1, :]]
+            sides = [self.contour[k2:k1 + 1][::-1],
+                     np.r_[self.contour[k1:], self.contour[:k2 + 1]][::-1, :]]
             
         # determine how to sort them
         if 'ventral' == line_ref:
@@ -216,7 +173,7 @@ class Tail(object):
         """ determines the ventral side from the curvature of the tail """
         # define a line connecting both end points
         k1, k2 = self.endpoint_indices
-        line = geometry.LineString([self._contour[k1], self._contour[k2]])
+        line = geometry.LineString([self.contour[k1], self.contour[k2]])
         
         # cut the shape using this line and return the largest part
         parts = self.polygon.difference(line.buffer(0.1))
