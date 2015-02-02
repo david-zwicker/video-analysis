@@ -63,7 +63,6 @@ class TailSegmentationTracking(object):
 
         # setup structure for saving data
         self.result = {'parameters': self.params.copy()}
-        self.tails = None
         self.frame_id = None
         self.frame = None
         self._frame_cache = {}
@@ -133,7 +132,7 @@ class TailSegmentationTracking(object):
         self.load_video(make_video)
         
         # process first frame to find objects
-        self.process_first_frame()
+        tails = self.process_first_frame()
         
         # initialize the result structure
         result_tails = collections.defaultdict(dict)
@@ -147,22 +146,22 @@ class TailSegmentationTracking(object):
                 self.set_video_background()
 
             # adapt the object outlines
-            self.adapt_tail_contours(self.tails)
+            self.adapt_tail_contours(tails)
             
             # store tail data in the result
-            for tail_id, tail in enumerate(self.tails):
+            for tail_id, tail in enumerate(tails):
                 result_tails[tail_id][self.frame_id] = tail.copy()
             
             # update the debug output
             if make_video:
-                self.update_video_output(self.frame, show_measurement_line=False)
+                self.update_video_output(tails, show_measurement_line=False)
             
         # save the data and close the videos
         self.save_result()
         self.close()
         
     
-    def set_video_background(self):
+    def set_video_background(self, tails):
         """ sets the background of the video """
         if self.params['output/background'] == 'original':
             self.output.set_frame(self.frame, copy=True)
@@ -187,7 +186,8 @@ class TailSegmentationTracking(object):
             self.output.set_frame(image)
             
         elif self.params['output/background'] == 'features':
-            image, num_features = self.get_features(use_annotations=False)
+            image, num_features = self.get_features(tails,
+                                                    use_annotations=False)
             if num_features > 0:
                 self.output.set_frame(image*(128//num_features))
             else:
@@ -201,9 +201,10 @@ class TailSegmentationTracking(object):
         """ process the first frame to localize the tails """
         self.load_first_frame() #< stores frame in self.frame
         # locate tails roughly
-        self.tails = self.locate_tails_roughly()
+        tails = self.locate_tails_roughly()
         # refine tails
-        self.adapt_tail_contours_initially(self.tails)
+        self.adapt_tail_contours_initially(tails)
+        return tails
         
                     
     #===========================================================================
@@ -270,7 +271,7 @@ class TailSegmentationTracking(object):
         return bw
         
 
-    def get_features(self, use_annotations=False, ret_raw=False):
+    def get_features(self, tails=None, use_annotations=False, ret_raw=False):
         """ calculates a feature mask based on the image statistics """
         # calculate image statistics
         ksize = self.params['detection/statistics_window']
@@ -285,8 +286,8 @@ class TailSegmentationTracking(object):
             return bw
         
         # add features from the previous frames if present
-        if self.tails:
-            for tail in self.tails:
+        if tails:
+            for tail in tails:
                 # fill the features with the interior of the former tail
                 polys = tail.polygon.buffer(-self.params['detection/shape_max_speed'])
                 if not isinstance(polys, geometry.MultiPolygon):
@@ -298,7 +299,7 @@ class TailSegmentationTracking(object):
                 # calculate the distance to other tails to bound the current one
                 buffer_dist = self.params['detection/shape_max_speed']
                 poly_outer = tail.polygon.buffer(buffer_dist)
-                for tail_other in self.tails:
+                for tail_other in tails:
                     if tail is not tail_other:
                         dist = tail.polygon.distance(tail_other.polygon)
                         if dist < buffer_dist:
@@ -383,7 +384,7 @@ class TailSegmentationTracking(object):
         """ locate tail objects using thresholding """
         # find features, using annotations in the first frame        
         use_annotations = (self.frame_id == self.frame_start)
-        labels, _ = self.get_features(use_annotations)
+        labels, _ = self.get_features(use_annotations=use_annotations)
 
         # find the contours of these features
         contours, _ = cv2.findContours(labels, cv2.RETR_EXTERNAL,
@@ -398,7 +399,7 @@ class TailSegmentationTracking(object):
                 points = curves.simplify_curve(points, threshold)
                 tails.append(Tail(points))
         
-#         debug.show_shape(*[t.contour for t in tails], background=self.frame,
+#         debug.show_shape(*[t.contour_ring for t in tails], background=self.frame,
 #                          wait_for_key=False)
     
         logging.info('Found %d tail(s) in frame %d', len(tails), self.frame_id)
@@ -512,6 +513,9 @@ class TailSegmentationTracking(object):
     
     def annotate(self):
         """ add annotations to the video to help the segmentation """
+        # initialize the video
+        self.load_video()
+
         # determine the features of the first frame
         self.load_first_frame()
         features = self.get_features(ret_raw=True)
@@ -540,31 +544,36 @@ class TailSegmentationTracking(object):
         
         # load the previously track tail data
         try:
-            tails = self.result['tails']
+            tail_trajectories = self.result['tails']
         except KeyError:
-            raise ValueError('Tails have to be tracked before line scans can'
-                             'done.')
-        tail_data = [{'line_scans': [[], []]} for _ in xrange(len(tails))]
+            raise ValueError('Tails have to be tracked before line scans can '
+                             'be done.')
+        tail_data = [{'line_scans': [[], []]}
+                     for _ in xrange(len(tail_trajectories))]
+        tails = None
             
         # iterate through all frames
         iterator = display_progress(self.video)
         for self.frame_id, self.frame in enumerate(iterator, self.frame_start):
             self._frame_cache = {} #< delete cache per frame
             if make_video:
-                self.set_video_background()
+                self.set_video_background(tails)
 
             # do the line scans in each object
-            self.tails = []
-            for tail_id, tail_trajectory in tails.iteritems():
-                tail = tail_trajectory[self.frame_id]
+            tails = []
+            for tail_id, tail_trajectory in tail_trajectories.iteritems():
+                try:
+                    tail = tail_trajectory[self.frame_id]
+                except KeyError:
+                    break
                 linescans= self.measure_single_tail(self.frame, tail)
                 tail_data[tail_id]['line_scans'][0].append(linescans[0]) 
                 tail_data[tail_id]['line_scans'][1].append(linescans[1])
-                self.tails.append(tail) #< safe for video output
+                tails.append(tail) #< safe for video output
             
             # update the debug output
             if make_video:
-                self.update_video_output(self.frame, show_measurement_line=True)
+                self.update_video_output(tails, show_measurement_line=True)
             
         # save the data and close the videos
         self.result['tail_data'] = tail_data
@@ -662,11 +671,11 @@ class TailSegmentationTracking(object):
         logging.debug('Wrote results to file `%s`', self.outfile)
                 
     
-    def update_video_output(self, frame, show_measurement_line=True):
+    def update_video_output(self, tails, show_measurement_line=True):
         """ updates the video output to both the screen and the file """
         video = self.output
         # add information on all tails
-        for tail_id, tail in enumerate(self.tails):
+        for tail_id, tail in enumerate(tails):
             # mark all the segments that are important in the video
             mark_points = (video.zoom_factor < 1)
             video.add_line(tail.contour, color='b', is_closed=True,

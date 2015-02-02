@@ -23,7 +23,7 @@ parameters_tracking = {
         'detection/statistics_window': 50,
         'detection/statistics_threshold': 3,
         'detection/shape_max_speed': 50,
-        'detection/border_distance': 20,
+        'detection/border_distance': 50,
         'detection/mask_size': 30,
         'detection/area_min': 100000,
         'detection/area_max': 1000000,
