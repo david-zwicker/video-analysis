@@ -25,9 +25,8 @@ class TackingAnnotations(object):
     """
     
     # data base file
-    database = os.path.join(os.path.split(__file__)[0],
-                            'annotations',
-                            'tails.yaml')
+    database = os.path.join(os.path.abspath(os.path.split(__file__)[0]),
+                            'annotations', 'tails.yaml')
     
     
     def __init__(self, video_name):

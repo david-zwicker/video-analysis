@@ -48,8 +48,9 @@ class TailSegmentationTracking(object):
         self.output_video = output_video
         self.show_video = show_video
 
-        self.name = os.path.splitext(video_file)[0]
+        self.name = os.path.splitext(os.path.split(video_file)[1])[0]
         self.annotations = TackingAnnotations(self.name)
+        print self.annotations.database
         
         # load the parameters for the tracking
         self.params = parameters_tracking[parameter_set].copy()
