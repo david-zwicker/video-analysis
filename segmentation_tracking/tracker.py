@@ -665,13 +665,23 @@ class TailSegmentationTracking(object):
     def calculate_kymographs(self, align=False):
         """ calculates the kymographs from the tracking result data """
         self.load_result()
-        tail_trajectories = self.result['tail_trajectories']
+        try:
+            tail_trajectories = self.result['tail_trajectories']
+        except KeyError:
+            raise ValueError('The tails have to be tracked before the '
+                             'kymograph can be compiled.')
         
         # iterate over all tails found in the movie
         kymographs = collections.defaultdict(dict)
         for tail_id, tail_trajectory in tail_trajectories.iteritems():
-            line_scans = [tail.data['line_scans']
-                          for tail in tail_trajectory.itervalues()]
+            # load the line scan data
+            try:
+                line_scans = [tail.data['line_scans']
+                              for tail in tail_trajectory.itervalues()]
+            except KeyError:
+                raise ValueError('The line scans have to be done before the '
+                                 'kymograph can be compiled.')
+                
             # transpose data
             line_scans = zip(*line_scans)
             
@@ -681,7 +691,7 @@ class TailSegmentationTracking(object):
                 if align:
                     kymograph.align_features()
                 side = tail.line_names[side_id]
-                kymograph[tail_id][side] = kymograph
+                kymographs[tail_id][side] = kymograph
 
         self.result['kymographs'] = kymographs                
         self.save_result()
@@ -692,16 +702,16 @@ class TailSegmentationTracking(object):
         import matplotlib.pyplot as plt
         plt.figure(figsize=(10, 4))
         
-        for tail_id, kymographs in self.result['kymograph'].iteritems():
-            for side, kymograph in kymographs.iteritems():
-                plt.subplot(1, 2, side + 1)
+        for tail_id, kymographs in self.result['kymographs'].iteritems():
+            for side_id, (side, kymograph) in enumerate(kymographs.iteritems()):
+                plt.subplot(1, 2, side_id + 1)
                 # create image
                 plt.imshow(kymograph.get_image(), aspect='auto',
                            interpolation='none')
                 plt.gray()
                 plt.xlabel('Distance from posterior [4 pixels]')
                 plt.ylabel('Time [frames]')
-                plt.title(['ventral', 'dorsal'][side])
+                plt.title(side)
         
             plt.suptitle(self.name + ' Tail %d' % tail_id)
             if outfile is None:

@@ -33,7 +33,7 @@ parameters_tracking = {
         'contour/blur_radius_initial': 20,
         'contour/blur_radius': 20,
         'contour/border_anchor_distance': 100,
-        'contour/max_iterations': 300,
+        'contour/max_iterations': 1000,
         'contour/line_tension': 0,  
         'contour/bending_stiffness': 1e4, #< bending stiffness for the tail outline
         'contour/adaptation_rate': 1e0, #< rate with which the active snake adapts
@@ -85,6 +85,5 @@ parameters_tracking_special = {
         'detection/statistics_window': 30,
         'detection/statistics_threshold': 3,
         'detection/every_frame': False,
-        'contour/max_iterations': 1000,
     },
 }

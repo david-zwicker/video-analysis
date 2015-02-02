@@ -42,6 +42,7 @@ class Tail(regions.Polygon):
     def __init__(self, contour, extra_data=None):
         """ initialize a tail with its contour and optional extra data """
         super(Tail, self).__init__(contour)
+        self._endpoint_indices = None
         if extra_data is None:
             self.data = {}
         else:
@@ -78,7 +79,7 @@ class Tail(regions.Polygon):
     def mask(self):
         """ return a binary mask large enough to hold the tails image and an
         offset the determines the position of the mask in global coordinates """
-        return self.get_mask(2, ret_offset=True)
+        return self.get_mask(margin=2, ret_offset=True)
     
     
     def get_endpoint_indices(self, tail_prev=None):
@@ -114,16 +115,19 @@ class Tail(regions.Polygon):
                 indices = indices[::-1]
 
         # save indices in cache
-        self._cache['endpoint_indices'] = indices
+        self._endpoint_indices = indices
         return indices        
     
     
-    @cached_property
+    @property
     def endpoint_indices(self):
         """ locate the end points as contour points with maximal distance 
         The posterior point is returned first.
         """
-        return self.get_endpoint_indices()
+        if self._endpoint_indices:
+            return self._endpoint_indices
+        else:
+            return self.get_endpoint_indices()
         
         
     @cached_property
@@ -168,14 +172,16 @@ class Tail(regions.Polygon):
         """ determines the side of the tails and align them with an earlier
         shape """
         # get the sides and make sure they agree with the previous order
+        # FIXME: the information about which side is the ventral side should
+        # also be stored separately, since otherwise this information is lost
+        # on a pickle/unpickle event
         self._cache['sides'] = self.determine_sides(line_ref=tail_prev.sides[0])
     
     
-    @property
+    @cached_property
     def sides(self):
-        if 'sides' not in self._cache:
-            self._cache['sides'] = self.determine_sides()
-        return self._cache['sides']
+        """ return the two sides of the tail """
+        return self.determine_sides()
             
         
     def determine_ventral_side(self):
@@ -215,15 +221,16 @@ class Tail(regions.Polygon):
                           for p in c])
                  for c in self.sides]
         
+        # FIXME: the information about which side is the ventral side should
+        # also be stored separately, since otherwise this information is lost
+        # on a pickle/unpickle event
         self._cache['ventral_side'] = self.sides[np.argmin(dists)]
 
         
-    @property
+    @cached_property
     def ventral_side(self):
-        """ returns the points along the ventral side """
-        if 'ventral_side' not in self._cache:
-            self._cache['ventral_side'] = self.determine_ventral_side()
-        return self._cache['ventral_side']
+        """ returns the ventral side """
+        return self.determine_ventral_side()
     
     
     @cached_property
