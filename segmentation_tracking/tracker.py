@@ -29,13 +29,26 @@ from video.analysis.active_contour import ActiveContour
 from video import debug  # @UnusedImport
 
 from .tail import Tail
+from .kymograph import Kymograph
 from .parameters import parameters_tracking, parameters_tracking_special
 from segmentation_tracking.annotation import TackingAnnotations, SegmentPicker
 
 
 
 class TailSegmentationTracking(object):
-    """ class managing the tracking of mouse tails in videos """
+    """ class managing the tracking of mouse tails in videos
+    
+    The data structure in which we store the result is as follows:
+    `self.results` is a dictionary containing the following entries:
+        `tail_trajectories` which is a dictionary with as many entries as there
+                            are tails in the video. It has entries
+            `%tail_id%` which are again dictionaries containing a Tail object
+                        for each frame of the video. The keys for this
+                        dictionary are the frame_ids
+        `kymographs` is a dictionary with as many entries as there are tails
+            `%tail_id%` is a dictionary with two entries, one for each
+                        kymograph for each side of the tail
+    """
     
     def __init__(self, video_file, output_video=None, parameter_set='default',
                  parameters=None, show_video=False):
@@ -136,8 +149,8 @@ class TailSegmentationTracking(object):
         tails = self.process_first_frame()
         
         # initialize the result structure
-        result_tails = collections.defaultdict(dict)
-        self.result['tails'] = result_tails
+        tail_trajectories = collections.defaultdict(dict)
+        self.result['tail_trajectories'] = tail_trajectories
         
         # iterate through all frames
         iterator = display_progress(self.video)
@@ -151,7 +164,7 @@ class TailSegmentationTracking(object):
             
             # store tail data in the result
             for tail_id, tail in enumerate(tails):
-                result_tails[tail_id][self.frame_id] = tail.copy()
+                tail_trajectories[tail_id][self.frame_id] = tail.copy()
             
             # update the debug output
             if make_video:
@@ -538,46 +551,43 @@ class TailSegmentationTracking(object):
     
     
     def do_linescans(self, make_video=True):
-        """ do the line scans for all tails """
+        """ do the line scans for all current_tails """
         # initialize the video
         self.load_video(make_video)
         self.load_result()
         
         # load the previously track tail data
         try:
-            tail_trajectories = self.result['tails']
+            tail_trajectories = self.result['tail_trajectories']
         except KeyError:
             raise ValueError('Tails have to be tracked before line scans can '
                              'be done.')
-        tail_data = [{'line_scans': [[], []]}
-                     for _ in xrange(len(tail_trajectories))]
-        tails = None
+        current_tails = None
             
         # iterate through all frames
         iterator = display_progress(self.video)
         for self.frame_id, self.frame in enumerate(iterator, self.frame_start):
             self._frame_cache = {} #< delete cache per frame
             if make_video:
-                self.set_video_background(tails)
+                self.set_video_background(current_tails)
 
             # do the line scans in each object
-            tails = []
-            for tail_id, tail_trajectory in tail_trajectories.iteritems():
+            current_tails = [] 
+            for tail_trajectory in tail_trajectories.itervalues():
                 try:
                     tail = tail_trajectory[self.frame_id]
                 except KeyError:
                     break
                 linescans= self.measure_single_tail(self.frame, tail)
-                tail_data[tail_id]['line_scans'][0].append(linescans[0]) 
-                tail_data[tail_id]['line_scans'][1].append(linescans[1])
-                tails.append(tail) #< safe for video output
+                tail.data['line_scans'] = linescans
+                current_tails.append(tail) #< safe for video output
             
             # update the debug output
             if make_video:
-                self.update_video_output(tails, show_measurement_line=True)
+                self.update_video_output(current_tails,
+                                         show_measurement_line=True)
             
         # save the data and close the videos
-        self.result['tail_data'] = tail_data
         self.save_result()
         self.close()
     
@@ -645,6 +655,59 @@ class TailSegmentationTracking(object):
             result.append(profile)
             
         return result
+    
+    
+    #===========================================================================
+    # KYMOGRAPHS
+    #===========================================================================
+    
+
+    def calculate_kymographs(self, align=False):
+        """ calculates the kymographs from the tracking result data """
+        self.load_result()
+        tail_trajectories = self.result['tail_trajectories']
+        
+        # iterate over all tails found in the movie
+        kymographs = collections.defaultdict(dict)
+        for tail_id, tail_trajectory in tail_trajectories.iteritems():
+            line_scans = [tail.data['line_scans']
+                          for tail in tail_trajectory.itervalues()]
+            # transpose data
+            line_scans = zip(*line_scans)
+            
+            # iterate over all line scans (ventral and dorsal)
+            for side_id, data in enumerate(line_scans):
+                kymograph = Kymograph(data)
+                if align:
+                    kymograph.align_features()
+                side = tail.line_names[side_id]
+                kymograph[tail_id][side] = kymograph
+
+        self.result['kymographs'] = kymographs                
+        self.save_result()
+
+
+    def plot_kymographs(self, outfile=None):
+        """ plots a kymograph of the line scan data """
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(10, 4))
+        
+        for tail_id, kymographs in self.result['kymograph'].iteritems():
+            for side, kymograph in kymographs.iteritems():
+                plt.subplot(1, 2, side + 1)
+                # create image
+                plt.imshow(kymograph.get_image(), aspect='auto',
+                           interpolation='none')
+                plt.gray()
+                plt.xlabel('Distance from posterior [4 pixels]')
+                plt.ylabel('Time [frames]')
+                plt.title(['ventral', 'dorsal'][side])
+        
+            plt.suptitle(self.name + ' Tail %d' % tail_id)
+            if outfile is None:
+                plt.show()
+            else:
+                plt.savefig(outfile % tail_id)
     
     
     #===========================================================================

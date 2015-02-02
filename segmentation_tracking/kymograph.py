@@ -7,12 +7,9 @@ Created on Dec 22, 2014
 from __future__ import division
 
 import logging
-import os
-import cPickle as pickle
 
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 
 from video import debug  # @UnusedImport
 
@@ -113,7 +110,7 @@ class Kymograph(object):
         self.offsets += offsets.astype(np.int)
         
         
-    def align_features_individually(self):
+    def align_features_individually(self, max_dist=1):
         """ run through all lines individually and try to move them """
         image = self._make_image(self.offsets)
         height, width = image.shape
@@ -123,7 +120,11 @@ class Kymograph(object):
         data = np.empty((height, width + 2*window), np.double) + np.nan
         data[:, window:-window] = image
 
-        score = self._get_alignment_score(data) 
+        # set distances that we test to [-max_dist, ..., -1, 1, ..., max_dist]
+        offset_values = np.arange(-max_dist, max_dist)
+        offset_values[offset_values >= 0] += 1
+
+        score = self._get_alignment_score(data)
         
         # initialize buffer that will be used
         data_best = data.copy()
@@ -131,16 +132,17 @@ class Kymograph(object):
         while improved > 0:
             improved = 0
             for y in xrange(height):
-                for d in (-1, 1): #< try left and right shift
-                    if d == -1:
-                        data[y, :-1] = data_best[y, 1:] #< shift row to left
+                for offset in offset_values: #< try left and right shift
+                    d = abs(offset)
+                    if offset< 0:
+                        data[y, :-d] = data_best[y, d:] #< shift row to left
                     else:
-                        data[y, 1:] = data_best[y, :-1] #< shift row to right
+                        data[y, d:] = data_best[y, :-d] #< shift row to right
                     score = self._get_alignment_score(data)
                     if score > score_best:
                         improved += 1
                         score_best = score
-                        self.offsets[y] += d
+                        self.offsets[y] += offset
                         data_best = data.copy()
                         break
                 else:
@@ -153,57 +155,6 @@ class Kymograph(object):
     def align_features(self):
         """ align features in the kymograph """
         self.align_features_linearly()
-        self.align_features_individually()
-            
-
-
-class TrackingResult(object):
-    """ class managing the result of a a tracking """ 
-    
-    def __init__(self, result_file):
-        """ load the kymograph from a file """
-        self.name = os.path.splitext(result_file)[0]
-        self.load_from_file(result_file)
-        
-        
-    def load_from_file(self, result_file):
-        """ load the kymograph data from a file """
-        with open(result_file) as fp:
-            self.data = pickle.load(fp)
-
-
-    def calculate_kymographs(self, align=False):
-        """ calculates the kymographs from the tracking result data """
-        # iterate over all tails found in the movie
-        for tail_data in self.data['tails']:
-            tail_data['kymograph'] = []
-            # iterate over all line scans (ventral and dorsal)
-            for data in tail_data['line_scans']:
-                kymograph = Kymograph(data)
-                if align:
-                    kymograph.align_features()
-                tail_data['kymograph'].append(kymograph)
-
-
-    def plot_kymographs(self, outfile=None):
-        """ plots a kymograph of the line scan data """
-        plt.figure(figsize=(10, 4))
-        
-        for tail_id, tail_data in enumerate(self.data['tails']):
-            for side, kymograph in enumerate(tail_data['kymograph']):
-                plt.subplot(1, 2, side + 1)
-                # create image
-                plt.imshow(kymograph.get_image(), aspect='auto',
-                           interpolation='none')
-                plt.gray()
-                plt.xlabel('Distance from posterior [4 pixels]')
-                plt.ylabel('Time [frames]')
-                plt.title(['ventral', 'dorsal'][side])
-        
-            plt.suptitle(self.name + ' Tail %d' % tail_id)
-            if outfile is None:
-                plt.show()
-            else:
-                plt.savefig(outfile % tail_id)
+        self.align_features_individually(1)
 
 

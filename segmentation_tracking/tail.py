@@ -38,6 +38,15 @@ class Tail(regions.Polygon):
     
     line_names = ['ventr', 'dors']
     
+    
+    def __init__(self, contour, extra_data=None):
+        """ initialize a tail with its contour and optional extra data """
+        super(Tail, self).__init__(contour)
+        if extra_data is None:
+            self.data = {}
+        else:
+            self.data = extra_data
+    
         
     def __repr__(self):
         return '%s(pos=(%d, %d), %d contour points)' % \

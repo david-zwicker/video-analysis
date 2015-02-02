@@ -669,6 +669,24 @@ class Polygon(object):
         return self.__class__(self.contour.copy())
 
 
+    def clear_cache(self):
+        """ clears the internal cache """
+        self._cache = {}
+        
+        
+    def __getstate__(self):
+        """ do not save the cache to the pickled state """
+        state = self.__dict__.copy()
+        del state['_cache']
+        return state
+
+
+    def __setstate__(self, state):
+        """ set a clear cache on unpickleing """
+        self.__dict__ = state
+        self.clear_cache()
+
+
     @property
     def contour(self):
         return self._contour
@@ -691,7 +709,7 @@ class Polygon(object):
             if ring.is_ccw:
                 self._contour = self._contour[::-1]
             
-        self._cache = {} #< reset cache
+        self.clear_cache()
         
         
     @cached_property
