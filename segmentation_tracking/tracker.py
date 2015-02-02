@@ -143,7 +143,7 @@ class TailSegmentationTracking(object):
         for self.frame_id, self.frame in enumerate(iterator, self.frame_start):
             self._frame_cache = {} #< delete cache per frame
             if make_video:
-                self.set_video_background()
+                self.set_video_background(tails)
 
             # adapt the object outlines
             self.adapt_tail_contours(tails)
