@@ -11,6 +11,7 @@ from __future__ import division
 import itertools
 import math
 import numpy as np
+from scipy import interpolate
 
 from shapely import geometry
 
@@ -130,6 +131,31 @@ def average_normalized_functions(profiles):
     ys = np.mean([np.interp(xs, ps[:, 0], ps[:, 1])
                   for ps in profiles], axis=0)
     return np.c_[xs, ys]
+
     
 
-
+def smooth_curve(points, smoothing=10, degree=3, derivative=0):
+    """ smooth a curve by interpolating the points
+    `smoothing` determines the smoothness of the curve.  This value can be used
+        to control the trade-off between closeness and smoothness of fit.
+        Larger values means more smoothing while smaller values indicate less
+        smoothing. The resulting, smoothed yi fulfill
+            sum((y - yi)**2, axis=0) <= smoothing*len(points)
+    `degree` determines the degree of the splines used
+    `derivative` determines the order of the derivative 
+    """
+    u = np.linspace(0, 1, len(points))
+    try:
+        # do spline fitting to smooth the line
+        tck, _ = interpolate.splprep(np.transpose(points), u=u, k=degree,
+                                     s=smoothing*len(points))
+    except ValueError:
+        pass
+    else:
+        # interpolate the line
+        points = interpolate.splev(u, tck, der=derivative)
+        points = zip(*points) #< transpose list
+    
+    return np.asarray(points)
+    
+    
