@@ -718,6 +718,12 @@ class Polygon(object):
                 self._contour = self._contour[::-1]
             
         self.clear_cache()
+
+        
+    def scale(self, scale_factor):
+        """ scales the polygon by a factor """
+        self._contour *= scale_factor
+        self.clear_cache()
         
         
     @cached_property

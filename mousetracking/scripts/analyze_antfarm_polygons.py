@@ -38,6 +38,7 @@ default_parameters = {
     'scale_bar/length_min': 100,
     'scale_bar/dist_bottom': 0.1,
     'scale_bar/dist_left': 0.1,
+    'scale_bar/length_cm': 10,
 }
 
 
@@ -54,7 +55,7 @@ class BurrowPolygon(regions.Polygon):
     @cached_property
     def length(self):
         return curves.curve_length(self.centerline)
-            
+    
 
 
 class PolygonCollection(object):
@@ -155,8 +156,11 @@ class PolygonCollection(object):
             
         if scale_bar:
             logging.info('Found scale bar of length %d' % scale_bar.size)
+            scale_factor = self.params['scale_bar/length_cm']/scale_bar.size
+            for poly in self.polygons:
+                poly.scale(scale_factor)
         else:
-            logging.info('Did not find any scale bar')
+            raise RuntimeError('Did not find any scale bar')
 
         logging.info('Found %d polygons' % len(self.polygons))
         
