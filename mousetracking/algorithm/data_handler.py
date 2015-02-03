@@ -347,7 +347,8 @@ class DataHandler(object):
     def get_cage(self):
         """ returns an object representing the cage """
         try:
-            width, height = self.data['pass1/video/size']
+            cage_size = self.data['pass1/video/size']
+            width, height = [int(v) for v in cage_size[0].split('x')]
             cage = objects.Cage(0, 0, width, height)
         except KeyError:
             cage = None
