@@ -176,7 +176,7 @@ class GroundProfileList(object):
     
     
     @classmethod
-    def create_from_array(cls, value):
+    def from_array(cls, value):
         """ create the object from a supplied array """
         result = cls()
         index, obj_data = None, None
@@ -281,7 +281,7 @@ class GroundProfileTrack(object):
         
         
     @classmethod
-    def create_from_array(cls, data):
+    def from_array(cls, data):
         """ collect the data in a single array """
         return cls(times=data[:, 0, 0], profiles=data[:, 1:, :])
     

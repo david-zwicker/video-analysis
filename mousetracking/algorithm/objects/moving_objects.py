@@ -171,7 +171,7 @@ class ObjectTrack(object):
 
 
     @classmethod
-    def create_from_array(cls, data):
+    def from_array(cls, data):
         """ constructs an object from an array previously created by to_array() """
         objects = [MovingObject(pos=(d[1], d[2]), size=d[3]) for d in data]
         return cls([d[0] for d in data], objects)
@@ -187,7 +187,7 @@ class ObjectTrack(object):
     @classmethod
     def create_from_hdf5(cls, hdf_file, key):
         """ creates a burrow track from data in a HDF5 file """
-        return cls.create_from_array(hdf_file[key])
+        return cls.from_array(hdf_file[key])
        
        
        

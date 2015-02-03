@@ -210,7 +210,7 @@ class Burrow(regions.Polygon):
         
 
     @classmethod
-    def create_from_array(cls, data):
+    def from_array(cls, data):
         """ creates a burrow track from a single array """
         # load the data from the respective places
         data = np.asarray(data)
@@ -309,7 +309,7 @@ class BurrowTrack(object):
         
         
     @classmethod
-    def create_from_array(cls, data):
+    def from_array(cls, data):
         """ constructs an object from an array previously created by to_array() """
         burrow_track = cls()
         burrow_data = None
@@ -317,14 +317,14 @@ class BurrowTrack(object):
         for d in data:
             if d[0] != time_cur:
                 if burrow_data is not None:
-                    burrow_track.append(time_cur, Burrow.create_from_array(burrow_data))
+                    burrow_track.append(time_cur, Burrow.from_array(burrow_data))
                 time_cur = d[0]
                 burrow_data = [d[1:]]
             else:
                 burrow_data.append(d[1:])
 
         if burrow_data is not None:
-            burrow_track.append(time_cur, Burrow.create_from_array(burrow_data))
+            burrow_track.append(time_cur, Burrow.from_array(burrow_data))
 
         return burrow_track
     
@@ -339,7 +339,7 @@ class BurrowTrack(object):
     @classmethod
     def create_from_hdf5(cls, hdf_file, key):
         """ creates a burrow track from data in a HDF5 file """
-        return cls.create_from_array(hdf_file[key])
+        return cls.from_array(hdf_file[key])
    
    
 

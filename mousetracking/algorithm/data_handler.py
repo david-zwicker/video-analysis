@@ -342,6 +342,16 @@ class DataHandler(object):
                 last_update = datetime.datetime.now()
         
         return last_update
+    
+    
+    def get_cage(self):
+        """ returns an object representing the cage """
+        try:
+            width, height = self.data['pass1/video/size']
+            cage = objects.Cage(0, 0, width, height)
+        except KeyError:
+            cage = None
+        return cage
 
             
     def write_data(self):

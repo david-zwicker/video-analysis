@@ -116,7 +116,7 @@ class LazyHDFValue(LazyValue):
         # open the associated HDF5 file and read the data
         with h5py.File(self.hdf_filename, 'r') as hdf_file:
             data = hdf_file[self.key][:]  #< copy data into RAM
-            result = self.data_cls.create_from_array(data)
+            result = self.data_cls.from_array(data)
         
         # create object
         return result
@@ -161,7 +161,7 @@ class LazyHDFCollection(LazyHDFValue):
             # iterate over the data and create objects from it
             data = hdf_file[self.key]
             if data:
-                result = self.data_cls(item_cls.create_from_array(data[index][:])
+                result = self.data_cls(item_cls.from_array(data[index][:])
                                        for index in sorted(data.keys()))
                 # here, we have to use sorted() to iterate in the correct order 
             else: # empty dataset

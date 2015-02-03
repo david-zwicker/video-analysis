@@ -288,7 +288,7 @@ class MouseTrack(object):
     
     
     @classmethod
-    def create_from_array(cls, data):
+    def from_array(cls, data):
         data_len = data.shape[1]
         states = data[:, 2] if data_len > 2 else None
         ground_idx = data[:, 3] if data_len > 3 else None

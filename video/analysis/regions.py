@@ -538,16 +538,24 @@ class Rectangle(object):
     @classmethod
     def from_list(cls, data):
         return cls(*data)
-
+    
     def to_list(self):
         return [self.x, self.y, self.width, self.height]
+
+    @classmethod
+    def from_array(cls, data):
+        return cls(*data)
+    
+    def to_array(self):
+        return np.array(self.to_list())
     
     def copy(self):
         return self.__class__(self.x, self.y, self.width, self.height)
         
     def __repr__(self):
-        return ("Rectangle(x=%g, y=%g, width=%g, height=%g)"
-                % (self.x, self.y, self.width, self.height))
+        return ("%s(x=%g, y=%g, width=%g, height=%g)"
+                % (self.__class__.__name__, self.x, self.y, self.width,
+                   self.height))
             
     @property
     def data(self):
