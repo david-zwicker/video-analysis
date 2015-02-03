@@ -19,6 +19,7 @@ import traceback
 
 import cv2
 import numpy as np
+import pint
 
 # add the root of the video-analysis project to the path
 this_path = os.path.dirname(__file__)
@@ -71,6 +72,7 @@ class PolygonCollection(object):
         self.polygons = polygons
         self.name = name
         self.output_folder = output_folder
+        self.scale_factor = 1
         
         self.params = default_parameters.copy()
         if parameters is not None:
@@ -156,9 +158,9 @@ class PolygonCollection(object):
             
         if scale_bar:
             logging.info('Found scale bar of length %d' % scale_bar.size)
-            scale_factor = self.params['scale_bar/length_cm']/scale_bar.size
-            for poly in self.polygons:
-                poly.scale(scale_factor)
+            self.scale_factor = self.params['scale_bar/length_cm']/scale_bar.size
+            units = pint.UnitRegistry()
+            self.scale_factor *= units.cm
         else:
             raise RuntimeError('Did not find any scale bar')
 
@@ -180,10 +182,10 @@ class PolygonCollection(object):
         result = []
         # iterate through all polygons
         for polygon in self.polygons:
-            data = {'area': polygon.area,
-                    'length': polygon.length,
-                    'pos_x': polygon.centroid[0],
-                    'pos_y': polygon.centroid[1]}
+            data = {'area': polygon.area * self.scale_factor**2,
+                    'length': polygon.length * self.scale_factor,
+                    'pos_x': polygon.centroid[0] * self.scale_factor,
+                    'pos_y': polygon.centroid[1] * self.scale_factor}
             if self.name:
                 data['name'] = self.name
             result.append(data)

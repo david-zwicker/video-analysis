@@ -672,6 +672,10 @@ class Polygon(object):
         self.contour = np.asarray(contour, np.double)
 
 
+    def __repr__(self):
+        return '%s(%r)' % (self.__class__.__name__, self.contour)
+
+
     def copy(self):
         """ create copy of the current object """
         return self.__class__(self.contour.copy())
@@ -881,6 +885,7 @@ class Polygon(object):
         # anchor the end points
         anchor = np.zeros(len(points), np.bool)
         anchor[0] = anchor[-1] = True
+        
         # find the best contour
         points = ac.find_contour(points, anchor, anchor)
         
@@ -888,20 +893,23 @@ class Polygon(object):
         return curves.translate_points(points, *offset)
         
 
-    def get_centerline_smoothed(self, points=None, skip_length=90):
+    def get_centerline_smoothed(self, points=None, spacing=10, skip_length=90,
+                                **kwargs):
         """ determines the center line of the polygon using an active contour
         algorithm. If `points` are given, they are used for getting the
-        smoothed centerline. Otherwise, we determine the optimized centerline 
+        smoothed centerline. Otherwise, we determine the optimized centerline
+        influenced by the additional keyword arguments.
+        `skip_length` is the length that is skipped at either end of the center
+            line when the smoothed variant is calculated
         """
         if points is None:
-            points = self.get_centerline_optimized()
+            points = self.get_centerline_optimized(spacing=spacing, **kwargs)
         
-        spacing = 10
         length = curves.curve_length(points)
         
         # get the points to interpolate
         points = curves.make_curve_equidistant(points, spacing=spacing)
-        skip_points = skip_length // spacing
+        skip_points = int(skip_length / spacing)
         points = points[skip_points:-skip_points]
         
         # do spline fitting to smooth the line
