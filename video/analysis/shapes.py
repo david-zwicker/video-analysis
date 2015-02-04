@@ -178,16 +178,22 @@ class Circle(object):
     def perimeter(self):
         return 2*np.pi*self.radius
     
-    
-    @property
-    def area(self):
-        return 4*np.pi*self.radius**2
-       
        
     @property
     def centroid(self):
         return np.array((self.x, self.y))
     
+    
+    @property
+    def area(self):
+        return 4*np.pi*self.radius**2
+       
+    
+    @property
+    def bounds(self):
+        r = self.radius
+        return Rectangle(self.x - r, self.y - r, 2*r, 2*r)
+       
            
     def get_theta(self, x, y):
         """ returns the angle associated with a point """
@@ -282,6 +288,20 @@ class Arc(Circle):
     @property
     def area(self):
         return 2 * self.opening_angle * self.radius**2
+    
+    
+    @property
+    def bounds(self):
+        """ return bounding rect of the arc """
+        # determine all angles pointing in possible extreme directions
+        thetas = [t for t in np.linspace(0, 4*np.pi, 9)
+                  if self.start < t < self._end]
+        thetas.append(self.start)
+        thetas.append(self.end)
+        # determine the bounding rect for all these points
+        points = geometry.asMultiPoint(self.get_point(thetas))
+        bounds = points.bounds
+        return Rectangle.from_points(bounds[:2], bounds[2:])
        
         
     def get_points(self, spacing=1):
@@ -418,10 +438,15 @@ class Polygon(object):
         return self.polygon.contains(geometry.Point(point))
     
     
+    @cached_property
+    def bounds(self):
+        bounds = geometry.MultiPoint(self.contour).bounds
+        return Rectangle.from_points(bounds[:2], bounds[2:])
+
+    
     def get_bounding_rect(self, margin=0):
         """ returns the bounding rectangle of the burrow """
-        bounds = geometry.MultiPoint(self.contour).bounds
-        bound_rect = Rectangle.from_points(bounds[:2], bounds[2:])
+        bound_rect = self.bounds
         if margin:
             bound_rect.buffer(margin)
         return np.asarray(bound_rect.data, np.int)
