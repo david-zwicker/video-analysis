@@ -315,10 +315,13 @@ class Arc(Circle):
     def start_point(self):
         return self.get_point(self.start) 
     
-    
     @property
     def end_point(self):
         return self.get_point(self.end)     
+    
+    @property
+    def mid_point(self):
+        return self.get_point(0.5*(self.start + self._end))     
     
 
 
