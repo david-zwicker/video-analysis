@@ -47,9 +47,9 @@ class VideoOpenCV(VideoBase):
     
     def __init__(self, filename):
         # load the _movie
-        self.filename = filename
+        self.filename = os.path.expanduser(filename)
         
-        self._movie = cv2.VideoCapture(filename)
+        self._movie = cv2.VideoCapture(self.filename)
         # this call doesn't fail if the file could not be found, but returns
         # an empty video instead. We thus fail later by checking the video length
         
@@ -184,7 +184,7 @@ class VideoWriterOpenCV(object):
         codec must be a fourcc code from http://www.fourcc.org/codecs.php
             If codec is None, the code is determined from the filename extension.
         """
-        self.filename = filename
+        self.filename = os.path.expanduser(filename)
         self.size = size
         self.is_color = is_color
         self.frames_written = 0   
@@ -199,10 +199,10 @@ class VideoWriterOpenCV(object):
         
         # get the code defining the video format
         fourcc = cv2.cv.FOURCC(*codec)
-        self._writer = cv2.VideoWriter(filename, fourcc=fourcc, fps=fps,
+        self._writer = cv2.VideoWriter(self.filename, fourcc=fourcc, fps=fps,
                                        frameSize=(size[1], size[0]), isColor=is_color)
 
-        logger.info('Start writing video `%s` with codec `%s`', filename, codec)
+        logger.info('Start writing video `%s` with codec `%s`', self.filename, codec)
                 
         
     @property

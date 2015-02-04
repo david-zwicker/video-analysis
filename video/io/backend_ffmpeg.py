@@ -74,10 +74,10 @@ class VideoFFmpeg(VideoBase):
         pix_fmt denotes the pixel format
         """
 
-        self.filename = filename
+        self.filename = os.path.expanduser(filename)
         
         # get information about the frame using FFmpeg
-        infos = ffmpeg_parse_infos(filename)
+        infos = ffmpeg_parse_infos(self.filename)
         self.duration = infos['video_duration']
         self.FFmpeg_duration = infos['duration']
 
@@ -106,7 +106,7 @@ class VideoFFmpeg(VideoBase):
                                           fps=infos['video_fps'], is_color=True)
 
         logger.debug('Initialized video `%s` with %d frames using FFmpeg',
-                     filename, infos['video_nframes'])
+                     self.filename, infos['video_nframes'])
 
 
     def print_infos(self):
@@ -290,7 +290,7 @@ class VideoWriterFFmpeg(object):
     def __init__(self, filename, size, fps, is_color=True, codec="libx264",
                  bitrate=None, debug=False):
 
-        self.filename = filename
+        self.filename = os.path.expanduser(filename)
         self.codec = codec
         self.ext = self.filename.split(".")[-1]
         self.size = size
