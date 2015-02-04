@@ -42,8 +42,7 @@ class Tail(shapes.Polygon):
     def __init__(self, contour, extra_data=None):
         """ initialize a tail with its contour and optional extra data """
         super(Tail, self).__init__(contour)
-        self.presistence_data = {}
-        self._endpoint_indices = None
+        self.persistence_data = {}
         if extra_data is None:
             self.data = {}
         else:
@@ -55,7 +54,13 @@ class Tail(shapes.Polygon):
                 (self.__class__.__name__, self.centroid[0], self.centroid[1],
                  len(self.contour))
     
-
+    
+    def copy(self):
+        obj = self.__class__(self.contour.copy(), self.extra_data.copy())
+        obj.persistence_data = self.persistence_data.copy()
+        return obj
+    
+    
     @shapes.Polygon.contour.setter
     def contour(self, points):
         points = regions.regularize_contour_points(points)
@@ -63,6 +68,16 @@ class Tail(shapes.Polygon):
         points = curves.make_curve_equidistant(points, spacing=spacing)
         # call parent setter
         shapes.Polygon.contour.fset(self, points)
+
+
+    @classmethod
+    def create_similar(cls, contour, tail):
+        """ creates a tail described by `contour` that has a similar orientation
+        to the given `tail` """
+        obj = cls(contour)
+        obj.determine_endpoint_indices(tail) 
+        obj.match_side_order(tail)
+        return obj
         
         
     def update_contour(self, points):
@@ -71,8 +86,8 @@ class Tail(shapes.Polygon):
         tail_prev = copy.deepcopy(self)
         self.contour = points
         # update important features of the tail in reference to the previous
-        self.get_endpoint_indices(tail_prev)
-        self.update_sides(tail_prev)
+        self.determine_endpoint_indices(tail_prev)
+        self.match_side_order(tail_prev)
         
 
     @cached_property
@@ -82,9 +97,11 @@ class Tail(shapes.Polygon):
         return self.get_mask(margin=5, ret_offset=True)
     
     
-    def get_endpoint_indices(self, tail_prev=None):
+    def determine_endpoint_indices(self, tail_prev=None):
         """ locate the end points as contour points with maximal distance 
         The posterior point is returned first.
+        If `tail_prev` is given, the end points are oriented in the same way as
+        in the previous tail, otherwise they are assigned automatically.
         """
         # get the points which are farthest away from each other
         dist = distance.squareform(distance.pdist(self.contour))
@@ -101,7 +118,7 @@ class Tail(shapes.Polygon):
             # determine posterior end point by measuring the surrounding
             if mass[1] < mass[0]:
                 indices = indices[::-1]
-                
+               
         else:
             # sort end points according to previous frame
             prev_p, prev_a = tail_prev.endpoints
@@ -115,7 +132,7 @@ class Tail(shapes.Polygon):
                 indices = indices[::-1]
 
         # save indices in cache
-        self._endpoint_indices = indices
+        self.persistence_data['endpoint_indices'] = indices
         return indices        
     
     
@@ -124,10 +141,10 @@ class Tail(shapes.Polygon):
         """ locate the end points as contour points with maximal distance 
         The posterior point is returned first.
         """
-        if self._endpoint_indices:
-            return self._endpoint_indices
-        else:
-            return self.get_endpoint_indices()
+        indices = self.persistence_data.get('endpoint_indices', None)
+        if indices is None:
+            indices = self.determine_endpoint_indices()
+        return indices
         
         
     @cached_property
@@ -190,7 +207,7 @@ class Tail(shapes.Polygon):
         return sides
     
         
-    def update_sides(self, tail_prev):
+    def match_side_order(self, tail_prev):
         """ determines the side of the tails and align them with an earlier
         shape """
         # get the two sides
@@ -210,7 +227,7 @@ class Tail(shapes.Polygon):
             order = (1, 0)
 
         # save the order of the sides to be able to recover them after pickling            
-        self.presistence_data['side_order'] = order
+        self.persistence_data['side_order'] = order
         
         # get the sides and make sure they agree with the previous order
         self._cache['sides'] = sides[order[0]], sides[order[1]]
@@ -220,10 +237,10 @@ class Tail(shapes.Polygon):
     def sides(self):
         """ return the two sides of the tail """
         sides = self.get_sides()
-        order = self.presistence_data.get('side_order', None)
+        order = self.persistence_data.get('side_order', None)
         if order is None:
             order = self.determine_side_order(sides)
-            self.presistence_data['side_order'] = order
+            self.persistence_data['side_order'] = order
         return sides[order[0]], sides[order[1]]
             
         
