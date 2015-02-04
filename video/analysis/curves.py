@@ -15,7 +15,7 @@ from scipy import interpolate, odr
 
 from shapely import geometry
 
-import regions
+import shapes
 
 # make simplify_curve available under current scope 
 from external.simplify_polygon_rdp import rdp as simplify_curve # @UnusedImport
@@ -183,7 +183,7 @@ def fit_circle(points):
         """ implicit definition of the circle """
         return (x[0] - beta[0])**2 + (x[1] - beta[1])**2 - beta[2]**2
 
-    # coordinates of the barycenter
+    # coordinates of the bary center
     x_m, y_m = np.mean(points, axis=0)
 
     # initial guess for parameters
@@ -200,5 +200,5 @@ def fit_circle(points):
     
     # collect result
     xc, yc, R = lsc_out.beta
-    return regions.Circle(xc, yc, R)
+    return shapes.Circle(xc, yc, R)
 

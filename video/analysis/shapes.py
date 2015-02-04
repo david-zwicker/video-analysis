@@ -13,12 +13,13 @@ from shapely import geometry
 
 from active_contour import ActiveContour
 from data_structures.cache import cached_property
-import curves, regions
+import curves
 
 
 
 class Rectangle(object):
-    """ a class for handling rectangles """
+    """ class that represents a rectangle """
+    
     def __init__(self, x, y, width, height):
         self.x = x
         self.y = y
@@ -161,6 +162,7 @@ class Rectangle(object):
 
 class Circle(object):
     """ class that represents a circle """
+
     def __init__(self, x, y, radius):
         self.x = x
         self.y = y
@@ -168,7 +170,7 @@ class Circle(object):
         
     
     def __repr__(self):
-        return ('%s(x=%r, y=%r, radius=%r' %
+        return ('%s(x=%r, y=%r, radius=%r)' %
                 (self.__class__.__name__, self.x, self.y, self.radius))
        
        
@@ -181,16 +183,108 @@ class Circle(object):
     def area(self):
         return 4*np.pi*self.radius**2
        
+       
+    @property
+    def centroid(self):
+        return np.array((self.x, self.y))
+    
+           
+    def get_theta(self, x, y):
+        """ returns the angle associated with a point """
+        return np.arctan2(y - self.y, x - self.x)
+       
+
+    def get_point(self, angle):
+        """ returns the point at the given angle """
+        x = self.x + self.radius * np.cos(angle)
+        y = self.y + self.radius * np.sin(angle)
+        return np.squeeze(np.c_[x, y])
         
-    def get_points(self, spacing=5):
+        
+    def get_points(self, spacing=1):
         """ returns points on the perimeter of the circle """
-        num_points = int(self.perimeter/spacing)
+        num_points = max(4, int(self.perimeter/spacing))
         theta = np.linspace(0, 2*np.pi, num_points, endpoint=False)
-        x = self.radius * np.cos(theta)
-        y = self.radius * np.sin(theta)
-        return np.c_[x, y]
+        return self.get_point(theta)
     
     
+    def get_tangent(self, angle):
+        """ returns the tangent vector at the angle """
+        return np.squeeze(np.c_[np.cos(angle), np.sin(angle)])
+    
+    
+    
+class Arc(Circle):
+    """ class that represents a circular arc """
+
+    def __init__(self, x, y, radius, start, end):
+        """
+        `x` and `y` determine the center of the arc
+        `radius` is the radius
+        `start` and `end` set the start and end angle in radians
+        """
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.start = start
+        self.end = end
+        if self.start < self.end:
+            self._end = self.end
+        else:
+            self._end = self.end + 2*np.pi
+        
+    
+    def __repr__(self):
+        return ('%s(x=%r, y=%r, radius=%r, start=%r, end=%r' %
+                (self.__class__.__name__, self.x, self.y, self.radius,
+                 self.start, self.end))
+       
+       
+    @classmethod
+    def from_circle(cls, circle, start, end):
+        """
+        `start` and `end` set the start and end of the arc.
+            They can either be given as radians or as points, in which case
+            the associated radians will be calculated automatically.
+        """ 
+        try:
+            start = np.arctan2(start[1] - circle.y, start[0] - circle.x)
+        except TypeError:
+            pass
+        try:
+            end = np.arctan2(end[1] - circle.y, end[0] - circle.x)
+        except TypeError:
+            pass
+        return cls(circle.x, circle.y, circle.radius, start, end)
+    
+       
+    @property
+    def perimeter(self):
+        return (self._end - self.start) * self.radius
+    
+    
+    @property
+    def area(self):
+        return 2*self.perimeter*self.radius
+       
+        
+    def get_points(self, spacing=1):
+        """ returns points on the perimeter of the arc """
+        num = max(2, int(self.perimeter/spacing))
+        theta = np.linspace(self.start, self._end, num)
+        return self.get_point(theta)
+    
+    
+    @property
+    def start_point(self):
+        return self.get_point(self.start) 
+    
+    
+    @property
+    def end_point(self):
+        return self.get_point(self.end)     
+    
+
 
 class Polygon(object):
     """ class that represents a single polygon """
@@ -311,10 +405,10 @@ class Polygon(object):
     def get_bounding_rect(self, margin=0):
         """ returns the bounding rectangle of the burrow """
         bounds = geometry.MultiPoint(self.contour).bounds
-        bound_rect = regions.corners_to_rect(bounds[:2], bounds[2:])
+        bound_rect = Rectangle.from_points(bounds[:2], bounds[2:])
         if margin:
-            bound_rect = regions.expand_rectangle(bound_rect, margin)
-        return np.asarray(bound_rect, np.int)
+            bound_rect.buffer(margin)
+        return np.asarray(bound_rect.data, np.int)
             
         
     def get_mask(self, margin=0, dtype=np.uint8, ret_offset=False):
@@ -338,6 +432,7 @@ class Polygon(object):
         """ determines an estimate to a center line of the polygon
         `end_points` can either be None, a single Point, or two points.
         """
+        import regions #< lazy import to prevent circular dependencies
         
         def _find_point_connection(p1, p2=None, maximize_distance=False):
             """ estimate centerline between the one or two points """
