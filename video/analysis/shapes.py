@@ -257,15 +257,31 @@ class Arc(Circle):
             pass
         return cls(circle.x, circle.y, circle.radius, start, end)
     
+    
+    @property
+    def opening_angle(self):
+        return (self._end - self.start)
+       
        
     @property
     def perimeter(self):
-        return (self._end - self.start) * self.radius
+        return self.opening_angle * self.radius
+    
+    
+    @property
+    def centroid(self):
+        """ centroid of the circular arc """
+        theta_c = 0.5*(self.start + self._end)
+        angle_o2 = 0.5*self.opening_angle
+        radius_c = self.radius*np.sin(angle_o2)/angle_o2
+        x = self.x + radius_c*np.cos(theta_c) 
+        y = self.y + radius_c*np.sin(theta_c)
+        return x, y 
     
     
     @property
     def area(self):
-        return 2*self.perimeter*self.radius
+        return 2 * self.opening_angle * self.radius**2
        
         
     def get_points(self, spacing=1):
