@@ -63,9 +63,14 @@ class Tail(shapes.Polygon):
     
     @shapes.Polygon.contour.setter
     def contour(self, points):
+        """ sets the contour of the tail performing some sanity tests """
+        # do a first regularization
         points = regions.regularize_contour_points(points)
         spacing = self.contour_spacing
+        # make the contour line equidistant
         points = curves.make_curve_equidistant(points, spacing=spacing)
+        # regularize again, just to be sure
+        points = regions.regularize_contour_points(points)
         # call parent setter
         shapes.Polygon.contour.fset(self, points)
 
@@ -112,8 +117,9 @@ class Tail(shapes.Polygon):
             mass = []
             for k in indices:
                 radius = self.endpoint_mass_radius
-                p = geometry.Point(self.contour[k]).buffer(radius)
-                mass.append(self.polygon.intersection(p).area)
+                endzone = geometry.Point(self.contour[k]).buffer(radius)
+                poly = self.polygon.buffer(0) #< clean the polygon
+                mass.append(poly.intersection(endzone).area)
                 
             # determine posterior end point by measuring the surrounding
             if mass[1] < mass[0]:

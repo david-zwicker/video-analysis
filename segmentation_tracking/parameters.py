@@ -77,6 +77,8 @@ parameters_tracking = {
 
 # special tracking parameters for individual videos
 parameters_tracking_special = {
+    '20140729_NUB_E14_edf': {
+        'detection/statistics_threshold': 30},
     # video with two touching tails
     '20140804_bw_tl_edf': {
         'detection/statistics_threshold': 10},

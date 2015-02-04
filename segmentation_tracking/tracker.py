@@ -394,11 +394,11 @@ class TailSegmentationTracking(object):
         return bw, num_features
         
         
-    def locate_tails_roughly(self):
+    def locate_tails_roughly(self, tails=None):
         """ locate tail objects using thresholding """
         # find features, using annotations in the first frame        
         use_annotations = (self.frame_id == self.frame_start)
-        labels, _ = self.get_features(use_annotations=use_annotations)
+        labels, _ = self.get_features(tails, use_annotations=use_annotations)
 
         # find the contours of these features
         contours, _ = cv2.findContours(labels, cv2.RETR_EXTERNAL,
@@ -465,7 +465,7 @@ class TailSegmentationTracking(object):
         """ adapt tail contour to frame, assuming that they are already close """
         # get the tails that we want to adapt
         if self.params['detection/every_frame']:
-            tails_estimate = self.locate_tails_roughly()
+            tails_estimate = self.locate_tails_roughly(tails)
         else:
             tails_estimate = tails[:] #< copy list
 
@@ -745,24 +745,27 @@ class TailSegmentationTracking(object):
             video.add_line(tail.centerline, color='g',
                            is_closed=False, width=5, mark_points=mark_points)
 
-            # mark the points that we identified
+            # mark the end points that we identified
             p_P, p_A = tail.endpoints
             n = (p_P - p_A)
             n = 50 * n / np.hypot(n[0], n[1])
             video.add_circle(p_P, 10, 'g')
-            video.add_text('P', p_P + n, color='g', anchor='center middle')
+            video.add_text('P', p_P + n, color='g', size=2,
+                           anchor='center middle')
             video.add_circle(p_A, 10, 'b')
-            video.add_text('A', p_A - n, color='b', anchor='center middle')
+            video.add_text('A', p_A - n, color='b', size=2,
+                           anchor='center middle')
             
-            video.add_text(str('tail %d' % tail_id), tail.centroid,
-                           color='w', anchor='center middle')
+            # mark the tails
+            video.add_text(str('tail %d' % tail_id), tail.centroid, color='w', 
+                           size=2, anchor='center middle')
             
             if show_measurement_line:
                 for k, line in enumerate(self.get_measurement_lines(tail)):
                     video.add_line(line[:-3], color='r', is_closed=False,
                                    width=5, mark_points=mark_points)
                     video.add_text(tail.line_names[k], line[-1], color='r',
-                                   anchor='center middle')
+                                   size=2, anchor='center middle')
         
         # add general information
         video.add_text(str(self.frame_id), (20, 20), size=2, anchor='top')

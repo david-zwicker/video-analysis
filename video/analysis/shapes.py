@@ -455,6 +455,12 @@ class Polygon(object):
         return Rectangle.from_points(bounds[:2], bounds[2:])
 
     
+    def regularize(self):
+        """ regularize the current polygon """
+        import regions #< lazy import to prevent circular dependencies
+        self.contour = regions.regularize_contour_points(self.contour)
+        
+    
     def get_bounding_rect(self, margin=0):
         """ returns the bounding rectangle of the burrow """
         bound_rect = self.bounds
