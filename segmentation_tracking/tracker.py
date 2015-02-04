@@ -23,7 +23,7 @@ from video.io import VideoFile, ImageWindow
 from video.composer import VideoComposer
 from video.utils import display_progress
 from video.filters import FilterMonochrome, FilterResize
-from video.analysis import curves, image, regions
+from video.analysis import curves, image, regions, shapes
 from video.analysis.active_contour import ActiveContour
 
 from video import debug  # @UnusedImport
@@ -350,7 +350,7 @@ class TailSegmentationTracking(object):
 
         # determine the rectangle where objects can lie in
         h, w = self.frame.shape
-        rect = regions.Rectangle(x=0, y=0, width=w, height=h)
+        rect = shapes.Rectangle(x=0, y=0, width=w, height=h)
         rect.buffer(-2*border)
         rect = geometry.Polygon(rect.contour)
 
@@ -416,7 +416,7 @@ class TailSegmentationTracking(object):
 #         debug.show_shape(*[t.contour_ring for t in tails], background=self.frame,
 #                          wait_for_key=False)
     
-        logging.info('Found %d tail(s) in frame %d', len(tails), self.frame_id)
+        logging.debug('Found %d tail(s) in frame %d', len(tails), self.frame_id)
         return tails
         
         
@@ -445,7 +445,7 @@ class TailSegmentationTracking(object):
         
         # get rectangle describing the interior of the frame
         height, width = self.frame.shape
-        region_center = regions.Rectangle(0, 0, width, height)
+        region_center = shapes.Rectangle(0, 0, width, height)
         region_center.buffer(-self.params['contour/border_anchor_distance'])
 
         # adapt all the tails
@@ -486,7 +486,7 @@ class TailSegmentationTracking(object):
         
         # get rectangle describing the interior of the frame
         height, width = self.frame.shape
-        region_center = regions.Rectangle(0, 0, width, height)
+        region_center = shapes.Rectangle(0, 0, width, height)
         region_center.buffer(-self.params['contour/border_anchor_distance'])
         
         for k, tail in enumerate(tails):

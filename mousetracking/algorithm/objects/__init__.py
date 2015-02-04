@@ -8,5 +8,5 @@ from mousetracking.algorithm.objects.moving_objects import MovingObject, ObjectT
 from .mouse import MouseTrack
 
 # define a simple object representing the cage rectangle
-from video.analysis.regions import Rectangle
+from video.analysis.shapes import Rectangle
 Cage = Rectangle

@@ -17,7 +17,7 @@ from shapely import geometry
 
 from data_structures.lazy_values import LazyHDFCollection
 from .utils import rtrim_nan
-from video.analysis import curves, regions
+from video.analysis import curves, regions, shapes
 from data_structures.cache import cached_property
 
 from video import debug  # @UnusedImport
@@ -39,7 +39,7 @@ def bool_nan(number):
 
 
 
-class Burrow(regions.Polygon):
+class Burrow(shapes.Polygon):
     """ represents a single burrow.
     Note that the contour are always given in clockwise direction
     """

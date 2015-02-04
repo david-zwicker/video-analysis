@@ -31,7 +31,7 @@ import yaml
 
 from video.io import ImageWindow
 from video.filters import FilterCrop
-from video.analysis import regions, curves, image
+from video.analysis import regions, curves, image, shapes
 from video.utils import display_progress
 from video.composer import VideoComposer
 
@@ -395,7 +395,7 @@ class FirstPass(PassBase):
         # return the rectangle defined by two corner points
         p1 = (rect_large[0] + left,  rect_large[1] + top)
         p2 = (rect_large[0] + right, rect_large[1] + bottom)
-        cage_rect = regions.Rectangle.from_points(p1, p2)
+        cage_rect = shapes.Rectangle.from_points(p1, p2)
         self.debug['cage']['approx_rect2'] = cage_rect.data
         
         if ret_binarized:
@@ -415,7 +415,7 @@ class FirstPass(PassBase):
 
         # enlarge rectangle to make sure that the border lies inside
         rect.buffer(int(self.params['cage/rectangle_buffer']))
-        rect_frame = regions.Rectangle(0, 0, frame.shape[1], frame.shape[0])
+        rect_frame = shapes.Rectangle(0, 0, frame.shape[1], frame.shape[0])
         rect = rect.intersection(rect_frame)
 
         # do vertical line scans
@@ -427,7 +427,7 @@ class FirstPass(PassBase):
         yts, ybs = [], []
         for x1, x2 in zip(xs[:-1], xs[1:]):
             # top
-            r = regions.Rectangle.from_points((x1, yt1), (x2, yt2))
+            r = shapes.Rectangle.from_points((x1, yt1), (x2, yt2))
             s = r.slices
             profile = frame[s[1], s[0]].mean(axis=1) # average over x-axis
             y = image.get_steepest_point(profile, direction=-1)
@@ -435,7 +435,7 @@ class FirstPass(PassBase):
             yts.append(y + yt1)
 
             # bottom
-            r = regions.Rectangle.from_points((x1, yb1), (x2, yb2))
+            r = shapes.Rectangle.from_points((x1, yb1), (x2, yb2))
             s = r.slices
             profile = frame[s[1], s[0]].mean(axis=1) # average over x-axis
             y = image.get_steepest_point(profile, direction=1)
@@ -450,7 +450,7 @@ class FirstPass(PassBase):
         xls, xrs = [], []
         for y1, y2 in zip(ys[:-1], ys[1:]):
             # left
-            r = regions.Rectangle.from_points((xl1, y1), (xl2, y2))
+            r = shapes.Rectangle.from_points((xl1, y1), (xl2, y2))
             s = r.slices
             profile = frame[s[1], s[0]].mean(axis=0) # average over y-axis
             x = image.get_steepest_point(profile, direction=-1)
@@ -458,7 +458,7 @@ class FirstPass(PassBase):
             xls.append(x + xl1)
 
             # right
-            r = regions.Rectangle.from_points((xr1, y1), (xr2, y2))
+            r = shapes.Rectangle.from_points((xr1, y1), (xr2, y2))
             s = r.slices
             profile = frame[s[1], s[0]].mean(axis=0) # average over y-axis
             x = image.get_steepest_point(profile, direction=1)
@@ -466,8 +466,8 @@ class FirstPass(PassBase):
             xrs.append(x + xr2)
 
         # build the rectangle describing the cage        
-        cage_rect = regions.Rectangle.from_points((np.mean(xls), np.mean(yts)),
-                                                  (np.mean(xrs), np.mean(ybs)))
+        cage_rect = shapes.Rectangle.from_points((np.mean(xls), np.mean(yts)),
+                                                 (np.mean(xrs), np.mean(ybs)))
 
         # save debug information
         self.debug['cage']['fit_rect'] = cage_rect.data_int
@@ -581,8 +581,8 @@ class FirstPass(PassBase):
         self.logger.debug('Located water bottle at position (%d, %d)' % max_loc)
         
         # determine the rectangle of the water bottle
-        bottle_rect = regions.Rectangle(max_loc[0], max_loc[1],
-                                        bottle.shape[1], bottle.shape[0])
+        bottle_rect = shapes.Rectangle(max_loc[0], max_loc[1],
+                                       bottle.shape[1], bottle.shape[0])
         self.result['background/water_bottle_rect'] = bottle_rect.to_list()
         return bottle_rect
         

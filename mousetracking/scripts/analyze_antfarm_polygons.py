@@ -27,7 +27,7 @@ video_analysis_path = os.path.join(this_path, '..', '..')
 sys.path.append(video_analysis_path)
 
 from data_structures.cache import cached_property
-from video.analysis import regions, curves
+from video.analysis import curves, shapes
 from mousetracking.algorithm.utils import save_dict_to_csv
 
 from video import debug  # @UnusedImport
@@ -47,7 +47,7 @@ ScaleBar = collections.namedtuple('ScaleBar', ['size', 'angle'])
 
 
 
-class BurrowPolygon(regions.Polygon):
+class BurrowPolygon(shapes.Polygon):
     """ class representing a single burrow """ 
     @cached_property
     def centerline(self):
@@ -132,7 +132,7 @@ class PolygonCollection(object):
 
             if area < self.params['scale_bar/area_max']:
                 # object could be a scale bar
-                rect = regions.Rectangle(*cv2.boundingRect(contour))
+                rect = shapes.Rectangle(*cv2.boundingRect(contour))
 
                 at_left = (rect.left < self.params['scale_bar/dist_left']*width)
                 max_dist_bottom = self.params['scale_bar/dist_bottom']

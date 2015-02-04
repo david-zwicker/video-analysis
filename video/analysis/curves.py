@@ -11,9 +11,11 @@ from __future__ import division
 import itertools
 import math
 import numpy as np
-from scipy import interpolate
+from scipy import interpolate, odr
 
 from shapely import geometry
+
+import regions
 
 # make simplify_curve available under current scope 
 from external.simplify_polygon_rdp import rdp as simplify_curve # @UnusedImport
@@ -134,7 +136,7 @@ def average_normalized_functions(profiles):
 
     
 
-def smooth_curve(points, smoothing=10, degree=3, derivative=0):
+def smooth_curve(points, smoothing=10, degree=3, derivative=0, num_points=None):
     """ smooth a curve by interpolating the points
     `smoothing` determines the smoothness of the curve.  This value can be used
         to control the trade-off between closeness and smoothness of fit.
@@ -142,15 +144,22 @@ def smooth_curve(points, smoothing=10, degree=3, derivative=0):
         smoothing. The resulting, smoothed yi fulfill
             sum((y - yi)**2, axis=0) <= smoothing*len(points)
     `degree` determines the degree of the splines used
-    `derivative` determines the order of the derivative 
+    `derivative` determines the order of the derivative
+    `num_points` determines how many support points are used. If this value is
+        None, len(points) are used.
     """
-    u = np.linspace(0, 1, len(points))
+    if num_points is None:
+        num_points = len(points)
+    
+    u = np.linspace(0, 1, num_points)
     try:
         # do spline fitting to smooth the line
         tck, _ = interpolate.splprep(np.transpose(points), u=u, k=degree,
                                      s=smoothing*len(points))
     except ValueError:
-        pass
+        # spline fitting did not work
+        if num_points != len(points):
+            points = make_curve_equidistant(points, count=num_points)
     else:
         # interpolate the line
         points = interpolate.splev(u, tck, der=derivative)
@@ -159,3 +168,37 @@ def smooth_curve(points, smoothing=10, degree=3, derivative=0):
     return np.asarray(points)
     
     
+    
+def fit_circle(points):
+    """
+    fits a circle to the given points. The method has been adapted from
+        http://wiki.scipy.org/Cookbook/Least_Squares_Circle
+    The function returns an instance of Circle
+    """
+    def calc_dist(xc, yc):
+        """ calculate the distance of each point from the center (xc, yc) """
+        return np.linalg.norm(points - np.array([[xc, yc]]), axis=0)
+    
+    def circle_implicit(beta, x):
+        """ implicit definition of the circle """
+        return (x[0] - beta[0])**2 + (x[1] - beta[1])**2 - beta[2]**2
+
+    # coordinates of the barycenter
+    x_m, y_m = np.mean(points, axis=0)
+
+    # initial guess for parameters
+    R_m = calc_dist(x_m, y_m).mean()
+    beta0 = [x_m, y_m, R_m]    
+    
+    # for implicit function :
+    #       data.x contains both coordinates of the points (data.x = [x, y])
+    #       data.y is the dimensionality of the response
+    lsc_data  = odr.Data(points.T, y=1)
+    lsc_model = odr.Model(circle_implicit, implicit=True)
+    lsc_odr   = odr.ODR(lsc_data, lsc_model, beta0)
+    lsc_out   = lsc_odr.run()
+    
+    # collect result
+    xc, yc, R = lsc_out.beta
+    return regions.Circle(xc, yc, R)
+

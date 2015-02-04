@@ -14,14 +14,14 @@ from shapely import geometry
 import cv2
 
 from data_structures.cache import cached_property
-from video.analysis import curves, regions
+from video.analysis import curves, regions, shapes
 from video.analysis.active_contour import ActiveContour
 
 from video import debug  # @UnusedImport
 
 
 
-class Tail(regions.Polygon):
+class Tail(shapes.Polygon):
     """ class representing a single mouse tail in a single frame.
     Every tail is defined by its contour.
     """
@@ -55,13 +55,13 @@ class Tail(regions.Polygon):
                  len(self.contour))
     
 
-    @regions.Polygon.contour.setter
+    @shapes.Polygon.contour.setter
     def contour(self, points):
         points = regions.regularize_contour_points(points)
         spacing = self.contour_spacing
         points = curves.make_curve_equidistant(points, spacing=spacing)
         # call parent setter
-        regions.Polygon.contour.fset(self, points)
+        shapes.Polygon.contour.fset(self, points)
         
         
     def update_contour(self, points):

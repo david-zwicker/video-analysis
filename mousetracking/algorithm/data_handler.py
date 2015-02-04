@@ -15,7 +15,7 @@ import subprocess
 
 import yaml
 try:
-    import dateutil 
+    import dateutil
 except ImportError:
     dateutil = None
 
