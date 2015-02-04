@@ -2,6 +2,10 @@
 Created on Feb 4, 2015
 
 @author: David Zwicker <dzwicker@seas.harvard.edu>
+
+This module provides some classes for geometric shapes for convenience. These
+classes are not implemented with very high speed in mind, but rather serve to
+ease implementations of geometric calculations.
 '''
 
 from __future__ import division
@@ -11,8 +15,8 @@ import numpy as np
 from scipy import interpolate
 from shapely import geometry
 
-from active_contour import ActiveContour
 from data_structures.cache import cached_property
+from active_contour import ActiveContour
 import curves
 
 
@@ -132,6 +136,10 @@ class Rectangle(object):
     def p2(self, p):
         self.set_corners(self.p1, p)
         
+    @property
+    def centroid(self):
+        return (self.x + self.width/2, self.y + self.height/2)
+        
     def buffer(self, amount):
         """ dilate the rectangle by a certain amount in all directions """
         self.x -= amount
@@ -241,7 +249,7 @@ class Arc(Circle):
         
     
     def __repr__(self):
-        return ('%s(x=%r, y=%r, radius=%r, start=%r, end=%r' %
+        return ('%s(x=%r, y=%r, radius=%r, start=%r, end=%r)' %
                 (self.__class__.__name__, self.x, self.y, self.radius,
                  self.start, self.end))
        
@@ -351,12 +359,12 @@ class Polygon(object):
     def __getstate__(self):
         """ do not save the cache to the pickled state """
         state = self.__dict__.copy()
-        del state['_cache']
+        del state['_cache'] #< don't save the cache when pickling
         return state
 
 
     def __setstate__(self, state):
-        """ set a clear cache on unpickleing """
+        """ set a clear cache on unpickling """
         self.__dict__ = state
         self.clear_cache()
 

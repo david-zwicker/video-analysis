@@ -42,6 +42,7 @@ class Tail(shapes.Polygon):
     def __init__(self, contour, extra_data=None):
         """ initialize a tail with its contour and optional extra data """
         super(Tail, self).__init__(contour)
+        self.presistence_data = {}
         self._endpoint_indices = None
         if extra_data is None:
             self.data = {}
@@ -72,14 +73,13 @@ class Tail(shapes.Polygon):
         # update important features of the tail in reference to the previous
         self.get_endpoint_indices(tail_prev)
         self.update_sides(tail_prev)
-        self.update_ventral_side(tail_prev)
         
 
     @cached_property
     def mask(self):
         """ return a binary mask large enough to hold the tails image and an
         offset the determines the position of the mask in global coordinates """
-        return self.get_mask(margin=2, ret_offset=True)
+        return self.get_mask(margin=5, ret_offset=True)
     
     
     def get_endpoint_indices(self, tail_prev=None):
@@ -141,51 +141,10 @@ class Tail(shapes.Polygon):
         """ sorts sides such that the first line in `sides` is closest to
         `first_line` """
 
-    
-    def determine_sides(self, line_ref='ventral'):
-        """ determine the sides of the tail """
-        # get the two sides
-        k1, k2 = self.endpoint_indices
-        if k2 > k1:
-            sides = [self.contour[k1:k2 + 1],
-                     np.r_[self.contour[k2:], self.contour[:k1 + 1]]]
-        else:
-            sides = [self.contour[k2:k1 + 1][::-1],
-                     np.r_[self.contour[k1:], self.contour[:k2 + 1]][::-1, :]]
-            
-        # determine how to sort them
-        if 'ventral' == line_ref:
-            line_ref = self.ventral_side
-            
-        if line_ref is not None:
-            # sort lines such that reference line comes first
-            first_line = geometry.LineString(line_ref)
-            dists = [np.mean([first_line.distance(geometry.Point(p))
-                              for p in side])
-                     for side in sides]
-            if dists[0] > dists[1]:
-                sides = sides[1], sides[0]
-        return sides
-    
-        
-    def update_sides(self, tail_prev):
-        """ determines the side of the tails and align them with an earlier
-        shape """
-        # get the sides and make sure they agree with the previous order
-        # FIXME: the information about which side is the ventral side should
-        # also be stored separately, since otherwise this information is lost
-        # on a pickle/unpickle event
-        self._cache['sides'] = self.determine_sides(line_ref=tail_prev.sides[0])
-    
-    
-    @cached_property
-    def sides(self):
-        """ return the two sides of the tail """
-        return self.determine_sides()
-            
-        
-    def determine_ventral_side(self):
-        """ determines the ventral side from the curvature of the tail """
+
+    def determine_side_order(self, sides):
+        """ determine which of the sides is the ventral side based on geometric
+        properties and return indices such that the ventral side comes first """ 
         # define a line connecting both end points
         k1, k2 = self.endpoint_indices
         line = geometry.LineString([self.contour[k1], self.contour[k2]])
@@ -200,7 +159,6 @@ class Tail(shapes.Polygon):
             
         # measure the fraction of points that lie in the polygon
         fs = []
-        sides = self.determine_sides(line_ref=None)
         for c in sides:
             mp = geometry.MultiPoint(c)
             intersection = mp.intersection(polygon)
@@ -209,28 +167,76 @@ class Tail(shapes.Polygon):
             else:
                 frac = len(intersection)/len(mp)
             fs.append(frac)
-
-        return sides[np.argmax(fs)]
+            
+        # return the order in which the sides should be put
+        if np.argmax(fs) == 0:
+            return (0, 1)
+        else:
+            return (1, 0) 
     
     
-    def update_ventral_side(self, tail_prev):
-        """ determines the ventral side by comparing to an earlier shape """
-        # get average distance of these two lines to the previous dorsal line
-        line_prev = geometry.LineString(tail_prev.ventral_side)
-        dists = [np.mean([line_prev.distance(geometry.Point(p))
-                          for p in c])
-                 for c in self.sides]
+    def get_sides(self):
+        """ determine the sides of the tail and return them in arbitrary order
+        """
+        # get the two sides
+        k1, k2 = self.endpoint_indices
+        if k2 > k1:
+            sides = [self.contour[k1:k2 + 1],
+                     np.r_[self.contour[k2:], self.contour[:k1 + 1]]]
+        else:
+            sides = [self.contour[k2:k1 + 1][::-1],
+                     np.r_[self.contour[k1:], self.contour[:k2 + 1]][::-1, :]]
+            
+        return sides
+    
         
-        # FIXME: the information about which side is the ventral side should
-        # also be stored separately, since otherwise this information is lost
-        # on a pickle/unpickle event
-        self._cache['ventral_side'] = self.sides[np.argmin(dists)]
+    def update_sides(self, tail_prev):
+        """ determines the side of the tails and align them with an earlier
+        shape """
+        # get the two sides
+        sides = self.get_sides() 
+        
+        # get the reference line to determine the order of the sides
+        line_ref = tail_prev.sides[0]
+        
+        # sort lines such that reference line comes first
+        first_line = geometry.LineString(line_ref)
+        dists = [np.mean([first_line.distance(geometry.Point(p))
+                          for p in side])
+                 for side in sides]
+        if dists[0] < dists[1]:
+            order = (0, 1)
+        else:
+            order = (1, 0)
 
+        # save the order of the sides to be able to recover them after pickling            
+        self.presistence_data['side_order'] = order
         
+        # get the sides and make sure they agree with the previous order
+        self._cache['sides'] = sides[order[0]], sides[order[1]]
+    
+    
     @cached_property
+    def sides(self):
+        """ return the two sides of the tail """
+        sides = self.get_sides()
+        order = self.presistence_data.get('side_order', None)
+        if order is None:
+            order = self.determine_side_order(sides)
+            self.presistence_data['side_order'] = order
+        return sides[order[0]], sides[order[1]]
+            
+        
+    @property
     def ventral_side(self):
         """ returns the ventral side """
-        return self.determine_ventral_side()
+        return self.sides[0]
+    
+    
+    @property
+    def dorsal_side(self):
+        """ returns the ventral side """
+        return self.sides[1]
     
     
     @cached_property

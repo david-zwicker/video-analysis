@@ -9,7 +9,7 @@ The video is loaded using OpenCV.
 
 from __future__ import division
 
-import os
+import os.path
 import platform
 import logging
 

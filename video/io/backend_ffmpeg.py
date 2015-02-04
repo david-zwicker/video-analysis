@@ -15,6 +15,7 @@ The MIT license text is included in the present package in the file
 
 from __future__ import division
 
+import os
 import re
 import logging
 import subprocess
@@ -29,7 +30,6 @@ logger = logging.getLogger('video.io')
 try:
     from subprocess import DEVNULL # py3k
 except ImportError:
-    import os
     DEVNULL = open(os.devnull, 'wb')
 
 
