@@ -299,31 +299,32 @@ class TailSegmentationTracking(object):
         if ret_raw:
             return bw
         
+        if tails is None:
+            tails = tuple()
         # add features from the previous frames if present
-        if tails:
-            for tail in tails:
-                # fill the features with the interior of the former tail
-                polys = tail.polygon.buffer(-self.params['detection/shape_max_speed'])
-                if not isinstance(polys, geometry.MultiPolygon):
-                    polys = [polys]
-                for poly in polys: 
-                    cv2.fillPoly(bw, [np.array(poly.exterior.coords, np.int)],
-                                 color=1)
+        for tail in tails:
+            # fill the features with the interior of the former tail
+            polys = tail.polygon.buffer(-self.params['detection/shape_max_speed'])
+            if not isinstance(polys, geometry.MultiPolygon):
+                polys = [polys]
+            for poly in polys: 
+                cv2.fillPoly(bw, [np.array(poly.exterior.coords, np.int)],
+                             color=1)
+            
+            # calculate the distance to other tails to bound the current one
+            buffer_dist = self.params['detection/shape_max_speed']
+            poly_outer = tail.polygon.buffer(buffer_dist)
+            for tail_other in tails:
+                if tail is not tail_other:
+                    dist = tail.polygon.distance(tail_other.polygon)
+                    if dist < buffer_dist:
+                        # shrink poly_outer
+                        poly_other = tail_other.polygon.buffer(dist/2)
+                        poly_outer = poly_outer.difference(poly_other)
                 
-                # calculate the distance to other tails to bound the current one
-                buffer_dist = self.params['detection/shape_max_speed']
-                poly_outer = tail.polygon.buffer(buffer_dist)
-                for tail_other in tails:
-                    if tail is not tail_other:
-                        dist = tail.polygon.distance(tail_other.polygon)
-                        if dist < buffer_dist:
-                            # shrink poly_outer
-                            poly_other = tail_other.polygon.buffer(dist/2)
-                            poly_outer = poly_outer.difference(poly_other)
-                    
-                # make sure that this tail is separated from all the others
-                coords = np.array(poly_outer.exterior.coords, np.int)
-                cv2.polylines(bw, [coords], isClosed=True, color=0, thickness=2)
+            # make sure that this tail is separated from all the others
+            coords = np.array(poly_outer.exterior.coords, np.int)
+            cv2.polylines(bw, [coords], isClosed=True, color=0, thickness=2)
 
 #         debug.show_image(self.frame, bw, wait_for_key=False)
         

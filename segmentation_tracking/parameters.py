@@ -81,7 +81,11 @@ parameters_tracking_special = {
         'detection/statistics_threshold': 30},
     # video with two touching tails
     '20140804_bw_tl_edf': {
-        'detection/statistics_threshold': 10},
+        'detection/statistics_threshold': 20,
+        'detection/statistics_threshold': 2},
+    # little contrast at second tail
+    '20140808_nub_e15-16_tl_edf':{
+        'detection/every_frame': False},
     # video with three tails
     '20140831_BW_E14-15_tl_edf': { 
         'detection/statistics_window': 30,
