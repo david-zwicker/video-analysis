@@ -26,7 +26,8 @@ parameters_tracking = {
         'detection/border_distance': 50,
         'detection/mask_size': 30,
         'detection/area_min': 100000,
-        'detection/area_max': 1000000,
+        'detection/area_max': 500000,
+        'detection/boundary_length_max': 500,
         'detection/every_frame': True,
         
         'contour/typical_width': 150,

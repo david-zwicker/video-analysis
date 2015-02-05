@@ -355,6 +355,8 @@ class TailSegmentationTracking(object):
         rect.buffer(-2*border)
         rect = geometry.Polygon(rect.contour)
 
+        boundary_length_max = self.params['detection/boundary_length_max']
+
         bw[:] = 0
         num_features = 0  
         for contour in contours:
@@ -369,7 +371,9 @@ class TailSegmentationTracking(object):
                         difference = [difference] #< make sure we handle a list
                         
                     for diff in difference:
-                        if diff.area < self.params['detection/area_max']:
+                        # check the length along the rectangle
+                        boundary_length = diff.intersection(rect.exterior).length
+                        if boundary_length < boundary_length_max:
                             feature = feature.union(diff)
                 
                 # reduce feature, since detection typically overshoots
