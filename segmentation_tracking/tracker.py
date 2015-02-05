@@ -150,8 +150,7 @@ class TailSegmentationTracking(object):
         
         # initialize the result structure
         tail_trajectories = collections.defaultdict(dict)
-        self.result['tail_trajectories'] = tail_trajectories
-        
+
         # iterate through all frames
         iterator = display_progress(self.video)
         for self.frame_id, self.frame in enumerate(iterator, self.frame_start):
@@ -171,6 +170,7 @@ class TailSegmentationTracking(object):
                 self.update_video_output(tails, show_measurement_line=False)
             
         # save the data and close the videos
+        self.result['tail_trajectories'] = tail_trajectories
         self.save_result()
         self.close()
         
@@ -589,6 +589,8 @@ class TailSegmentationTracking(object):
                 try:
                     tail = tail_trajectory[self.frame_id]
                 except KeyError:
+                    logging.debug('Could not find any information on tails '
+                                  'for frame %d', self.frame_id)
                     break
                 # get the line scan left and right of the centerline
                 linescan_data= self.measure_single_tail(self.frame, tail)

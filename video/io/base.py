@@ -133,11 +133,12 @@ class VideoBase(object):
                 raise IndexError('Seeking to frame %d was not possible.' % index)
         elif index >= self.get_frame_pos():
             # skip some frames
-            for _ in xrange(index, self.get_frame_pos()):
-                self.next()
+            for _ in xrange(self.get_frame_pos(), index):
+                self.get_next_frame()
         else:
             raise NotSeekableError('Cannot seek to frame %d, because the video '
-                                   'is already at frame %d' % (index, self.get_frame_pos()))
+                                   'is already at frame %d' % 
+                                   (index, self.get_frame_pos()))
 
 
     def rewind(self):
@@ -240,6 +241,7 @@ class VideoIterator(object):
     """ simple class implementing the iterator interface for videos """
     def __init__(self, video):
         self._video = video
+        self._video.rewind() #< rewind video before iterating over it
         
     def next(self):
         return self._video.get_next_frame()
@@ -301,16 +303,21 @@ class VideoFilterBase(VideoBase):
             result += '[%d listeners]' % len(self._listeners)
         return result
 
+
+    @property
+    def seekable(self):
+        """ flag indicating whether the video is seekable or not """
+        return self._source.seekable
+
     
     def abort_iteration(self):
         """ stop the current iteration """
         self._source.abort_iteration()
-        super(VideoFilterBase, self).abort_iteration()
         
         
     def set_frame_pos(self, index):
         self._source.set_frame_pos(index)
-        super(VideoFilterBase, self).set_frame_pos(index)
+        self._frame_pos = index
     
     
     def get_frame(self, index):

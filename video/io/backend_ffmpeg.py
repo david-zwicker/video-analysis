@@ -33,28 +33,34 @@ except ImportError:
     DEVNULL = open(os.devnull, 'wb')
 
 
-def try_cmd(cmd):
-    """ helper function checking whether a command runs successful """    
+def get_ffmpeg_version(cmd):
+    """ helper function trying to get the version number from ffmpeg """    
     try:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        proc.communicate()
+        # try getting help page from ffmpeg
+        output = subprocess.check_output([cmd, '-h'], stderr=subprocess.STDOUT)
+        # search for the version number and parse it
+        match = re.search("ffmpeg version (\d+)\.(\d+)", output)
+        version = tuple(int(match.group(k)) for k in xrange(1, 3))
     except:
-        return False
-    else:
-        return True
-from subprocess import check_output
+        version = None
+    return version
 
 
 # search for the FFmpeg command
-if try_cmd(['ffmpeg']):
+FFMPEG_VERSION = get_ffmpeg_version('ffmpeg')
+if FFMPEG_VERSION:
     FFMPEG_BINARY = 'ffmpeg'
-    logger.debug('Found ffmpeg at %s', check_output(['which', 'ffmpeg']).strip())
-elif try_cmd(['ffmpeg.exe']):
-    FFMPEG_BINARY = 'ffmpeg.exe'
-    logger.debug('Found ffmpeg.exe.')
+    logger.debug('Found ffmpeg %r at %s', FFMPEG_VERSION, 
+                 subprocess.check_output(['which', 'ffmpeg']).strip())
 else:
-    FFMPEG_BINARY = None
-    logger.warn("ffmpeg binary not found. Functions relying on this will not be available.")
+    FFMPEG_VERSION = get_ffmpeg_version('ffmpeg.exe')
+    if FFMPEG_VERSION:
+        FFMPEG_BINARY = 'ffmpeg.exe'
+        logger.debug('Found ffmpeg.exe %r.', FFMPEG_VERSION)
+    else:
+        FFMPEG_BINARY = None
+        logger.warn('ffmpeg binary not found. Functions relying on it will not '
+                    'be available.')
 
 
 
@@ -66,6 +72,9 @@ class FFmpegError(IOError):
 class VideoFFmpeg(VideoBase):
     """ Class handling a single movie file using FFmpeg
     """ 
+    
+    seek_max_frames = 100 #< the maximal number of frames we seek through
+    seek_offset = 1 #< seconds we place the rough seek before the target time 
 
     def __init__(self, filename, bufsize=None, pix_fmt="rgb24"):
         """ initialize a video that will be read with FFmpeg
@@ -123,17 +132,27 @@ class VideoFFmpeg(VideoBase):
         """ Opens the file, creates the pipe. """
         self.close() # close if anything was opened
         
-        if index != 0:
-            # -0.1 is necessary to prevent rounding errors
+        if index > 0:
+            # we have to seek to another index/time
+
+            # determine the time that we have to seek to
+            # the -0.1 is necessary to prevent rounding errors
             starttime = (index - 0.1)/self.fps
-            offset = min(1, starttime)
-            # this rewinds to the previous keyframe and than progresses slowly
-            i_arg = ['-ss', "%.03f" % (starttime - offset),
-                     '-i', self.filename,
-                     '-ss', "%.03f" % offset]
-            logger.debug('Seek video to frame %d (=%.03f sec)' % (index, starttime))
+            
+            if index < self.seek_max_frames:
+                # we only have to seek a little bit
+                i_arg = ['-i', self.filename,
+                         '-ss', "%.03f" % starttime]
+            else:
+                # we first seek to a keyframe and then proceed from there
+                i_arg = ['-ss', "%.03f" % (starttime - self.seek_offset),
+                         '-i', self.filename,
+                         '-ss', "%.03f" % self.seek_offset]
+
+            logger.debug('Seek video to frame %d (=%.03f s)', index, starttime)
             
         else:
+            # we can just open the video at the first frame
             i_arg = ['-i', self.filename]
         
         # build ffmpeg command line
@@ -154,7 +173,8 @@ class VideoFFmpeg(VideoBase):
     def set_frame_pos(self, index):
         """ sets the video to position index """
         if index != self._frame_pos:
-            if (index < self._frame_pos) or (index > self._frame_pos + 100):
+            max_future_frame = self._frame_pos + self.seek_max_frames
+            if (index < self._frame_pos) or (index > max_future_frame):
                 self.open(index)
             else:
                 skip_frames = index - self._frame_pos
