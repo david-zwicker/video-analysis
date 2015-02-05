@@ -152,9 +152,10 @@ class Kymograph(object):
             logging.debug('Improved %d lines.' % improved)
     
             
-    def align_features(self):
+    def align_features(self, mode='individually'):
         """ align features in the kymograph """
         self.align_features_linearly()
-        self.align_features_individually(1)
+        if mode == 'individually':
+            self.align_features_individually(1)
 
 

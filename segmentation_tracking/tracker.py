@@ -693,16 +693,23 @@ class TailSegmentationTracking(object):
     
     
     def plot_kymographs(self, outfile=None, align=False):
-        """ plots a kymograph of the line scan data """
-        import matplotlib.pyplot as plt
-        plt.figure(figsize=(10, 4))
+        """ plots a kymograph of the line scan data
+        If `outfile` is given, the image is written to this file and not shown
+        `align` determines whether features in the kymographs will be aligned 
+        """
+        self.load_result()
         
+        import matplotlib.pyplot as plt
+        
+        # iterate through all tails
         for tail_id, kymographs in self.result['kymographs'].iteritems():
+            plt.figure(figsize=(10, 4))
+            # consider both sides of the center line
             for side_id, (side, kymograph) in enumerate(kymographs.iteritems()):
                 plt.subplot(1, 2, side_id + 1)
 
                 if align:
-                    kymograph.align_features()
+                    kymograph.align_features(align)
                 
                 # create image
                 plt.imshow(kymograph.get_image(), aspect='auto',
@@ -717,6 +724,7 @@ class TailSegmentationTracking(object):
                 plt.show()
             else:
                 plt.savefig(outfile % tail_id)
+            plt.close()
     
     
     #===========================================================================
