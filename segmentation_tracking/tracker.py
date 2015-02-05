@@ -622,6 +622,7 @@ class TailSegmentationTracking(object):
                 kymographs[tail_id][side] = kymograph
                             
         # save the data and close the videos
+        self.result['kymographs'] = kymographs 
         self.save_result()
         self.close()
     
