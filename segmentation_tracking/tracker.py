@@ -323,8 +323,13 @@ class TailSegmentationTracking(object):
                         poly_outer = poly_outer.difference(poly_other)
                 
             # make sure that this tail is separated from all the others
-            coords = np.array(poly_outer.exterior.coords, np.int)
-            cv2.polylines(bw, [coords], isClosed=True, color=0, thickness=2)
+            try:
+                coords = np.array(poly_outer.exterior.coords, np.int)
+            except AttributeError:
+                # can happen when the poly_outer is complex
+                pass
+            else:
+                cv2.polylines(bw, [coords], isClosed=True, color=0, thickness=2)
 
 #         debug.show_image(self.frame, bw, wait_for_key=False)
         
