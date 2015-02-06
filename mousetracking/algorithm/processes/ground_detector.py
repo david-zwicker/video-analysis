@@ -140,7 +140,7 @@ class GroundDetector(GroundDetectorBase):
             # do the line scan perpendicular to the ground line         
             p_a = (p[0] - ray_len*dy, p[1] + ray_len*dx)
             p_b = (p[0] + ray_len*dy, p[1] - ray_len*dx)
-            profile = image.line_scan(frame, p_a, p_b, width=profile_width)
+            profile = image.line_scan(frame, p_a, p_b, half_width=profile_width)
             # scale profile to -1, 1
             profile -= profile.mean()
             try:

@@ -51,9 +51,12 @@ UNIT.parser[UNIT.SPEED_PIXEL_FRAME] = float
 UNIT.parser[UNIT.SPEED_CM_SEC] = float
     
 
-Parameter = namedtuple('Parameter', ['key', 'default_value', 'unit', 'description'])
+# define a class that holds information about parameters 
+Parameter = namedtuple('Parameter',
+                       ['key', 'default_value', 'unit', 'description'])
 
 
+# define all parameters that we support with associated information
 PARAMETER_LIST = [
     # Basic parameters
     Parameter('base_folder', '.', UNIT.FOLDER,
@@ -426,8 +429,11 @@ PARAMETER_LIST = [
     Parameter('resources/pass4/memory', 1000, None, 'Maximal RAM per core for pass 4 [in MB]'),
 ]
 
+# collect all parameters in a convenient dictionary
 PARAMETERS = {p.key: p for p in PARAMETER_LIST}
-PARAMETERS_DEFAULT = {p.key: p.default_value for p in PARAMETER_LIST}
+# collect the default values of all parameters
+PARAMETERS_DEFAULT = {p.key: p.default_value for p in PARAMETER_LIST
+                      if p.unit != UNIT.DEPRECATED}
 
 
 
