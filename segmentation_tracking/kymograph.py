@@ -15,6 +15,26 @@ from video import debug  # @UnusedImport
 
 
 
+
+def _get_alignment_score(data, feature_scale=31, blur_radius=1):
+    """ calculates a score for a particular alignment """
+    # blur the buffer to filter some noise
+    idx = np.isnan(data)
+    data = cv2.GaussianBlur(data, (0, 0), blur_radius)
+    data[idx] = np.nan
+
+    # perform time average to find stationary features
+    time_average = np.nanmean(data, axis=0)
+
+    # filter spatially to locate features on specific scale
+    kernel = np.ones(feature_scale, np.double)/feature_scale
+    space_average = np.convolve(time_average, kernel, mode='same') 
+
+    # judge the strength of the features by standard deviation
+    score = np.nanstd(time_average - space_average)
+    return score
+
+
 class Kymograph(object):
     """ class representing a single kymograph """
     
@@ -58,25 +78,6 @@ class Kymograph(object):
         """ aligns the data at the left side """
         self.offsets[:] = 0
 
-
-    def _get_alignment_score(self, data, feature_scale=31, blur_radius=1):
-        """ calculates a score for a particular alignment """
-        # blur the buffer to filter some noise
-        idx = np.isnan(data) 
-        data = cv2.GaussianBlur(data, (0, 0), blur_radius)
-        data[idx] = np.nan
-
-        # perform time average to find stationary features
-        time_average = np.nanmean(data, axis=0)
-
-        # filter spatially to locate features on specific scale
-        kernel = np.ones(feature_scale, np.double)/feature_scale
-        space_average = np.convolve(time_average, kernel, mode='same') 
-
-        # judge the strength of the features by standard deviation
-        score = np.nanstd(time_average - space_average)
-        return score
-
     
     def align_features_linearly(self):
         """ align features roughly by trying linear transformations """
@@ -100,7 +101,7 @@ class Kymograph(object):
                 data[y, s:s + width] = image[y, :]
                             
             # judge this offset
-            score = self._get_alignment_score(data)
+            score = _get_alignment_score(data)
             
             if score > score_best:
                 score_best = score
@@ -124,7 +125,7 @@ class Kymograph(object):
         offset_values = np.arange(-max_dist, max_dist)
         offset_values[offset_values >= 0] += 1
 
-        score = self._get_alignment_score(data)
+        score = _get_alignment_score(data)
         
         # initialize buffer that will be used
         data_best = data.copy()
@@ -138,7 +139,7 @@ class Kymograph(object):
                         data[y, :-d] = data_best[y, d:] #< shift row to left
                     else:
                         data[y, d:] = data_best[y, :-d] #< shift row to right
-                    score = self._get_alignment_score(data)
+                    score = _get_alignment_score(data)
                     if score > score_best:
                         improved += 1
                         score_best = score

@@ -50,8 +50,8 @@ class TailSegmentationTracking(object):
                         kymograph for each side of the tail
     """
     
-    def __init__(self, video_file, output_video=None, parameter_set='default',
-                 parameters=None, show_video=False):
+    def __init__(self, video_file, output_video=None, parameters=None,
+                 show_video=False):
         """
         `video_file` is the input video
         `output_video` is the video file where the output is written to
@@ -66,7 +66,7 @@ class TailSegmentationTracking(object):
         print self.annotations.database
         
         # load the parameters for the tracking
-        self.params = parameters_tracking[parameter_set].copy()
+        self.params = parameters_tracking.copy()
         if self.name in parameters_tracking_special:
             logging.info('There are special parameters for this video.')
             logging.debug('The parameters are: %s',
@@ -667,7 +667,7 @@ class TailSegmentationTracking(object):
     def measure_single_tail(self, frame, tail):
         """ do line scans along the measurement segments of the tails """
         l = self.params['measurement/line_scan_width']
-        w = 2 #< width of each individual line scan
+        w = self.params['measurement/line_scan_step'] #< width of each individual line scan
         result = []
         for line in self.get_measurement_lines(tail):
             ps = curves.make_curve_equidistant(line, spacing=2*w)
@@ -682,7 +682,7 @@ class TailSegmentationTracking(object):
                 p1 = (p[0] + l*dy, p[1] - l*dx)
                 p2 = (p[0] - l*dy, p[1] + l*dx)
                 
-                lscan = image.line_scan(frame, p1, p2, width=w)
+                lscan = image.line_scan(frame, p1, p2, half_width=w)
                 profile.append(lscan.mean())
                 
                 self.output.add_points([p1, p2], 1, 'w')
@@ -697,13 +697,20 @@ class TailSegmentationTracking(object):
         If `outfile` is given, the image is written to this file and not shown
         `align` determines whether features in the kymographs will be aligned 
         """
+        # load the data from a file
         self.load_result()
         
+        # import matplotlib for plotting
         import matplotlib.pyplot as plt
+        from matplotlib.ticker import FuncFormatter, MultipleLocator
+        
+        # setup the plotting
+        use_tex = self.params['output/use_tex']
+        plt.rcParams['text.usetex'] = use_tex
         
         # iterate through all tails
         for tail_id, kymographs in self.result['kymographs'].iteritems():
-            plt.figure(figsize=(10, 4))
+            plt.figure(figsize=(10, 5))
             # consider both sides of the center line
             for side_id, (side, kymograph) in enumerate(kymographs.iteritems()):
                 plt.subplot(1, 2, side_id + 1)
@@ -711,12 +718,34 @@ class TailSegmentationTracking(object):
                 if align:
                     kymograph.align_features(align)
                 
-                # create image
-                plt.imshow(kymograph.get_image(), aspect='auto',
-                           interpolation='none')
+                # create image and determine the length and time scales
+                img = kymograph.get_image()
+                distance = (img.shape[1]
+                            * 2*self.params['measurement/line_scan_step']
+                            * self.params['input/pixel_size'])
+                duration = img.shape[0] * self.params['input/frame_duration']
+                extent = (0, distance, 0, duration)
+                
+                # plot image in gray scale
+                plt.imshow(img, extent=extent, aspect='auto',
+                           interpolation='none', origin='lower')
                 plt.gray()
-                plt.xlabel('Distance from posterior [4 pixels]')
-                plt.ylabel('Time [frames]')
+                
+                # use a time format for the y axis
+                def hours_minutes(value, pos):
+                    """ formatting function """
+                    return '%d:%02d' % divmod(value, 60)
+                ax = plt.gca()
+                ax.yaxis.set_major_locator(MultipleLocator(2*60))
+                ax.yaxis.set_major_formatter(FuncFormatter(hours_minutes))
+                ax.invert_yaxis()
+                
+                # label image
+                if use_tex:
+                    plt.xlabel(r'Distance from posterior [$\unit{\upmu m}$]')
+                else:
+                    plt.xlabel(u'Distance from posterior [\u00b5m]')
+                plt.ylabel(r'Time')
                 plt.title(side)
         
             plt.suptitle(self.name + ' Tail %d' % tail_id)

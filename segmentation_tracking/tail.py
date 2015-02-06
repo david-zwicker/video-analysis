@@ -36,7 +36,7 @@ class Tail(shapes.Polygon):
     centerline_adaptation_rate = 1e-2
     centerline_max_iterations = 500
     
-    line_names = ['ventr', 'dors']
+    line_names = ['Side A', 'Side B']
     
     
     def __init__(self, contour, extra_data=None):

@@ -21,7 +21,6 @@ from video.analysis import curves
 
 class TackingAnnotations(object):
     """ class managing annotations for a tracking object
-    TODO: implement locking mechanism to avoid race conditions
     """
     
     # data base file
@@ -50,7 +49,10 @@ class TackingAnnotations(object):
         
         
     def __set__(self, value):
-        """ stores annotations for this video """
+        """ stores annotations for this video.
+        Note that this function is not thread save and there is a potential
+        race-condition where the database could become inconsistent
+        """
         with open(self.database, 'r') as fp:
             db = yaml.load(fp)
         db[self.name] = value
