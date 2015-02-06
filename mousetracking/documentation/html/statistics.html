@@ -47,9 +47,77 @@
 <a id="user-content-output-statistics" class="anchor" href="#output-statistics" aria-hidden="true"><span class="octicon octicon-link"></span></a>Output statistics</h1>
 
 <h2>
+<a id="user-content-time-period-statistics" class="anchor" href="#time-period-statistics" aria-hidden="true"><span class="octicon octicon-link"></span></a>Time period statistics</h2>
+
+<p>These are statistics that can be calculated for any time period of the video.
+Typically, we calculate the statistics for time slices of half an hour to see the
+development over time. Additionally, these statistics can be calculated for
+the entire video.
+For each period, the following statistics can be calculated:</p>
+
+<ul>
+<li>
+<code>ground_removed</code>: The area of the region which was below the ground line in the
+first frame and is now above ground in the last frame.</li>
+<li>
+<code>ground_accrued</code>: The area of the region which was above the ground line in the
+first frame and is now below ground in the last frame.</li>
+<li>
+<code>time_spent_moving</code>: The total time the mouse spent moving around during the
+analysis period. The mouse is said to be moving if its speed is above a
+threshold value.</li>
+<li>
+<code>time_spent_digging</code>: The total time the mouse spent digging. Here, digging is
+defined by the mouse being close to the end of a burrow, independent of its
+other states. Consequently, this statistics reports the mouse as digging
+even if it is just sitting at the end of the burrow. </li>
+<li>
+<code>mouse_speed_mean</code>: The mean speed of the mouse during the analysis period.
+Here, we assume a speed of zero for periods where we could not detect the
+mouse.</li>
+<li>
+<code>mouse_speed_mean_valid</code>: The mean speed of the mouse during the analysis period.
+The difference to the value above is that we here only included periods in
+which we could actually detect the mouse.</li>
+<li>
+<code>mouse_speed_max</code>: The maximal speed the mouse attained during the analysis
+period.</li>
+<li>
+<code>mouse_distance_covered</code>: The total distance the mouse covered over the
+analysis period.</li>
+<li>
+<code>mouse_trail_longest</code>: The longest distance the mouse has been under ground
+during the analysis period. This distance is given by the maximum over the
+length of all mouse trails. A mouse trail in turn is the path connecting
+the point of entrance with the current mouse position.</li>
+<li>
+<code>mouse_deepest_diagonal</code>: The maximum distance of the mouse to the ground
+line. The distance is the length of the shortest line connecting the mouse
+position to the ground line, irrespective of any burrows.</li>
+<li>
+<code>mouse_deepest_vertical</code>: The longest distance of the mouse vertically under
+the ground. This distance is given by the distance of the mouse to the point
+on the ground line that is directly above it, irrespective of any burrows.</li>
+</ul>
+
+<p>Additionally, we save information about what time slice was actually analyzed:</p>
+
+<ul>
+<li>
+<code>frame_interval</code>: The index of the first and last frame taken into consideration</li>
+<li>
+<code>period_start</code>: The beginning of the analysis period in seconds </li>
+<li>
+<code>period_end</code>: The end of the analysis period in seconds </li>
+<li>
+<code>period_duration</code>: The duration of the analysis period in seconds </li>
+</ul>
+
+<h2>
 <a id="user-content-full-video-statistics" class="anchor" href="#full-video-statistics" aria-hidden="true"><span class="octicon octicon-link"></span></a>Full video statistics</h2>
 
-<p>These are statistics that are only produced for the entire video</p>
+<p>These are additional statistics that are only produced for the entire video and 
+not for individual time periods</p>
 
 <ul>
 <li>
@@ -67,70 +135,6 @@ The mouse trail is given by the connecting line of the current mouse position
 with the ground line.
 The statistics are calculated until the end of the analysis period, which is
 typically the end of the night.</p>
-
-<h2>
-<a id="user-content-time-period-statistics" class="anchor" href="#time-period-statistics" aria-hidden="true"><span class="octicon octicon-link"></span></a>Time period statistics</h2>
-
-<p>These are statistics that can be calculated for any time period of the video.
-The time slice analyzed is characterized by the following values:</p>
-
-<ul>
-<li>
-<code>frame_interval</code>: The index of the first and last frame taken into consideration</li>
-<li>
-<code>period_start</code>: The beginning of the analysis period in seconds </li>
-<li>
-<code>period_end</code>: The end of the analysis period in seconds </li>
-<li>
-<code>period_duration</code>: The duration of the analysis period in seconds </li>
-</ul>
-
-<p>For each period, the following statistics can be calculated:</p>
-
-<ul>
-<li>
-<code>ground_removed</code>: The area of the region which was below the ground line in the
-first frame and is now above ground in the last frame<br>
-</li>
-<li>
-<code>ground_accrued</code>: The area of the region which was above the ground line in the
-first frame and is now below ground in the last frame</li>
-<li>
-<code>time_spent_moving</code>: The total time the mouse spent moving around during the
-analysis period. The mouse is said to be moving if its speed is above a
-threshold value.</li>
-<li>
-<code>time_spent_digging</code>: The total time the mouse spent digging. Here, digging is
-defined by the mouse being close to the end of a burrow, independent of its
-other states. Consequently, this statistics reports the mouse as digging
-even if it is just sitting at the end of the burrow. </li>
-<li>
-<code>mouse_speed_mean</code>: The mean speed of the mouse during the analysis period.
-Here, we assume a speed of zero for periods where we could not detect the
-mouse.</li>
-<li>
-<code>mouse_speed_mean_valid</code>: The mean speed of the mouse. The difference to the
-value above is that we here only included periods in which we could actually
-detect the mouse.</li>
-<li>
-<code>mouse_speed_max</code>: The maximal speed the mouse attained during the analysis
-period.</li>
-<li>
-<code>mouse_distance_covered</code>: The total distance the mouse covered over the
-analysis period.</li>
-<li>
-<code>mouse_trail_longest</code>: The longest distance the mouse has been under ground
-during the analysis period. This distance is given by the maximum over the
-length of all mouse trails.</li>
-<li>
-<code>mouse_deepest_diagonal</code>: The longest distance of the mouse to the ground
-line. The distance is the length of the shortest line connecting the mouse
-position to the ground line. </li>
-<li>
-<code>mouse_deepest_vertical</code>: The longest distance of the mouse vertically under
-the ground. This distance is given by the distance of the mouse to the point
-on the ground line that is directly above it.</li>
-</ul>
 
               </div>
             </div>

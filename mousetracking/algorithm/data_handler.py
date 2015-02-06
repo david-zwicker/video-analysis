@@ -106,7 +106,7 @@ class DataHandler(object):
             raise ValueError('Parameter(s) %s are not known.' % unknown_params)
         if deprecated_params:
             self.logger.warn('Parameter(s) %s are deprecated and will not be '
-                             'used in the analysis.' % unknown_params)
+                             'used in the analysis.' % deprecated_params)
         
 
     def initialize_parameters(self, parameters=None):
@@ -251,7 +251,8 @@ class DataHandler(object):
         return code_status
     
     
-    def load_video(self, video=None, crop_video=True, cropping_rect=None):
+    def load_video(self, video=None, crop_video=True, cropping_rect=None,
+                   skip_frames=0):
         """ loads the video and applies a monochrome and cropping filter """
         # initialize the video
         if video is None:
@@ -280,6 +281,8 @@ class DataHandler(object):
         frames_skip = self.data.get('parameters/video/frames_skip', 0)
         if frames is None:
             frames = (frames_skip, self.video.frame_count)
+        if skip_frames > 0:
+            frames[0] += skip_frames
         if 0 < frames[0] or frames[1] < self.video.frame_count:
             self.video = self.video[frames[0]:frames[1]]
             

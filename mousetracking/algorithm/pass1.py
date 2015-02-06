@@ -215,7 +215,9 @@ class FirstPass(PassBase):
             analyze_start = frame_offset + self.params['video/initial_adaptation_frames']
         
         # iterate over the video and analyze it
-        for self.frame_id, frame in enumerate(display_progress(video), frame_offset):
+        # Note that the first frame has already been analyzed earlier
+        for self.frame_id, frame in enumerate(display_progress(video),
+                                              frame_offset + 1):
             # see whether we can handle the water bottle
             if self.params['video/remove_water_bottle']:
                 frame = self.remove_water_bottle(frame.copy())

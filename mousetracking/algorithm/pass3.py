@@ -113,7 +113,9 @@ class ThirdPass(PassBase):
         """ sets up the processing of the video by initializing caches etc """
         # load the video
         cropping_rect = self.data['pass1/video/cropping_rect'] 
-        video_info = self.load_video(cropping_rect=cropping_rect)
+        # skip the first frame, since it has also been skipped in pass 1
+        video_info = self.load_video(cropping_rect=cropping_rect,
+                                     skip_frames=1)
         
         self.data.create_child('pass3/video', video_info)
         del self.data['pass3/video/filecount']
@@ -126,13 +128,10 @@ class ThirdPass(PassBase):
         video_info['cropping_cage'] = cropping_cage
         video_info['frame_count'] = self.video.frame_count
         video_info['size'] = '%d x %d' % tuple(self.video.size),
-        
-        # get first frame, which will not be used in the iteration
-        first_frame = self.video.get_next_frame()
-        
+                
         # initialize data structures
         self.frame_id = -1
-        self.background = first_frame.astype(np.double)
+        self.background = self.video[0].astype(np.double)
         self.ground_idx = None  #< index of the ground point where the mouse entered the burrow
         self.mouse_trail = None #< line from this point to the mouse (along the burrow)
         self.burrows = []       #< list of current burrows
