@@ -284,6 +284,7 @@ class Tail(shapes.Polygon):
         points = curves.make_curve_equidistant(points, spacing=spacing)
         # use the active contour algorithm
         points = ac.find_contour(points)
+        points = curves.make_curve_equidistant(points, spacing=spacing)
         # translate points back into global coordinate system
         points = curves.translate_points(points, offset[0], offset[1])
         

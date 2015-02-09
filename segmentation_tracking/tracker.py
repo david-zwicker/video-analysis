@@ -63,10 +63,11 @@ class TailSegmentationTracking(object):
 
         self.name = os.path.splitext(os.path.split(video_file)[1])[0]
         self.annotations = TackingAnnotations(self.name)
-        print self.annotations.database
         
-        # load the parameters for the tracking
+        # set default parameters for the tracking
         self.params = parameters_tracking.copy()
+        
+        # set special parameters for this run
         if self.name in parameters_tracking_special:
             logging.info('There are special parameters for this video.')
             logging.debug('The parameters are: %s',
@@ -182,6 +183,13 @@ class TailSegmentationTracking(object):
             
         elif self.params['output/background'] == 'potential':
             image = self.contour_potential
+            lo, hi = image.min(), image.max()
+            image = 255*(image - lo)/(hi - lo)
+            self.output.set_frame(image)
+            
+        elif self.params['output/background'] == 'potential_blurred':
+            image = cv2.GaussianBlur(self.contour_potential, (0, 0),
+                                     self.params['contour/blur_radius'])
             lo, hi = image.min(), image.max()
             image = 255*(image - lo)/(hi - lo)
             self.output.set_frame(image)
@@ -744,9 +752,9 @@ class TailSegmentationTracking(object):
                 
                 # label image
                 if use_tex:
-                    plt.xlabel(r'Distance from posterior [$\unit{\upmu m}$]')
+                    plt.xlabel(r'Distance from posterior end [$\unit{\upmu m}$]')
                 else:
-                    plt.xlabel(u'Distance from posterior [\u00b5m]')
+                    plt.xlabel(u'Distance from posterior end [\u00b5m]')
                 plt.ylabel(r'Time')
                 plt.title('%s (Score: %g)' % (side, score))
         
@@ -839,7 +847,7 @@ class TailSegmentationTracking(object):
         # add information on all tails
         for tail_id, tail in enumerate(tails):
             # mark all the segments that are important in the video
-            mark_points = (video.zoom_factor < 1)
+            mark_points = self.params['output/mark_points']
             video.add_line(tail.contour, color='b', is_closed=True,
                            width=3, mark_points=mark_points)
             video.add_line(tail.ventral_side, color='g', is_closed=False,

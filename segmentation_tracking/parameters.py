@@ -16,6 +16,7 @@ parameters_tracking = {
     
     'output/zoom_factor': 2,
     'output/background': 'original', #< ('original', 'gradient', 'thresholded')
+    'output/mark_points': False,
     'output/use_tex': False,
                                
     'gradient/blur_radius': 10, 
@@ -34,7 +35,7 @@ parameters_tracking = {
     
     'contour/typical_width': 150,
     'contour/blur_radius_initial': 20,
-    'contour/blur_radius': 20,
+    'contour/blur_radius': 5,#20,
     'contour/border_anchor_distance': 100,
     'contour/max_iterations': 1000,
     'contour/line_tension': 0,  
@@ -55,14 +56,18 @@ parameters_tracking = {
 # special tracking parameters for individual videos
 parameters_tracking_special = {
     '20140729_NUB_E14_edf': {
-        'detection/statistics_threshold': 30},
+        'detection/statistics_threshold': 30,
+    },
     # video with two touching tails
     '20140804_bw_tl_edf': {
         'detection/statistics_threshold': 20,
-        'detection/statistics_threshold': 3},
+        'detection/statistics_threshold': 3,
+        #'contour/blur_radius': 5,
+    },
     # little contrast at second tail
     '20140808_nub_e15-16_tl_edf':{
-        'detection/every_frame': False},
+        'detection/every_frame': False,
+    },
     # video with three tails
     '20140831_BW_E14-15_tl_edf': { 
         'detection/statistics_window': 30,
