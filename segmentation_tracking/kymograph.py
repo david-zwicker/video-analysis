@@ -312,5 +312,10 @@ class KymographAligner(object):
             self.kymograph.offsets[self.selected] += dx
             self._update_image()
             
+        elif event.key == 'q':
+            # close the GUI
+            self.result = 'cancel'
+            plt.close()
+            
         else:
             print('Key %s released' % event.key)

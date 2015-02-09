@@ -771,7 +771,7 @@ class TailSegmentationTracking(object):
         # make sure that we know which tail to process
         if tail_id is None:
             if len(kymograph_tails) == 1:
-                tail_id = kymograph_tails.values()[0]
+                tail_id = 0
             else:
                 print('There are multiple tails in the video. Choose one of:')
                 for tail_id in kymograph_tails.iterkeys():
