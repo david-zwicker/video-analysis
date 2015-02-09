@@ -7,6 +7,7 @@ Created on Jan 28, 2015
 from __future__ import division
 
 import os
+import UserDict
 
 import yaml
 import numpy as np
@@ -15,11 +16,9 @@ from shapely import geometry
 import matplotlib.pyplot as plt
 from matplotlib import widgets
 
-from video.analysis import curves
 
 
-
-class TackingAnnotations(object):
+class TackingAnnotations(UserDict.DictMixin):
     """ class managing annotations for a tracking object
     """
     
@@ -67,12 +66,22 @@ class TackingAnnotations(object):
         self.__set__(annotations)
         
         
+    def setdefault(self, key, value):
+        annotations = self.__get__()
+        result = annotations.setdefault(key, value)
+        if result == value:
+            # annotations have been changed
+            self.__set__(annotations)
+        return result
+        
+        
         
 class SegmentPicker(object):
     """ class that provides a GUI for defining segments on images """
     
     len_min = 10    #< minimal segment length in pixel
     pickradius = 20 #< picker radius around line
+    lineprops = {'lw': 2, 'color': 'r'}
     
     def __init__(self, frame, features, segments=None):
         self.frame = frame
@@ -107,8 +116,6 @@ class SegmentPicker(object):
         self.result = 'cancel'
         self.bounds = self.frame.shape
         self._ax_segments = [[] for _ in xrange(len(self.axes))]
-        self.point = None
-        self._ax_points = None
         
         # initialize data
         if self.segments:
@@ -116,6 +123,18 @@ class SegmentPicker(object):
             self.segments = []
             for segment in segments:
                 self._add_segment(segment)
+                
+                
+        # drawtype is 'box' or 'line' or 'none'
+        self.selectors = [
+            widgets.RectangleSelector(ax, self.select_callback,
+                                      drawtype='line',
+                                      lineprops=self.lineprops,
+                                      useblit=False, #< not on mac...
+                                      button=[1], # don't use middle button
+                                      minspanx=5, minspany=5,
+                                      spancoords='pixels')
+            for ax in (ax_img, ax_feat)]
 
         # add buttons
         ax_active = plt.axes([0.5, 0.05, 0.1, 0.075])
@@ -138,61 +157,7 @@ class SegmentPicker(object):
         # process result
         plt.show()
         return self.result
-        
-    
-    def clicked_check(self, label):
-        if label == 'active':
-            self.active = not self.active
-            if self.active:
-                self.msg('Enabled editing')
-            else:
-                self.msg('Locked editing')
-            self.fig.canvas.draw()
-                
-    
-    def clicked_ok(self, event):
-        if event.button == 1:
-            self.result = 'ok'
-            plt.close()
 
-        
-    def clicked_cancel(self, event):
-        if event.button == 1:
-            self.result = 'cancel'
-            plt.close()
-
-        
-    def _set_point(self, x, y):
-        """ sets the anchor point """
-        self.point = [x, y]
-        self._ax_points = [
-            ax.plot(x, y, 'ro', ms=5)[0]
-            for ax in self.axes
-        ]
-
-
-    def _remove_point(self):
-        """ removes the anchor point """
-        self.point = None
-        for ax_points in self._ax_points:
-            ax_points.remove()
-            
-            
-    def _add_segment(self, segment):
-        """ add a segment """
-        self.segments.append(segment)
-        coords = np.array(segment)
-        for k, ax in enumerate(self.axes):
-            l, = ax.plot(coords[:, 0], coords[:, 1], 'r', lw=2)
-            self._ax_segments[k].append(l)
-            
-            
-    def _remove_segment(self, idx=-1):
-        """ remove last segment """
-        for ax_segments in self._ax_segments:
-            ax_segments.pop(idx).remove()
-        self.segments.pop(idx)
-            
 
     def msg(self, text=None):
         """ output message to stdout """
@@ -205,17 +170,64 @@ class SegmentPicker(object):
         else:
             lock_msg = ' [Locked]'
             
-        if self.point:
-            title = '%d segments and start point defined.' % num_seg
-        else:
-            title = '%d segments defined.' % num_seg
-            
+        title = '%d segments defined.' % num_seg
         plt.suptitle(title + lock_msg)
+                
+    
+    def clicked_check(self, label):
+        if label == 'active':
+            self.active = not self.active
+            if self.active:
+                self.msg('Enabled editing')
+            else:
+                self.msg('Locked editing')
+            for selector in self.selectors:
+                selector.set_active(self.active)
+            self.fig.canvas.draw() #< update the graphics
+                
+    
+    def clicked_ok(self, event):
+        if event.button == 1:
+            self.result = 'ok'
+            plt.close()
+
+        
+    def clicked_cancel(self, event):
+        if event.button == 1:
+            self.result = 'cancel'
+            plt.close()
+    
+    
+    def select_callback(self, eclick, erelease):
+        """ eclick and erelease are the press and release events """
+        x1, y1 = eclick.xdata, eclick.ydata
+        x2, y2 = erelease.xdata, erelease.ydata
+        self._add_segment([[x1, y1], [x2, y2]])
+
+            
+    def _add_segment(self, segment):
+        """ add a segment """
+        coords = np.array(segment)
+        for k, ax in enumerate(self.axes):
+            l, = ax.plot(coords[:, 0], coords[:, 1], **self.lineprops)
+            self._ax_segments[k].append(l)
+        self.fig.canvas.draw() #< update the graphics
+        self.segments.append(segment)
+        self.msg('Added segment')
+                    
+            
+    def _remove_segment(self, idx=-1):
+        """ remove last segment """
+        for ax_segments in self._ax_segments:
+            ax_segments.pop(idx).remove()
+        self.fig.canvas.draw() #< update the graphics
+        self.segments.pop(idx)
+        self.msg('Removed segment')
 
 
     def click_image(self, event):
         """ handles the user input """
-        if not self.active:
+        if not self.active or event.button != 3:
             return
 
         # check whether the click occurred in one of the images
@@ -231,39 +243,15 @@ class SegmentPicker(object):
             print('Please click inside the images.')
             return
 
-        if event.button == 1:
-            # left button clicked => add new object
-            if self.point:
-                if curves.point_distance(self.point, (x, y)) < self.len_min:
-                    self.msg("Line too short; choose a different end point")
-                else:
-                    self._add_segment([self.point, [x, y]])
-                    self._remove_point()
-                    self.msg('Added new segment')
-                
+        if self.segments:
+            # find out which segment should be removed
+            p = geometry.Point((x, y))
+            dist = [geometry.LineString(segment).distance(p)
+                    for segment in self.segments]
+            idx = np.argmin(dist)
+            
+            if dist[idx] < self.pickradius:
+                self._remove_segment(idx)
             else:
-                self._set_point(x, y)
-                self.msg('Defined start point')
-                
-        elif event.button == 3:
-            # right button clicked => delete last input
-            if self.point:
-                self._remove_point()
-                self.msg('Removed start point')
- 
-            elif self.segments:
-                # find out which segment should be removed
-                p = geometry.Point((x, y))
-                dist = [geometry.LineString(segment).distance(p)
-                        for segment in self.segments]
-                idx = np.argmin(dist)
-                
-                if dist[idx] < self.pickradius:
-                    self._remove_segment(idx)
-                    self.msg('Removed segment')
-                else:
-                    self.msg('Right-click on a segment to remove it')
-                
-        # update the graphics
-        self.fig.canvas.draw()
-        
+                self.msg('Right-click on a segment to remove it')
+    

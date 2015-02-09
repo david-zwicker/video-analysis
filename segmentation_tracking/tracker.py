@@ -29,7 +29,7 @@ from video.analysis.active_contour import ActiveContour
 from video import debug  # @UnusedImport
 
 from .tail import Tail
-from .kymograph import Kymograph
+from .kymograph import Kymograph, KymographAligner
 from .parameters import parameters_tracking, parameters_tracking_special
 from segmentation_tracking.annotation import TackingAnnotations, SegmentPicker
 
@@ -731,6 +731,8 @@ class TailSegmentationTracking(object):
                            interpolation='none', origin='lower')
                 plt.gray()
                 
+                score = kymograph.get_alignment_score()
+                
                 # use a time format for the y axis
                 def hours_minutes(value, pos):
                     """ formatting function """
@@ -746,7 +748,7 @@ class TailSegmentationTracking(object):
                 else:
                     plt.xlabel(u'Distance from posterior [\u00b5m]')
                 plt.ylabel(r'Time')
-                plt.title(side)
+                plt.title('%s (Score: %g)' % (side, score))
         
             plt.suptitle(self.name + ' Tail %d' % tail_id)
             if outfile is None:
@@ -755,6 +757,56 @@ class TailSegmentationTracking(object):
                 plt.savefig(outfile % tail_id)
             plt.close()
     
+    
+    def adjust_kymograph(self, tail_id=None, side_id=None):
+        """ launch a GUI for aligning the kymograph of the given tail and the
+        given side_id """
+        # load the data
+        self.load_result()
+        try:
+            kymograph_tails = self.result['kymographs']
+        except KeyError:
+            raise ValueError('Line scans could not be found.')
+        
+        # make sure that we know which tail to process
+        if tail_id is None:
+            if len(kymograph_tails) == 1:
+                tail_id = kymograph_tails.values()[0]
+            else:
+                print('There are multiple tails in the video. Choose one of:')
+                for tail_id in kymograph_tails.iterkeys():
+                    print('  %s' % tail_id)
+                tail_id = int(raw_input('Enter the number: '))
+        kymograph_tail = kymograph_tails[tail_id]
+        
+        # make sure that we know which side_id to process
+        if side_id is None:
+            print('There are multiple sides in the tail. Choose one of:')
+            sides = sorted(kymograph_tail.keys())
+            for side_id in enumerate(sides):
+                print('  %d: %s' % side_id)
+            side_id = sides[int(raw_input('Enter the number: '))]
+        elif isinstance(side_id, int):
+            side_id = sorted(kymograph_tail.keys())[side_id]
+        kymograph = kymograph_tail[side_id]
+
+        # prepare kymograph
+        if np.all(kymograph.offsets == 0):
+            # automatically align if offsets were not loaded             
+            kymograph.align_features('individually')
+            logging.info('Automatically aligned kymograph for %s of tail %s' %
+                         (side_id, tail_id))
+
+        # launch the GUI for aligning        
+        aligner = KymographAligner(kymograph)
+        result = aligner.run()
+        
+        if result == 'ok':
+            # save the result if desired
+            self.save_result()
+            logging.info('Saved kymograph offsets for %s of tail %s' %
+                         (side_id, tail_id))
+        
     
     #===========================================================================
     # INPUT/OUTPUT
