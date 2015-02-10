@@ -2,6 +2,8 @@
 Created on Sep 11, 2014
 
 @author: David Zwicker <dzwicker@seas.harvard.edu>
+
+This module contains functions that can be used to manage cache structures
 '''
 
 from __future__ import division

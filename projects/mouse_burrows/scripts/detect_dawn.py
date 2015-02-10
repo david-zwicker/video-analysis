@@ -19,8 +19,8 @@ from scipy import ndimage
 this_path = os.path.dirname(__file__)
 video_analysis_path = os.path.join(this_path, '..', '..')
 sys.path.append(video_analysis_path)
+from utils.misc import display_progress
 from video.io import load_any_video
-from video.utils import display_progress
 
 
 

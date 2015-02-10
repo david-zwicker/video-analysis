@@ -13,7 +13,7 @@ from scipy.spatial import distance
 from shapely import geometry
 import cv2
 
-from data_structures.cache import cached_property
+from utils.cache import cached_property
 from video.analysis import curves, regions, shapes
 from video.analysis.active_contour import ActiveContour
 

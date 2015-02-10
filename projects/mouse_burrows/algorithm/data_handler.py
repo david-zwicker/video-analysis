@@ -21,13 +21,13 @@ except ImportError:
 
 import objects
 from .parameters import PARAMETERS, PARAMETERS_DEFAULT, UNIT, scale_parameters
-from .utils import get_loglevel_from_name, change_directory
-from data_structures.dict_xpath import DictXpathLazy
-from data_structures.lazy_values import LazyHDFValue, prepare_data_for_yaml
-from data_structures.cache import cached_property
+from utils.files import change_directory, ensure_directory_exists
+from utils.data_structures import (DictXpathLazy, LazyHDFValue,
+                                   prepare_data_for_yaml)
+from utils.misc import get_loglevel_from_name
+from utils.cache import cached_property
 from video.io import load_any_video
 from video.filters import FilterCrop, FilterMonochrome
-from video.utils import ensure_directory_exists
 
 
 LOGGING_FILE_MODES = {'create': 'w', #< create new log file 

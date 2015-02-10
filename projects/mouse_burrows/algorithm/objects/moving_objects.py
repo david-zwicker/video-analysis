@@ -14,9 +14,9 @@ import itertools
 import numpy as np
 from scipy.ndimage import filters
 
-from data_structures.lazy_values import LazyHDFCollection
+from utils.cache import cached_property
+from utils.data_structures import LazyHDFCollection
 from video.analysis import curves
-from data_structures.cache import cached_property
 
 from video import debug  # @UnusedImport
 

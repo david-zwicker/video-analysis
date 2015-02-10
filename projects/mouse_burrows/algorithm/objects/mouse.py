@@ -12,8 +12,8 @@ import re
 import numpy as np
 from scipy.ndimage import filters
 
-from data_structures.lazy_values import LazyHDFValue
-from video.utils import contiguous_true_regions
+from utils.data_structures import LazyHDFValue
+from utils.math import contiguous_true_regions
 
 
 

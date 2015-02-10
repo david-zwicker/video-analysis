@@ -13,7 +13,7 @@ import glob
 import logging
 import numpy as np
 
-from video.utils import display_progress
+from utils.misc import display_progress
 
 logger = logging.getLogger('video.io')
 

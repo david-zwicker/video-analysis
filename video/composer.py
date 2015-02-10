@@ -8,10 +8,27 @@ from __future__ import division
 
 import numpy as np
 import cv2
+from matplotlib.colors import ColorConverter
 
-from .utils import get_color, contiguous_true_regions
+from utils.math import contiguous_true_regions
 from .analysis.regions import rect_to_corners
 from .io.file import VideoFileWriter
+
+
+    
+def get_color(color):
+    """
+    function that returns a RGB color with channels ranging from 0..255.
+    The matplotlib color notation is used.
+    """
+    
+    if get_color.parser is None:
+        get_color.parser = ColorConverter().to_rgb
+        
+    return (255*np.array(get_color.parser(color))).astype(int)
+
+get_color.parser = None
+
 
 
 def skip_if_no_output(func):

@@ -14,10 +14,10 @@ import numpy as np
 from scipy import ndimage
 from shapely import geometry
 
-from data_structures.lazy_values import LazyHDFValue
-from .utils import Interpolate_1D_Extrapolated
+from utils.cache import cached_property
+from utils.data_structures import LazyHDFValue
+from utils.math import Interpolate_1D_Extrapolated
 from video.analysis import curves
-from data_structures.cache import cached_property
 
 
 class GroundProfile(object):

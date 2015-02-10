@@ -12,7 +12,7 @@ import os
 import yaml
 
 from .project import HPCProjectBase
-from ..algorithm.utils import change_directory
+from utils.files import change_directory
 
 
 

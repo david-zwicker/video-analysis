@@ -15,10 +15,10 @@ import numpy as np
 import shapely
 from shapely import geometry
 
-from data_structures.lazy_values import LazyHDFCollection
-from .utils import rtrim_nan
+from utils.cache import cached_property
+from utils.data_structures import LazyHDFCollection
+from utils.math import trim_nan
 from video.analysis import curves, regions, shapes
-from data_structures.cache import cached_property
 
 from video import debug  # @UnusedImport
 
@@ -215,8 +215,8 @@ class Burrow(shapes.Polygon):
         # load the data from the respective places
         data = np.asarray(data)
         data_attr = data[:2, 2:]
-        data_contour = rtrim_nan(data[:, :2])
-        data_centerline = rtrim_nan(data[2:, 2:])
+        data_contour = trim_nan(data[:, :2], left=False)
+        data_centerline = trim_nan(data[2:, 2:], left=False)
         if len(data_centerline) == 0:
             data_centerline = None
             

@@ -26,9 +26,9 @@ this_path = os.path.dirname(__file__)
 video_analysis_path = os.path.join(this_path, '..', '..')
 sys.path.append(video_analysis_path)
 
-from data_structures.cache import cached_property
+from utils.cache import cached_property
 from video.analysis import curves, shapes
-from mousetracking.algorithm.utils import save_dict_to_csv
+from utils.data_structures import save_dict_to_csv
 
 from video import debug  # @UnusedImport
 

@@ -18,10 +18,10 @@ import cv2
 from scipy import interpolate, spatial
 from shapely import geometry
 
-from data_structures.cache import cached_property
+from utils.cache import cached_property
+from utils.misc import display_progress
 from video.io import VideoFile, ImageWindow
 from video.composer import VideoComposer
-from video.utils import display_progress
 from video.filters import FilterMonochrome, FilterResize
 from video.analysis import curves, image, regions, shapes
 from video.analysis.active_contour import ActiveContour

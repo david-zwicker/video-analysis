@@ -29,10 +29,10 @@ from shapely import affinity, geometry
 import cv2
 import yaml
 
+from utils.misc import display_progress
 from video.io import ImageWindow
 from video.filters import FilterCrop
 from video.analysis import regions, curves, image, shapes
-from video.utils import display_progress
 from video.composer import VideoComposer
 
 from .pass_base import PassBase

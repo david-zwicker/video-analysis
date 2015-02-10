@@ -19,10 +19,11 @@ from shapely import geometry, geos
 from .pass_base import PassBase
 from .objects import mouse
 from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
+from utils.math import contiguous_int_regions_iter
+from utils.misc import display_progress
 from video.analysis import curves, regions
 from video.filters import FilterCrop
 from video.io import ImageWindow
-from video.utils import display_progress, contiguous_int_regions_iter
 from video.composer import VideoComposer
 
 from video import debug  # @UnusedImport

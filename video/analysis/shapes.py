@@ -15,7 +15,7 @@ import numpy as np
 from scipy import interpolate
 from shapely import geometry
 
-from data_structures.cache import cached_property
+from utils.cache import cached_property
 from active_contour import ActiveContour
 import curves
 

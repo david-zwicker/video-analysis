@@ -1,39 +1,45 @@
 '''
-Created on Sep 10, 2014
+Created on Feb 10, 2015
 
 @author: David Zwicker <dzwicker@seas.harvard.edu>
 
-Utility functions
+This module contains math functions
 '''
 
 from __future__ import division
 
-import contextlib
-import logging
-import os
-import warnings
 
 import numpy as np
-from scipy import stats
+from scipy import stats, interpolate
 
-from data_structures.cache import cached_property
-from collections import OrderedDict
-
+from .cache import cached_property
 
 
-def get_loglevel_from_name(name_or_int):
-    """ converts a logging level name to the numeric representation """
-    # see whether it is already an integer
-    if isinstance(name_or_int, int):
-        return name_or_int
-    
-    # convert it from the name
-    level = logging.getLevelName(name_or_int.upper())
-    if isinstance(level, int):
-        return level
+
+def trim_nan(data, left=True, right=True):
+    """ removes nan values from the either end of the array `data`.
+    `left` and `right` determine whether these ends of the array are processed.
+    The default is to process both ends. """
+    if left:
+        # trim left side
+        for s in xrange(len(data)):
+            if not np.isnan(data[s]):
+                break
     else:
-        raise ValueError('`%s` is not a valid logging level.' % name_or_int)
-
+        s = 0
+        
+    if right:
+        # trim right side
+        for e in xrange(len(data) - 1, s, -1):
+            if not np.isnan(data[e]):
+                break
+        else:
+            return []
+    else:
+        e = len(data)
+        
+    return data[s:e + 1]
+    
 
 
 def mean(values, empty=0):
@@ -47,6 +53,45 @@ def mean(values, empty=0):
 
 
 
+def moving_average(data, window=1):
+    """ calculates a moving average with a given window along the first axis
+    of the given data.
+    """
+    height = len(data)
+    result = np.zeros_like(data) + np.nan
+    size = 2*window + 1
+    assert height >= size
+    for pos in xrange(height):
+        # determine the window
+        if pos < window:
+            rows = slice(0, size)
+        elif pos > height - window:
+            rows = slice(height - size, height)
+        else:
+            rows = slice(pos - window, pos + window + 1)
+            
+        # find indices where all values are valid
+        cols = np.all(np.isfinite(data[rows, :]), axis=0)
+        result[pos, cols] = data[rows, cols].mean(axis=0)
+    return result
+            
+
+
+
+class Interpolate_1D_Extrapolated(interpolate.interp1d):
+    """ extend the interpolate class from scipy to return boundary values for
+    values beyond the support """
+    
+    def __call__(self, x):
+        if x < self.x[0]:
+            return self.y[0]
+        elif x > self.x[-1]:
+            return self.y[-1]
+        else:
+            return super(Interpolate_1D_Extrapolated, self).__call__(x)
+            
+            
+
 def round_to_even(value):
     """ rounds the value to the nearest even integer """
     return int(value/2 + 0.5)*2
@@ -59,86 +104,97 @@ def round_to_odd(value):
 
 
 
-@contextlib.contextmanager
-def change_directory(path):
+def get_number_range(dtype):
     """
-    A context manager which changes the directory to the given
-    path, and then changes it back to its previous value on exit.
-    Stolen from http://code.activestate.com/recipes/576620-changedirectory-context-manager/
+    determines the mininal and maximal value a certain number type can hold
     """
-    prev_cwd = os.getcwd()
-    os.chdir(path)
-    try:
-        yield
-    finally:
-        os.chdir(prev_cwd)
+    if np.issubdtype(dtype, np.integer):
+        info = np.iinfo(dtype)
+    elif np.issubdtype(dtype, np.floating):
+        info = np.finfo(dtype)
+    else:
+        raise ValueError('Unsupported data type `%r`' % dtype)
 
+    return info.min, info.max
+        
 
-
-def deprecated(func):
-    """This is a decorator which can be used to mark functions
-    as deprecated. It will result in a warning being emitted
-    when the function is used.
-    Taken from http://code.activestate.com/recipes/391367-deprecated/
+    
+def homogenize_arraylist(data):
+    """ stores a list of arrays of different length in a single array.
+    This is achieved by appending np.nan as necessary.
     """
-    def newFunc(*args, **kwargs):
-        warnings.warn("Call to deprecated function %s." % func.__name__,
-                      category=DeprecationWarning, stacklevel=2)
-        return func(*args, **kwargs)
-    newFunc.__name__ = func.__name__
-    newFunc.__doc__ = func.__doc__
-    newFunc.__dict__.update(func.__dict__)
-    return newFunc
-
-
-
-def unique_based_on_id(data):
-    """ returns a list with only unique items, where the uniqueness
-    is determined from the id of the items. This can be useful in the
-    case where the items cannot be hashed and a set can thus not be used. """
-    result, seen = [], set()
-    for item in data:
-        if id(item) not in seen:
-            result.append(item)
-            seen.add(id(item))
+    len_max = max(len(d) for d in data)
+    result = np.empty((len(data), len_max) + data[0].shape[1:], dtype=data[0].dtype)
+    result.fill(np.nan)
+    for k, d in enumerate(data):
+        result[k, :len(d), ...] = d
     return result
 
 
+    
+def contiguous_true_regions(condition):
+    """ Finds contiguous True regions of the boolean array "condition". Returns
+    a 2D array where the first column is the start index of the region and the
+    second column is the end index
+    Taken from http://stackoverflow.com/a/4495197/932593
+    """
+    if len(condition) == 0:
+        return []
+    
+    # Find the indices of changes in "condition"
+    d = np.diff(condition.astype(int))
+    idx, = d.nonzero() 
 
-def save_dict_to_csv(data, filename, first_columns=None, **kwargs):
-    """ function that takes a dictionary of lists and saves it as a csv file """
-    if first_columns is None:
-        first_columns = []
+    # We need to start things after the change in "condition". Therefore, 
+    # we'll shift the index by 1 to the right.
+    idx += 1
 
-    # sort the columns 
-    sorted_index = {c: k for k, c in enumerate(sorted(data.keys()))}
-    def column_key(col):
-        """ helper function for sorting the columns in the given order """
-        try:
-            return first_columns.index(col)
-        except ValueError:
-            return len(first_columns) + sorted_index[col]
-    sorted_keys = sorted(data.keys(), key=column_key)
-        
-    # create a data table and indicated potential units associated with the data
-    # in the header
-    table = OrderedDict()
-    for key in sorted_keys:
-        value = data[key]
-        if hasattr(value, 'magnitude'):
-            key += ' [%s]' % value.units
-            value = value.magnitude
-        elif len(value) > 0 and hasattr(value[0], 'magnitude'):
-            assert len(set(str(item.units) for item in value)) == 1
-            key += ' [%s]' % value[0].units
-            value = [item.magnitude for item in value]
-        table[key] = value
+    if condition[0]:
+        # If the start of condition is True prepend a 0
+        idx = np.r_[0, idx]
 
-    # create a pandas data frame to save data to CSV
-    import pandas as pd
-    pd.DataFrame(table).to_csv(filename, **kwargs)
+    if condition[-1]:
+        # If the end of condition is True, append the length of the array
+        idx = np.r_[idx, condition.size]
+
+    # Reshape the result into two columns
+    idx.shape = (-1, 2)
+    return idx
 
 
+
+def contiguous_int_regions_iter(data):
+    """ Finds contiguous regions of the integer array "data". Regions that
+    have falsey (0 or False) values are not returned.
+    Returns three values (value, start, end), denoting the value and the pairs
+    of indices and indicating the start index and end index of the region.
+    """
+    data = np.asarray(data, int)
+    
+    # Find the indices of changes in "data"
+    d = np.diff(data)
+    idx, = d.nonzero() 
+
+    last_k = 0
+    for k in idx:
+        yield data[k], last_k, k + 1
+        last_k = k + 1
+
+    # yield last data point
+    if len(data) > 0:
+        yield data[-1], last_k, data.size
+
+
+
+def safe_typecast(data, dtype):
+    """
+    truncates the data such that it fits within the supplied dtype.
+    This function only supports integer datatypes so far.
+    """
+    info = np.iinfo(dtype)
+    return np.clip(data, info.min, info.max).astype(dtype)
+    
+    
 
 NORMAL_DISTRIBUTION_NORMALIZATION = 1/np.sqrt(2*np.pi)
 

@@ -16,7 +16,7 @@ Part of the modules have been modified from code from moviepy, which
 is released under the MIT license at github. The license is included
 at the end of this file.
 </dd>
-<dt>data_structures</dt>
+<dt>utils</dt>
 <dd>
 Miscellaneous data structures that are useful for managing caches, 
 heterogeneous output, etc.

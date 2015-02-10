@@ -9,7 +9,7 @@ from __future__ import division
 import numpy as np
 
 from .base import VideoBase
-from video.utils import safe_typecast
+from utils.math import safe_typecast
 
 
 class VideoGaussianNoise(VideoBase):

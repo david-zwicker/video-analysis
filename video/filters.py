@@ -23,7 +23,7 @@ except ImportError:
 
 from .io.base import VideoFilterBase
 from .analysis.regions import rect_to_slices
-from .utils import get_color_range, get_number_range
+from utils.math import get_number_range
 
 logger = logging.getLogger('video')
 
@@ -31,6 +31,24 @@ logger = logging.getLogger('video')
 COLOR_CHANNELS = {'blue':  0, 'b': 0, 0: 0,
                   'green': 1, 'g': 1, 1: 1,
                   'red':   2, 'r': 2, 2: 2}
+    
+    
+
+def get_color_range(dtype):
+    """
+    determines the color depth of the numpy array `data`.
+    If the dtype is an integer, the range that it can hold is returned.
+    If dtype is an inexact number (a float point), zero and one is returned
+    """
+    if np.issubdtype(dtype, np.integer):
+        info = np.iinfo(dtype)
+        return info.min, info.max
+    elif np.issubdtype(dtype, np.floating):
+        return 0, 1        
+    else:
+        raise ValueError('Unsupported data type `%r`' % dtype)
+
+
     
   
 

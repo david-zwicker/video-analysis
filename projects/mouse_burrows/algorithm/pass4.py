@@ -18,11 +18,11 @@ from shapely import geometry
 
 from .pass_base import PassBase
 from .objects.burrow import Burrow, BurrowTrackList
-from .utils import unique_based_on_id, NormalDistribution
+from utils.misc import unique_based_on_id, display_progress
+from utils.math import NormalDistribution, contiguous_true_regions
 from video.analysis import curves, regions
 from video.io import ImageWindow, VideoFile
 from video.filters import FilterMonochrome
-from video.utils import display_progress, contiguous_true_regions
 from video.composer import VideoComposer
 
 from video import debug  # @UnusedImport

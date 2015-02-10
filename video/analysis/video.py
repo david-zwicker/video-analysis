@@ -8,7 +8,7 @@ from __future__ import division
 
 import numpy as np
 
-from ..utils import display_progress
+from utils.misc import display_progress
 
 
 def reduce_video(video, function, initial_value=None):

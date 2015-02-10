@@ -15,8 +15,8 @@ import time
 import numpy as np
 
 from ..algorithm.parameters import PARAMETERS_DEFAULT
-from data_structures.dict_xpath import DictXpath
-
+from utils.data_structures import DictXpath
+import utils.files
 
 
 def process_trials(logfile, max_iterations=10):
@@ -153,9 +153,8 @@ class HPCProjectBase(object):
         elif 'purge' in prepare_workfolder:
             self.clean_workfolder(purge=True)
         
-        # extract folder of current file
-        this_folder, _ = os.path.split(__file__)
-        folder_code = os.path.abspath(os.path.join(this_folder, '../..'))
+        # get the folder in which the current project resides
+        folder_code = os.path.abspath(utils.files.MAIN_DIRECTORY)
         
         # setup tracking parameters
         tracking_parameters = self.parameters.to_dict(flatten=True)

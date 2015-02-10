@@ -16,7 +16,7 @@ from scipy import ndimage
 
 import cv2
 
-from data_structures.cache import cached_property
+from utils.cache import cached_property
 
 
 

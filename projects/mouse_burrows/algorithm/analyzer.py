@@ -18,8 +18,8 @@ import networkx as nx
 from ..algorithm import FirstPass, SecondPass, ThirdPass, FourthPass
 from .data_handler import DataHandler
 from .objects import mouse
+from utils.math import contiguous_int_regions_iter
 from video.analysis import curves
-from video.utils import contiguous_int_regions_iter
 
 try:
     import pint
