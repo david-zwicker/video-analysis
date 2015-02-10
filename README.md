@@ -21,15 +21,9 @@ at the end of this file.
 Miscellaneous data structures that are useful for managing caches, managing
 heterogeneous output, etc.
 </dd>
-<dt>mousetracking</dt>
+<dt>projects</dt>
 <dd>
-The actual video analysis code for a project where we track mice burrowing in
-sand boxes.
-</dd>
-<dt>segmentation_tracking</dt>
-<dd>
-Another video analysis project where we track growing mice tails under the
-microscope.
+The actual video analysis code for several projects.
 </dd>
 <dt>external</dt>
 <dd>

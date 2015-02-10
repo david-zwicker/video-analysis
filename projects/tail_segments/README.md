@@ -7,4 +7,4 @@ which can then be plotted as kymographs for further analysis.
 TODO
 ----
 * do something about touching tails
-* think about using negative line tension
+* think about adding a GUI for determining line scan parameters

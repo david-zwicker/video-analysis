@@ -1,3 +1,7 @@
+This project is about tracking mice during burrowing activities. It analyzes
+the dynamics of the mouse, the ground line, and the actual burrows.
+
+
 Necessary python packages:
 
 Package     | Usage                                      
