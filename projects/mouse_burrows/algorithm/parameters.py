@@ -63,7 +63,8 @@ PARAMETER_LIST = [
               'Base folder in which all files are kept'),
     Parameter('factor_length', 1, UNIT.DEPRECATED, #UNIT.FACTOR,
               'A factor by which all length scales will be scaled.'
-              'Deprecated since 2014-12-20'),
+              'Deprecated since 2014-12-20. Instead, `scale_length` should be '
+              'used, which will be processed when loading the parameters once'),
                   
     # Video input
     Parameter('video/filename_pattern', 'raw_video/*.MTS', UNIT.SUBFOLDER,

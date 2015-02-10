@@ -50,13 +50,15 @@ def get_ffmpeg_version(cmd):
 FFMPEG_VERSION = get_ffmpeg_version('ffmpeg')
 if FFMPEG_VERSION:
     FFMPEG_BINARY = 'ffmpeg'
-    logger.debug('Found ffmpeg %r at %s', FFMPEG_VERSION, 
+    logger.debug('Found ffmpeg v%s at %s',
+                 '.'.join(str(i) for i in FFMPEG_VERSION), 
                  subprocess.check_output(['which', 'ffmpeg']).strip())
 else:
     FFMPEG_VERSION = get_ffmpeg_version('ffmpeg.exe')
     if FFMPEG_VERSION:
         FFMPEG_BINARY = 'ffmpeg.exe'
-        logger.debug('Found ffmpeg.exe %r.', FFMPEG_VERSION)
+        logger.debug('Found ffmpeg.exe v%s.',
+                     '.'.join(str(i) for i in FFMPEG_VERSION))
     else:
         FFMPEG_BINARY = None
         logger.warn('ffmpeg binary not found. Functions relying on it will not '

@@ -9,7 +9,7 @@ sys.path.append(os.path.expanduser("{FOLDER_CODE}"))
 
 from numpy import array  # @UnusedImport
 
-from mousetracking.algorithm.pass2 import SecondPass
+from projects.mouse_burrows.algorithm.pass2 import SecondPass
 
 # configure basic logging, which will be overwritten later
 logging.basicConfig()

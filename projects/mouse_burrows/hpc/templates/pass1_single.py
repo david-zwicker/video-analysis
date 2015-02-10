@@ -9,8 +9,8 @@ sys.path.append(os.path.expanduser("{FOLDER_CODE}"))
 
 from numpy import array  # @UnusedImport
 
-from mousetracking import scan_video
-from mousetracking.hpc.project import process_trials
+from projects.mouse_burrows import scan_video
+from projects.mouse_burrows.hpc.project import process_trials
 from video.io.backend_ffmpeg import FFmpegError 
 
 # configure basic logging, which will be overwritten later
@@ -32,7 +32,7 @@ parameters.update({{
 }})
 
 # do the first pass scan
-for trial in xrange(10):#process_trials("{LOG_FILE}" % job_id, 10):
+for trial in process_trials("{LOG_FILE}" % job_id, 10):
     try:
         scan_video("{NAME}", parameters=parameters, passes=1,
                    scale_length={SCALE_LENGTH}) # @UndefinedVariable
