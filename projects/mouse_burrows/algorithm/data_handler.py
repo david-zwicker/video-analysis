@@ -20,8 +20,8 @@ except ImportError:
     dateutil = None
 
 import objects
-from projects.mouse_burrows import PARAMETERS, PARAMETERS_DEFAULT, UNIT, scale_parameters
-from projects.mouse_burrows import get_loglevel_from_name, change_directory
+from .parameters import PARAMETERS, PARAMETERS_DEFAULT, UNIT, scale_parameters
+from .utils import get_loglevel_from_name, change_directory
 from data_structures.dict_xpath import DictXpathLazy
 from data_structures.lazy_values import LazyHDFValue, prepare_data_for_yaml
 from data_structures.cache import cached_property

@@ -10,7 +10,7 @@ General code that can be used to process videos using python.
 Special attention has been paid to develop video classes that can be easily
 used in iterating over video frames, also with multiprocessing support.
 The sub-package `analysis` contains several modules that contain miscellaneous
-functions that might be useful for general image or video analysis
+functions that might be useful for general image or video analysis.
 
 Part of the modules have been modified from code from moviepy, which
 is released under the MIT license at github. The license is included
@@ -18,7 +18,7 @@ at the end of this file.
 </dd>
 <dt>data_structures</dt>
 <dd>
-Miscellaneous data structures that are useful for managing caches, managing
+Miscellaneous data structures that are useful for managing caches, 
 heterogeneous output, etc.
 </dd>
 <dt>projects</dt>

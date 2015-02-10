@@ -1,1 +1,1 @@
-from segmentation_tracking.tracker import TailSegmentationTracking
+from .tracker import TailSegmentationTracking
