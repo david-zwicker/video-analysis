@@ -8,7 +8,7 @@ from __future__ import division
 
 import logging
 
-from ..simple import load_result_file
+from projects.mouse_burrows import load_result_file
 from video.analysis import curves
 
 

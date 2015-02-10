@@ -2,12 +2,12 @@
 This package contains classes that represent objects which can be tracked
 """ 
 
-from .burrow import Burrow, BurrowTrack, BurrowTrackList
-from .ground import GroundProfile, GroundProfileList, GroundProfileTrack
+from projects.mouse_burrows import Burrow, BurrowTrack, BurrowTrackList
+from projects.mouse_burrows import GroundProfile, GroundProfileList, GroundProfileTrack
 from mousetracking.algorithm.objects.moving_objects import (MovingObject,
                                                             ObjectTrack,
                                                             ObjectTrackList)
-from .mouse import MouseTrack
+from projects.mouse_burrows import MouseTrack
 
 # define a simple object representing the cage rectangle
 from video.analysis.shapes import Rectangle

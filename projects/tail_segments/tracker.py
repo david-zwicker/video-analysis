@@ -31,7 +31,7 @@ from video import debug  # @UnusedImport
 from .tail import Tail
 from .kymograph import Kymograph, KymographAligner
 from .parameters import parameters_tracking, parameters_tracking_special
-from segmentation_tracking.annotation import TackingAnnotations, SegmentPicker
+from .annotation import TackingAnnotations, SegmentPicker
 
 
 
