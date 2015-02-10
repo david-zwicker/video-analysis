@@ -18,8 +18,9 @@ at the end of this file.
 </dd>
 <dt>utils</dt>
 <dd>
-Miscellaneous data structures that are useful for managing caches, 
-heterogeneous output, etc.
+Miscellaneous helper functions and classes.
+For instance, there are math functions and data structures that are useful for
+managing caches, heterogeneous output, etc.
 </dd>
 <dt>projects</dt>
 <dd>

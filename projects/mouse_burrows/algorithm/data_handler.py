@@ -67,7 +67,7 @@ class DataHandler(object):
     def __init__(self, name='', parameters=None, initialize_parameters=True,
                  read_data=False):
         self.name = name
-        self.logger = logging.getLogger('mousetracking')
+        self.logger = logging.getLogger('mouse_burrows')
 
         # initialize the data handled by this class
         self.video = None
