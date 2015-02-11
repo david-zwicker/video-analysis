@@ -358,8 +358,10 @@ class VideoSlice(VideoFilterBase):
         # set the new frame count 
         super(VideoSlice, self).__init__(source, frame_count=frame_count)
 
-        logger.debug('Created video slice [%d:%d:%d] of length %d.' % 
-                     (self._start, self._stop, self._step, frame_count)) 
+        logger.debug('Created video slice [%d:%d%s] of length %d.' % 
+                     (self._start, self._stop, 
+                      '' if self._step == 1 else ':%d' % self._step,
+                      frame_count))
         if step < 0:
             logger.warn('Reversing a video can slow down the processing significantly.')
         

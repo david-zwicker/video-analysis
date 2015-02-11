@@ -540,8 +540,9 @@ class FirstPass(PassBase):
         if 'cage_estimate' in self.params['debug/output']:
             self.produce_cage_debug_image(frame, frame_binarized)
 
-        if not (self.params['cage/width_min'] < rect_cage.width < self.params['cage/width_max'] and
-                self.params['cage/height_min'] < rect_cage.height < self.params['cage/height_max']):
+        width_ok = self.params['cage/width_min'] < rect_cage.width < self.params['cage/width_max']
+        height_ok = self.params['cage/height_min'] < rect_cage.height < self.params['cage/height_max']
+        if not (width_ok and height_ok):
             raise RuntimeError('The cage bounding box (%dx%d) is out of the '
                                'limits.' % (rect_cage.width, rect_cage.height)) 
         
@@ -703,7 +704,8 @@ class FirstPass(PassBase):
             # cut out holes from the adaptation_rate for each object estimate
             for obj in self.tracks:
                 # get the slices required for comparing the template to the image
-                t_s, i_s = regions.get_overlapping_slices(obj.last.pos, template.shape,
+                t_s, i_s = regions.get_overlapping_slices(obj.last.pos,
+                                                          template.shape,
                                                           frame.shape)
                 adaptation_rate[i_s[0], i_s[1]] *= 1 - template[t_s[0], t_s[1]]
                 
@@ -1003,7 +1005,8 @@ class FirstPass(PassBase):
             # try different fractions of the total width                  
             for width_factor in self.params['ground/template_width_factors']:
                 width_estimate = width_factor * frame.shape[1] #< width
-                template, t_points = self._get_ground_template(width_estimate, aspect_factor)
+                template, t_points = self._get_ground_template(width_estimate,
+                                                               aspect_factor)
             
                 # convolute template with frame
                 conv = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
@@ -1684,7 +1687,8 @@ class FirstPass(PassBase):
                 dx /= dist; dy /= dist
                 
                 # get profile along the centerline
-                p1e = (point_anchor[0] + scan_length*dx, point_anchor[1] + scan_length*dy)
+                p1e = (point_anchor[0] + scan_length*dx,
+                       point_anchor[1] + scan_length*dy)
                 background = self.background.astype(np.uint8, copy=False)
                 profile = image.line_scan(background, point_anchor, p1e, 3)
 
@@ -1769,7 +1773,8 @@ class FirstPass(PassBase):
         # foreground and background regions  
         img[mask_ground == 0] = self.result['colors/sand'] #< turn into background
         mask[:] = cv2.GC_BGD #< surely background
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (int(2*width_min), int(2*width_min)))
+        ksize = (int(2*width_min), int(2*width_min))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize)
         mask[cv2.dilate(mask_burrow, kernel) == 255] = cv2.GC_PR_BGD #< probable background
         mask[mask_burrow == 255] = cv2.GC_PR_FGD #< probable foreground
         
@@ -1819,7 +1824,8 @@ class FirstPass(PassBase):
         
         # find the burrow from the mask
         try:
-            burrow = self.get_burrow_from_mask(mask.astype(np.uint8), offset=rect[:2])
+            burrow = self.get_burrow_from_mask(mask.astype(np.uint8),
+                                               offset=rect[:2])
             self.get_burrow_centerline(burrow)
         except RuntimeError as err:
             burrow = None
@@ -1891,7 +1897,8 @@ class FirstPass(PassBase):
             
             # add the burrow to our result list if it is valid
             if burrow is not None and burrow.is_valid:
-                cv2.fillPoly(burrows_mask, np.array([burrow.contour], np.int32), color=1)
+                contour = np.array([burrow.contour], np.int32)
+                cv2.fillPoly(burrows_mask, contour, color=1)
                 
                 if track_id is not None:
                     # add the burrow to the current mask
@@ -1942,31 +1949,35 @@ class FirstPass(PassBase):
         if 'video' in debug_output or 'video.show' in debug_output:
             # initialize the writer for the debug video
             debug_file = self.get_filename('pass1' + video_extension, 'debug')
-            self.output['video'] = VideoComposer(debug_file, size=self.video.size,
-                                                 fps=self.video.fps, is_color=True,
-                                                 output_period=video_output_period,
-                                                 codec=video_codec, bitrate=video_bitrate,
-                                                 debug=self.debug_enabled)
+            self.output['video'] = VideoComposer(
+                debug_file, size=self.video.size, fps=self.video.fps,
+                is_color=True, output_period=video_output_period,
+                codec=video_codec, bitrate=video_bitrate,
+                debug=self.debug_enabled
+            )
             
             if 'video.show' in debug_output:
                 name = self.name if self.name else ''
                 position = self.params['debug/window_position']
-                image_window = ImageWindow(self.output['video'].shape,
-                                           title='Debug video pass 1 [%s]' % name,
-                                           multiprocessing=self.params['debug/use_multiprocessing'],
-                                           position=position)
+                image_window = ImageWindow(
+                    self.output['video'].shape,
+                    title='Debug video pass 1 [%s]' % name,
+                    multiprocessing=self.params['debug/use_multiprocessing'],
+                    position=position
+                )
                 self.output['video.show'] = image_window
 
-        # set up additional video writers
+        # set up additional video writers (always produce background video)
         for identifier in ('difference', 'background', 'explored_area'):
             if identifier == 'background' or identifier in debug_output:
                 # determine the filename to be used
                 debug_file = self.get_filename(identifier + video_extension, 'debug')
                 # set up the video file writer
-                video_writer = VideoComposer(debug_file, self.video.size, self.video.fps,
-                                             is_color=False, output_period=video_output_period,
-                                             codec=video_codec, bitrate=video_bitrate,
-                                             debug=self.debug_enabled)
+                video_writer = VideoComposer(
+                    debug_file, self.video.size, self.video.fps, is_color=False,
+                    output_period=video_output_period, codec=video_codec,
+                    bitrate=video_bitrate, debug=self.debug_enabled
+                )
                 self.output[identifier + '.video'] = video_writer
         
 
@@ -2072,7 +2083,8 @@ class FirstPass(PassBase):
             self.output['video.show'].close()
         
         # close the open video streams
-        for video in ('video', 'difference.video', 'background.video', 'explored_area.video'):
+        for video in ('video', 'difference.video', 'background.video',
+                      'explored_area.video'):
             if video in self.output:
                 try:
                     self.output[video].close()
