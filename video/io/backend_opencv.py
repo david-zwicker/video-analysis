@@ -79,6 +79,8 @@ class VideoOpenCV(VideoBase):
         
         
     def open(self):
+        """ Opens the video file """
+        logger.debug('Open video `%s`' % self.filename)
         self._movie = cv2.VideoCapture(self.filename)
         
         

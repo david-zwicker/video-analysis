@@ -26,26 +26,28 @@ def trim_nan(data, left=True, right=True):
             if not np.isnan(data[s]):
                 break
     else:
+        # don't trim the left side
         s = 0
         
     if right:
         # trim right side
         for e in xrange(len(data) - 1, s, -1):
             if not np.isnan(data[e]):
-                break
-        else:
-            return []
+                # trim right side
+                return data[s:e + 1]
+        # array is all nan
+        return []
+    
     else:
-        e = len(data)
-        
-    return data[s:e + 1]
+        # don't trim the right side
+        return data[s:]
     
 
 
 def mean(values, empty=0):
     """ calculates mean of generator or iterator.
     Returns `empty` in case of an empty sequence """
-    n, total = 0, 0.
+    n, total = 0, 0
     for value in values:
         total += value
         n += 1
@@ -80,7 +82,9 @@ def moving_average(data, window=1):
 
 class Interpolate_1D_Extrapolated(interpolate.interp1d):
     """ extend the interpolate class from scipy to return boundary values for
-    values beyond the support """
+    values beyond the support.
+    Here, we return the value at the boundary for all points beyond it.
+    """
     
     def __call__(self, x):
         if x < self.x[0]:
@@ -94,19 +98,19 @@ class Interpolate_1D_Extrapolated(interpolate.interp1d):
 
 def round_to_even(value):
     """ rounds the value to the nearest even integer """
-    return int(value/2 + 0.5)*2
+    return 2*int(value/2 + 0.5)
 
 
 
 def round_to_odd(value):
     """ rounds the value to the nearest odd integer """
-    return int(value/2)*2 + 1
+    return 2*int(value/2) + 1
 
 
 
 def get_number_range(dtype):
     """
-    determines the mininal and maximal value a certain number type can hold
+    determines the minimal and maximal value a certain number type can hold
     """
     if np.issubdtype(dtype, np.integer):
         info = np.iinfo(dtype)
@@ -189,7 +193,7 @@ def contiguous_int_regions_iter(data):
 def safe_typecast(data, dtype):
     """
     truncates the data such that it fits within the supplied dtype.
-    This function only supports integer datatypes so far.
+    This function only supports integer data types so far.
     """
     info = np.iinfo(dtype)
     return np.clip(data, info.min, info.max).astype(dtype)

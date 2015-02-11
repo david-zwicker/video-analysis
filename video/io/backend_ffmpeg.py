@@ -132,6 +132,7 @@ class VideoFFmpeg(VideoBase):
 
     def open(self, index=0):
         """ Opens the file, creates the pipe. """
+        logger.debug('Open video `%s`' % self.filename)
         self.close() # close if anything was opened
         
         if index > 0:

@@ -25,6 +25,7 @@ class UNIT(object):
     COLOR = 5
     BOOLEAN = 6
     INTEGER = 7
+    STRING = 8
     LENGTH_PIXEL = 11
     LENGTH_CM = 12
     AREA_PIXEL = 15
@@ -71,6 +72,10 @@ PARAMETER_LIST = [
               'Filename pattern used to look for videos'),
     Parameter('video/initial_adaptation_frames', 100, UNIT.TIME_FRAMES,
               'Number of initial frames to skip during analysis'),
+    Parameter('video/blur_method', 'gaussian', UNIT.STRING,
+              'The method to be used for reducing noise in the video. The '
+              'supported methods are `mean`, `gaussian`, `bilateral`, in '
+              'increasing complexity, i.e. decreasing speed.'),
     Parameter('video/blur_radius', 3, UNIT.LENGTH_PIXEL,
               'Radius of the blur filter to remove noise'),
     Parameter('video/blur_sigma_color', 0, UNIT.COLOR,
