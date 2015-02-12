@@ -312,7 +312,17 @@ class VideoWriterFFmpeg(object):
         
     def __init__(self, filename, size, fps, is_color=True, codec="libx264",
                  bitrate=None, debug=False):
-
+        """
+        Initializes the video writer.
+        `filename` is the name of the video
+        `size` is a tuple determining the width and height of the video
+        `fps` determines the frame rate in 1/seconds
+        `is_color` is a flag indicating whether the video is in color
+        `codec` selects a codec supported by FFmpeg
+        `bitrate` determines the associated bitrate
+        `debug` indicates whether we are in debug mode with more output
+        """
+        
         self.filename = os.path.expanduser(filename)
         self.codec = codec
         self.ext = self.filename.split(".")[-1]

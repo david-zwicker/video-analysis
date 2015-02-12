@@ -16,7 +16,7 @@ import logging
 import cv2
 import cv2.cv as cv # still necessary for some constants
 
-from .base import VideoBase, VideoImageStackBase, NotSeekableError
+from .base import VideoBase, VideoImageStackBase
 
 logger = logging.getLogger('video.io')
 
@@ -81,6 +81,7 @@ class VideoOpenCV(VideoBase):
     def open(self):
         """ Opens the video file """
         logger.debug('Open video `%s`' % self.filename)
+        self.close() #< make sure that the previous video is closed
         self._movie = cv2.VideoCapture(self.filename)
         
         
@@ -92,10 +93,13 @@ class VideoOpenCV(VideoBase):
     def set_frame_pos(self, index):
         """ sets the 0-based index of the next frame """
         frame_pos = self.get_frame_pos()
+        
         if index < frame_pos and not self.seekable:
-            raise NotSeekableError('Cannot seek to frame %d, because the video '
-                                   'is already at frame %d' % (index, frame_pos))
-        elif index > frame_pos:
+            # reopen the video to be able to seek forward
+            self.open()
+            frame_pos = self.get_frame_pos()
+
+        if index > frame_pos:
             # OpenCV seeking is not exact to the frame
             # => we seek about 1 sec before the frame ...
             if index > frame_pos + self.fps:
@@ -126,8 +130,8 @@ class VideoOpenCV(VideoBase):
     def get_frame(self, index):
         """
         returns a specific frame identified by its index.
-        Note that this sets the internal frame index of the video and this function
-        should thus not be used while iterating over the video.
+        Note that this sets the internal frame index of the video and this
+        function should thus not be used while iterating over the video.
         """
         self.set_frame_pos(index)
         
@@ -142,7 +146,8 @@ class VideoOpenCV(VideoBase):
             
                     
     def close(self):
-        self._movie.release()
+        if self._movie:
+            self._movie.release()
         self._movie = None
 
                     
@@ -180,7 +185,8 @@ def show_video_opencv(video):
 
 
 class VideoWriterOpenCV(object):
-    def __init__(self, filename, size, fps, is_color=True, codec=None):
+    def __init__(self, filename, size, fps, is_color=True, codec=None,
+                 **kwargs):
         """
         Saves the video to the file indicated by filename.
         codec must be a fourcc code from http://www.fourcc.org/codecs.php
@@ -189,7 +195,7 @@ class VideoWriterOpenCV(object):
         self.filename = os.path.expanduser(filename)
         self.size = size
         self.is_color = is_color
-        self.frames_written = 0   
+        self.frames_written = 0
 
         if codec is None:
             # detect format from file ending
@@ -202,9 +208,11 @@ class VideoWriterOpenCV(object):
         # get the code defining the video format
         fourcc = cv2.cv.FOURCC(*codec)
         self._writer = cv2.VideoWriter(self.filename, fourcc=fourcc, fps=fps,
-                                       frameSize=(size[1], size[0]), isColor=is_color)
+                                       frameSize=(size[1], size[0]),
+                                       isColor=is_color)
 
-        logger.info('Start writing video `%s` with codec `%s`', self.filename, codec)
+        logger.info('Start writing video `%s` with codec `%s`',
+                    self.filename, codec)
                 
         
     @property
