@@ -50,16 +50,13 @@ class TailSegmentationTracking(object):
                         kymograph for each side of the tail
     """
     
-    def __init__(self, video_file, output_video=None, parameters=None,
-                 show_video=False):
+    def __init__(self, video_file, output_video=None, parameters=None):
         """
         `video_file` is the input video
         `output_video` is the video file where the output is written to
-        `show_video` indicates whether the video should be shown while processing
         """
         self.video_file = video_file
         self.output_video = output_video
-        self.show_video = show_video
 
         self.name = os.path.splitext(os.path.split(video_file)[1])[0]
         self.annotations = TackingAnnotations(self.name)
@@ -108,7 +105,7 @@ class TailSegmentationTracking(object):
             self.output = VideoComposer(self.output_video, size=self.video.size,
                                         fps=self.video.fps, is_color=True,
                                         zoom_factor=zoom_factor)
-            if self.show_video:
+            if self.params['output/show_video']:
                 self.debug_window = ImageWindow(self.output.shape,
                                                 title=self.video_file,
                                                 multiprocessing=False)

@@ -18,6 +18,7 @@ parameters_tracking = {
     'output/background': 'original', #< ('original', 'gradient', 'thresholded')
     'output/mark_points': False,
     'output/use_tex': False,
+    'output/show_video': True,
                                
     'gradient/blur_radius': 10, 
     'gradient/threshold': 0.05, 
