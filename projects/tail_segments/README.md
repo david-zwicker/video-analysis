@@ -7,8 +7,6 @@ which can then be plotted as kymographs for further analysis.
 TODO
 ----
 * produce plot after manually aligning
-* rename button from OK to Save
 * do something about touching tails
 * think about adding a GUI for determining line scan parameters
-* GUI for measuring lines
 * Plot extrapolated centerline

@@ -10,8 +10,11 @@ import logging
 
 import numpy as np
 import cv2
+
 import matplotlib.pyplot as plt
-from matplotlib import patches, widgets
+from matplotlib import patches, widgets, ticker
+
+from utils import graphics
 
 from video import debug  # @UnusedImport
 
@@ -217,10 +220,11 @@ class KymographAligner(object):
         self._ax_points = None
         
         # create the widget for selecting the range
+        useblit = graphics.backend_supports_blit()
         self.selector = \
             widgets.RectangleSelector(self.ax, self.select_callback,
                                       drawtype='box',
-                                      useblit=False, #< not on mac ...
+                                      useblit=useblit,
                                       button=[1]) # only use the left button
             
         # the rectangle marking the selected area
@@ -235,7 +239,7 @@ class KymographAligner(object):
         bn_align.on_clicked(self.clicked_align)
 
         ax_ok = plt.axes([0.7, 0.05, 0.1, 0.075])
-        bn_ok = widgets.Button(ax_ok, 'Ok')
+        bn_ok = widgets.Button(ax_ok, 'Save')
         bn_ok.on_clicked(self.clicked_ok)
 
         ax_cancel = plt.axes([0.81, 0.05, 0.1, 0.075])
@@ -319,3 +323,98 @@ class KymographAligner(object):
             
         else:
             print('Key %s released' % event.key)
+            
+            
+
+class KymographPlotter(object):
+    """ class used for plotting kymographs """
+    
+    interpolation = 'nearest'
+    lineprops = {'color': 'b'} #< defines the line style for measure_lines
+    
+    
+    def __init__(self, kymograph, title='', length_scale=1, time_scale=1, 
+                 use_tex=None):
+        """ initializes the plotter with a `kymograph` and a `title`.
+        `length_scale` sets the length of a single pixel in micrometer
+        `time_scale` sets the length of a single pixel in minutes
+        `use_tex` determines whether tex is used for outputting values 
+        """
+        self.kymograph = kymograph
+        self.title = title
+        self.length_scale = length_scale
+        self.time_scale = time_scale
+    
+        # setup the plotting
+        if use_tex is not None:
+            plt.rcParams['text.usetex'] = use_tex
+
+        self.fig = plt.figure()
+        self.ax = plt.gca()
+    
+        # create image and determine the length and time scales
+        img = self.kymograph.get_image()
+        distance = img.shape[1] * self.length_scale
+        duration = img.shape[0] * self.time_scale 
+        extent = (0, distance, 0, duration)
+        
+        # plot image in gray scale
+        self.ax.imshow(img, extent=extent, aspect='auto',
+                       interpolation=self.interpolation, origin='lower',
+                       cmap=plt.get_cmap('gray'))
+        
+        # use a time format for the y axis
+        def hours_minutes(value, pos):
+            """ formatting function """
+            return '%d:%02d' % divmod(value, 60)
+        self.ax.yaxis.set_major_locator(ticker.MultipleLocator(2*60))
+        self.ax.yaxis.set_major_formatter(ticker.FuncFormatter(hours_minutes))
+        self.ax.invert_yaxis()
+        
+        self.ax.set_xlim(0, distance)
+        self.ax.set_ylim(duration, 0)
+        
+        # label image
+        if plt.rcParams['text.usetex']:
+            self.ax.set_xlabel(r'Distance from posterior end [$\unit{\upmu m}$]')
+        else:
+            self.ax.set_xlabel(u'Distance from posterior end [\u00b5m]')
+        self.ax.set_ylabel(r'Time [h:m]')
+            
+            
+    def close(self):
+        """ close the figure """
+        plt.close(self.fig)
+            
+            
+    def measure_lines(self):
+        """ shows an interface for measuring lines """
+        # create the widget for selecting the range
+        useblit = graphics.backend_supports_blit()
+        self.selector = \
+            widgets.RectangleSelector(self.ax, self.select_callback,
+                                      drawtype='line', lineprops=self.lineprops,
+                                      useblit=useblit, button=[1])
+            
+        self.line = self.ax.plot([-1, -1], [-1, -1], **self.lineprops)[0]
+            
+        plt.show()
+
+
+    def select_callback(self, eclick, erelease):
+        """ callback for changing the selection range
+        eclick and erelease are the press and release events """
+        x1, x2 = eclick.xdata, erelease.xdata
+        y1, y2 = eclick.ydata, erelease.ydata
+        self.line.set_xdata((x1, x2))
+        self.line.set_ydata((y1, y2))
+
+        # calculate the speed of the line
+        speed = -(x1 - x2)/(y1 - y2) * self.length_scale/self.time_scale
+        if plt.rcParams['text.usetex']:
+            self.ax.set_title(r'Speed $\unitfrac[%g]{\upmu m}{min}$' % speed)
+        else:
+            self.ax.set_title(u'Speed %g \u00b5m/min' % speed)
+
+        self.fig.canvas.draw() #< update the graphics
+        

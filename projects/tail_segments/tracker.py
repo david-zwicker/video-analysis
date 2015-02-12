@@ -29,7 +29,7 @@ from video.analysis.active_contour import ActiveContour
 from video import debug  # @UnusedImport
 
 from .tail import Tail
-from .kymograph import Kymograph, KymographAligner
+from .kymograph import Kymograph, KymographAligner, KymographPlotter
 from .parameters import parameters_tracking, parameters_tracking_special
 from .annotation import TackingAnnotations, SegmentPicker
 
@@ -705,67 +705,31 @@ class TailSegmentationTracking(object):
         # load the data from a file
         self.load_result()
         
-        # import matplotlib for plotting
-        import matplotlib.pyplot as plt
-        from matplotlib.ticker import FuncFormatter, MultipleLocator
-        
-        # setup the plotting
-        use_tex = self.params['output/use_tex']
-        plt.rcParams['text.usetex'] = use_tex
+        kwargs = {'length_scale': (2 * self.params['measurement/line_scan_step']
+                                     * self.params['input/pixel_size']),
+                  'time_scale': self.params['input/frame_duration']}
         
         # iterate through all tails
         for tail_id, kymographs in self.result['kymographs'].iteritems():
-            plt.figure(figsize=(10, 5))
             # consider both sides of the center line
-            for side_id, (side, kymograph) in enumerate(kymographs.iteritems()):
-                plt.subplot(1, 2, side_id + 1)
+            for side_name, kymograph in kymographs.iteritems():
+                
+                # prepare plotter
+                title = self.name + ', Tail %d, %s' % (tail_id, side_name)
+                plotter = KymographPlotter(kymograph, title=title, **kwargs)
 
-                if align:
-                    kymograph.align_features(align)
-                
-                # create image and determine the length and time scales
-                img = kymograph.get_image()
-                distance = (img.shape[1]
-                            * 2*self.params['measurement/line_scan_step']
-                            * self.params['input/pixel_size'])
-                duration = img.shape[0] * self.params['input/frame_duration']
-                extent = (0, distance, 0, duration)
-                
-                # plot image in gray scale
-                plt.imshow(img, extent=extent, aspect='auto',
-                           interpolation='none', origin='lower')
-                plt.gray()
-                
-                score = kymograph.get_alignment_score()
-                
-                # use a time format for the y axis
-                def hours_minutes(value, pos):
-                    """ formatting function """
-                    return '%d:%02d' % divmod(value, 60)
-                ax = plt.gca()
-                ax.yaxis.set_major_locator(MultipleLocator(2*60))
-                ax.yaxis.set_major_formatter(FuncFormatter(hours_minutes))
-                ax.invert_yaxis()
-                
-                # label image
-                if use_tex:
-                    plt.xlabel(r'Distance from posterior end [$\unit{\upmu m}$]')
+                if outfile is None:
+                    plotter.fig.show()
                 else:
-                    plt.xlabel(u'Distance from posterior end [\u00b5m]')
-                plt.ylabel(r'Time')
-                plt.title('%s (Score: %g)' % (side, score))
-        
-            plt.suptitle(self.name + ' Tail %d' % tail_id)
-            if outfile is None:
-                plt.show()
-            else:
-                plt.savefig(outfile % tail_id)
-            plt.close()
+                    filename = outfile % ("%d_%s" % (tail_id, side_name))
+                    plotter.fig.savefig(filename)
+                    
+                plotter.close()
+
     
-    
-    def adjust_kymograph(self, tail_id=None, side_id=None):
-        """ launch a GUI for aligning the kymograph of the given tail and the
-        given side_id """
+    def get_kymograph(self, tail_id=None, side_id=None):
+        """ loads the kymograph of the specified side and tail. If either of
+        those is not specified, the user is asked to supply these details """ 
         # load the data
         self.load_result()
         try:
@@ -775,32 +739,28 @@ class TailSegmentationTracking(object):
         
         # make sure that we know which tail to process
         if tail_id is None:
-            if len(kymograph_tails) == 1:
-                tail_id = 0
-            else:
-                print('There are multiple tails in the video. Choose one of:')
-                for tail_id in kymograph_tails.iterkeys():
-                    print('  %s' % tail_id)
-                tail_id = int(raw_input('Enter the number: '))
+            tail_id = self.choose_tail()
         kymograph_tail = kymograph_tails[tail_id]
         
-        # make sure that we know which side_id to process
-        if side_id is None:
-            print('There are multiple sides in the tail. Choose one of:')
-            sides = sorted(kymograph_tail.keys())
-            for side_id in enumerate(sides):
-                print('  %d: %s' % side_id)
-            side_id = sides[int(raw_input('Enter the number: '))]
-        elif isinstance(side_id, int):
-            side_id = sorted(kymograph_tail.keys())[side_id]
-        kymograph = kymograph_tail[side_id]
+        # make sure that we know which side to process
+        side_names = sorted(kymograph_tail.keys())
+        side_name = self.choose_tail_side(side_names, side_id)
+        kymograph = kymograph_tail[side_name]
+        
+        return kymograph, (tail_id, side_name)
+        
+    
+    def adjust_kymograph(self, tail_id=None, side_id=None):
+        """ launch a GUI for aligning the kymograph of the given tail and the
+        given side_id """
+        kymograph, (tail_id, side_name) = self.get_kymograph(tail_id, side_id)
 
         # prepare kymograph
         if np.all(kymograph.offsets == 0):
             # automatically align if offsets were not loaded             
             kymograph.align_features('individually')
             logging.info('Automatically aligned kymograph for %s of tail %s' %
-                         (side_id, tail_id))
+                         (side_name, tail_id))
 
         # launch the GUI for aligning        
         aligner = KymographAligner(kymograph)
@@ -810,7 +770,21 @@ class TailSegmentationTracking(object):
             # save the result if desired
             self.save_result()
             logging.info('Saved kymograph offsets for %s of tail %s' %
-                         (side_id, tail_id))
+                         (side_name, tail_id))
+        
+        
+    def measure_kymograph(self, tail_id=None, side_id=None):
+        """ shows a graphical user interface for measuring lines in the
+        kymograph """
+        kymograph, (tail_id, side_name) = self.get_kymograph(tail_id, side_id)
+        
+        length_scale = (2 * self.params['measurement/line_scan_step']
+                          * self.params['input/pixel_size'])
+        time_scale = self.params['input/frame_duration']
+        title = self.name + ', Tail %d, %s' % (tail_id, side_name)
+        
+        plotter = KymographPlotter(kymograph, title, length_scale, time_scale)
+        plotter.measure_lines()
         
     
     #===========================================================================
@@ -837,6 +811,38 @@ class TailSegmentationTracking(object):
             pickle.dump(self.result, fp)
         logging.debug('Wrote results to file `%s`', self.outfile)
                 
+    
+    def choose_tail(self):
+        """ Makes the user choose a tail if there are multiple in the data.
+        Returns the `tail_id` associated with the tail
+        """
+        data = self.result['tail_trajectories']
+        
+        if len(data) == 1:
+            tail_id = 0
+        else:
+            print('There are multiple tails in the video. Choose one of:')
+            for tail_id in data.iterkeys():
+                print('  %s' % tail_id)
+            tail_id = int(raw_input('Enter the number: '))
+            
+        return tail_id
+    
+    
+    def choose_tail_side(self, side_names=None, side_id=None):
+        """ Makes the user choose a tail side from the supplied data """
+        if side_names is None:
+            side_names = sorted(Tail.line_names)
+        
+        if side_id is None:
+            print('There are multiple sides in the tail. Choose one of:')
+            for side_id in enumerate(side_names):
+                print('  %d: %s' % side_id)
+            side_name = side_names[int(raw_input('Enter the number: '))]
+        elif isinstance(side_id, int):
+            side_name = side_names[side_id]
+        return side_name
+    
     
     def update_video_output(self, tails, show_measurement_line=True):
         """ updates the video output to both the screen and the file """

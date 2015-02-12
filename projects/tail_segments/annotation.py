@@ -16,6 +16,8 @@ from shapely import geometry
 import matplotlib.pyplot as plt
 from matplotlib import widgets
 
+from utils import graphics
+
 
 
 class TackingAnnotations(UserDict.DictMixin):
@@ -126,11 +128,12 @@ class SegmentPicker(object):
                 
                 
         # drawtype is 'box' or 'line' or 'none'
+        useblit = graphics.backend_supports_blit()
         self.selectors = [
             widgets.RectangleSelector(ax, self.select_callback,
                                       drawtype='line',
                                       lineprops=self.lineprops,
-                                      useblit=False, #< not on mac...
+                                      useblit=useblit,
                                       button=[1], # don't use middle button
                                       minspanx=5, minspany=5,
                                       spancoords='pixels')
