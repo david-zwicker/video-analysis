@@ -25,7 +25,7 @@ def get_color(color):
     if get_color.parser is None:
         get_color.parser = ColorConverter().to_rgb
         
-    return (255*np.array(get_color.parser(color))).astype(int)
+    return [int(255*c) for c in get_color.parser(color)]
 
 get_color.parser = None
 
