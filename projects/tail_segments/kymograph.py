@@ -410,11 +410,22 @@ class KymographPlotter(object):
         self.line.set_ydata((y1, y2))
 
         # calculate the speed of the line
-        speed = -(x1 - x2)/(y1 - y2) * self.length_scale/self.time_scale
+        # TODO: Show dx and dy in title
         if plt.rcParams['text.usetex']:
-            self.ax.set_title(r'Speed $\unitfrac[%g]{\upmu m}{min}$' % speed)
+            fmts = [r"Distance: $\unit[%(distance)d]{\upmu m}$",
+                    r"Time: $\unit[%(time)d]{min}$",
+                    r"Speed: $\unitfrac[%(speed)g]{\upmu m}{min}$"]
         else:
-            self.ax.set_title(u'Speed %g \u00b5m/min' % speed)
+            fmts = [u"Distance: %(distance)d \u00b5m",
+                    u"Time: %(time)d min",
+                    u"Speed: %(speed)g \u00b5m/min"]
+        fmtstr = ', '.join(fmts)
+
+        dx = x1 - x2
+        dy = y1 - y2
+        if dy < 0:
+            dx, dy = -dx, -dy
+        self.ax.set_title(fmtstr % {'distance':dx, 'time':dy, 'speed':dx/dy})
 
         self.fig.canvas.draw() #< update the graphics
         
