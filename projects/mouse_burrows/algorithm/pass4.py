@@ -21,9 +21,8 @@ from .objects.burrow import Burrow, BurrowTrackList
 from utils.misc import unique_based_on_id, display_progress
 from utils.math import NormalDistribution, contiguous_true_regions
 from video.analysis import curves, regions
-from video.io import ImageWindow, VideoFile
+from video.io import ImageWindow, VideoFile, VideoComposer
 from video.filters import FilterMonochrome
-from video.composer import VideoComposer
 
 from video import debug  # @UnusedImport
 

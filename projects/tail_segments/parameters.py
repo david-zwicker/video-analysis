@@ -10,7 +10,7 @@ from __future__ import division
 # general tracking parameters 
 parameters_tracking = {
     'input/frame_duration': 10, #< duration of a single frame in minutes
-    'input/pixel_size': 1.3,  #< size of a single pixel in micrometer
+    'input/pixel_size': 1.3,    #< size of a single pixel in micrometer
     'input/frames': None,
     'input/zoom_factor': 1,
     

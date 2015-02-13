@@ -23,8 +23,7 @@ from utils.math import contiguous_int_regions_iter
 from utils.misc import display_progress
 from video.analysis import curves, regions
 from video.filters import FilterCrop
-from video.io import ImageWindow
-from video.composer import VideoComposer
+from video.io import ImageWindow, VideoComposer
 
 from video import debug  # @UnusedImport
 

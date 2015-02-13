@@ -30,10 +30,9 @@ import cv2
 import yaml
 
 from utils.misc import display_progress
-from video.io import ImageWindow
+from video.io import ImageWindow, VideoComposer
 from video.filters import FilterCrop
 from video.analysis import regions, curves, image, shapes
-from video.composer import VideoComposer
 
 from .pass_base import PassBase
 from .processes.ground_detector import GroundDetectorGlobal

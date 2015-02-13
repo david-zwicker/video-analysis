@@ -18,7 +18,7 @@ from .pass_base import PassBase
 from .objects import GroundProfile, GroundProfileTrack, MouseTrack
 from utils.misc import deprecated, display_progress
 from video.analysis import curves
-from video.composer import VideoComposer
+from video.io import VideoComposer
 from video.filters import FilterCrop
 
 from video import debug  # @UnusedImport

@@ -5,31 +5,31 @@ The package is organized in multiple sub-packages:
 
 <dl>
 <dt>video</dt>
-<dd>
-General code that can be used to process videos using python.
-Special attention has been paid to develop video classes that can be easily
-used in iterating over video frames, also with multiprocessing support.
-The sub-package `analysis` contains several modules that contain miscellaneous
-functions that might be useful for general image or video analysis.
-
-Part of the modules have been modified from code from moviepy, which
-is released under the MIT license at github. The license is included
-at the end of this file.
-</dd>
+    <dd>
+    General code that can be used to process videos using python.
+    Special attention has been paid to develop video classes that can be easily
+    used in iterating over video frames, also with multiprocessing support.
+    The sub-package `analysis` contains several modules that contain functions
+    useful for general image or video analysis.
+    
+    Part of the modules have been modified from code from moviepy, which
+    is released under the MIT license at github. The license is included
+    at the end of this file.
+    </dd>
 <dt>utils</dt>
-<dd>
-Miscellaneous helper functions and classes.
-For instance, there are math functions and data structures that are useful for
-managing caches, heterogeneous output, etc.
-</dd>
+    <dd>
+    Miscellaneous helper functions and classes.
+    For instance, there are math functions and data structures that are useful
+    for managing caches, heterogeneous output, etc.
+    </dd>
 <dt>projects</dt>
-<dd>
-The actual video analysis code for several projects.
-</dd>
+    <dd>
+    The actual video analysis code for several projects.
+    </dd>
 <dt>external</dt>
-<dd>
-Small package that collects modules copied from other authors.
-</dd>
+    <dd>
+    Small package that collects modules copied from other authors.
+    </dd>
 </dl>
 
 

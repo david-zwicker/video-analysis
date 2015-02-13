@@ -20,8 +20,7 @@ from shapely import geometry
 
 from utils.cache import cached_property
 from utils.misc import display_progress
-from video.io import VideoFile, ImageWindow
-from video.composer import VideoComposer
+from video.io import VideoFile, VideoComposer, ImageWindow
 from video.filters import FilterMonochrome, FilterResize
 from video.analysis import curves, image, regions, shapes
 from video.analysis.active_contour import ActiveContour
