@@ -72,7 +72,7 @@ class FourthPass(PassBase):
         start_time = time.time()            
         
         try:
-            # skip the first frame, since it has already been analyzed
+            # skip the first _frame, since it has already been analyzed
             self._iterate_over_video(self.background_video)
                 
         except (KeyboardInterrupt, SystemExit):
@@ -136,15 +136,15 @@ class FourthPass(PassBase):
 
         # iterate over the video and analyze it
         for background_id, frame in enumerate(display_progress(self.background_video)):
-            # calculate frame id in the original video
+            # calculate _frame id in the original video
             self.frame_id = (background_frame_offset 
                              + background_id * self.params['output/video/period']) 
             
-            # copy frame to debug video
+            # copy _frame to debug video
             if 'video' in self.debug:
                 self.debug['video'].set_frame(frame, copy=False)
             
-            # retrieve data for current frame
+            # retrieve data for current _frame
             self.ground = ground_profile.get_ground_profile(self.frame_id)
 
             # write the mouse trail to the mouse mask
@@ -158,7 +158,7 @@ class FourthPass(PassBase):
             self.debug_process_frame(frame)
             
             if background_id % 1000 == 0:
-                self.logger.debug('Analyzed frame %d', self.frame_id)
+                self.logger.debug('Analyzed _frame %d', self.frame_id)
 
 
     @staticmethod
@@ -194,7 +194,7 @@ class FourthPass(PassBase):
         """ updates the internal mask that tells us where the mouse has been """
         mouse_track = self.data['pass2/mouse_trajectory']
         
-        # extract the mouse track since the last frame
+        # extract the mouse track since the last _frame
         trail_length = self.params['output/video/period'] + 1
         trail_width = int(2*self.params['mouse/model_radius'])
         time_start = max(0, self.frame_id - trail_length)
@@ -284,7 +284,7 @@ class FourthPass(PassBase):
         else:
             # prepare the end point if present
 
-            # translate that point to the mask frame
+            # translate that point to the mask _frame
             points_end = curves.translate_points(points_end, -shift[0], -shift[1])
             for p in points_end:
                 mask[p[1], p[0]] = 1
@@ -377,7 +377,7 @@ class FourthPass(PassBase):
     def _get_image_statistics(self, img, mask, prior=128, kernel='box'):
         """ calculate mean and variance in a window around a point, 
         excluding the point itself
-        prior denotes a value that is subtracted from the frame before
+        prior denotes a value that is subtracted from the _frame before
             calculating statistics. This is necessary for numerical stability.
             The prior should be close to the mean of the values.
         """
@@ -434,17 +434,17 @@ class FourthPass(PassBase):
 
     def update_burrow_mask(self, frame):
         """
-        updates the burrow mask based on the current frame.
+        updates the burrow mask based on the current _frame.
         """
         # get the mask of the current ground
         ground_mask = self.get_ground_mask(fill_value=1)
         # add the sky region to the burrow mask (since it is also background)
         self.burrow_mask[ground_mask == 0] = 1
 
-        # define the region where the frame of the cage is
+        # define the region where the _frame of the cage is
         left, right = self.ground.points[0, 0], self.ground.points[-1, 0]
         def disable_frame_region(img):
-            """ helper function setting the region of the cage frame to False """
+            """ helper function setting the region of the cage _frame to False """
             img[:, :left] = False
             img[:, right:] = False
             return img
@@ -499,7 +499,7 @@ class FourthPass(PassBase):
         # there are no burrows above the ground by definition
         self.burrow_mask[ground_mask == 0] = 0
         
-#         debug.show_image(frame, self.burrow_mask)
+#         debug.show_image(_frame, self.burrow_mask)
 #         exit()        
 
 #         # Label all features to remove the small, bright ones
@@ -755,7 +755,7 @@ class FourthPass(PassBase):
 
 
     def find_burrows(self, frame):
-        """ finds burrows from the current frame """
+        """ finds burrows from the current _frame """
         frame = self.blur_image(frame)
         
         # find regions of possible burrows            
@@ -807,7 +807,7 @@ class FourthPass(PassBase):
 
 
     def debug_process_frame(self, frame):
-        """ adds information of the current frame to the debug output """
+        """ adds information of the current _frame to the debug output """
         
         if 'video' in self.debug:
             debug_video = self.debug['video']
@@ -836,7 +836,7 @@ class FourthPass(PassBase):
             # add additional debug information
             if 'video.show' in self.debug:
                 if debug_video.output_this_frame:
-                    self.debug['video.show'].show(debug_video.frame)
+                    self.debug['video.show'].show(debug_video._frame)
                 else:
                     self.debug['video.show'].show()
 

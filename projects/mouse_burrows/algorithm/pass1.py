@@ -64,9 +64,9 @@ class FirstPass(PassBase):
         self.output = {}               # dictionary holding output structures
         self.background = None         # current background model
         self.ground = None             # current model of the ground profile
-        self.tracks = []               # list of plausible mouse models in current frame
+        self.tracks = []               # list of plausible mouse models in current _frame
         self.explored_area = None      # region the mouse has explored yet
-        self.frame_id = 0              # id of the current frame
+        self.frame_id = 0              # id of the current _frame
         self.result['objects/moved_first_in_frame'] = None
         self.log_event('Pass 1 - Initialized the first pass analysis.')
 
@@ -111,7 +111,7 @@ class FirstPass(PassBase):
         start_time = time.time()            
         
         try:
-            # skip the first frame, since it has already been analyzed
+            # skip the first _frame, since it has already been analyzed
             self._iterate_over_video(self.video[1:])
                 
         except (KeyboardInterrupt, SystemExit):
@@ -214,7 +214,7 @@ class FirstPass(PassBase):
             analyze_start = frame_offset + self.params['video/initial_adaptation_frames']
         
         # iterate over the video and analyze it
-        # Note that the first frame has already been analyzed earlier
+        # Note that the first _frame has already been analyzed earlier
         for self.frame_id, frame in enumerate(display_progress(video),
                                               frame_offset + 1):
             # see whether we can handle the water bottle
@@ -224,7 +224,7 @@ class FirstPass(PassBase):
             # remove noise using a bilateral filter
             frame_blurred = self.blur_image(frame)
 
-            # copy frame to debug video
+            # copy _frame to debug video
             if 'video' in self.output:
                 self.output['video'].set_frame(frame, copy=False)
             
@@ -243,7 +243,7 @@ class FirstPass(PassBase):
                 
             if do_analysis:
                 # do the main analysis after an initial wait period
-                # identify moving objects by comparing current frame to background
+                # identify moving objects by comparing current _frame to background
                 self.find_objects(frame_blurred)
                 
                 # use the background to find the current ground profile and burrows
@@ -300,7 +300,7 @@ class FirstPass(PassBase):
     
 
     def find_cage_approximately(self, frame, ret_binarized=False):
-        """ analyzes a single frame and locates the mouse cage in it.
+        """ analyzes a single _frame and locates the mouse cage in it.
         Try to find a bounding box for the cage.
         The rectangle [top, left, height, width] enclosing the cage is returned. """
         # do automatic thresholding to find large, bright areas
@@ -316,7 +316,7 @@ class FirstPass(PassBase):
         self.logger.debug('The cage is estimated to be contained in the '
                           'rectangle %s', rect_large)
          
-        # crop frame to this rectangle, which should surely contain the cage
+        # crop _frame to this rectangle, which should surely contain the cage
         region_slices = regions.rect_to_slices(rect_large) 
         frame = frame[region_slices]
 
@@ -478,7 +478,7 @@ class FirstPass(PassBase):
 
 
     def produce_cage_debug_image(self, frame, frame_binarized):
-        """ saves an image with information on how the frame of the cage was
+        """ saves an image with information on how the _frame of the cage was
         obtained """
         
         # create the image from the binarized masks
@@ -590,11 +590,11 @@ class FirstPass(PassBase):
         
         
     def remove_water_bottle(self, frame):
-        """ returns a copy of the frame in which the water bottle has been
+        """ returns a copy of the _frame in which the water bottle has been
         removed """
         # get variables from cache
         if 'water_bottle_rect' not in self._cache:
-            # locate the water bottle in the frame
+            # locate the water bottle in the _frame
             wb_rect = self.find_water_bottle(frame)
             shape = (wb_rect.width, wb_rect.height)
             wb_img = np.zeros(shape, np.double)
@@ -612,7 +612,7 @@ class FirstPass(PassBase):
         wb_x, wb_y = wb_rect.slices
         wb = frame[wb_y, wb_x]
         
-        # adapt the water bottle image to current frame 
+        # adapt the water bottle image to current _frame 
         adaptation_rate = self.params['background/adaptation_rate']
         wb_img += adaptation_rate*(wb - wb_img)
         
@@ -688,7 +688,7 @@ class FirstPass(PassBase):
         
                 
     def update_background_model(self, frame):
-        """ updates the background model using the current frame """
+        """ updates the background model using the current _frame """
             
         if self.background is None:
             self.background = frame.astype(np.double, copy=True)
@@ -712,7 +712,7 @@ class FirstPass(PassBase):
             # use the default adaptation rate everywhere when mouse is unknown
             adaptation_rate = self.params['background/adaptation_rate']
 
-        # adapt the background to current frame, but only inside the adaptation_rate 
+        # adapt the background to current _frame, but only inside the adaptation_rate 
         self.background += adaptation_rate*(frame - self.background)
 
                         
@@ -722,9 +722,9 @@ class FirstPass(PassBase):
       
     
     def find_moving_features(self, frame, threshold=None):
-        """ finds moving features in a frame.
+        """ finds moving features in a _frame.
         This works by building a model of the current background and subtracting
-        this from the current frame. Everything that deviates significantly from
+        this from the current _frame. Everything that deviates significantly from
         the background must be moving. Here, we additionally only focus on 
         features that become brighter, i.e. move forward.
         """
@@ -734,7 +734,7 @@ class FirstPass(PassBase):
         # use internal cache to avoid allocating memory
         mask_moving = self._cache['image_uint8']
 
-        # blur the background to be able to compare it to the current frame
+        # blur the background to be able to compare it to the current _frame
         background_blurred = self.blur_image(self.background)
 
         # calculate the difference to the current background model
@@ -803,7 +803,7 @@ class FirstPass(PassBase):
 
 
     def _handle_object_tracks(self, frame, labels, num_features):
-        """ analyzes objects in a single frame and tries to add them to
+        """ analyzes objects in a single _frame and tries to add them to
         previous tracks """
         # get potential objects
         objects_found = self._find_objects_in_binary_image(labels, num_features)
@@ -865,7 +865,7 @@ class FirstPass(PassBase):
                 idx_f.remove(i_f)
                 idx_e.remove(i_e)
                 
-        # end tracks that had no match in current frame 
+        # end tracks that had no match in current _frame 
         for i_e in reversed(idx_e): #< have to go backwards, since we delete items
             # copy track to result dictionary
             self.result['objects/tracks'].append(self.tracks[i_e])
@@ -885,7 +885,7 @@ class FirstPass(PassBase):
 
         threshold = self.params['mouse/intensity_threshold']
         while True:
-            # find a binary image that indicates movement in the frame
+            # find a binary image that indicates movement in the _frame
             moving_objects = self.find_moving_features(frame, threshold)
         
             # find all distinct features and label them
@@ -1007,7 +1007,7 @@ class FirstPass(PassBase):
                 template, t_points = self._get_ground_template(width_estimate,
                                                                aspect_factor)
             
-                # convolute template with frame
+                # convolute template with _frame
                 conv = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
     
                 # determine maximum
@@ -1104,7 +1104,7 @@ class FirstPass(PassBase):
         sure_sky = (cv2.dilate(mask_ground, kernel) == 0)
         mask[sure_sky] = cv2.GC_BGD
         
-#         debug.show_image(debug.get_grabcut_image(mask), frame)
+#         debug.show_image(debug.get_grabcut_image(mask), _frame)
 
         # run grabCut algorithm
         # have to convert to color image, since cv2.grabCut only supports color, yet
@@ -1748,7 +1748,7 @@ class FirstPass(PassBase):
                                                            anchor='upper left',
                                                            ret_rect=True)
         
-        # extract the region of interest from the frame and the mask
+        # extract the region of interest from the _frame and the mask
         img = frame[slices].astype(np.uint8)
         mask_ground = mask_ground[slices]
         mask_unexplored = (self.explored_area[slices] <= 0)
@@ -1981,7 +1981,7 @@ class FirstPass(PassBase):
         
 
     def debug_process_frame(self, frame):
-        """ adds information of the current frame to the debug output """
+        """ adds information of the current _frame to the debug output """
         
         if 'video' in self.output:
             debug_video = self.output['video']
@@ -2044,7 +2044,7 @@ class FirstPass(PassBase):
             
             if 'video.show' in self.output:
                 if debug_video.output_this_frame:
-                    self.output['video.show'].show(debug_video.frame)
+                    self.output['video.show'].show(debug_video._frame)
                 else:
                     self.output['video.show'].show()
                 

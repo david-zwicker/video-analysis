@@ -86,7 +86,7 @@ class SegmentPicker(object):
     lineprops = {'lw': 2, 'color': 'r'}
     
     def __init__(self, frame, features, segments=None):
-        self.frame = frame
+        self._frame = frame
         self.features = features
         if segments is None:
             self.segments = []
@@ -105,8 +105,8 @@ class SegmentPicker(object):
         imshow_args = {'interpolation': 'none', 'aspect': 1,
                        'cmap': plt.get_cmap('gray')}
         
-        ax_img.imshow(self.frame, **imshow_args)
-        ax_img.set_title('First frame of video')
+        ax_img.imshow(self._frame, **imshow_args)
+        ax_img.set_title('First _frame of video')
         ax_img.set_autoscale_on(False)
 
         ax_feat.imshow(self.features, **imshow_args)
@@ -116,7 +116,7 @@ class SegmentPicker(object):
         # internal data 
         self.active = True
         self.result = 'cancel'
-        self.bounds = self.frame.shape
+        self.bounds = self._frame.shape
         self._ax_segments = [[] for _ in xrange(len(self.axes))]
         
         # initialize data

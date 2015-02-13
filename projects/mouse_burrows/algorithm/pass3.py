@@ -74,7 +74,7 @@ class ThirdPass(PassBase):
         start_time = time.time()            
         
         try:
-            # skip the first frame, since it has already been analyzed
+            # skip the first _frame, since it has already been analyzed
             self._iterate_over_video(self.video)
                 
         except (KeyboardInterrupt, SystemExit):
@@ -113,7 +113,7 @@ class ThirdPass(PassBase):
         """ sets up the processing of the video by initializing caches etc """
         # load the video
         cropping_rect = self.data['pass1/video/cropping_rect'] 
-        # skip the first frame, since it has also been skipped in pass 1
+        # skip the first _frame, since it has also been skipped in pass 1
         video_info = self.load_video(cropping_rect=cropping_rect,
                                      skip_frames=1)
         
@@ -164,15 +164,15 @@ class ThirdPass(PassBase):
         # iterate over the video and analyze it
         for self.frame_id, frame in enumerate(display_progress(video), frame_offset):
             
-            # adapt the background to current frame 
+            # adapt the background to current _frame 
             adaptation_rate = self.params['background/adaptation_rate']
             self.background += adaptation_rate*(frame - self.background)
             
-            # copy frame to debug video
+            # copy _frame to debug video
             if 'video' in self.debug:
                 self.debug['video'].set_frame(frame, copy=False)
             
-            # retrieve data for current frame
+            # retrieve data for current _frame
             try:
                 self.mouse_pos = mouse_track.pos[self.frame_id, :]
             except IndexError:
@@ -191,7 +191,7 @@ class ThirdPass(PassBase):
             self.debug_process_frame(frame, mouse_track)
             
             if self.frame_id % 1000 == 0:
-                self.logger.debug('Analyzed frame %d', self.frame_id)
+                self.logger.debug('Analyzed _frame %d', self.frame_id)
 
 
     def write_mouse_state(self):
@@ -299,7 +299,7 @@ class ThirdPass(PassBase):
 
 
     def classify_mouse_state(self, mouse_track):
-        """ classifies the mouse in the current frame """
+        """ classifies the mouse in the current _frame """
         if (not np.all(np.isfinite(self.mouse_pos)) or
             self.ground is None):
             
@@ -602,7 +602,7 @@ class ThirdPass(PassBase):
 #         """ refine burrow by thresholding background image using the GrabCut
 #         algorithm """
 #         mask_ground = self.get_ground_mask()
-#         frame = self.background
+#         _frame = self.background
 #         width_min = self.params['burrows/width_min']
 #         
 #         # get region of interest from expanded bounding rectangle
@@ -610,12 +610,12 @@ class ThirdPass(PassBase):
 #         # get respective slices for the image, respecting image borders 
 #         (_, slices), rect = regions.get_overlapping_slices(rect[:2],
 #                                                            (rect[3], rect[2]),
-#                                                            frame.shape,
+#                                                            _frame.shape,
 #                                                            anchor='upper left',
 #                                                            ret_rect=True)
 #         
-#         # extract the region of interest from the frame and the mask
-#         img = frame[slices].astype(np.uint8)
+#         # extract the region of interest from the _frame and the mask
+#         img = _frame[slices].astype(np.uint8)
 #         mask_ground = mask_ground[slices]
 #         mask = np.zeros_like(mask_ground)        
 #         
@@ -696,7 +696,7 @@ class ThirdPass(PassBase):
 #         with two exits """
 #         burrow_tracks = self.result['burrows/tracks']
 #         
-#         # copy all burrows to the this frame
+#         # copy all burrows to the this _frame
 #         for burrow_id, burrow in self.active_burrows():
 #             burrow_tracks[burrow_id].append(self.frame_id, burrow)
 #         
@@ -1000,7 +1000,7 @@ class ThirdPass(PassBase):
 
 
     def debug_process_frame(self, frame, mouse_track):
-        """ adds information of the current frame to the debug output """
+        """ adds information of the current _frame to the debug output """
         
         if 'video' in self.debug:
             debug_video = self.debug['video']
@@ -1052,7 +1052,7 @@ class ThirdPass(PassBase):
             debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
             if 'video.show' in self.debug:
                 if debug_video.output_this_frame:
-                    self.debug['video.show'].show(debug_video.frame)
+                    self.debug['video.show'].show(debug_video._frame)
                 else:
                     self.debug['video.show'].show()
 

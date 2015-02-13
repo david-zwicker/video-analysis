@@ -42,7 +42,7 @@ class TailSegmentationTracking(object):
         `tail_trajectories` which is a dictionary with as many entries as there
                             are tails in the video. It has entries
             `%tail_id%` which are again dictionaries containing a Tail object
-                        for each frame of the video. The keys for this
+                        for each _frame of the video. The keys for this
                         dictionary are the frame_ids
         `kymographs` is a dictionary with as many entries as there are tails
             `%tail_id%` is a dictionary with two entries, one for each
@@ -75,7 +75,7 @@ class TailSegmentationTracking(object):
         # setup structure for saving data
         self.result = {'parameters': self.params.copy()}
         self.frame_id = None
-        self.frame = None
+        self._frame = None
         self._frame_cache = {}
 
 
@@ -117,7 +117,7 @@ class TailSegmentationTracking(object):
 
     @cached_property
     def frame_start(self):
-        """ return start frame of the video """
+        """ return start _frame of the video """
         if self.params['input/frames']:
             frame_id = self.params['input/frames'][0]
             if frame_id is None:
@@ -129,12 +129,12 @@ class TailSegmentationTracking(object):
         
         
     def load_first_frame(self):
-        """ loads the first frame into self.frame """
+        """ loads the first _frame into self._frame """
         if self.frame_id != 0:
-            self._frame_cache = {} #< delete cache per frame
+            self._frame_cache = {} #< delete cache per _frame
             self.frame_id = self.frame_start
-            self.frame = self.video[0]
-        return self.frame
+            self._frame = self.video[0]
+        return self._frame
 
     
     def track_tails(self, make_video=False):
@@ -142,7 +142,7 @@ class TailSegmentationTracking(object):
         # initialize the video
         self.load_video(make_video)
         
-        # process first frame to find objects
+        # process first _frame to find objects
         tails = self.process_first_frame()
         
         # initialize the result structure
@@ -150,8 +150,8 @@ class TailSegmentationTracking(object):
 
         # iterate through all frames
         iterator = display_progress(self.video)
-        for self.frame_id, self.frame in enumerate(iterator, self.frame_start):
-            self._frame_cache = {} #< delete cache per frame
+        for self.frame_id, self._frame in enumerate(iterator, self.frame_start):
+            self._frame_cache = {} #< delete cache per _frame
             if make_video:
                 self.set_video_background(tails)
 
@@ -175,7 +175,7 @@ class TailSegmentationTracking(object):
     def set_video_background(self, tails):
         """ sets the background of the video """
         if self.params['output/background'] == 'original':
-            self.output.set_frame(self.frame, copy=True)
+            self.output.set_frame(self._frame, copy=True)
             
         elif self.params['output/background'] == 'potential':
             image = self.contour_potential
@@ -191,13 +191,13 @@ class TailSegmentationTracking(object):
             self.output.set_frame(image)
             
         elif self.params['output/background'] == 'gradient':
-            image = self.get_gradient_strenght(self.frame)
+            image = self.get_gradient_strenght(self._frame)
             lo, hi = image.min(), image.max()
             image = 255*(image - lo)/(hi - lo)
             self.output.set_frame(image)
             
         elif self.params['output/background'] == 'gradient_thresholded':
-            image = self.get_gradient_strenght(self.frame)
+            image = self.get_gradient_strenght(self._frame)
             image = self.threshold_gradient_strength(image)
             lo, hi = image.min(), image.max()
             image = 255*(image - lo)/(hi - lo)
@@ -209,15 +209,15 @@ class TailSegmentationTracking(object):
             if num_features > 0:
                 self.output.set_frame(image*(128//num_features))
             else:
-                self.output.set_frame(np.zeros_like(self.frame))
+                self.output.set_frame(np.zeros_like(self._frame))
             
         else:
-            self.output.set_frame(np.zeros_like(self.frame))
+            self.output.set_frame(np.zeros_like(self._frame))
 
     
     def process_first_frame(self):
-        """ process the first frame to localize the tails """
-        self.load_first_frame() #< stores frame in self.frame
+        """ process the first _frame to localize the tails """
+        self.load_first_frame() #< stores _frame in self._frame
         # locate tails roughly
         tails = self.locate_tails_roughly()
         # refine tails
@@ -232,15 +232,15 @@ class TailSegmentationTracking(object):
     
     @cached_property(cache='_frame_cache')
     def frame_blurred(self):
-        """ blurs the current frame """
-        return cv2.GaussianBlur(self.frame.astype(np.double), (0, 0),
+        """ blurs the current _frame """
+        return cv2.GaussianBlur(self._frame.astype(np.double), (0, 0),
                                 self.params['gradient/blur_radius'])
         
     
     def get_gradient_strenght(self, frame):
-        """ calculates the gradient strength of the image in frame """
+        """ calculates the gradient strength of the image in _frame """
         # smooth the image to be able to find smoothed edges
-        if frame is self.frame:
+        if frame is self._frame:
             # take advantage of possible caching
             frame_blurred = self.frame_blurred
         else:
@@ -293,7 +293,7 @@ class TailSegmentationTracking(object):
         """ calculates a feature mask based on the image statistics """
         # calculate image statistics
         ksize = self.params['detection/statistics_window']
-        _, var = image.get_image_statistics(self.frame, kernel='circle',
+        _, var = image.get_image_statistics(self._frame, kernel='circle',
                                             ksize=ksize)
 
         # threshold the variance to locate features
@@ -335,7 +335,7 @@ class TailSegmentationTracking(object):
             else:
                 cv2.polylines(bw, [coords], isClosed=True, color=0, thickness=2)
 
-#         debug.show_image(self.frame, bw, wait_for_key=False)
+#         debug.show_image(self._frame, bw, wait_for_key=False)
         
         if use_annotations:
             lines = self.annotations['segmentation_dividers']
@@ -359,7 +359,7 @@ class TailSegmentationTracking(object):
                                        cv2.CHAIN_APPROX_SIMPLE)
 
         # determine the rectangle where objects can lie in
-        h, w = self.frame.shape
+        h, w = self._frame.shape
         rect = shapes.Rectangle(x=0, y=0, width=w, height=h)
         rect.buffer(-2*border)
         rect = geometry.Polygon(rect.contour)
@@ -393,7 +393,7 @@ class TailSegmentationTracking(object):
                 
                 for feature in features:
                     if feature.area > self.params['detection/area_min']:
-                        #debug.show_shape(feature, background=self.frame)
+                        #debug.show_shape(feature, background=self._frame)
                         
                         # extract the contour of the feature 
                         contour = regions.get_enclosing_outline(feature)
@@ -403,14 +403,14 @@ class TailSegmentationTracking(object):
                         num_features += 1
                         cv2.fillPoly(bw, [contour], num_features)
 
-#         debug.show_image(self.frame, var, bw, wait_for_key=False)
+#         debug.show_image(self._frame, var, bw, wait_for_key=False)
 
         return bw, num_features
         
         
     def locate_tails_roughly(self, tails=None):
         """ locate tail objects using thresholding """
-        # find features, using annotations in the first frame        
+        # find features, using annotations in the first _frame        
         use_annotations = (self.frame_id == self.frame_start)
         labels, _ = self.get_features(tails, use_annotations=use_annotations)
 
@@ -427,10 +427,10 @@ class TailSegmentationTracking(object):
                 points = curves.simplify_curve(points, threshold)
                 tails.append(Tail(points))
         
-#         debug.show_shape(*[t.contour_ring for t in tails], background=self.frame,
+#         debug.show_shape(*[t.contour_ring for t in tails], background=self._frame,
 #                          wait_for_key=False)
     
-        logging.debug('Found %d tail(s) in frame %d', len(tails), self.frame_id)
+        logging.debug('Found %d tail(s) in _frame %d', len(tails), self.frame_id)
         return tails
         
         
@@ -440,12 +440,12 @@ class TailSegmentationTracking(object):
         #features = self.get_features[0]
         #gradient_mag = self.get_gradient_strenght(features > 0)
         
-        gradient_mag = self.get_gradient_strenght(self.frame)
+        gradient_mag = self.get_gradient_strenght(self._frame)
         return gradient_mag
         
         
     def adapt_tail_contours_initially(self, tails):
-        """ adapt tail contour to frame, assuming that they could be quite far
+        """ adapt tail contour to _frame, assuming that they could be quite far
         away """
         
         # setup active contour algorithm
@@ -457,8 +457,8 @@ class TailSegmentationTracking(object):
         ac.max_iterations = self.params['contour/max_iterations']
         ac.set_potential(self.contour_potential)
         
-        # get rectangle describing the interior of the frame
-        height, width = self.frame.shape
+        # get rectangle describing the interior of the _frame
+        height, width = self._frame.shape
         region_center = shapes.Rectangle(0, 0, width, height)
         region_center.buffer(-self.params['contour/border_anchor_distance'])
 
@@ -476,7 +476,7 @@ class TailSegmentationTracking(object):
 
 
     def adapt_tail_contours(self, tails):
-        """ adapt tail contour to frame, assuming that they are already close """
+        """ adapt tail contour to _frame, assuming that they are already close """
         # get the tails that we want to adapt
         if self.params['detection/every_frame']:
             tails_estimate = self.locate_tails_roughly(tails)
@@ -498,8 +498,8 @@ class TailSegmentationTracking(object):
 #         debug.show_shape(*[t.contour for t in tails],
 #                          background=self.contour_potential)        
         
-        # get rectangle describing the interior of the frame
-        height, width = self.frame.shape
+        # get rectangle describing the interior of the _frame
+        height, width = self._frame.shape
         region_center = shapes.Rectangle(0, 0, width, height)
         region_center.buffer(-self.params['contour/border_anchor_distance'])
         
@@ -548,7 +548,7 @@ class TailSegmentationTracking(object):
         # initialize the video
         self.load_video()
 
-        # determine the features of the first frame
+        # determine the features of the first _frame
         self.load_first_frame()
         features = self.get_features(ret_raw=True)
 
@@ -556,7 +556,7 @@ class TailSegmentationTracking(object):
         lines = self.annotations['segmentation_dividers']
         
         # use the segmentation picker to alter these segments
-        picker = SegmentPicker(self.frame, features, lines)
+        picker = SegmentPicker(self._frame, features, lines)
         result = picker.run()
         if result == 'ok':
             # save the result if desired
@@ -589,8 +589,8 @@ class TailSegmentationTracking(object):
             
         # iterate through all frames and collect the line scans
         iterator = display_progress(self.video)
-        for self.frame_id, self.frame in enumerate(iterator, self.frame_start):
-            self._frame_cache = {} #< delete cache per frame
+        for self.frame_id, self._frame in enumerate(iterator, self.frame_start):
+            self._frame_cache = {} #< delete cache per _frame
             if make_video:
                 self.set_video_background(current_tails)
 
@@ -601,10 +601,10 @@ class TailSegmentationTracking(object):
                     tail = tail_trajectory[self.frame_id]
                 except KeyError:
                     logging.debug('Could not find any information on tails '
-                                  'for frame %d', self.frame_id)
+                                  'for _frame %d', self.frame_id)
                     break
                 # get the line scan left and right of the centerline
-                linescan_data= self.measure_single_tail(self.frame, tail)
+                linescan_data= self.measure_single_tail(self._frame, tail)
                 # append it to the temporary structure
                 linescans[tail_id].append(linescan_data)
                 current_tails.append(tail) #< safe for video output
@@ -885,7 +885,7 @@ class TailSegmentationTracking(object):
         video.add_text(str(self.frame_id), (20, 20), size=2, anchor='top')
         
         if self.debug_window:
-            self.debug_window.show(video.frame)
+            self.debug_window.show(video._frame)
     
     
     def close(self):

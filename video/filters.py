@@ -53,7 +53,7 @@ def get_color_range(dtype):
   
 
 class FilterFunction(VideoFilterBase):
-    """ smoothes every frame """
+    """ smoothes every _frame """
     
     def __init__(self, source, function):
         
@@ -61,11 +61,11 @@ class FilterFunction(VideoFilterBase):
         
         super(FilterFunction, self).__init__(source)
         
-        logger.debug('Created filter applying a function to every frame')
+        logger.debug('Created filter applying a function to every _frame')
 
 
     def _process_frame(self, frame):
-        # process the current frame 
+        # process the current _frame 
         frame = self._function(frame)
         # pass it to the parent function
         return super(FilterFunction, self)._process_frame(frame)
@@ -98,7 +98,7 @@ class FilterNormalize(VideoFilterBase):
 
     def _process_frame(self, frame):
         
-        # get dtype and bounds from first frame if they were not specified
+        # get dtype and bounds from first _frame if they were not specified
         if self._dtype is None:
             self._dtype = frame.dtype
         if self._fmin is None:
@@ -127,7 +127,7 @@ class FilterNormalize(VideoFilterBase):
         # cast the data to the right type
         frame = frame.astype(self._dtype)
         
-        # pass the frame to the parent function
+        # pass the _frame to the parent function
         return super(FilterNormalize, self)._process_frame(frame)
 
 
@@ -219,7 +219,7 @@ class FilterCrop(VideoFilterBase):
             # extract the given rectangle and get the color channel
             frame = frame[self.slices[0], self.slices[1], self.color_channel]
 
-        # pass the frame to the parent function
+        # pass the _frame to the parent function
         return super(FilterCrop, self)._process_frame(frame)
 
 
@@ -281,12 +281,12 @@ class FilterResize(VideoFilterBase):
         
        
     def _process_frame(self, frame):
-        # resize the frame if necessary
+        # resize the _frame if necessary
         if self.interpolation:
             frame = cv2.resize(frame, self.size,
                                interpolation=self.interpolation)
 
-        # pass the frame to the parent function
+        # pass the _frame to the parent function
         return super(FilterResize, self)._process_frame(frame)
     
 
@@ -303,12 +303,12 @@ class FilterMonochrome(VideoFilterBase):
 
     def _process_frame(self, frame):
         """
-        reduces a single frame from color to monochrome, but keeps the
+        reduces a single _frame from color to monochrome, but keeps the
         extra dimension in the data
         """
         try:
             if self.mode == 'mean':
-                frame = np.mean(frame, axis=2).astype(frame.dtype)
+                frame = np.mean(_frame, axis=2).astype(frame.dtype)
             else:
                 frame = frame[:, :, self.mode]
         except ValueError:
@@ -331,7 +331,7 @@ class FilterBlur(VideoFilterBase):
         
     def _process_frame(self, frame):
         """
-        blurs a single frame
+        blurs a single _frame
         """
         return cv2.GaussianBlur(frame.astype(np.uint8), (0, 0), self.sigma)
 
@@ -353,7 +353,7 @@ class FilterReplicate(VideoFilterBase):
     
     def set_frame_pos(self, index):
         if not 0 <= index < self.frame_count:
-            raise IndexError('Cannot access frame %d.' % index)
+            raise IndexError('Cannot access _frame %d.' % index)
 
         self._source.set_frame_pos(index % self.count)
         self._frame_pos = index
@@ -366,7 +366,7 @@ class FilterReplicate(VideoFilterBase):
         
         frame = self._source.get_next_frame()
 
-        # advance to the next frame
+        # advance to the next _frame
         self._frame_pos += 1
         return frame
 
@@ -389,14 +389,14 @@ class FilterDiffBase(VideoFilterBase):
         
         self._prev_frame = None
         
-        # correct the frame count since we are going to return differences
+        # correct the _frame count since we are going to return differences
         super(FilterDiffBase, self).__init__(source, frame_count=source.frame_count-1)
     
     
     def set_frame_pos(self, index):
         # set the underlying movie to requested position 
         self._source.set_frame_pos(index)
-        # advance one frame and save it in the previous frame structure
+        # advance one _frame and save it in the previous _frame structure
         self._prev_frame = self._source.next()
     
     
@@ -410,11 +410,11 @@ class FilterDiffBase(VideoFilterBase):
     
     
     def next(self):
-        # get this frame and evaluate it
+        # get this _frame and evaluate it
         this_frame = self._source.next()
         result = self._compare_frames(this_frame, self._prev_frame)
 
-        # this frame will be the previous frame of the next one
+        # this _frame will be the previous _frame of the next one
         self._prev_frame = this_frame
         
         return result
@@ -425,7 +425,7 @@ class FilterTimeDifference(FilterDiffBase):
     """
     returns the differences between consecutive frames.
     This filter is best used by just iterating over it. Retrieving individual
-    frame differences can be a bit slow, since two frames have to be loaded.
+    _frame differences can be a bit slow, since two frames have to be loaded.
     """ 
     
     def __init__(self, source, dtype=np.int16):
@@ -436,7 +436,7 @@ class FilterTimeDifference(FilterDiffBase):
         
         self._dtype = dtype
         
-        # correct the frame count since we are going to return differences
+        # correct the _frame count since we are going to return differences
         super(FilterTimeDifference, self).__init__(source)
 
         logger.debug('Created filter for calculating differences between consecutive frames.')

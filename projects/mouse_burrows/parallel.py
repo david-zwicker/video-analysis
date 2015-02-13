@@ -14,7 +14,7 @@ import time
 from .simple import scan_video
 from .algorithm.data_handler import load_any_video
 from video.io.base import VideoFork
-from video.io.pipe import create_video_pipe
+from video.io.parallel import create_video_pipe
 from video.filters import FilterCrop
 
 

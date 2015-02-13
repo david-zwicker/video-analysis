@@ -67,7 +67,7 @@ class VideoPipeReceiver(VideoBase):
                     
                     
     def wait_for_frame(self, index=None):
-        """ request a frame from the sender """
+        """ request a _frame from the sender """
         # abort iteration if the pipe has been closed
         if self.pipe.closed:
             self.abort_iteration()
@@ -84,9 +84,9 @@ class VideoPipeReceiver(VideoBase):
         
         # handle the reply
         if reply == 'frame_ready':
-            # set the internal pointer to the next frame
+            # set the internal pointer to the next _frame
             self._frame_pos += 1
-            # return the frame
+            # return the _frame
             return self.frame_buffer
         
         elif reply == StopIteration:
@@ -103,12 +103,12 @@ class VideoPipeReceiver(VideoBase):
 
         
     def get_next_frame(self):
-        """ request the next frame from the sender """
+        """ request the next _frame from the sender """
         return self.wait_for_frame()
 
 
     def get_frame(self, index):
-        """ request a specific frame from the sender """
+        """ request a specific _frame from the sender """
         return self.wait_for_frame(index)
 
         
@@ -127,7 +127,7 @@ class VideoPipeSender(VideoFilterBase):
     to read a video in the current process and work on it in a different
     process.
     
-    If read_ahead is True, the next frame is already read before it is
+    If read_ahead is True, the next _frame is already read before it is
     requested.
     """
     
@@ -146,10 +146,10 @@ class VideoPipeSender(VideoFilterBase):
         
 
     def try_reading_ahead(self):
-        """ tries to retrieve a frame from the video and copy it to the shared
+        """ tries to retrieve a _frame from the video and copy it to the shared
         frame_buffer """
         try:
-            # get the next frame
+            # get the next _frame
             self.frame_next = self.get_next_frame()
             
         except SynchronizationError:
@@ -164,17 +164,17 @@ class VideoPipeSender(VideoFilterBase):
             
 
     def try_getting_frame(self, index=None):
-        """ tries to retrieve a frame from the video and copy it to the shared
+        """ tries to retrieve a _frame from the video and copy it to the shared
         frame_buffer """
         try:
-            # get the next frame
+            # get the next _frame
             if index is None or index == self.get_frame_pos():
                 self.frame_buffer[:] = self.get_next_frame()
             else:
                 self.frame_buffer[:] = self.get_frame(index)
             
         except SynchronizationError:
-            # frame is not ready yet, wait another round
+            # _frame is not ready yet, wait another round
             self._waiting_for_frame = True
             
         except StopIteration:
@@ -183,9 +183,9 @@ class VideoPipeSender(VideoFilterBase):
             self.pipe.send(StopIteration)
             
         else:
-            # frame is ready and was copied to the shared frame_buffer
+            # _frame is ready and was copied to the shared frame_buffer
             self._waiting_for_frame = False
-            # notify the receiver that the frame is ready
+            # notify the receiver that the _frame is ready
             self.pipe.send('frame_ready')
             if self.read_ahead and index is None:
                 self.try_reading_ahead()
@@ -200,16 +200,16 @@ class VideoPipeSender(VideoFilterBase):
 
 
     def load_next_frame(self):
-        """ tries loading the next frame, either directly from the video
+        """ tries loading the next _frame, either directly from the video
         or from the buffer that has been filled by a read-ahead process """
         if self.read_ahead:
             if self._waiting_for_frame:
                 # this should not happen, since the event loop only finishes
-                # when the frame was successfully read
+                # when the _frame was successfully read
                 raise VideoPipeError('Frame was not properly read in advance.')
 
             elif self.frame_next is None:
-                # frame is not buffered
+                # _frame is not buffered
                 # => read it directly and notify receiver
                 self.try_getting_frame()
                 
@@ -218,12 +218,12 @@ class VideoPipeSender(VideoFilterBase):
                 self.pipe.send(StopIteration)
                 
             else:
-                # copy frame to the right buffer
+                # copy _frame to the right buffer
                 self.frame_buffer[:] = self.frame_next
                 self.frame_next = None
-                # tell receiver that the frame is ready
+                # tell receiver that the _frame is ready
                 self.pipe.send('frame_ready')
-                # try getting the next frame, which flags self._waiting_for_frame
+                # try getting the next _frame, which flags self._waiting_for_frame
                 # and thus starts the event loop
                 self._waiting_for_read_ahead = True
             
@@ -234,7 +234,7 @@ class VideoPipeSender(VideoFilterBase):
     def handle_command(self, command):
         """ handles commands received from the VideoPipeReceiver """
         if command == 'next_frame':
-            # receiver requests the next frame
+            # receiver requests the next _frame
             self.load_next_frame()
             
         elif command == 'abort_iteration':
@@ -242,9 +242,9 @@ class VideoPipeSender(VideoFilterBase):
             self.abort_iteration()
             
         elif command == 'specific_frame':
-            # receiver requests a specific frame
+            # receiver requests a specific _frame
             frame_id = self.pipe.recv()
-            logger.debug('Specific frame %d was requested from sender.',
+            logger.debug('Specific _frame %d was requested from sender.',
                          frame_id)
             self.try_getting_frame(index=frame_id)
             
@@ -263,7 +263,7 @@ class VideoPipeSender(VideoFilterBase):
             
     def check(self):
         """ handles a command if one has been sent """
-        # see whether we are waiting for a frame
+        # see whether we are waiting for a _frame
         if self._waiting_for_frame:
             self.try_getting_frame()
             
@@ -378,5 +378,89 @@ def video_reader_process(filename, video_class=VideoFile):
     proc.start()
     return proc.receiver
 
+
   
+class VideoPreprocessor(object):
+    """ class that reads video in a separate thread and apply additional
+    functions using additional threads.
+    
+    Example: Given a `video` and a function `blur_frame` that takes an image
+    and returns a blurred one, the class can be used as follows 
+    
+    video_processor = VideoPreprocessor(video, {'blur': blur_frame})
+    for data in video_processor:
+        frame_raw = data['raw']
+        frame_blurred = data['blur']
+    
+    Importantly, the function used for preprocessing should release the python
+    global interpreter lock (GIL) most of the time such that multiple threads
+    can be run concurrently.
+    """
+    
+    def __init__(self, video, functions):
+        """ initializes the preprocessor
+        `video` is the video to be iterated over
+        `functions` is a dictionary of functions that should be applied while
+        iterating
+        """
+        if 'raw' in functions:
+            raise KeyError('The key `raw` is reserved for the raw _frame and '
+                           'may not be used for functions.')
+        
+        self.video_iter = iter(video)
+        self.functions = functions
+        
+        # initialize internal structures
+        self._futures = {}
+        self._future_frame_next = None
+        self._frame = None
+        
+        import futures
+        num_workers = len(self.functions) + 1
+        self._executor = futures.ThreadPoolExecutor(num_workers)
+        
+        # start retrieving the next one
+        self._prepare_next_frame(self.video_iter.next())
+        
+
+    def _prepare_next_frame(self, frame_next):
+        """ prepare the next _frame in the background
+        `frame_next` is the raw data of this _frame
+        """
+        self._frame = frame_next
+        self._futures = {}
+        for name, func in self.functions.iteritems():
+            self._futures[name] = self._executor.submit(func, frame_next)
+        self._future_frame_next = self._executor.submit(self.video_iter.next) 
+
+    
+    def __iter__(self):
+        return self
+
+    
+    def next(self):
+        """ grab the raw and processed data of the next frame """
+        # check whether there is data available
+        if self._frame is None:
+            raise StopIteration
+                 
+        # grab all results for the current _frame
+        result = {k: v.result() for k, v in self._futures.iteritems()}
+        result['raw'] = self._frame
+
+        try:
+            # try grabbing the next _frame 
+            frame_next = self._future_frame_next.result()
+        except StopIteration:
+            # stop the iteration in the next step. We still have to exit from
+            # this function since we have results to return
+            self._frame = None
+        else:
+            # start fetching the result for this next frame
+            self._prepare_next_frame(frame_next)
+        
+        # while this is underway, return the current results
+        return result
+    
+    
     
