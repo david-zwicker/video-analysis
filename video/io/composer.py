@@ -11,8 +11,8 @@ import cv2
 from matplotlib.colors import ColorConverter
 
 from utils.math import contiguous_true_regions
-from .analysis.regions import rect_to_corners
-from .io.file import VideoFileWriter
+from .file import VideoFileWriter
+from ..analysis.regions import rect_to_corners
 
 
     
