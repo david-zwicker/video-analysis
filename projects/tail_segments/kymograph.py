@@ -220,7 +220,7 @@ class KymographAligner(object):
         self._ax_points = None
         
         # create the widget for selecting the range
-        useblit = graphics.backend_supports_blit()
+        useblit = graphics.backend_supports_blitting()
         self.selector = \
             widgets.RectangleSelector(self.ax, self.select_callback,
                                       drawtype='box',
@@ -380,6 +380,8 @@ class KymographPlotter(object):
         else:
             self.ax.set_xlabel(u'Distance from posterior end [\u00b5m]')
         self.ax.set_ylabel(r'Time [h:m]')
+        
+        self.ax.set_title(self.title)
             
             
     def close(self):
@@ -390,7 +392,7 @@ class KymographPlotter(object):
     def measure_lines(self):
         """ shows an interface for measuring lines """
         # create the widget for selecting the range
-        useblit = graphics.backend_supports_blit()
+        useblit = graphics.backend_supports_blitting()
         self.selector = \
             widgets.RectangleSelector(self.ax, self.select_callback,
                                       drawtype='line', lineprops=self.lineprops,
@@ -410,7 +412,6 @@ class KymographPlotter(object):
         self.line.set_ydata((y1, y2))
 
         # calculate the speed of the line
-        # TODO: Show dx and dy in title
         if plt.rcParams['text.usetex']:
             fmts = [r"Distance: $\unit[%(distance)d]{\upmu m}$",
                     r"Time: $\unit[%(time)d]{min}$",
@@ -426,6 +427,7 @@ class KymographPlotter(object):
         if dy < 0:
             dx, dy = -dx, -dy
         self.ax.set_title(fmtstr % {'distance':dx, 'time':dy, 'speed':dx/dy})
+        self.fig.suptitle(self.title)
 
         self.fig.canvas.draw() #< update the graphics
         

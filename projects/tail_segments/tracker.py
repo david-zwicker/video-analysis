@@ -561,7 +561,9 @@ class TailSegmentationTracking(object):
         result = picker.run()
         if result == 'ok':
             # save the result if desired
-            self.annotations['segmentation_dividers'] = picker.segments
+            data = [[(int(p[0]), int(p[1])) for p in line]
+                    for line in picker.segments]
+            self.annotations['segmentation_dividers'] = data
             
     
     #===========================================================================

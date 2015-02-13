@@ -12,6 +12,8 @@
   segmentation_dividers:
   - - [729, 1440]
     - [822, 1242]
+  - - [638, 557]
+    - [591, 758]
 20140808_nub_e15-16_tl_edf:
   segmentation_dividers:
   - - [240, 1167]

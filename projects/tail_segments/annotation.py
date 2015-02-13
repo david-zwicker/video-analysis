@@ -128,7 +128,7 @@ class SegmentPicker(object):
                 
                 
         # drawtype is 'box' or 'line' or 'none'
-        useblit = graphics.backend_supports_blit()
+        useblit = graphics.backend_supports_blitting()
         self.selectors = [
             widgets.RectangleSelector(ax, self.select_callback,
                                       drawtype='line',
