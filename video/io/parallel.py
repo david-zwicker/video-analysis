@@ -415,12 +415,22 @@ class VideoPreprocessor(object):
         self._future_frame_next = None
         self._frame = None
         
-        import futures
-        num_workers = len(self.functions) + 1
-        self._executor = futures.ThreadPoolExecutor(num_workers)
-        
-        # start retrieving the next one
-        self._prepare_next_frame(self.video_iter.next())
+        # try to import the futures module
+        try:
+            import futures
+        except ImportError:
+            self.use_threads = False
+            logger.warn('The `futures` module is not available and multiple '
+                        'threads thus cannot be used.')
+        else:
+            self.use_threads = True
+
+        if self.use_threads:            
+            num_workers = len(self.functions) + 1
+            self._executor = futures.ThreadPoolExecutor(num_workers)
+            
+            # start retrieving the next one
+            self._prepare_next_frame(self.video_iter.next())
         
 
     def _prepare_next_frame(self, frame_next):
@@ -440,26 +450,36 @@ class VideoPreprocessor(object):
     
     def next(self):
         """ grab the raw and processed data of the next frame """
-        # check whether there is data available
-        if self._frame is None:
-            raise StopIteration
-                 
-        # grab all results for the current _frame
-        result = {k: v.result() for k, v in self._futures.iteritems()}
-        result['raw'] = self._frame
+        if self.use_threads:
+            # we use threads and the futures should thus be initialized
+            
+            # check whether there is data available
+            if self._frame is None:
+                raise StopIteration
+                     
+            # grab all results for the current _frame
+            result = {k: v.result() for k, v in self._futures.iteritems()}
+            result['raw'] = self._frame
+    
+            try:
+                # try grabbing the next _frame 
+                frame_next = self._future_frame_next.result()
+            except StopIteration:
+                # stop the iteration in the next step. We still have to exit from
+                # this function since we have results to return
+                self._frame = None
+            else:
+                # start fetching the result for this next frame
+                self._prepare_next_frame(frame_next)
+            # while this is underway, return the current results
 
-        try:
-            # try grabbing the next _frame 
-            frame_next = self._future_frame_next.result()
-        except StopIteration:
-            # stop the iteration in the next step. We still have to exit from
-            # this function since we have results to return
-            self._frame = None
         else:
-            # start fetching the result for this next frame
-            self._prepare_next_frame(frame_next)
+            # simple fallback if threads are not supported
+            frame = self.video_iter.next()
+            result = {name: func(frame)
+                      for name, func in self.functions.iteritems()}
+            result['raw'] = frame
         
-        # while this is underway, return the current results
         return result
     
     
