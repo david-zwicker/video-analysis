@@ -22,7 +22,6 @@ Package     | Usage
 ------------|-------------------------------------------
 dateutil    | Used for being less picky about date formats
 descartes   | Used for debug plotting of shapes
-futures     | Used for threaded processing of videos
 grip        | Used for converting markdown to html 
 pandas      | Used for writing results to csv files
 pint        | Used for result with physical units

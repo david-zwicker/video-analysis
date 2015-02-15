@@ -23,6 +23,7 @@ import sharedmem
 
 from .base import VideoBase, VideoFilterBase, SynchronizationError
 from .file import VideoFile
+from utils.concurrency import WorkerThread
 
 logger = logging.getLogger('video.io')
 
@@ -415,27 +416,16 @@ class VideoPreprocessor(object):
         self.preprocess = preprocess
         
         # initialize internal structures
-        self._futures = {}
-        self._future_frame_next = None
         self._frame = None
         
-        # try to import the futures module
-        try:
-            import futures
-        except ImportError:
-            self.use_threads = False
-            logger.warn('The `futures` module is not available and multiple '
-                        'threads thus cannot be used.')
-        else:
-            self.use_threads = True
-
-        if self.use_threads:            
-            num_workers = len(self.functions) + 1
-            self._executor = futures.ThreadPoolExecutor(num_workers)
-            
-            # start retrieving the next one
-            self._init_next_processing(self._get_next_frame())
+        # initialize the background workers
+        self._worker_next_frame = WorkerThread(self._get_next_frame)
+        self._workers = {name: WorkerThread(func)
+                         for name, func in self.functions.iteritems()}
         
+        self._init_next_processing(self._get_next_frame())
+
+#         
         
     def __len__(self):
         return self.length
@@ -443,9 +433,13 @@ class VideoPreprocessor(object):
 
     def _get_next_frame(self):
         """ get the next frame and preprocess it if necessary """
-        frame = self.video_iter.next()
-        if self.preprocess:
-            frame = self.preprocess(frame)
+        try:
+            frame = self.video_iter.next()
+        except StopIteration:
+            frame = None
+        else:
+            if self.preprocess:
+                frame = self.preprocess(frame)
         return frame
 
 
@@ -454,10 +448,11 @@ class VideoPreprocessor(object):
         `frame_next` is the raw data of this _frame
         """
         self._frame = frame_next
-        self._futures = {}
-        for name, func in self.functions.iteritems():
-            self._futures[name] = self._executor.submit(func, frame_next)
-        self._future_frame_next = self._executor.submit(self._get_next_frame) 
+        # ask all workers to process this frame
+        for worker in self._workers.itervalues():
+            worker.put(frame_next)
+        # ask for the next frame
+        self._worker_next_frame.put()
 
     
     def __iter__(self):
@@ -466,37 +461,27 @@ class VideoPreprocessor(object):
     
     def next(self):
         """ grab the raw and processed data of the next frame """
-        if self.use_threads:
-            # we use threads and the futures should thus be initialized
-            
-            # check whether there is data available
-            if self._frame is None:
-                raise StopIteration
-                     
-            # grab all results for the current _frame
-            result = {k: v.result() for k, v in self._futures.iteritems()}
-            result['raw'] = self._frame
-    
-            try:
-                # try grabbing the next _frame 
-                frame_next = self._future_frame_next.result()
-            except StopIteration:
-                # stop the iteration in the next step. We still have to exit from
-                # this function since we have results to return
-                self._frame = None
-            else:
-                # start fetching the result for this next frame
-                self._init_next_processing(frame_next)
-            # while this is underway, return the current results
+        # check whether there is data available
+        if self._frame is None:
+            raise StopIteration
+                 
+        # grab all results for the current _frame
+        result = {name: worker.get()
+                  for name, worker in self._workers.iteritems()}
+        # store information about the current frame
+        result['raw'] = self._frame
 
+        # grab the next frame 
+        frame_next = self._worker_next_frame.get()
+        if frame_next is None:
+            # stop the iteration in the next step. We still have to exit from
+            # this function since we have results to return
+            self._frame = None
         else:
-            # simple fallback if threads are not supported
-            frame = self._get_next_frame()
-            result = {name: func(frame)
-                      for name, func in self.functions.iteritems()}
-            result['raw'] = frame
-        
+            # start fetching the result for this next frame
+            self._init_next_processing(frame_next)
+
+        # while this is underway, return the current results
         return result
-    
     
     
