@@ -24,9 +24,7 @@ Performance improvements:
 * Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)
 	- Do operations in place as often as possible
 * Generally cache all kernels for morphological operations, since these are costly to make
-* Do Gaussian blurring and other preprocessing methods in parallel (in separate processes)
-* Move background detection to own process
-
+* replace ThreadExecuter by dedicated threads or coroutines
 
 Low priority enhancements:
 --------------------------

@@ -308,7 +308,7 @@ class FilterMonochrome(VideoFilterBase):
         """
         try:
             if self.mode == 'mean':
-                frame = np.mean(_frame, axis=2).astype(frame.dtype)
+                frame = np.mean(frame, axis=2).astype(frame.dtype)
             else:
                 frame = frame[:, :, self.mode]
         except ValueError:

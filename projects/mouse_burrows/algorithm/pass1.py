@@ -693,8 +693,7 @@ class FirstPass(PassBase):
         mask_moving = self._cache['image_uint8']
 
         # blur the background to be able to compare it to the current _frame
-        #TODO: use a future for blurring the background to speed up the processing
-        background_blurred = self.background.blurred#self.blur_image(self.background)
+        background_blurred = self.background.blurred
 
         # calculate the difference to the current background model
         cv2.subtract(frame, background_blurred, dtype=cv2.CV_8U, dst=mask_moving)
@@ -1138,7 +1137,7 @@ class FirstPass(PassBase):
         """ estimates the ground profile from the current background image """ 
         
         # get the background image from which we extract the ground profile
-        frame = self.background.image_uint8
+        frame = self.background.image.astype(np.uint8)
 
         # get the ground profile by using a template
         points_est1 = self._get_ground_from_template(frame)
@@ -1189,7 +1188,8 @@ class FirstPass(PassBase):
         obtained """
         points_est1 = self.debug['ground']['estimate1']
         points_est2 = self.debug['ground']['estimate2']
-        frame = cv2.cvtColor(self.background.image_uint8, cv2.cv.CV_GRAY2BGR)
+        frame = cv2.cvtColor(self.background.image.astype(np.uint8),
+                             cv2.cv.CV_GRAY2BGR)
         
         # plot rectangle where the template matched
         if 'template_rect_max' in self.debug['ground']:
@@ -1538,6 +1538,7 @@ class FirstPass(PassBase):
                              'supported.', self.frame_id, burrow.position)
             return burrow
         
+        background_uint8 = self.background.image.astype(np.uint8)
         segment_length = self.params['burrows/centerline_segment_length']
         centerline = curves.make_curve_equidistant(centerline, segment_length)
         
@@ -1565,7 +1566,7 @@ class FirstPass(PassBase):
             # do a line scan perpendicular
             p_a = (p[0] + scan_length*dy, p[1] - scan_length*dx)
             p_b = (p[0] - scan_length*dy, p[1] + scan_length*dx)
-            profile = image.line_scan(self.background.image_uint8, p_a, p_b, 3)
+            profile = image.line_scan(background_uint8, p_a, p_b, 3)
             
             # find the transition points by considering slopes
             k_l = self.find_burrow_edge(profile, direction='down')
@@ -1646,8 +1647,7 @@ class FirstPass(PassBase):
                 # get profile along the centerline
                 p1e = (point_anchor[0] + scan_length*dx,
                        point_anchor[1] + scan_length*dy)
-                profile = image.line_scan(self.background.image_uint8,
-                                          point_anchor, p1e, 3)
+                profile = image.line_scan(background_uint8, point_anchor, p1e, 3)
 
                 # determine position of burrow edge
                 l = self.find_burrow_edge(profile, direction='up')
@@ -2010,7 +2010,7 @@ class FirstPass(PassBase):
             video = self.output['background.video'] 
             if video.frames_written == 0:
                 self.result['video/background_frame_offset'] = self.frame_id
-            video.set_frame(self.background.image_uint8)
+            video.set_frame(self.background.image.astype(np.uint8))
 
         if 'difference.video' in self.output:
             diff = frame.astype(int, copy=False) - self.background.image + 128

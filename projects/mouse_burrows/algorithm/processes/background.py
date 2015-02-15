@@ -6,10 +6,9 @@ Created on Feb 14, 2015
 
 from __future__ import division
 
-import threading
-
 import numpy as np
 
+from utils.concurrency import WorkerThread
 from video.analysis import regions
 
 
@@ -28,12 +27,14 @@ class BackgroundExtractor(object):
         """
         self.image = None
         self.image_uint8 = None
-        self.params = parameters
-        self.blur_function = blur_function
-        
         self._adaptation_rate = None
+        self.params = parameters
+        
         self._blurred = None
-        self._blur_thread = None
+        if blur_function:
+            self._blur_worker = WorkerThread(blur_function)
+        else:
+            self._blur_worker = None
         
         if object_radius > 0:
             # create a simple template of the mouse, which will be used to update
@@ -62,11 +63,6 @@ class BackgroundExtractor(object):
             self._object_mask = 1 - object_mask
         
     
-    def _worker_blur(self):
-        """ worker function that updates the blurred image """
-        self._blurred = self.blur_function(self.image)
-        
-        
     def update(self, frame, tracks=None):
         """ update the background with the current frame """
         if self.image is None:
@@ -94,18 +90,11 @@ class BackgroundExtractor(object):
 
         # adapt the background to current frame, but only inside the mask 
         self.image += adaptation_rate*(frame - self.image)
-        self.image_uint8[:] = self.image
         
         # initialize the blurring of the image if requested
-        if self.blur_function:
-            if self._blur_thread:
-                # wait until the old thread has finished
-                self._blur_thread.join()
-
-            # start new thread for blurring the image           
-            self._blur_thread = threading.Thread(target=self._worker_blur)
-            self._blur_thread.setDaemon(True)
-            self._blur_thread.start()
+        if self._blur_worker:
+            self._blurred = self._blur_worker.get()
+            self._blur_worker.put(self.image)
         
 
     @property
@@ -115,6 +104,6 @@ class BackgroundExtractor(object):
         not the current one, which shouldn't make any difference since the
         background typically evolves slowly """
         if self._blurred is None:
-            self._blurred = self.blur_function(self.image)
+            self._blurred = self._blur_worker.get()
         return self._blurred
             
