@@ -397,18 +397,22 @@ class VideoPreprocessor(object):
     can be run concurrently.
     """
     
-    def __init__(self, video, functions):
+    def __init__(self, video, functions, preprocess=None):
         """ initializes the preprocessor
         `video` is the video to be iterated over
         `functions` is a dictionary of functions that should be applied while
-        iterating
+            iterating
+        `preprocess` can be a function that will be applied to the frame before
+            anything is returned
         """
         if 'raw' in functions:
             raise KeyError('The key `raw` is reserved for the raw _frame and '
                            'may not be used for functions.')
         
+        self.length = len(video)
         self.video_iter = iter(video)
         self.functions = functions
+        self.preprocess = preprocess
         
         # initialize internal structures
         self._futures = {}
@@ -430,18 +434,30 @@ class VideoPreprocessor(object):
             self._executor = futures.ThreadPoolExecutor(num_workers)
             
             # start retrieving the next one
-            self._prepare_next_frame(self.video_iter.next())
+            self._init_next_processing(self._get_next_frame())
+        
+        
+    def __len__(self):
+        return self.length
         
 
-    def _prepare_next_frame(self, frame_next):
-        """ prepare the next _frame in the background
+    def _get_next_frame(self):
+        """ get the next frame and preprocess it if necessary """
+        frame = self.video_iter.next()
+        if self.preprocess:
+            frame = self.preprocess(frame)
+        return frame
+
+
+    def _init_next_processing(self, frame_next):
+        """ prepare the next processed frame in the background
         `frame_next` is the raw data of this _frame
         """
         self._frame = frame_next
         self._futures = {}
         for name, func in self.functions.iteritems():
             self._futures[name] = self._executor.submit(func, frame_next)
-        self._future_frame_next = self._executor.submit(self.video_iter.next) 
+        self._future_frame_next = self._executor.submit(self._get_next_frame) 
 
     
     def __iter__(self):
@@ -470,12 +486,12 @@ class VideoPreprocessor(object):
                 self._frame = None
             else:
                 # start fetching the result for this next frame
-                self._prepare_next_frame(frame_next)
+                self._init_next_processing(frame_next)
             # while this is underway, return the current results
 
         else:
             # simple fallback if threads are not supported
-            frame = self.video_iter.next()
+            frame = self._get_next_frame()
             result = {name: func(frame)
                       for name, func in self.functions.iteritems()}
             result['raw'] = frame

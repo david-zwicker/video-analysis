@@ -33,9 +33,11 @@ from utils.misc import display_progress
 from video.io import ImageWindow, VideoComposer
 from video.filters import FilterCrop
 from video.analysis import regions, curves, image, shapes
+from video.io.parallel import VideoPreprocessor
 
 from .pass_base import PassBase
 from .processes.ground_detector import GroundDetectorGlobal
+from .processes.background import BackgroundExtractor
 from .objects.moving_objects import MovingObject, ObjectTrack, ObjectTrackList
 from .objects.ground import GroundProfile, GroundProfileList
 from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
@@ -62,7 +64,9 @@ class FirstPass(PassBase):
         
         # setup internal structures that will be filled by analyzing the video
         self.output = {}               # dictionary holding output structures
-        self.background = None         # current background model
+        self.background = BackgroundExtractor(self.params['background'],
+                                              blur_function=self.blur_image,
+                                              object_radius=self.params['mouse/model_radius'])
         self.ground = None             # current model of the ground profile
         self.tracks = []               # list of plausible mouse models in current _frame
         self.explored_area = None      # region the mouse has explored yet
@@ -155,30 +159,6 @@ class FirstPass(PassBase):
         if self.params['burrows/enabled_pass1']:
             self.result['burrows/tracks'] = BurrowTrackList()
 
-        # create a simple template of the mouse, which will be used to update
-        # the background image only away from the mouse.
-        # The template consists of a core region of maximal intensity and a ring
-        # region with gradually decreasing intensity.
-        
-        # determine the sizes of the different regions
-        size_core = self.params['mouse/model_radius']
-        size_ring = 3*self.params['mouse/model_radius']
-        size_total = size_core + size_ring
-
-        # build a filter for finding the mouse position
-        x, y = np.ogrid[-size_total:size_total + 1, -size_total:size_total + 1]
-        r = np.sqrt(x**2 + y**2)
-
-        # build the mouse template
-        mouse_template = (
-            # inner circle of ones
-            (r <= size_core).astype(float)
-            # + outer region that falls off
-            + np.exp(-((r - size_core)/size_core)**2)  # smooth function from 1 to 0
-              * (size_core < r)          # mask on ring region
-        )  
-        
-        self._cache['mouse.template'] = mouse_template
         self.result['statistics/tracking_moving_threshold'] = Counter()
         
         # prepare kernels for morphological operations
@@ -198,13 +178,12 @@ class FirstPass(PassBase):
         video_shape = (self.video.size[1], self.video.size[0]) 
         self.explored_area = np.zeros(video_shape, np.double)
         self._cache['image_uint8'] = np.empty(video_shape, np.uint8)
-        self._cache['image_double'] = np.empty(video_shape, np.double)
           
 
     def _iterate_over_video(self, video):
         """ internal function doing the heavy lifting by iterating over the video """
 
-        analyzed_never = True
+        never_analyzed = True
         frame_offset = self.result['video/frames'][0]
         if frame_offset is None:
             frame_offset = 0
@@ -213,16 +192,23 @@ class FirstPass(PassBase):
         else:
             analyze_start = frame_offset + self.params['video/initial_adaptation_frames']
         
+        # create the video iterator with preprocessing that will be done in a
+        # separate thread to speed up computations
+        if self.params['video/remove_water_bottle']:
+            preprocess = self.remove_water_bottle
+        else:
+            preprocess = None
+        video_iter = VideoPreprocessor(video, preprocess=preprocess,
+                                       functions={'blurred': self.blur_image})
+        video_iter = display_progress(video_iter)
+        
         # iterate over the video and analyze it
         # Note that the first _frame has already been analyzed earlier
-        for self.frame_id, frame in enumerate(display_progress(video),
-                                              frame_offset + 1):
-            # see whether we can handle the water bottle
-            if self.params['video/remove_water_bottle']:
-                frame = self.remove_water_bottle(frame.copy())
-            
-            # remove noise using a bilateral filter
-            frame_blurred = self.blur_image(frame)
+        for self.frame_id, data in enumerate(video_iter, frame_offset + 1):
+
+            # extract the images from the preprocessed data            
+            frame = data['raw']
+            frame_blurred = data['blurred']
 
             # copy _frame to debug video
             if 'video' in self.output:
@@ -234,12 +220,12 @@ class FirstPass(PassBase):
             do_ground = (self.frame_id % self.params['ground/adaptation_interval'] == 0)
             do_burrows = (self.frame_id % self.params['burrows/adaptation_interval'] == 0)
             
-            if do_analysis and (analyzed_never or do_colors):
+            if do_analysis and (never_analyzed or do_colors):
                 self.find_color_estimates(frame_blurred)
-                analyzed_never = False
+                never_analyzed = False
 
             # update the background model
-            self.update_background_model(frame)
+            self.background.update(frame, self.tracks)
                 
             if do_analysis:
                 # do the main analysis after an initial wait period
@@ -247,10 +233,10 @@ class FirstPass(PassBase):
                 self.find_objects(frame_blurred)
                 
                 # use the background to find the current ground profile and burrows
-                if analyzed_never or do_ground:
+                if never_analyzed or do_ground:
                     self.ground = self.get_ground_profile(self.ground)
         
-                if self.params['burrows/enabled_pass1'] and (analyzed_never or do_burrows):
+                if self.params['burrows/enabled_pass1'] and (never_analyzed or do_burrows):
                     self.find_burrows()
                     
             # store some information in the debug dictionary
@@ -592,6 +578,7 @@ class FirstPass(PassBase):
     def remove_water_bottle(self, frame):
         """ returns a copy of the _frame in which the water bottle has been
         removed """
+        frame = frame.copy()
         # get variables from cache
         if 'water_bottle_rect' not in self._cache:
             # locate the water bottle in the _frame
@@ -686,35 +673,6 @@ class FirstPass(PassBase):
                           self.result['colors/sand'], self.result['colors/sand_std'],
                           self.result['colors/sky'], self.result['colors/sky_std'])
         
-                
-    def update_background_model(self, frame):
-        """ updates the background model using the current _frame """
-            
-        if self.background is None:
-            self.background = frame.astype(np.double, copy=True)
-        
-        # check whether there are currently objects tracked 
-        if self.tracks:
-            # load some values from the cache
-            adaptation_rate = self._cache['image_double']
-            template = self._cache['mouse.template']
-            adaptation_rate.fill(self.params['background/adaptation_rate'])
-            
-            # cut out holes from the adaptation_rate for each object estimate
-            for obj in self.tracks:
-                # get the slices required for comparing the template to the image
-                t_s, i_s = regions.get_overlapping_slices(obj.last.pos,
-                                                          template.shape,
-                                                          frame.shape)
-                adaptation_rate[i_s[0], i_s[1]] *= 1 - template[t_s[0], t_s[1]]
-                
-        else:
-            # use the default adaptation rate everywhere when mouse is unknown
-            adaptation_rate = self.params['background/adaptation_rate']
-
-        # adapt the background to current _frame, but only inside the adaptation_rate 
-        self.background += adaptation_rate*(frame - self.background)
-
                         
     #===========================================================================
     # FINDING THE MOUSE
@@ -735,7 +693,8 @@ class FirstPass(PassBase):
         mask_moving = self._cache['image_uint8']
 
         # blur the background to be able to compare it to the current _frame
-        background_blurred = self.blur_image(self.background)
+        #TODO: use a future for blurring the background to speed up the processing
+        background_blurred = self.background.blurred#self.blur_image(self.background)
 
         # calculate the difference to the current background model
         cv2.subtract(frame, background_blurred, dtype=cv2.CV_8U, dst=mask_moving)
@@ -1179,7 +1138,7 @@ class FirstPass(PassBase):
         """ estimates the ground profile from the current background image """ 
         
         # get the background image from which we extract the ground profile
-        frame = self.background.astype(np.uint8)
+        frame = self.background.image_uint8
 
         # get the ground profile by using a template
         points_est1 = self._get_ground_from_template(frame)
@@ -1222,7 +1181,7 @@ class FirstPass(PassBase):
             self._cache['ground_detector'] = \
                                     GroundDetectorGlobal(ground, self.params)
         detector = self._cache['ground_detector']
-        return detector.refine_ground(self.background)
+        return detector.refine_ground(self.background.image)
         
 
     def produce_ground_debug_image(self, ground):
@@ -1230,7 +1189,7 @@ class FirstPass(PassBase):
         obtained """
         points_est1 = self.debug['ground']['estimate1']
         points_est2 = self.debug['ground']['estimate2']
-        frame = cv2.cvtColor(self.background.astype(np.uint8), cv2.cv.CV_GRAY2BGR)
+        frame = cv2.cvtColor(self.background.image_uint8, cv2.cv.CV_GRAY2BGR)
         
         # plot rectangle where the template matched
         if 'template_rect_max' in self.debug['ground']:
@@ -1606,8 +1565,7 @@ class FirstPass(PassBase):
             # do a line scan perpendicular
             p_a = (p[0] + scan_length*dy, p[1] - scan_length*dx)
             p_b = (p[0] - scan_length*dy, p[1] + scan_length*dx)
-            background = self.background.astype(np.uint8, copy=False)
-            profile = image.line_scan(background, p_a, p_b, 3)
+            profile = image.line_scan(self.background.image_uint8, p_a, p_b, 3)
             
             # find the transition points by considering slopes
             k_l = self.find_burrow_edge(profile, direction='down')
@@ -1688,8 +1646,8 @@ class FirstPass(PassBase):
                 # get profile along the centerline
                 p1e = (point_anchor[0] + scan_length*dx,
                        point_anchor[1] + scan_length*dy)
-                background = self.background.astype(np.uint8, copy=False)
-                profile = image.line_scan(background, point_anchor, p1e, 3)
+                profile = image.line_scan(self.background.image_uint8,
+                                          point_anchor, p1e, 3)
 
                 # determine position of burrow edge
                 l = self.find_burrow_edge(profile, direction='up')
@@ -1736,7 +1694,7 @@ class FirstPass(PassBase):
         """ refine burrow by thresholding background image using the GrabCut
         algorithm """
         mask_ground = self.get_ground_mask(255)
-        frame = self.background
+        frame = self.background.image
         width_min = self.params['burrows/width_min']
         
         # get region of interest from expanded bounding rectangle
@@ -2052,10 +2010,10 @@ class FirstPass(PassBase):
             video = self.output['background.video'] 
             if video.frames_written == 0:
                 self.result['video/background_frame_offset'] = self.frame_id
-            video.set_frame(self.background)
+            video.set_frame(self.background.image_uint8)
 
         if 'difference.video' in self.output:
-            diff = frame.astype(int, copy=False) - self.background + 128
+            diff = frame.astype(int, copy=False) - self.background.image + 128
             diff = np.clip(diff, 0, 255).astype(np.uint8, copy=False)
             self.output['difference.video'].set_frame(diff)
             self.output['difference.video'].add_text(str(self.frame_id),

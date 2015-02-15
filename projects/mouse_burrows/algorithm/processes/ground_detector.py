@@ -343,9 +343,6 @@ class GroundDetectorGlobal(GroundDetectorBase):
         # prepare image
         potential = self.get_gradient_strenght(frame)
         
-        # TODO: Try using gradient vector flow from this paper:
-        # Gradient Vector Flow: A New External Force for Snakes
-        
         # make sure the curve has equidistant points
         spacing = int(self.params['ground/point_spacing'])
         self.ground.make_equidistant(spacing=spacing)

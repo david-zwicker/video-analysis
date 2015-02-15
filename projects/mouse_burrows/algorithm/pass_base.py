@@ -14,6 +14,7 @@ import yaml
 from .data_handler import DataHandler
 
 
+
 class PassBase(DataHandler):
     """ base class for the actual video analysis passes """
 

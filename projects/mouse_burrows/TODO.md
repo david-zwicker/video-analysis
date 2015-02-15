@@ -25,6 +25,7 @@ Performance improvements:
 	- Do operations in place as often as possible
 * Generally cache all kernels for morphological operations, since these are costly to make
 * Do Gaussian blurring and other preprocessing methods in parallel (in separate processes)
+* Move background detection to own process
 
 
 Low priority enhancements:
