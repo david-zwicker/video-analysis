@@ -32,7 +32,7 @@ class BackgroundExtractor(object):
         
         self._blurred = None
         if blur_function:
-            self._blur_worker = WorkerThread(blur_function)
+            self._blur_worker = WorkerThread(blur_function, synchronous=False)
         else:
             self._blur_worker = None
         
