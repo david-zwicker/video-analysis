@@ -16,7 +16,13 @@ class WorkerThread(object):
     
     def __init__(self, function, synchronous=True):
         """ initializes the worker thread with the supplied function that will
-        be called subsequently """
+        be called subsequently.
+        `synchronous` is a flag determining whether the result from the worker
+            thread will be synchronized with the input. If it is not, it can be
+            that a call to `get` returns the result from a previous worker
+            thread. Additionally, subsequent calls to `get` can return different
+            results, even if no new calculation was initiated via `put`. 
+        """
         self.function = function
         self.synchronous = synchronous
         self._result = None

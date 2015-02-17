@@ -397,7 +397,7 @@ class FirstPass(PassBase):
     def find_cage_by_fitting(self, frame, rect):
         """ determines the cage by fitting the boundaries """
         
-        scan_length = self.params['cage/linescan_length']
+        scan_length = int(self.params['cage/linescan_length'])
         points = []
 
         # enlarge rectangle to make sure that the border lies inside
@@ -957,13 +957,20 @@ class FirstPass(PassBase):
         
         correlation_max, points = 0, None
         parameters_max, rect_max = None, None
+        frame_h, frame_w = frame.shape
         # try different aspect ratios
         for aspect_factor in self.params['ground/template_aspect_factors']:
             # try different fractions of the total width                  
             for width_factor in self.params['ground/template_width_factors']:
+                
                 width_estimate = width_factor * frame.shape[1] #< width
                 template, t_points = self._get_ground_template(width_estimate,
                                                                aspect_factor)
+            
+                # make sure that the template is smaller than the frame
+                template_h, template_w = template.shape
+                if (template_w > frame_w) or (template_h > frame_h):
+                    continue
             
                 # convolute template with _frame
                 conv = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
