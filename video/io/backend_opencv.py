@@ -167,6 +167,8 @@ class VideoOpenCV(VideoBase):
 class VideoImageStackOpenCV(VideoImageStackBase):
     """ class that loads a stack of images using opencv """
         
+    seekable = True
+        
     def get_frame(self, index):
         return cv2.imread(self.filenames[index])
 

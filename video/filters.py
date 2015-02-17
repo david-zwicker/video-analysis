@@ -355,12 +355,12 @@ class FilterReplicate(VideoFilterBase):
         if not 0 <= index < self.frame_count:
             raise IndexError('Cannot access _frame %d.' % index)
 
-        self._source.set_frame_pos(index % self.count)
+        self._source.set_frame_pos(index % self._source.frame_count)
         self._frame_pos = index
         
         
     def get_next_frame(self):
-        if self.get_frame_pos() % self.count == 0:
+        if self.get_frame_pos() % self._source.frame_count == 0:
             # rewind source video
             self._source.set_frame_pos(0)
         
