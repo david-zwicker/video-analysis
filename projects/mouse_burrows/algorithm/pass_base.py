@@ -7,6 +7,7 @@ Created on Dec 18, 2014
 from __future__ import division
 
 import datetime
+import functools
 
 import cv2
 import yaml
@@ -38,31 +39,37 @@ class PassBase(DataHandler):
             self.debug_output = self.params['debug/output']
             
     
-    def blur_image(self, image):
-        """ returns a blurred version of the image """
+    def get_blur_function(self):
+        """ returns a function that can be used to blur an image """
         blur_method = self.params['video/blur_method'].lower()
         blur_sigma = self.params['video/blur_radius']
         blur_sigma_color = self.params['video/blur_sigma_color']
 
         if blur_method == 'mean':
+            func = cv2.blur
             ksize = int(2*blur_sigma + 1)
-            image_blurred = cv2.blur(image, ksize=(ksize, ksize),
-                                     borderType=cv2.BORDER_REPLICATE)
+            kwargs = {'ksize': (ksize, ksize),
+                      'borderType':cv2.BORDER_REPLICATE}
         
         elif blur_method == 'gaussian':
-            image_blurred = cv2.GaussianBlur(image, ksize=(0, 0),
-                                             sigmaX=blur_sigma,
-                                             borderType=cv2.BORDER_REPLICATE)
+            func = cv2.GaussianBlur
+            kwargs = {'ksize': (0, 0), 'sigmaX': blur_sigma,
+                      'borderType': cv2.BORDER_REPLICATE}
         
         elif blur_method == 'bilateral':
-            image_blurred = cv2.bilateralFilter(image, d=int(blur_sigma),
-                                                sigmaColor=blur_sigma_color,
-                                                sigmaSpace=blur_sigma)
+            func = cv2.bilateralFilter
+            kwargs = {'d': int(blur_sigma), 'sigmaColor': blur_sigma_color,
+                      'sigmaSpace': blur_sigma}
             
         else:
             raise ValueError('Unsupported blur method `%s`' % blur_method)
-            
-        return image_blurred
+        
+        return functools.partial(func, **kwargs)
+    
+    
+    def blur_image(self, image):
+        """ returns a blurred version of the image """
+        return self.get_blur_function()(image)
             
     
     def log_event(self, description):

@@ -65,7 +65,7 @@ class FirstPass(PassBase):
         # setup internal structures that will be filled by analyzing the video
         self.output = {}               # dictionary holding output structures
         self.background = BackgroundExtractor(self.params['background'],
-                                              blur_function=self.blur_image,
+                                              blur_function=self.get_blur_function(),
                                               object_radius=self.params['mouse/model_radius'])
         self.ground = None             # current model of the ground profile
         self.tracks = []               # list of plausible mouse models in current _frame
@@ -199,7 +199,7 @@ class FirstPass(PassBase):
         else:
             preprocess = None
         video_iter = VideoPreprocessor(video, preprocess=preprocess,
-                                       functions={'blurred': self.blur_image})
+                                       functions={'blurred': self.get_blur_function()})
         video_iter = display_progress(video_iter)
         
         # iterate over the video and analyze it
