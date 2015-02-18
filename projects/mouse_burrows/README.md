@@ -18,12 +18,13 @@ yaml        | YAML binding for writing out data
 
 Optional python packages:
 
-Package     | Usage                                      
-------------|-------------------------------------------
-dateutil    | Used for being less picky about date formats
-descartes   | Used for debug plotting of shapes
-grip        | Used for converting markdown to html 
-pandas      | Used for writing results to csv files
-pint        | Used for result with physical units
-sharedmem   | Used for showing the videos in a separate process while iterating 
-tqdm        | Used for showing a progress bar while iterating
+Package      | Usage                                      
+-------------|-------------------------------------------
+dateutil     | Being less picky about date formats
+descartes    | Debug plotting of shapes
+faulthandler | Detecting low level crashes
+grip         | Converting markdown to html 
+pandas       | Writing results to csv files
+pint         | Reporting results with physical units
+sharedmem    | Showing the videos in a separate process while iterating 
+tqdm         | Showing a progress bar while iterating
