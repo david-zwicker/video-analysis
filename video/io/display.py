@@ -30,9 +30,8 @@ def _show_image_from_pipe(pipe, image_array, title, position=None):
         cv2.moveWindow(title, position[0], position[1])
     cv2.waitKey(1)
 
-    show_image = True
     try:
-        while show_image:
+        while True:
             # read next command from pipe
             command = pipe.recv()
             while pipe.poll():
@@ -60,16 +59,14 @@ def _show_image_from_pipe(pipe, image_array, title, position=None):
                 # until everything is handled
                 key = cv2.waitKey(1)
                 if key & 0xFF in {27, ord('q')}:
-                    pipe.send('interrupt')
-                    show_image = False
+                    raise KeyboardInterrupt
                 elif key == -1:
                     break
             
     except KeyboardInterrupt:
         pipe.send('interrupt')
-        
+                
     # cleanup
-    #pipe.close()
     cv2.destroyWindow(title)
     # work-around to handle GUI event loop 
     for _ in xrange(10):
