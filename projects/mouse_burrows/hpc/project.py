@@ -125,9 +125,8 @@ class HPCProjectBase(object):
 
         # determine the name of the video
         if video_name is None:
-            _, filename = os.path.split(video_file)
-            fileparts = filename.split('.')
-            video_name = '.'.join(fileparts[:-1])
+            filename = os.path.split(video_file)[1]
+            video_name = os.path.splitext(filename)[0]
             
         # setup the project instance
         result_folder = os.path.abspath(os.path.expanduser(result_folder))

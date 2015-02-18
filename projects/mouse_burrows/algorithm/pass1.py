@@ -293,35 +293,39 @@ class FirstPass(PassBase):
         _, binarized_frame = cv2.threshold(frame, 0, 255,
                                            cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-        # find the largest bright are, which should contain the cage
-        cage_mask = regions.get_largest_region(binarized_frame)
+        if self.params['cage/restrict_to_largest_patch']:
+            # find the largest bright are, which should contain the cage
+            cage_mask = regions.get_largest_region(binarized_frame)
+            
+            # find an enclosing rectangle, which usually overestimates the cage bounding box
+            rect_large = regions.find_bounding_box(cage_mask)
+            self.logger.debug('The cage is estimated to be contained in the '
+                              'rectangle %s', rect_large)
+             
+            # crop _frame to this rectangle, which should surely contain the cage
+            region_slices = regions.rect_to_slices(rect_large) 
+            frame = frame[region_slices]
+    
+            # threshold again, because large distractions outside of cages are now
+            # definitely removed. Still, bright objects close to the cage, e.g. the
+            # stands or some pipes in the background might distract the estimate.
+            # We thus adjust the rectangle in the following  
+            thresh = int(frame.mean() - self.params['cage/threshold_zscore']*frame.std())
+            _, binarized = cv2.threshold(frame, thresh=thresh, maxval=255,
+                                         type=cv2.THRESH_BINARY)
+        else:
+            
+            rect_large = (0, 0, frame.shape[1], frame.shape[0])
+            binarized = binarized_frame
         
-        # find an enclosing rectangle, which usually overestimates the cage bounding box
-        rect_large = regions.find_bounding_box(cage_mask)
         self.debug['cage']['approx_rect1'] = rect_large
-        self.logger.debug('The cage is estimated to be contained in the '
-                          'rectangle %s', rect_large)
-         
-        # crop _frame to this rectangle, which should surely contain the cage
-        region_slices = regions.rect_to_slices(rect_large) 
-        frame = frame[region_slices]
-
+        
         # initialize the rect coordinates
         left_est, top_est = 0, 0 # start in top right corner
         height_est, width_est = frame.shape
         bottom_ratio = self.params['cage/boundary_detection_bottom_estimate']
         bottom_est = int(bottom_ratio*height_est - 1)
         right_est = width_est - 1
-        # the magic 0.95 factor tries to circumvent some problems with the
-        # stands underneath each cage
-
-        # threshold again, because large distractions outside of cages are now
-        # definitely removed. Still, bright objects close to the cage, e.g. the
-        # stands or some pipes in the background might distract the estimate.
-        # We thus adjust the rectangle in the following  
-        thresh = int(frame.mean() - self.params['cage/threshold_zscore']*frame.std())
-        _, binarized = cv2.threshold(frame, thresh=thresh, maxval=255,
-                                     type=cv2.THRESH_BINARY)
         
         # move left line to right until we hit the cage boundary
         threshold = self.params['cage/boundary_detection_thresholds'][0]
@@ -388,7 +392,8 @@ class FirstPass(PassBase):
         if ret_binarized:
             binarized[binarized > 0] = 1
             binarized_frame[binarized_frame > 0] = 1
-            binarized_frame[region_slices] += 2*binarized
+            if self.params['cage/restrict_to_largest_patch']:
+                binarized_frame[region_slices] += 2*binarized
             return cage_rect, binarized_frame
         else:
             return cage_rect
@@ -488,14 +493,15 @@ class FirstPass(PassBase):
         cv2.rectangle(frame, p1, p2, color=(128, 128, 128), thickness=3)
 
         # add the rectangle resulting from fitting
-        rect_cage = self.debug['cage']['fit_rect']
-        p1, p2 = regions.rect_to_corners(rect_cage)
-        cv2.rectangle(frame, p1, p2, color=(255, 255, 255), thickness=4)
+        if 'fit_rect' in self.debug['cage']:
+            rect_cage = self.debug['cage']['fit_rect']
+            p1, p2 = regions.rect_to_corners(rect_cage)
+            cv2.rectangle(frame, p1, p2, color=(255, 255, 255), thickness=4)
 
-        # add the fitting points
-        points = self.debug['cage']['fit_points']
-        for p in points:
-            cv2.circle(frame, (int(p[0]), int(p[1])), 3, (0, 0, 255), thickness=-1)
+            # add the fitting points
+            points = self.debug['cage']['fit_points']
+            for p in points:
+                cv2.circle(frame, (int(p[0]), int(p[1])), 3, (0, 0, 255), thickness=-1)
 
         # save the image
         filename = self.get_filename('cage_estimate.jpg', 'debug')
@@ -515,7 +521,8 @@ class FirstPass(PassBase):
         rect_cage, frame_binarized = self.find_cage_approximately(blurred_frame,
                                                                   ret_binarized=True)
         
-        rect_cage = self.find_cage_by_fitting(blurred_frame, rect_cage)
+        if self.params['cage/refine_by_fitting']:
+            rect_cage = self.find_cage_by_fitting(blurred_frame, rect_cage)
         
         # make sure that the cage rectangle is dividable by 2, because video
         # dimensions should be divisible by two for some codecs

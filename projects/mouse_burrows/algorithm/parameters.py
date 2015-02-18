@@ -162,12 +162,18 @@ PARAMETER_LIST = [
               'Flag indicating whether the cropping rectangle should be determined '
               'automatically. If False, we assume that the original video is '
               'already cropped'),
+    Parameter('cage/restrict_to_largest_patch', True, UNIT.BOOLEAN,
+              'Determines whether the cage analysis will be restricted to the '
+              'largest patch in the first thresholded image.'),
     Parameter('cage/threshold_zscore', 0.5, UNIT.FACTOR,
               'Factor that determines the threshold for producing the binary '
               'image that is used to located the frame of the cage. The '
               'threshold is calculated according to the formula '
               'thresh = img_mean - factor*img_std, where factor is the factor'
               'determined here.'),
+    Parameter('cage/refine_by_fitting', True, UNIT.BOOLEAN,
+              'Flag determining whether the cage rectangle should be refined '
+              'by using fitting to locate the cage boundaries.'),
     Parameter('cage/boundary_detection_bottom_estimate', 0.95, UNIT.FRACTION,
               'Fraction of the image height that is used to estimate the '
               'position of the bottom of the frame'),
