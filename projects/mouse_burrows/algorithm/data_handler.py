@@ -282,7 +282,7 @@ class DataHandler(object):
         if frames is None:
             frames = (frames_skip, self.video.frame_count)
         if skip_frames > 0:
-            frames[0] += skip_frames
+            frames = (frames[0] + skip_frames, frames[1])
         if 0 < frames[0] or frames[1] < self.video.frame_count:
             self.video = self.video[frames[0]:frames[1]]
             
