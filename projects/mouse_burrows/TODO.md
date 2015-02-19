@@ -18,6 +18,9 @@
     => When checking for ffmpeg-errors, check also whether they are followed by
     an "FFmpeg error occurred! Repeat the analysis." and do not issue a warning
     in that case  
+* Debug multi-threading or turn even turn it off for some applications
+    => currently, the program fails and does not run on odyssey
+
 
 Performance improvements:
 -------------------------

@@ -66,6 +66,11 @@ PARAMETER_LIST = [
               'A factor by which all length scales will be scaled.'
               'Deprecated since 2014-12-20. Instead, `scale_length` should be '
               'used, which will be processed when loading the parameters once'),
+    Parameter('use_threads', True, UNIT.BOOLEAN,
+              'Determines whether multithreading is used in analyzing the '
+              'videos. Generally, multithreading should speed up the analysis, '
+              'but this is not always the case, especially for small videos, '
+              'where the thread overhead is large.'),
                   
     # Video input
     Parameter('video/filename_pattern', 'raw_video/*.MTS', UNIT.SUBFOLDER,

@@ -17,7 +17,8 @@ class BackgroundExtractor(object):
     """ a class that averages multiple frames of a movie to do background
     extraction """
     
-    def __init__(self, parameters, blur_function=None, object_radius=0):
+    def __init__(self, parameters, blur_function=None, object_radius=0,
+                 use_threads=True):
         """ initialize the background extractor with
         `parameters` is a dictionary of parameters influencing the algorithm
         `blur_function` is an optional function that, if given, supplies a
@@ -32,7 +33,8 @@ class BackgroundExtractor(object):
         
         self._blurred = None
         if blur_function:
-            self._blur_worker = WorkerThread(blur_function)
+            self._blur_worker = WorkerThread(blur_function,
+                                             use_threads=use_threads)
         else:
             self._blur_worker = None
         
@@ -67,6 +69,7 @@ class BackgroundExtractor(object):
         """ update the background with the current frame """
         if self.image is None:
             self.image = frame.astype(np.double, copy=True)
+            self._blur_worker.put(self.image) #< initialize background worker
             self.image_uint8 = frame.astype(np.uint8, copy=True)
             self._adaptation_rate = np.empty_like(frame, np.double)
         

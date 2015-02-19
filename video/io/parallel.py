@@ -398,7 +398,7 @@ class VideoPreprocessor(object):
     can be run concurrently.
     """
     
-    def __init__(self, video, functions, preprocess=None):
+    def __init__(self, video, functions, preprocess=None, use_threads=True):
         """ initializes the preprocessor
         `video` is the video to be iterated over
         `functions` is a dictionary of functions that should be applied while
@@ -419,8 +419,9 @@ class VideoPreprocessor(object):
         self._frame = None
         
         # initialize the background workers
-        self._worker_next_frame = WorkerThread(self._get_next_frame)
-        self._workers = {name: WorkerThread(func)
+        self._worker_next_frame = WorkerThread(self._get_next_frame,
+                                               use_threads=use_threads)
+        self._workers = {name: WorkerThread(func, use_threads=use_threads)
                          for name, func in self.functions.iteritems()}
         
         self._init_next_processing(self._get_next_frame())
