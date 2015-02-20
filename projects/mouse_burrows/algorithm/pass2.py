@@ -175,11 +175,39 @@ class SecondPass(PassBase):
         return start_nodes, end_nodes
          
          
+    def remove_unlikely_tracks(self, tracks, count):
+        """ remove the most unlikely items from the track list until there are
+        `count` items left """
+        if len(tracks) <= count:
+            return
+        
+        self.logger.debug('Reduce the number of tracks from %d to %d',
+                          len(tracks), count)
+        
+        # find the length of all the tracks
+        track_len = np.array([track.duration for track in tracks], np.double)
+        
+        # find the indices that have to be removed
+        indices = []
+        for _ in xrange(len(tracks) - count):
+            index = np.argmin(track_len)
+            track_len[index] = np.inf
+            indices.append(index)
+            
+        # remove the items from the list
+        for index in sorted(indices, reverse=True):
+            del tracks[index]
+            
+         
     def get_best_track_connection(self, tracks, start_nodes=None, end_nodes=None):
         """ determines a good path, possibly choosing from several start and 
         end nodes """   
         if len(tracks) < 2:
             return tracks
+        
+        max_count = self.params['tracking/max_track_count']
+        if len(tracks) > max_count:
+            self.remove_unlikely_tracks(tracks, max_count)
         
         threshold = self.params['tracking/initial_score_threshold']
         threshold_max = self.params['tracking/score_threshold_max']

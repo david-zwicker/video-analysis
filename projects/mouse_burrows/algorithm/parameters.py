@@ -348,6 +348,10 @@ PARAMETER_LIST = [
               'Minimal average speed an object must have in order to be '
               'surely considered as a mouse. This is introduced to prevent '
               'stationary objects to be called a mouse.'),
+    Parameter('tracking/max_track_count', 5000, UNIT.INTEGER,
+              'Maximal number of tracks that can be connected. If there are '
+              'more tracks, we throw out small tracks until the count '
+              'decreased to the one given here.'),
         
     # Burrows
     Parameter('burrows/enabled_pass1', False, UNIT.BOOLEAN,
