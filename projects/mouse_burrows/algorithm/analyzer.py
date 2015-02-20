@@ -203,6 +203,8 @@ class Analyzer(DataHandler):
     def get_burrow_peak_activity(self, burrow_track):
         """ determines the time point of the main burrowing activity for the
         given burrow """
+        if burrow_track is None:
+            return None
         times = burrow_track.times
         assert is_equidistant(times)
         time_delta =  (times[-1] - times[0])/(len(times) - 1)
@@ -210,6 +212,9 @@ class Analyzer(DataHandler):
         # ignore the initial frames
         start = int(self.params['burrows/activity_ignore_interval']/time_delta)
         times = times[start:]
+        
+        if len(times) == 0:
+            return None 
         
         # collect all the burrow areas
         areas = np.array([burrow.area
@@ -733,7 +738,10 @@ class Analyzer(DataHandler):
             # determine the main burrow
             burrow_main = self.get_main_burrow()
             if 'burrow_main_initiated' in keys:
-                time_start = burrow_main.track_start * self.time_scale
+                if burrow_main:
+                    time_start = burrow_main.track_start * self.time_scale
+                else:
+                    time_start = None
                 result['burrow_main_initiated'] = time_start
             if 'burrow_main_peak_activity' in keys:
                 time_peak = self.get_burrow_peak_activity(burrow_main)
