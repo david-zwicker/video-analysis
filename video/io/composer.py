@@ -84,13 +84,13 @@ class VideoComposer(VideoFileWriter):
         self.next_frame += 1
         
         if self.output_this_frame:
-            # scale current _frame if necessary 
+            # scale current frame if necessary 
             if self.zoom_factor != 1:
                 frame = cv2.resize(frame, self.size)
                 copy = False #< copy already happened
 
             if self._frame is None:
-                # first _frame => initialize the video 
+                # first frame => initialize the video 
                 if self.is_color and frame.ndim == 2:
                     # copy the monochrome _frame into the color video
                     self._frame = np.repeat(frame[:, :, None], 3, axis=2)
@@ -103,10 +103,10 @@ class VideoComposer(VideoFileWriter):
                     self._frame = frame
                 
             else:
-                # had a previous _frame => write the last _frame
+                # had a previous _frame => write the last frame
                 self.write_frame(self._frame)
 
-                # set current _frame
+                # set current frame
                 if self.is_color and frame.ndim == 2:
                     # set all three color channels
                     # Here, explicit iteration is faster than numpy broadcasting

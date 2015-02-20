@@ -214,7 +214,7 @@ class FirstPass(PassBase):
 
             # copy _frame to debug video
             if 'video' in self.output:
-                self.output['video'].set_frame(frame, copy=False)
+                self.output['video'].set_frame(frame, copy=True)
             
             # do the main analysis after an initial wait period
             do_analysis = (self.frame_id >= analyze_start)
