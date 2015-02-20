@@ -252,11 +252,21 @@ class DictXpath(collections.MutableMapping):
     >>>> {'a': {'b': 1, 'c': 2}}
     """
     
-    sep = '/'
-    
-    def __init__(self, data=None):
+    def __init__(self, data=None, sep='/', dict_class=dict):
+        """ initialize the DictXpath object
+        `data` is a dictionary that is used to fill the current object
+        `sep` determines the separator used for accessing different levels of
+            the structure
+        `dict_class` is the dictionary class that will handle items under the
+            hood and for instance determines how items are iterated over
+        """
+
+        # store details about the dictionary
+        self.sep = sep
+        self.dict_class = dict_class
+
         # set data
-        self.data = {}
+        self.data = self.dict_class()
         if data is not None:
             self.from_dict(data)
 
@@ -432,7 +442,7 @@ class DictXpath(collections.MutableMapping):
         """ convert object to a nested dictionary structure.
         If flatten is True a single dictionary with complex keys is returned.
         If flatten is False, a nested dictionary with simple keys is returned """
-        res = {}
+        res = self.dict_class()
         for key, value in self.iteritems():
             if isinstance(value, DictXpath):
                 value = value.to_dict(flatten)
