@@ -58,7 +58,8 @@ not for individual time periods
 * `burrow_main_initiated`: The time at which the main burrow was initiated
 * `burrow_main_peak_activity`: The time at which the main burrow was extended
     the most. This is defined as the time period where the burrow cross section
-    was increased the largest amount.
+    was increased the largest amount. In order to determine this time point, we
+    do some smoothing and ignore the first minutes of burrowing.
 
 All burrow statistics are currently obtained by sweeping the mouse trail over
 time.

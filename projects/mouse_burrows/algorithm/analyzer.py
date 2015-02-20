@@ -195,7 +195,7 @@ class Analyzer(DataHandler):
         for burrow_track in burrow_tracks:
             max_length = burrow_track.get_max_length()
             if max_length > main_length:
-                main_track, main_length = burrow_track, main_length
+                main_track, main_length = burrow_track, max_length
                   
         return main_track
     
@@ -217,13 +217,7 @@ class Analyzer(DataHandler):
         
         # do some Gaussian smoothing to get rid of fluctuations
         sigma = self.params['burrows/activity_smoothing_interval']/time_delta
-        
-        import matplotlib.pyplot as plt
-        plt.plot(areas, '-b')
         filters.gaussian_filter1d(areas, sigma, mode='nearest', output=areas)
-        
-        plt.plot(areas, '-r')
-        plt.show()
         
         # calculate the rate of area increase
         area_rate = np.gradient(areas)
