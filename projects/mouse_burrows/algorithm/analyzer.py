@@ -14,11 +14,12 @@ import itertools
 
 import numpy as np
 import networkx as nx
+from scipy.ndimage import filters
 
 from ..algorithm import FirstPass, SecondPass, ThirdPass, FourthPass
 from .data_handler import DataHandler
 from .objects import mouse
-from utils.math import contiguous_int_regions_iter
+from utils.math import contiguous_int_regions_iter, is_equidistant
 from video.analysis import curves
 
 try:
@@ -41,7 +42,7 @@ class OmniContainer(object):
         pass
     
     def __repr__(self):
-        return 'OmniContainer()'
+        return '%s()' % self.__class__.__name__
 
 
 
@@ -55,7 +56,9 @@ class Analyzer(DataHandler):
     mouse_states_default = ('.A.', '.H.', '.V.', '.D.', '.B ', '.[B|D]E', '...')
     
     def __init__(self, *args, **kwargs):
+        """ initialize the analyzer """
         super(Analyzer, self).__init__(*args, **kwargs)
+        self.params = self.data['parameters'] #< TODO use this throughout class
         
         if self.use_units and not UNITS_AVAILABLE:
             raise ValueError('Outputting results with units is not available. '
@@ -180,6 +183,53 @@ class Analyzer(DataHandler):
             results.append(data)
                   
         return results
+    
+    
+    def get_main_burrow(self, pass_id=3):
+        """ returns the track of the main burrow, which is defined to be the
+        longest burrow """
+        burrow_tracks = self.data['pass%d/burrows/tracks' % pass_id]
+
+        # find the longest burrow 
+        main_track, main_length = None, 0
+        for burrow_track in burrow_tracks:
+            max_length = burrow_track.get_max_length()
+            if max_length > main_length:
+                main_track, main_length = burrow_track, main_length
+                  
+        return main_track
+    
+    
+    def get_burrow_peak_activity(self, burrow_track):
+        """ determines the time point of the main burrowing activity for the
+        given burrow """
+        times = burrow_track.times
+        assert is_equidistant(times)
+        time_delta =  (times[-1] - times[0])/(len(times) - 1)
+
+        # ignore the initial frames
+        start = int(self.params['burrows/activity_ignore_interval']/time_delta)
+        times = times[start:]
+        
+        # collect all the burrow areas
+        areas = np.array([burrow.area
+                          for burrow in burrow_track.burrows[start:]])
+        
+        # do some Gaussian smoothing to get rid of fluctuations
+        sigma = self.params['burrows/activity_smoothing_interval']/time_delta
+        
+        import matplotlib.pyplot as plt
+        plt.plot(areas, '-b')
+        filters.gaussian_filter1d(areas, sigma, mode='nearest', output=areas)
+        
+        plt.plot(areas, '-r')
+        plt.show()
+        
+        # calculate the rate of area increase
+        area_rate = np.gradient(areas)
+         
+        # determine the time point of the maximal rate
+        return times[np.argmax(area_rate)] * self.time_scale
     
     
     #===========================================================================
@@ -658,6 +708,7 @@ class Analyzer(DataHandler):
         
         result = {}
         
+        # check if the burrows need to be analyzed
         if any(key in keys for key in ('burrow_area_total',
                                        'burrow_length_total',
                                        'burrow_length_max')):
@@ -681,7 +732,19 @@ class Analyzer(DataHandler):
                 result['burrow_length_total'] = length_total*self.length_scale
             if 'burrow_area_total' in keys:
                 result['burrow_area_total'] = area_total*self.length_scale**2
-        
+
+        # check if the main burrow needs to be analyzed
+        if any(key in keys for key in ('burrow_main_initiated',
+                                       'burrow_main_peak_activity')):
+            # determine the main burrow
+            burrow_main = self.get_main_burrow()
+            if 'burrow_main_initiated' in keys:
+                time_start = burrow_main.track_start * self.time_scale
+                result['burrow_main_initiated'] = time_start
+            if 'burrow_main_peak_activity' in keys:
+                time_peak = self.get_burrow_peak_activity(burrow_main)
+                result['burrow_main_peak_activity'] = time_peak
+
         # determine the remaining keys
         if not isinstance(keys, OmniContainer):
             keys = set(keys) - set(result.keys())  

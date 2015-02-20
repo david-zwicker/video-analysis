@@ -276,6 +276,11 @@ class BurrowTrack(object):
     def track_end(self): return self.times[-1]
     
     
+    def get_max_length(self):    
+        """ returns the maximal length of the burrow """
+        return max(burrow.length for burrow in self.burrows)
+
+    
     def get_burrow(self, time, ret_next_change=False):
         """ returns the burrow at a specific time.
         If ret_next_change is True, we also return the frame where the burrow

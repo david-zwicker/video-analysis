@@ -55,6 +55,10 @@ not for individual time periods
 * `burrow_area_total`: The total area of all burrow structures
 * `burrow_length_total`: The total length of all burrow structures  
 * `burrow_length_max`: The length of the longest burrow
+* `burrow_main_initiated`: The time at which the main burrow was initiated
+* `burrow_main_peak_activity`: The time at which the main burrow was extended
+    the most. This is defined as the time period where the burrow cross section
+    was increased the largest amount.
 
 All burrow statistics are currently obtained by sweeping the mouse trail over
 time.

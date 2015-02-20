@@ -19,11 +19,14 @@ from .cache import cached_property
 def trim_nan(data, left=True, right=True):
     """ removes nan values from the either end of the array `data`.
     `left` and `right` determine whether these ends of the array are processed.
-    The default is to process both ends. """
+    The default is to process both ends.
+    If data has more than one dimension, the reduction is done along the first
+    dimension if any of entry along the other dimension is nan.
+    """
     if left:
         # trim left side
         for s in xrange(len(data)):
-            if not np.isnan(data[s]):
+            if not np.any(np.isnan(data[s])):
                 break
     else:
         # don't trim the left side
@@ -32,7 +35,7 @@ def trim_nan(data, left=True, right=True):
     if right:
         # trim right side
         for e in xrange(len(data) - 1, s, -1):
-            if not np.isnan(data[e]):
+            if not np.any(np.isnan(data[e])):
                 # trim right side
                 return data[s:e + 1]
         # array is all nan
@@ -133,6 +136,15 @@ def homogenize_arraylist(data):
     for k, d in enumerate(data):
         result[k, :len(d), ...] = d
     return result
+
+
+
+def is_equidistant(data):
+    """ checks whether the 1d array given by `data` is equidistant """
+    if len(data) < 2:
+        return True
+    diff = np.diff(data)
+    return np.allclose(diff, diff.mean())
 
 
     

@@ -20,6 +20,7 @@
     in that case  
 * Debug multi-threading or turn even turn it off for some applications
     => currently, the program fails and does not run on odyssey
+* Create nice html output for the parameter that we need
 
 
 Performance improvements:
