@@ -181,7 +181,7 @@ class SecondPass(PassBase):
         if len(tracks) <= count:
             return
         
-        self.logger.debug('Reduce the number of tracks from %d to %d',
+        self.logger.info('Reduce the number of tracks from %d to %d',
                           len(tracks), count)
         
         # find the length of all the tracks
@@ -205,10 +205,6 @@ class SecondPass(PassBase):
         if len(tracks) < 2:
             return tracks
         
-        max_count = self.params['tracking/max_track_count']
-        if len(tracks) > max_count:
-            self.remove_unlikely_tracks(tracks, max_count)
-        
         threshold = self.params['tracking/initial_score_threshold']
         threshold_max = self.params['tracking/score_threshold_max']
 
@@ -230,6 +226,11 @@ class SecondPass(PassBase):
             self.logger.info('Pass 2 - Increased the track count from %d to %d '
                              'by splitting long, overlapping tracks.',
                              track_len_orig, len(tracks))
+
+        # reduce the number of tracks to maximal number allowed
+        max_count = self.params['tracking/max_track_count']
+        if len(tracks) > max_count:
+            self.remove_unlikely_tracks(tracks, max_count)
 
         # set flags if the end nodes have to be determined automatically
         determine_start_nodes = (start_nodes is None)
