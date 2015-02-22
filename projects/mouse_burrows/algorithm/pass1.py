@@ -316,7 +316,8 @@ class FirstPass(PassBase):
             _, binarized = cv2.threshold(frame, thresh=thresh, maxval=255,
                                          type=cv2.THRESH_BINARY)
         else:
-            
+            # take the thresholded image without restricting it to the largest
+            # patch
             rect_large = (0, 0, frame.shape[1], frame.shape[0])
             binarized = binarized_frame
         

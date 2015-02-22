@@ -329,7 +329,7 @@ PARAMETER_LIST = [
               'aborted.'),
     Parameter('tracking/end_node_interval', 1000, UNIT.TIME_FRAMES,
               'What time duration do we consider for start and end nodes'),
-    Parameter('tracking/splitting_duration_min', 10, UNIT.TIME_FRAMES,
+    Parameter('tracking/splitting_duration_min', 10, None,
               'Track duration above which two overlapping tracks are split'),
     Parameter('tracking/maximal_gap', 10, UNIT.TIME_FRAMES,
               'Maximal gap length where we will use linear interpolation to ' 
