@@ -698,10 +698,9 @@ class TailSegmentationTracking(object):
         return result
     
     
-    def plot_kymographs(self, outfile=None, align=False):
+    def plot_kymographs(self, outfile=None):
         """ plots a kymograph of the line scan data
         If `outfile` is given, the image is written to this file and not shown
-        `align` determines whether features in the kymographs will be aligned 
         """
         # load the data from a file
         self.load_result()
@@ -764,8 +763,7 @@ class TailSegmentationTracking(object):
                          (side_name, tail_id))
 
         # launch the GUI for aligning        
-        aligner = KymographAligner(kymograph)
-        result = aligner.run()
+        result = KymographAligner(kymograph).run()
         
         if result == 'ok':
             # save the result if desired
