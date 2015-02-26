@@ -20,7 +20,6 @@
     in that case  
 * Debug multi-threading or turn even turn it off for some applications
     => currently, the program fails and does not run on odyssey
-* Create nice html output for the parameter that we need
 
 
 Performance improvements:
@@ -29,6 +28,7 @@ Performance improvements:
 	- Do operations in place as often as possible
 * Generally cache all kernels for morphological operations, since these are costly to make
 * replace ThreadExecuter by dedicated threads or coroutines
+
 
 Low priority enhancements:
 --------------------------

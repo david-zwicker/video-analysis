@@ -19,6 +19,33 @@ import h5py
 
 
 
+def transpose_list_of_dicts(data, missing=None):
+    """ turns a list of dictionaries into a dictionary of lists, filling in
+    `missing` for items that are not available in some dictionaries """
+    result = {}
+    result_len = 0
+    keys = set()
+    
+    # iterate through the whole list and add items one by one
+    for item in data:
+        # add the items to the result dictionary
+        for k, v in item.iteritems():
+            try:
+                result[k].append(v)
+            except KeyError:
+                keys.add(k)
+                result[k] = [missing] * result_len + [v]
+                
+        # add missing items
+        for k in keys - set(item.keys()):
+            result[k].append(missing)
+                
+        result_len += 1
+    
+    return result
+
+
+
 def save_dict_to_csv(data, filename, first_columns=None, **kwargs):
     """ function that takes a dictionary of lists and saves it as a csv file """
     if first_columns is None:
