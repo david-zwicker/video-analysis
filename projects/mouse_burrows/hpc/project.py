@@ -33,7 +33,7 @@ def process_trials(logfile, max_iterations=10, log_append=True):
         yield trial
 
         # check for an error in the log file
-        processing_finished = True #< assume that the process finishes correclty
+        processing_finished = True #< assume that the process finishes correctly
         try:
             with open(logfile, "r") as fp:
                 file_iter = itertools.islice(fp, start_line_nr)
