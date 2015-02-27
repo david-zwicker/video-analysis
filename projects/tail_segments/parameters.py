@@ -75,4 +75,8 @@ parameters_tracking_special = {
         'detection/statistics_threshold': 3,
         'detection/every_frame': False,
     },
+    # video with three tails
+    '20150223_NUB_E13_edf': { 
+        'detection/every_frame': False,
+    },
 }

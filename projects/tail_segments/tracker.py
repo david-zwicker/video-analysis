@@ -483,7 +483,9 @@ class TailSegmentationTracking(object):
         else:
             tails_estimate = tails[:] #< copy list
 
-        assert len(tails_estimate) == len(tails)
+        if len(tails_estimate) != len(tails):
+            raise RuntimeError('Found %d instead of %d tails in this frame.' % 
+                               (len(tails), len(tails_estimate)))
         
         # setup active contour algorithm
         ac = ActiveContour(blur_radius=self.params['contour/blur_radius'],

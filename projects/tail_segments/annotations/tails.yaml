@@ -42,3 +42,15 @@
     - [319, 662]
   - - [900, 1063]
     - [1045, 1042]
+20150223_NUB_E13_edf:
+  segmentation_dividers:
+  - - !!python/tuple [768, 431]
+    - !!python/tuple [917, 328]
+  - - !!python/tuple [658, 518]
+    - !!python/tuple [732, 449]
+  - - !!python/tuple [285, 1110]
+    - !!python/tuple [326, 965]
+  - - !!python/tuple [680, 1386]
+    - !!python/tuple [711, 1563]
+  - - !!python/tuple [231, 339]
+    - !!python/tuple [625, 97]
