@@ -14,6 +14,7 @@ import time
 
 import cv2
 import numpy as np
+from scipy import cluster 
 from shapely import geometry, geos
 
 from .pass_base import PassBase
@@ -689,98 +690,45 @@ class ThirdPass(PassBase):
             if burrow_track.track_end >= self.frame_id - time_interval:
                 yield track_id, burrow_track.last
 
-    
-#     def find_burrows_grabcut(self, two_exits=False):
-#         """ locates burrows based on the mouse's movement.
-#         two_exits indicates whether the current mouse_trail describes a burrow
-#         with two exits """
-#         burrow_tracks = self.result['burrows/tracks']
-#         
-#         # copy all burrows to the this _frame
-#         for burrow_id, burrow in self.active_burrows():
-#             burrow_tracks[burrow_id].append(self.frame_id, burrow)
-#         
-#         # check whether the mouse is in a burrow
-#         if self.mouse_trail is None:
-#             # mouse trail is unknown => we don't have enough information 
-#             burrow_with_mouse = -1
-#         
-#         else:
-#             # mouse entered a burrow
-#             trail_length = curves.curve_length(self.mouse_trail)
-#             
-#             # check if we already know this burrow
-#             for burrow_with_mouse, burrow in self.active_burrows(time_interval=0):
-#                 # determine whether we are inside this burrow
-#                 trail_line = geometry.LineString(self.mouse_trail)
-#                 if burrow.contour is not None:
-#                     dist = burrow.polygon.distance(trail_line)
-#                     mouse_is_close = (dist < self.params['burrows/width']) 
-#                 else:
-#                     mouse_is_close = False
-#                 if not mouse_is_close:
-#                     dist = burrow.linestring.distance(trail_line)
-#                     mouse_is_close = (dist < 2*self.params['burrows/width']) 
-#                      
-#                 if mouse_is_close:
-#                     burrow.refined = False
-#                     if trail_length > burrow.length:
-#                         # update the centerline estimate
-#                         burrow.centerline = self.mouse_trail[:] #< copy list
-#                     if two_exits:
-#                         burrow.two_exits = True
-#                     break #< burrow_with_mouse contains burrow id
-#             else:
-#                 # create the burrow, since we don't know it yet
-#                 burrow = Burrow(None, self.mouse_trail[:], two_exits=two_exits)
-#                 burrow_track = BurrowTrack(self.frame_id, burrow)
-#                 burrow_tracks.append(burrow_track)
-#                 burrow_with_mouse = len(burrow_tracks) - 1
-# 
-#         # refine burrows
-#         refined_burrows = []
-#         for track_id, burrow in self.active_burrows(time_interval=0):
-#             # skip burrows with mice in them
-#             if track_id == burrow_with_mouse:
-#                 continue
-#             if not burrow.refined:
-#                 old_shape = burrow.polygon
-#                 while True:
-#                     burrow = self.refine_burrow(burrow)
-#                     area = burrow.area
-#                     # check whether the burrow is small
-#                     if area < 2*self.params['burrows/area_min']:
-#                         break
-#                     # check whether the burrow has changed significantly
-#                     try:
-#                         diff = old_shape.symmetric_difference(burrow.polygon)
-#                     except geos.TopologicalError:
-#                         # can happen in some corner cases
-#                         break
-#                     else: 
-#                         if diff.area / area < 0.1:
-#                             break 
-#                     old_shape = burrow.polygon
-#                 
-#                 refined_burrows.append(track_id)
-#                 
-#         # check for overlapping burrows
-#         for track1_id in reversed(refined_burrows):
-#             burrow1_track = burrow_tracks[track1_id]
-#             # check against all the other burrows
-#             for track2_id, burrow2 in self.active_burrows(time_interval=0):
-#                 if track2_id >= track1_id:
-#                     break
-#                 if burrow1_track.last.intersects(burrow2):
-#                     # intersecting burrows: keep the older burrow
-#                     if len(burrow1_track) <= 1:
-#                         del burrow_tracks[track1_id]
-#                     else:
-#                         del burrow1_track[-1]
-#                     self.logger.debug('Delete overlapping burrow at %s',
-#                                       burrow.position)
-              
-              
+
+    def burrow_estimate_exit(self, burrow):
+        """ estimate burrow exit points """
+        
+        ground_line = self.ground.linestring
+        dist_max = self.params['burrows/ground_point_distance']
+        
+        # determine burrow points close to the ground
+        exit_points = [point for point in burrow.contour
+                       if ground_line.distance(geometry.Point(point)) < dist_max]
+
+        if len(exit_points) < 2:
+            return exit_points
+        
+        exit_points = np.array(exit_points)
+
+        # cluster the points to detect multiple connections 
+        # this is important when a burrow has multiple exits to the ground
+        dist_max = self.params['burrows/width']
+        data = cluster.hierarchy.fclusterdata(exit_points, dist_max,
+                                              method='single', 
+                                              criterion='distance')
+        
+        # find the exit points
+        exits, exit_size = [], []
+        for cluster_id in np.unique(data):
+            points = exit_points[data == cluster_id]
+            xm, ym = points.mean(axis=0)
+            dist = np.hypot(points[:, 0] - xm, points[:, 1] - ym)
+            exits.append(points[np.argmin(dist)])
+            exit_size.append(len(points))
+
+        exits = np.array(exits)
+        exit_size = np.array(exit_size)
+
+        # return the exits sorted by their size
+        return exits[np.argsort(-exit_size), :]
+        
+
     def calculate_burrow_centerline(self, burrow, point_start=None):
         """ determine the centerline of a burrow with one exit """
         if point_start is None:
@@ -794,10 +742,10 @@ class ThirdPass(PassBase):
         point_start = curves.get_projection_point(ground_line, point_start)
         point_start = (int(point_start[0]) - shift[0],
                        int(point_start[1]) - shift[1])
-        mask[point_start[1], point_start[0]]
+        mask[point_start[1], point_start[0]] = 1
 
         # calculate the distance from the start point 
-        regions.make_distance_map(mask.T, [point_start])
+        regions.make_distance_map(mask, [point_start])
         
         # find the second point by locating the farthest point
         _, _, _, p_end = cv2.minMaxLoc(mask)
@@ -869,7 +817,8 @@ class ThirdPass(PassBase):
             if not is_line or line.is_empty or line.length <= 1:
                 # the centerline disappeared
                 # => calculate a new centerline from the burrow contour
-                self.calculate_burrow_centerline(burrow)
+                end_point = self.burrow_estimate_exit(burrow)[0]
+                self.calculate_burrow_centerline(burrow, point_start=end_point)
             
             else:
                 # adjust the burrow centerline to reach to the ground line
