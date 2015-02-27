@@ -8,6 +8,7 @@ from __future__ import division
 
 import glob
 import logging
+import itertools
 import os
 import pprint
 import time
@@ -19,24 +20,35 @@ from utils.data_structures import DictXpath
 import utils.files
 
 
-def process_trials(logfile, max_iterations=10):
+def process_trials(logfile, max_iterations=10, log_append=True):
     """ returns an generator which yields the current trial number until the
     processing is finished. The finish condition is based on analyzing the
     logfile.
-    max_iterations determines how many iterations are done at most"""
+    `max_iterations` determines how many iterations are done at most
+    `log_append` indicates whether the logfile is extended by each run and we
+        thus only have to test the new lines in each run
+    """
+    start_line_nr = 0
     for trial in xrange(max_iterations):
         yield trial
 
         # check for an error in the log file
-        processing_finished = True
+        processing_finished = True #< assume that the process finishes correclty
         try:
-            for line in open(logfile, "r"):
-                if 'FFmpeg encountered the following error' in line:
-                    # sleep up to two minutes to get around weird race conditions
-                    logging.info('Restarted the analysis since an FFmpeg error '
-                                 'was encountered.')
-                    time.sleep(np.random.randint(120))
-                    processing_finished = False
+            with open(logfile, "r") as fp:
+                file_iter = itertools.islice(fp, start_line_nr)
+                for line_nr, line in enumerate(file_iter, start_line_nr):
+                    if 'FFmpeg encountered the following error' in line:
+                        # sleep up to two minutes to get around weird race conditions
+                        logging.info('Restarted the analysis since an FFmpeg error '
+                                     'was encountered.')
+                        time.sleep(np.random.randint(120))
+                        processing_finished = False
+                        
+            if log_append:
+                # ignore the first part of the log file in the next iteration
+                start_line_nr = line_nr + 1
+                
         except IOError:
             # file likely does not exist => we assume no error 
             pass
