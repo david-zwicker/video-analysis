@@ -37,7 +37,7 @@ def process_trials(logfile, max_iterations=10, log_append=True):
         try:
             with open(logfile, "r") as fp:
                 file_iter = itertools.islice(fp, start_line_nr)
-                line_nr = start_line_nr
+                line_nr_error = -1
                 for line_nr, line in enumerate(file_iter, start_line_nr):
                     if 'FFmpeg encountered the following error' in line:
                         # sleep up to two minutes to get around weird race conditions
@@ -45,10 +45,11 @@ def process_trials(logfile, max_iterations=10, log_append=True):
                                      'was encountered.')
                         time.sleep(np.random.randint(120))
                         processing_finished = False
+                        line_nr_error = line_nr
                         
             if log_append:
                 # ignore the first part of the log file in the next iteration
-                start_line_nr = line_nr + 1
+                start_line_nr = line_nr_error + 1
                 
         except IOError:
             # file likely does not exist => we assume no error 
