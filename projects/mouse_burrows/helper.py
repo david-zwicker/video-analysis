@@ -53,7 +53,7 @@ def parse_experiment_identifier(identifier):
         # check for possible data
         if len(token) == 1 and token.isdigit():
             data_exp['cage'] = token
-        elif 5 <= len(token) <= 7:
+        elif 5 <= len(token):
             data_exp['mouse'] = token
         # check whether we have enough data
         if 'cage' in data_exp and 'mouse' in data_exp:
