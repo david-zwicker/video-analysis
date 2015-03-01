@@ -11,10 +11,10 @@ from __future__ import division
 import re
 
 # define the quadrants that appear in the experiments
-QUADRANTS = {'5': ('UL', 'upper left'),
-             '6': ('UR', 'upper right'),
-             '7': ('DL', 'lower left'),
-             '8': ('DR', 'lower right')}
+QUADRANTS = {'5': {'short': 'UL', 'position': 'upper left'},
+             '6': {'short': 'UR', 'position': 'upper right'},
+             '7': {'short': 'DL', 'position': 'lower left'},
+             '8': {'short': 'DR', 'position': 'lower right'}}
 
 
 
