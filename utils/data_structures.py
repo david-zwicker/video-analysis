@@ -70,9 +70,12 @@ def save_dict_to_csv(data, filename, first_columns=None, **kwargs):
             key += ' [%s]' % value.units
             value = value.magnitude
         elif len(value) > 0 and hasattr(value[0], 'magnitude'):
-            assert len(set(str(item.units) for item in value)) == 1
+            assert len(set(str(item.units)
+                           for item in value
+                           if item is not None)) == 1
             key += ' [%s]' % value[0].units
-            value = [item.magnitude for item in value]
+            value = [item.magnitude if item is not None else None
+                     for item in value]
         table[key] = value
 
     # create a pandas data frame to save data to CSV
