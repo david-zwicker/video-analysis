@@ -116,7 +116,7 @@ class ThirdPass(PassBase):
         cropping_rect = self.data['pass1/video/cropping_rect'] 
         # skip the first _frame, since it has also been skipped in pass 1
         video_info = self.load_video(cropping_rect=cropping_rect,
-                                     skip_frames=1)
+                                     frames_skipped_in_this_pass=1)
         
         self.data.create_child('pass3/video', video_info)
         del self.data['pass3/video/filecount']

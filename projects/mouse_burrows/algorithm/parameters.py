@@ -90,7 +90,7 @@ PARAMETER_LIST = [
               'should be given]'),
     Parameter('video/frames_skip', 0, UNIT.TIME_FRAMES,
               'Number of frames that are skipped before starting the '
-              'analysis. This value is only considered if video/frames '
+              'analysis. This value is only considered if `video/frames` '
               'is None.'),
     Parameter('video/cropping_rect', None, None,
               "Rectangle to which the video is cropped. This can be either four "

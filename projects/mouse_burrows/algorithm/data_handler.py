@@ -252,7 +252,7 @@ class DataHandler(object):
     
     
     def load_video(self, video=None, crop_video=True, cropping_rect=None,
-                   skip_frames=0):
+                   frames_skipped_in_this_pass=0):
         """ loads the video and applies a monochrome and cropping filter """
         # initialize the video
         if video is None:
@@ -278,12 +278,12 @@ class DataHandler(object):
 
         # restrict the analysis to an interval of frames
         frames = self.data.get('parameters/video/frames', None)
-        frames_skip = self.data.get('parameters/video/frames_skip', 0)
         if frames is None:
+            frames_skip = self.data.get('parameters/video/frames_skip', 0)
             frames = (frames_skip, self.video.frame_count)
-        if skip_frames > 0:
-            frames = (frames[0] + skip_frames, frames[1])
-        if 0 < frames[0] or frames[1] < self.video.frame_count:
+        if frames_skipped_in_this_pass > 0:
+            frames = (frames[0] + frames_skipped_in_this_pass, frames[1])
+        if 0 != frames[0] or frames[1] != self.video.frame_count:
             self.video = self.video[frames[0]:frames[1]]
             
         video_info['frames'] = frames

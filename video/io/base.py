@@ -342,11 +342,23 @@ class VideoSlice(VideoFilterBase):
     
     def __init__(self, source, start=0, stop=None, step=1):
         
+        # determine the start position
+        if start >= 0:
+            self._start = start
+        else:
+            self._start = self.source.frame_count + start #< negative start
+            
+        # determine the stop position
+        if stop is None:
+            self._stop = self.source.frame_count
+        elif stop >= 0:
+            self._stop = stop
+        else:
+            self._stop = self.source.frame_count + stop #< negative stop
+
+        # determine the step size (stride)
         if step == 0:
             raise ValueError('step argument must not be zero.')
-        
-        self._start = start
-        self._stop = self.source.frame_count if stop is None else stop 
         self._step = step
             
         # calculate the number of frames to be expected
@@ -363,7 +375,8 @@ class VideoSlice(VideoFilterBase):
                       '' if self._step == 1 else ':%d' % self._step,
                       frame_count))
         if step < 0:
-            logger.warn('Reversing a video can slow down the processing significantly.')
+            logger.warn('Reversing a video can slow down the processing '
+                        'significantly.')
         
         
     def set_frame_pos(self, index):
