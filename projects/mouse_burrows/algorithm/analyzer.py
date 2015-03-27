@@ -296,19 +296,22 @@ class Analyzer(DataHandler):
         """
         # get the velocity of the mouse
         velocity = self.get_mouse_track_data('velocity')
-        
+        # replace nan velocities with zero
+        velocity = np.nan_to_num(velocity)
+
         # get smoothing range
         sigma = self.params['mouse/activity_smoothing_interval']
 
         # compress the data by averaging over consecutive windows
-        window = min(1, int(sigma/30))
+        window = max(1, int(sigma/100))
         if window > 1:
             end = int(len(velocity)/window) * window
-            velocity = velocity[:end].reshape((-1, window)).mean(axis=1)
+            velocity = velocity[:end].reshape((-1, window))
+            velocity = velocity.mean(axis=1)
 
         # do some Gaussian smoothing to get rid of fluctuations
-        filters.gaussian_filter1d(velocity, sigma / window, mode='nearest',
-                                  output=velocity)
+        filters.gaussian_filter1d(velocity, sigma / window, mode='constant',
+                                  cval=0, output=velocity)
         
         # determine the time point of the maximal rate
         return np.argmax(velocity) * window * self.time_scale

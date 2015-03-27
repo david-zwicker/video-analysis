@@ -306,7 +306,7 @@ PARAMETER_LIST = [
               'considered to be moving.'),
     Parameter('mouse/moving_threshold_pixel_frame', None, UNIT.DEPRECATED,
               'Deprecated since 2014-12-01.'),
-    Parameter('mouse/activity_smoothing_interval', 30*60*10, #< 10 minutes
+    Parameter('mouse/activity_smoothing_interval', 30*60*30, #< 30 minutes
               UNIT.TIME_FRAMES,
               'The standard deviation of the Gaussian that is used for '
               'smoothing temporal data that is associated with activity '
@@ -422,12 +422,12 @@ PARAMETER_LIST = [
               'and foreground statistics. If the distributions overlap more '
               'than this value the point is considered to be background since '
               'it cannot be discriminated reliably.'),
-    Parameter('burrows/activity_ignore_interval', 30*60*5, #< 10 minutes
+    Parameter('burrows/activity_ignore_interval', 30*60*5, #< 5 minutes
               UNIT.TIME_FRAMES,
               'The time interval of the burrow trajectory that is ignored in '
               'the activity analysis. This is mainly done to circumvent '
               'problems with the initial predug.'),
-    Parameter('burrows/activity_smoothing_interval', 30*60*10, #< 10 minutes
+    Parameter('burrows/activity_smoothing_interval', 30*60*30, #< 30 minutes
               UNIT.TIME_FRAMES,
               'The standard deviation of the Gaussian that is used for '
               'smoothing temporal data that is associated with activity '
