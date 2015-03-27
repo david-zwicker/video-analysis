@@ -6,7 +6,7 @@ Parameters
 video
 -----
 * `video/filename_pattern = raw_video/*.MTS`: Filename pattern used to look for videos
-* `video/frames_skip = 0`: Number of frames that are skipped before starting the analysis. This value is only considered if video/frames is None.
+* `video/frames_skip = 0`: Number of frames that are skipped before starting the analysis. This value is only considered if `video/frames` is None.
 * `video/remove_water_bottle = True`: Flag that indicates whether the water bottle should be removed from the video
 * `video/cropping_rect = None`: Rectangle to which the video is cropped. This can be either four numbers [left, top, width, height] or some string like 'upper left', 'lower right', etc.
 * `video/water_bottle_template = water_bottle.png`: Name of the template for removing the water bottle from the background estimate.
@@ -99,6 +99,7 @@ ground
 mouse
 -----
 * `mouse/moving_threshold_cm_sec = 5`: The threshold value of the speed above which the mouse is considered to be moving.
+* `mouse/activity_smoothing_interval = 18000`: The standard deviation of the Gaussian that is used for smoothing temporal data that is associated with activity measurements.
 * `mouse/intensity_threshold = 1`: Determines how much brighter than the background (usually the sky) the mouse has to be. This value is measured in terms of standard deviations of the sky color
 * `mouse/speed_max = 30`: Maximal speed of the mouse
 * `mouse/area_min = 100`: Minimal area of a feature to be considered in tracking
@@ -121,6 +122,7 @@ tracking
 * `tracking/position_smoothing_window = 5`: The number of frames over which the mouse position is smoothed in order to calculate its velocity
 * `tracking/moving_threshold = 1`: Threshold speed above which an object is said to be moving
 * `tracking/splitting_duration_min = 10`: Track duration above which two overlapping tracks are split
+* `tracking/max_track_count = 5000`: Maximal number of tracks that can be connected. If there are more tracks, we throw out small tracks until the count decreased to the one given here.
 * `tracking/score_threshold_max = 10000000000.0`: Maximal threshold above which the graph based tracking is aborted.
 * `tracking/mouse_min_mean_speed = 0.5`: Minimal average speed an object must have in order to be surely considered as a mouse. This is introduced to prevent stationary objects to be called a mouse.
 * `tracking/maximal_jump = 50`: Maximal distance between two tracks where we will use linear interpolation to determine the intermediated mouse positions.

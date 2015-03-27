@@ -291,6 +291,21 @@ class Analyzer(DataHandler):
         return velocity * self.length_scale / self.time_scale
 
 
+    def get_mouse_running_peak(self):
+        """ determines the time point of the main running activity of the mouse
+        """
+        # get the velocity of the mouse
+        velocity = self.get_mouse_track_data('velocity')
+
+        # do some Gaussian smoothing to get rid of fluctuations
+        sigma = self.params['mouse/activity_smoothing_interval']
+        filters.gaussian_filter1d(velocity, sigma, mode='nearest',
+                                  output=velocity)
+        
+        # determine the time point of the maximal rate
+        return np.argmax(velocity) * self.time_scale
+
+
     def get_mouse_state_vector(self, states=None, ret_states=False):
         """ returns the a vector of integers indicating in what state the mouse
         was at each point in time 
@@ -747,6 +762,10 @@ class Analyzer(DataHandler):
                 time_peak = self.get_burrow_peak_activity(burrow_main)
                 result['burrow_main_peak_activity'] = time_peak
 
+        # calculate statistics of the mouse trajectory
+        if 'mouse_running_peak' in keys:
+            result['mouse_running_peak'] = self.get_mouse_running_peak()
+        
         # determine the remaining keys
         if not isinstance(keys, OmniContainer):
             keys = set(keys) - set(result.keys())  

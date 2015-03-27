@@ -306,6 +306,11 @@ PARAMETER_LIST = [
               'considered to be moving.'),
     Parameter('mouse/moving_threshold_pixel_frame', None, UNIT.DEPRECATED,
               'Deprecated since 2014-12-01.'),
+    Parameter('mouse/activity_smoothing_interval', 30*60*10, #< 10 minutes
+              UNIT.TIME_FRAMES,
+              'The standard deviation of the Gaussian that is used for '
+              'smoothing temporal data that is associated with activity '
+              'measurements.'),
                   
     Parameter('tracking/weight', 0.5, UNIT.FACTOR,
               'Relative weight of distance vs. size of objects for matching '

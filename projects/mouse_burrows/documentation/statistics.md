@@ -52,6 +52,8 @@ Additionally, we save information about what time slice was actually analyzed:
 These are additional statistics that are only produced for the entire video and 
 not for individual time periods
 
+* `mouse_running_peak`: The time at which the mouse ran the most. This is
+    defined as the time around which the mean velocity of the mouse was highest.
 * `burrow_area_total`: The total area of all burrow structures
 * `burrow_length_total`: The total length of all burrow structures  
 * `burrow_length_max`: The length of the longest burrow

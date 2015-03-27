@@ -60,7 +60,7 @@
 <li>
 <code>video/filename_pattern = raw_video/*.MTS</code>: Filename pattern used to look for videos</li>
 <li>
-<code>video/frames_skip = 0</code>: Number of frames that are skipped before starting the analysis. This value is only considered if video/frames is None.</li>
+<code>video/frames_skip = 0</code>: Number of frames that are skipped before starting the analysis. This value is only considered if <code>video/frames</code> is None.</li>
 <li>
 <code>video/remove_water_bottle = True</code>: Flag that indicates whether the water bottle should be removed from the video</li>
 <li>
@@ -250,6 +250,8 @@
 <li>
 <code>mouse/moving_threshold_cm_sec = 5</code>: The threshold value of the speed above which the mouse is considered to be moving.</li>
 <li>
+<code>mouse/activity_smoothing_interval = 18000</code>: The standard deviation of the Gaussian that is used for smoothing temporal data that is associated with activity measurements.</li>
+<li>
 <code>mouse/intensity_threshold = 1</code>: Determines how much brighter than the background (usually the sky) the mouse has to be. This value is measured in terms of standard deviations of the sky color</li>
 <li>
 <code>mouse/speed_max = 30</code>: Maximal speed of the mouse</li>
@@ -293,6 +295,8 @@
 <code>tracking/moving_threshold = 1</code>: Threshold speed above which an object is said to be moving</li>
 <li>
 <code>tracking/splitting_duration_min = 10</code>: Track duration above which two overlapping tracks are split</li>
+<li>
+<code>tracking/max_track_count = 5000</code>: Maximal number of tracks that can be connected. If there are more tracks, we throw out small tracks until the count decreased to the one given here.</li>
 <li>
 <code>tracking/score_threshold_max = 10000000000.0</code>: Maximal threshold above which the graph based tracking is aborted.</li>
 <li>
