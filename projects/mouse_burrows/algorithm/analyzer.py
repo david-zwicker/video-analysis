@@ -294,10 +294,12 @@ class Analyzer(DataHandler):
     def get_mouse_running_peak(self):
         """ determines the time point of the main running activity of the mouse
         """
-        # get the velocity of the mouse
+        # get the velocity of the mouse and replace nan with zeros
         velocity = self.get_mouse_track_data('velocity')
-        # replace nan velocities with zero
         velocity = np.nan_to_num(velocity)
+
+	# calculate scalar speed
+	speed = np.hypot(velocity[:, 0], velocity[:, 1])
 
         # get smoothing range
         sigma = self.params['mouse/activity_smoothing_interval']
@@ -306,16 +308,14 @@ class Analyzer(DataHandler):
         window = max(1, int(sigma/100))
         if window > 1:
             end = int(len(velocity) / window) * window
-            velocity = velocity[:end].reshape((-1, window)).mean(axis=1)
+            speed = speed[:end].reshape((-1, window)).mean(axis=1)
 
         # do some Gaussian smoothing to get rid of fluctuations
-        filters.gaussian_filter1d(velocity, sigma/window, mode='constant',
-                                  cval=0, output=velocity)
-        
-        print velocity
+        filters.gaussian_filter1d(speed, sigma/window, mode='constant',
+                                  cval=0, output=speed)
         
         # determine the time point of the maximal rate
-        return np.argmax(velocity) * window * self.time_scale
+        return np.argmax(speed) * window * self.time_scale
 
 
     def get_mouse_state_vector(self, states=None, ret_states=False):
