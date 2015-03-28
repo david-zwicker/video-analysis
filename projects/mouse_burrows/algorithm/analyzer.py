@@ -305,13 +305,14 @@ class Analyzer(DataHandler):
         # compress the data by averaging over consecutive windows
         window = max(1, int(sigma/100))
         if window > 1:
-            end = int(len(velocity)/window) * window
-            velocity = velocity[:end].reshape((-1, window))
-            velocity = velocity.mean(axis=1)
+            end = int(len(velocity) / window) * window
+            velocity = velocity[:end].reshape((-1, window)).mean(axis=1)
 
         # do some Gaussian smoothing to get rid of fluctuations
-        filters.gaussian_filter1d(velocity, sigma / window, mode='constant',
+        filters.gaussian_filter1d(velocity, sigma/window, mode='constant',
                                   cval=0, output=velocity)
+        
+        print velocity
         
         # determine the time point of the maximal rate
         return np.argmax(velocity) * window * self.time_scale
