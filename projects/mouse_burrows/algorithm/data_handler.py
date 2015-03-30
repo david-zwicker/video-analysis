@@ -281,6 +281,8 @@ class DataHandler(object):
         if frames is None:
             frames_start = self.data.get('parameters/video/frames_skip', 0)
             frames_end = self.video.frame_count
+        else:
+            frames_start, frames_end = frames
         if frames_skipped_in_this_pass > 0:
             frames_start += frames_skipped_in_this_pass
         if frames_end < 0:
