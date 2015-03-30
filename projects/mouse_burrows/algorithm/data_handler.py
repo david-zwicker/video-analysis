@@ -279,14 +279,16 @@ class DataHandler(object):
         # restrict the analysis to an interval of frames
         frames = self.data.get('parameters/video/frames', None)
         if frames is None:
-            frames_skip = self.data.get('parameters/video/frames_skip', 0)
-            frames = (frames_skip, self.video.frame_count)
+            frames_start = self.data.get('parameters/video/frames_skip', 0)
+            frames_end = self.video.frame_count
         if frames_skipped_in_this_pass > 0:
-            frames = (frames[0] + frames_skipped_in_this_pass, frames[1])
-        if 0 != frames[0] or frames[1] != self.video.frame_count:
-            self.video = self.video[frames[0]:frames[1]]
+            frames_start += frames_skipped_in_this_pass
+        if frames_end < 0:
+            frames_end += self.video.frame_count
+        if frames_start != 0 or frames_end != self.video.frame_count:
+            self.video = self.video[frames_start:frames_end]
             
-        video_info['frames'] = frames
+        video_info['frames'] = (frames_start, frames_end)
 
         if cropping_rect is None:
             cropping_rect = self.data.get('parameters/video/cropping_rect', None)

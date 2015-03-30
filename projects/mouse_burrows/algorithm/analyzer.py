@@ -605,7 +605,7 @@ class Analyzer(DataHandler):
                 
                 if max_diagonal < 0 or trail_length > 0:
                     # mouse was either never under ground or it is currently
-                    # currently under ground
+                    # under ground
                      
                     ground = ground_profile.get_ground_profile(frame_id)
 
