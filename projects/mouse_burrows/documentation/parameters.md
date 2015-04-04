@@ -99,7 +99,7 @@ ground
 mouse
 -----
 * `mouse/moving_threshold_cm_sec = 5`: The threshold value of the speed above which the mouse is considered to be moving.
-* `mouse/activity_smoothing_interval = 18000`: The standard deviation of the Gaussian that is used for smoothing temporal data that is associated with activity measurements.
+* `mouse/activity_smoothing_interval = 54000`: The standard deviation of the Gaussian that is used for smoothing temporal data that is associated with activity measurements.
 * `mouse/intensity_threshold = 1`: Determines how much brighter than the background (usually the sky) the mouse has to be. This value is measured in terms of standard deviations of the sky color
 * `mouse/speed_max = 30`: Maximal speed of the mouse
 * `mouse/area_min = 100`: Minimal area of a feature to be considered in tracking
@@ -131,7 +131,7 @@ burrows
 -------
 * `burrows/fitting_edge_R2min = -10`: Minimal value of the Coefficient of Determination (R^2) above which the fit of a burrow edge is considered good enough and will be used
 * `burrows/cage_margin = 30`: Margin of a potential burrow to the cage boundary
-* `burrows/activity_smoothing_interval = 18000`: The standard deviation of the Gaussian that is used for smoothing temporal data that is associated with activity measurements.
+* `burrows/activity_smoothing_interval = 54000`: The standard deviation of the Gaussian that is used for smoothing temporal data that is associated with activity measurements.
 * `burrows/fitting_length_threshold = 100`: Length above which burrows are refined by fitting
 * `burrows/curvature_radius_max = 30`: Maximal radius of curvature the centerline is allowed to have
 * `burrows/outline_simplification_threshold = 0.005`: Determines how much the burrow outline might be simplified. The quantity determines by what fraction the total outline length is allowed to change
