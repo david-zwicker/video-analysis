@@ -667,7 +667,7 @@ class Analyzer(DataHandler):
             video. """
         if keys is None:
             keys = OmniContainer()
-        
+            
         # determine the frame slices
         frame_range = self.get_frame_range()
         if slice_length:
@@ -700,7 +700,10 @@ class Analyzer(DataHandler):
         # get durations of the mouse being in different states        
         for key, pattern in (('time_spent_moving', '...M'), 
                              ('time_spent_digging', '.(B|D)E.')):
-            if key in keys:
+            # special case in which the calculation has to be done
+            c = (key == 'time_spent_digging' and 'mouse_digging_rate' in keys)
+            # alternatively, the computation might be requested directly
+            if c or key in keys:
                 states = self.get_mouse_state_vector([pattern])
                 duration = [np.count_nonzero(states[t_slice] == 0)
                             for t_slice in frame_slices]
@@ -742,11 +745,15 @@ class Analyzer(DataHandler):
             if 'mouse_deepest_vertical' in keys:
                 result['mouse_deepest_vertical'] = dist_vert * self.length_scale
 
-        if 'burrow_area_excavated' in keys:
+        if 'burrow_area_excavated' in keys or 'mouse_digging_rate' in keys:
             area_excavated = [self.get_burrow_area_excavated((f.start, f.stop))
                               for f in frame_slices]
             result['burrow_area_excavated'] = \
                                         area_excavated * self.length_scale**2
+
+        if 'mouse_digging_rate' in keys:
+            result['mouse_digging_rate'] = (result['burrow_area_excavated']
+                                            / result['time_spent_digging'])
 
         # determine the remaining keys
         if not isinstance(keys, OmniContainer):

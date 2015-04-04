@@ -57,6 +57,11 @@ For each period, the following statistics can be calculated:</p>
 
 <ul>
 <li>
+<code>burrow_area_excavated</code>: The underground area that has been excavated during
+the given time period. This value is the difference of the areas of burrows
+between the start and the end of the time period.<br>
+</li>
+<li>
 <code>ground_removed</code>: The area of the region which was below the ground line in the
 first frame and is now above ground in the last frame.</li>
 <li>
@@ -98,6 +103,9 @@ position to the ground line, irrespective of any burrows.</li>
 <code>mouse_deepest_vertical</code>: The longest distance of the mouse vertically under
 the ground. This distance is given by the distance of the mouse to the point
 on the ground line that is directly above it, irrespective of any burrows.</li>
+<li>
+<code>mouse_digging_rate</code>: The rate of digging during the time period. This value
+is calculated by dividing <code>burrow_area_excavated</code> by <code>time_spent_digging</code>.</li>
 </ul>
 
 <p>Additionally, we save information about what time slice was actually analyzed:</p>

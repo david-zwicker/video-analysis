@@ -7,6 +7,9 @@ development over time. Additionally, these statistics can be calculated for
 the entire video.
 For each period, the following statistics can be calculated:
 
+* `burrow_area_excavated`: The underground area that has been excavated during
+    the given time period. This value is the difference of the areas of burrows
+    between the start and the end of the time period.   
 * `ground_removed`: The area of the region which was below the ground line in the
     first frame and is now above ground in the last frame.
 * `ground_accrued`: The area of the region which was above the ground line in the
@@ -38,6 +41,8 @@ For each period, the following statistics can be calculated:
 * `mouse_deepest_vertical`: The longest distance of the mouse vertically under
     the ground. This distance is given by the distance of the mouse to the point
     on the ground line that is directly above it, irrespective of any burrows.
+* `mouse_digging_rate`: The rate of digging during the time period. This value
+    is calculated by dividing `burrow_area_excavated` by `time_spent_digging`.
     
 Additionally, we save information about what time slice was actually analyzed:
 
