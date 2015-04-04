@@ -246,10 +246,18 @@ class Analyzer(DataHandler):
                   or burrow_track.track_end <= frames[0]):
                 continue
             
-            # calculate the area change of the burrow
-            b1 = burrow_track.get_burrow(frames[0]) #< initial burrow shape
-            b2 = burrow_track.get_burrow(frames[1]) #< final burrow shape
-            area_excavated += b2.area - b1.area 
+            # get the burrow area at the beginning of the time interval
+            try:
+                b1_area = burrow_track.get_burrow(frames[0]).area
+            except IndexError:
+                b1_area = 0 #< burrow did not exist in the beginning
+            # get the burrow area at the end of the time interval
+            try:
+                b2_area = burrow_track.get_burrow(frames[1]).area
+            except IndexError:
+                b2_area = burrow_track.last.area #< take the last known burrow
+            # get the excavated area
+            area_excavated += b2_area - b1_area 
                   
         return area_excavated
     
