@@ -242,7 +242,8 @@ class Analyzer(DataHandler):
         area_excavated = 0
         for burrow_track in burrow_tracks:
             # check whether the track overlaps with the chosen frames
-            if burrow_track.start > frames[1] or burrow_track.end < frames[0]:
+            if (burrow_track.track_start >= frames[1]
+                  or burrow_track.track_end <= frames[0]):
                 continue
             
             # calculate the area change of the burrow
