@@ -231,13 +231,35 @@ class Analyzer(DataHandler):
         return times[np.argmax(area_rate)] * self.time_scale
     
     
+    def get_burrow_area_excavated(self, frames=None, pass_id=3):
+        """ calculates the area that was excavated during the frames given """
+        if frames is None:
+            frames = self.get_frame_range()
+
+        burrow_tracks = self.data['pass%d/burrows/tracks' % pass_id]
+
+        # find the burrow areas 
+        area_excavated = 0
+        for burrow_track in burrow_tracks:
+            # check whether the track overlaps with the chosen frames
+            if burrow_track.start > frames[1] or burrow_track.end < frames[0]:
+                continue
+            
+            # calculate the area change of the burrow
+            b1 = burrow_track.get_burrow(frames[0]) #< initial burrow shape
+            b2 = burrow_track.get_burrow(frames[1]) #< final burrow shape
+            area_excavated += b2.area - b1.area 
+                  
+        return area_excavated
+    
+    
     #===========================================================================
     # MOUSE STATISTICS
     #===========================================================================
 
 
     def get_mouse_track_data(self, attribute='pos', night_only=True):
-        """ returns the  """
+        """ returns information about the tracked mouse position or velocity """
         try:
             # read raw data for the frames that we are interested in 
             mouse_track = self.data['pass2/mouse_trajectory']
@@ -710,6 +732,12 @@ class Analyzer(DataHandler):
                 result['mouse_deepest_diagonal'] = dist_diag * self.length_scale
             if 'mouse_deepest_vertical' in keys:
                 result['mouse_deepest_vertical'] = dist_vert * self.length_scale
+
+        if 'burrow_area_excavated' in keys:
+            area_excavated = [self.get_burrow_area_excavated((f.start, f.stop))
+                              for f in frame_slices]
+            result['burrow_area_excavated'] = \
+                                        area_excavated * self.length_scale**2
 
         # determine the remaining keys
         if not isinstance(keys, OmniContainer):
