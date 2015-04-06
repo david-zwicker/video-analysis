@@ -781,12 +781,13 @@ class ThirdPass(PassBase):
         # in self.active_burrows. Consequently, it can happen that a current
         # burrow overlaps two older burrows, but the reverse cannot be true
         for burrow in self.burrows:
+            # find all tracks to which this burrow may belong
             track_ids = [track_id 
                          for track_id, burrow_last in self.active_burrows()
                          if burrow_last.intersects(burrow)]
             
-            # merge all burrows to a single track and keep the largest one
             if len(track_ids) > 1:
+                # merge all burrows to a single track and keep the largest one
                 track_longest, length_max = None, 0
                 for track_id in track_ids:
                     burrow_last = burrow_tracks[track_id].last
@@ -843,7 +844,8 @@ class ThirdPass(PassBase):
                     burrow_tracks.append(burrow_track)
                 
         # use the new set of burrows in the next iterations
-        self.burrows = [b.copy() for _, b in self.active_burrows(time_interval=0)]
+        self.burrows = [b.copy()
+                        for _, b in self.active_burrows(time_interval=0)]
                 
           
     def extend_burrow_by_mouse_trail(self, burrow):
@@ -982,11 +984,13 @@ class ThirdPass(PassBase):
                         burrow_color = 'red'
                     else:
                         burrow_color = 'DarkOrange'
-                    debug_video.add_line(burrow.centerline, burrow_color, is_closed=False,
-                                         mark_points=True, width=2)
+                    debug_video.add_line(burrow.centerline, burrow_color,
+                                         is_closed=False, mark_points=True,
+                                         width=2)
                     if burrow.contour is not None:
-                        debug_video.add_line(burrow.contour, burrow_color, is_closed=True,
-                                             mark_points=False, width=1)
+                        debug_video.add_line(burrow.contour, burrow_color,
+                                             is_closed=True, mark_points=False,
+                                             width=1)
                 
             # indicate the mouse state
             try:
