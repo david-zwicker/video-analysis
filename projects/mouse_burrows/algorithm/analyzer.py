@@ -262,6 +262,28 @@ class Analyzer(DataHandler):
         return area_excavated
     
     
+    def get_burrow_predug(self, pass_id=3):
+        """ identifies the predug from the burrow traces """
+
+        burrow_tracks = self.data['pass%d/burrows/tracks' % pass_id]
+        predug_analyze_time = self.params['burrows/predug_analyze_time']
+        predug_area_threshold = self.params['burrows/predug_area_threshold']
+        
+        # iterate over all burrow tracks and find the burrow that was largest
+        # after a short initial time, which indicates that it was the predug
+        predug, predug_area = None, 0
+        for burrow_track in burrow_tracks:
+            # get the burrow shortly after it has been detected
+            t_analyze = burrow_track.track_start + predug_analyze_time
+            burrow = burrow_track.get_burrow(t_analyze)
+            
+            if burrow.area > predug_area_threshold and burrow.area > predug_area:
+                predug = burrow
+                predug_area = burrow.area
+                    
+        return predug
+        
+    
     #===========================================================================
     # MOUSE STATISTICS
     #===========================================================================
@@ -751,9 +773,14 @@ class Analyzer(DataHandler):
             result['burrow_area_excavated'] = \
                                         area_excavated * self.length_scale**2
 
+        # calculate the digging rate by considering burrows and the mouse
         if 'mouse_digging_rate' in keys:
-            result['mouse_digging_rate'] = (result['burrow_area_excavated']
-                                            / result['time_spent_digging'])
+            digging_rate_time_min = self.params['mouse/digging_rate_time_min']
+            if result['time_spent_digging'] > digging_rate_time_min:
+                result['mouse_digging_rate'] = (result['burrow_area_excavated']
+                                                / result['time_spent_digging'])
+            else:
+                result['mouse_digging_rate'] = np.nan
 
         # determine the remaining keys
         if not isinstance(keys, OmniContainer):

@@ -311,6 +311,9 @@ PARAMETER_LIST = [
               'The standard deviation of the Gaussian that is used for '
               'smoothing temporal data that is associated with activity '
               'measurements.'),
+    Parameter('mouse/digging_rate_time_min', 30*60, UNIT.TIME_FRAMES,
+              'Minimal time span the mouse has to be digging before we '
+              'calculate a digging rate.'),
                   
     Parameter('tracking/weight', 0.5, UNIT.FACTOR,
               'Relative weight of distance vs. size of objects for matching '
@@ -432,6 +435,12 @@ PARAMETER_LIST = [
               'The standard deviation of the Gaussian that is used for '
               'smoothing temporal data that is associated with activity '
               'measurements.'),
+    Parameter('burrows/predug_analyze_time', 30*60, UNIT.TIME_FRAMES,
+              'The time duration after burrow detection at which the predug is '
+              'analyzed.'),
+    Parameter('burrows/predug_area_threshold', 1000, UNIT.AREA_PIXEL,
+              'The minimal area in pixels the burrow has to have in order to '
+              'be considered as a predug.'),
           
     # analysis after tracking
     Parameter('analysis/frames', None, None,
