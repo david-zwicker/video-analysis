@@ -775,12 +775,23 @@ class Analyzer(DataHandler):
 
         # calculate the digging rate by considering burrows and the mouse
         if 'mouse_digging_rate' in keys:
-            digging_rate_time_min = self.params['mouse/digging_rate_time_min']
-            if result['time_spent_digging'] > digging_rate_time_min:
-                result['mouse_digging_rate'] = (result['burrow_area_excavated']
-                                                / result['time_spent_digging'])
+            time_min = self.params['mouse/digging_rate_time_min']
+            if self.use_units:
+                time_min *= self.time_scale
+                unit_rate = self.length_scale**2 / self.time_scale
+                area_min = 0 * self.length_scale**2
             else:
-                result['mouse_digging_rate'] = np.nan
+                unit_rate = 1
+                area_min = 0
+            # calculate the digging rate
+            digging_rate = []
+            for area, time in itertools.izip(result['burrow_area_excavated'],
+                                             result['time_spent_digging']):
+                if area > area_min and time > time_min:
+                    digging_rate.append(area / time)
+                else:
+                    digging_rate.append(np.nan * unit_rate)
+            result['mouse_digging_rate'] = digging_rate
 
         # determine the remaining keys
         if not isinstance(keys, OmniContainer):
