@@ -721,6 +721,9 @@ class FourthPass(PassBase):
             
         # iterate over all burrow tracks and yield burrows if they are active
         for track_id, burrow_track in enumerate(self.result['burrows/tracks']):
+            if burrow_track.track_start > self.frame_id:
+                continue #< burrow track has not even started, yet
+            
             try:
                 # try getting the burrow at the current time 
                 burrow = burrow_track.get_burrow(self.frame_id)
@@ -820,14 +823,14 @@ class FourthPass(PassBase):
             except IndexError:
                 # this burrow does not exist for this frame
                 continue
-            
+        
             # setup active contour algorithm
-            ac = ActiveContour(blur_radius=5,
+            ac = ActiveContour(blur_radius=1,
                                closed_loop=True,
                                alpha=0, 
-                               beta=100,
-                               gamma=0.001)
-            ac.max_iterations = 500
+                               beta=1e4,
+                               gamma=0.01)
+            ac.max_iterations = 100
             ac.set_potential(self.get_gradient_strenght(frame))
 
             # find the points close to the ground line, which will be anchored
@@ -836,8 +839,7 @@ class FourthPass(PassBase):
                           if ground_line.distance(geometry.Point(point)) < dist_max]
 
             # adapt the contour
-            burrow.contour = ac.find_contour(burrow.contour,
-                                             anchor_idx, anchor_idx)
+            burrow.contour = ac.find_contour(burrow.contour, anchor_idx, anchor_idx)
             
 
     #===========================================================================

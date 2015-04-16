@@ -281,14 +281,19 @@ class BurrowTrack(object):
         return max(burrow.length for burrow in self.burrows)
 
     
+    def get_burrow_index(self, time):
+        """ returns the index of the burrow at a specific time. """
+        if not self.times[0] <= time <= self.times[-1]:
+            raise IndexError
+        
+        return np.argmin(np.abs(np.asarray(self.times) - time))
+    
+    
     def get_burrow(self, time, ret_next_change=False):
         """ returns the burrow at a specific time.
         If ret_next_change is True, we also return the frame where the burrow
         changes next. """
-        if not self.times[0] <= time <= self.times[-1]:
-            raise IndexError
-        
-        idx = np.argmin(np.abs(np.asarray(self.times) - time))
+        idx = self.get_burrow_index(time)
         burrow = self.burrows[idx]
         if ret_next_change:
             if idx >= len(self.times) - 1:
