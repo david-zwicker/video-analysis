@@ -231,7 +231,7 @@ class Analyzer(DataHandler):
         return times[np.argmax(area_rate)] * self.time_scale
     
     
-    def get_burrow_area_excavated(self, frames=None, pass_id=3):
+    def get_burrow_growth_statistics(self, frames=None, pass_id=3):
         """ calculates the area that was excavated during the frames given """
         if frames is None:
             frames = self.get_frame_range()
@@ -240,6 +240,7 @@ class Analyzer(DataHandler):
 
         # find the burrow areas 
         area_excavated = 0
+        burrows_grew_times = {}
         for burrow_track in burrow_tracks:
             # check whether the track overlaps with the chosen frames
             if (burrow_track.track_start >= frames[1]
@@ -248,18 +249,38 @@ class Analyzer(DataHandler):
             
             # get the burrow area at the beginning of the time interval
             try:
-                b1_area = burrow_track.get_burrow(frames[0]).area
+                b1_idx = burrow_track.get_burrow_index(frames[0])
             except IndexError:
+                b1_idx = 0
                 b1_area = 0 #< burrow did not exist in the beginning
+            else:
+                b1_area = burrow_track.burrows[b1_idx].area
+
             # get the burrow area at the end of the time interval
             try:
-                b2_area = burrow_track.get_burrow(frames[1]).area
+                b2_idx = burrow_track.get_burrow_index(frames[1])
             except IndexError:
+                b2_idx = len(burrow_track)
                 b2_area = burrow_track.last.area #< take the last known burrow
+            else:
+                b2_area = burrow_track.burrows[b2_idx].area
+                
             # get the excavated area
-            area_excavated += b2_area - b1_area 
-                  
-        return area_excavated
+            area_excavated += b2_area - b1_area
+            
+            # check at what times the burrow grew
+            burrow = burrow_track.burrows[b1_idx]
+            for b_idx in xrange(b1_idx + 1, b2_idx):
+                burrow_next = burrow_track.burrows[b_idx]
+                if burrow_next.area > burrow.area:
+                    burrows_grew_times[burrow_track.times[b_idx]] = True
+                burrow = burrow_next
+                
+        # calculate the total time during which burrows were extended
+        time_burrow_grew = (len(burrows_grew_times) 
+                            * self.params['burrows/adaptation_interval'])
+                
+        return area_excavated, time_burrow_grew
     
     
     def get_burrow_predug(self, pass_id=3):
@@ -721,9 +742,9 @@ class Analyzer(DataHandler):
 
         # get durations of the mouse being in different states        
         for key, pattern in (('time_spent_moving', '...M'), 
-                             ('time_spent_digging', '.(B|D)E.')):
+                             ('time_at_burrow_end', '.(B|D)E.')):
             # special case in which the calculation has to be done
-            c = (key == 'time_spent_digging' and 'mouse_digging_rate' in keys)
+            c = (key == 'time_at_burrow_end' and 'mouse_digging_rate' in keys)
             # alternatively, the computation might be requested directly
             if c or key in keys:
                 states = self.get_mouse_state_vector([pattern])
@@ -767,12 +788,19 @@ class Analyzer(DataHandler):
             if 'mouse_deepest_vertical' in keys:
                 result['mouse_deepest_vertical'] = dist_vert * self.length_scale
 
-        if 'burrow_area_excavated' in keys or 'mouse_digging_rate' in keys:
-            area_excavated = [self.get_burrow_area_excavated((f.start, f.stop))
-                              for f in frame_slices]
-            result['burrow_area_excavated'] = \
-                                        area_excavated * self.length_scale**2
-
+        # get statistics about the burrow evolution
+        if any(key in keys for key in ('burrow_area_excavated',
+                                       'mouse_digging_rate',
+                                       'time_burrow_grew')):
+            stats = [self.get_burrow_growth_statistics((f.start, f.stop))
+                          for f in frame_slices]
+            stats = np.array(stats)
+            
+            if 'burrow_area_excavated' in keys or 'mouse_digging_rate' in keys:
+                result['burrow_area_excavated'] = stats[:, 0] * self.length_scale**2
+            if 'time_burrow_grew' in keys:
+                result['time_burrow_grew'] = stats[:, 1] * self.time_scale
+                                        
         # calculate the digging rate by considering burrows and the mouse
         if 'mouse_digging_rate' in keys:
             time_min = self.params['mouse/digging_rate_time_min']
@@ -786,7 +814,7 @@ class Analyzer(DataHandler):
             # calculate the digging rate
             digging_rate = []
             for area, time in itertools.izip(result['burrow_area_excavated'],
-                                             result['time_spent_digging']):
+                                             result['time_at_burrow_end']):
                 if area > area_min and time > time_min:
                     digging_rate.append(area / time)
                 else:

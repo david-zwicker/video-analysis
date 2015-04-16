@@ -107,6 +107,7 @@ mouse
 * `mouse/model_radius = 25`: Radius of the mouse model
 * `mouse/max_rel_area_change = 0.5`: Maximal area change allowed between consecutive frames
 * `mouse/area_max = 5000`: Maximal area of a feature to be considered in tracking
+* `mouse/digging_rate_time_min = 1800`: Minimal time span the mouse has to be digging before we calculate a digging rate.
 
 tracking
 --------
@@ -139,11 +140,18 @@ burrows
 * `burrows/enabled_pass3 = True`: Whether burrows should be located in the third pass
 * `burrows/enabled_pass1 = False`: Whether burrows should be located in the first pass
 * `burrows/fitting_width_threshold = 30`: Width below which burrows are refined by fitting
+* `burrows/predug_area_threshold = 1000`: The minimal area in pixels the burrow has to have in order to be considered as a predug.
 * `burrows/image_statistics_overlap_threshold = 0.5`: The threshold value of the allowed overlap of the background and foreground statistics. If the distributions overlap more than this value the point is considered to be background since it cannot be discriminated reliably.
 * `burrows/shape_threshold_distance = 50`: Threshold value for the distance of burrow points from the ground points. If all points are closer than this threshold, the burrow is called a "wide burrow". Otherwise, the burrow will be treated as a "long burrow".
 * `burrows/width = 20`: Typical width of a burrow
 * `burrows/image_statistics_window = 50`: Half of the size of the window over which the statistics of the image are calculated.
+* `burrows/predug_analyze_time = 1800`: The time duration after burrow detection at which the predug is analyzed.
 * `burrows/activity_ignore_interval = 9000`: The time interval of the burrow trajectory that is ignored in the activity analysis. This is mainly done to circumvent problems with the initial predug.
+* `active_contour`
+  * `burrows/active_contour/convergence_rate = 0.01`: Convergence rate of the active contour algorithm used for refining the burrow shape.
+  * `burrows/active_contour/blur_radius = 2`: Blur radius of the active contour algorithm used for refining the burrow shape.
+  * `burrows/active_contour/stiffness = 10000.0`: Stiffness of the active contour algorithm used for refining the burrow shape.
+  * `burrows/active_contour/max_iterations = 100`: Maximal number of iterations of the active contour algorithm used for refining the burrow shape.
 * `burrows/simplification_threshold_area = 50`: Burrow outline points are removed when the resulting effective change is below this threshold
 * `burrows/chunk_dist_max = 30`: Maximal distance between a burrow chunk and another structure (either another chunk or the ground line), such that the chunk is connected to the other structure.
 * `burrows/ground_point_distance = 10`: Maximal distance of ground profile to outline points that are considered exit points

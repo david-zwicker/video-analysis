@@ -68,14 +68,15 @@ first frame and is now above ground in the last frame.</li>
 <code>ground_accrued</code>: The area of the region which was above the ground line in the
 first frame and is now below ground in the last frame.</li>
 <li>
+<code>time_burrow_grew</code>: The total time during which the burrow grew. This is a
+proxy for burrowing activity.</li>
+<li>
+<code>time_at_burrow_end</code>: The total time the mouse spent at the end of a burrow.
+This is a proxy for the time the mouse spent burrowing. </li>
+<li>
 <code>time_spent_moving</code>: The total time the mouse spent moving around during the
 analysis period. The mouse is said to be moving if its speed is above a
 threshold value.</li>
-<li>
-<code>time_spent_digging</code>: The total time the mouse spent digging. Here, digging is
-defined by the mouse being close to the end of a burrow, independent of its
-other states. Consequently, this statistics reports the mouse as digging
-even if it is just sitting at the end of the burrow. </li>
 <li>
 <code>mouse_speed_mean</code>: The mean speed of the mouse during the analysis period.
 Here, we assume a speed of zero for periods where we could not detect the
