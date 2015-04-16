@@ -830,6 +830,7 @@ class FourthPass(PassBase):
         burrow_tracks = self.result['burrows/tracks']
         ground_line = self.ground.linestring
         dist_max = self.params['burrows/ground_point_distance']
+        parameters = self.params['burrows/active_contour']
         
         for burrow_track in burrow_tracks:
             # get the burrow at the current time from this track 
@@ -840,12 +841,12 @@ class FourthPass(PassBase):
                 continue
         
             # setup active contour algorithm
-            ac = ActiveContour(blur_radius=1,
+            ac = ActiveContour(blur_radius=parameters['blur_radius'],
                                closed_loop=True,
                                alpha=0, 
-                               beta=1e4,
-                               gamma=0.01)
-            ac.max_iterations = 100
+                               beta=parameters['stiffness'],
+                               gamma=parameters['convergence_rate'])
+            ac.max_iterations = parameters['max_iterations']
             ac.set_potential(gradient_strength)
 
             # find the points close to the ground line, which will be anchored

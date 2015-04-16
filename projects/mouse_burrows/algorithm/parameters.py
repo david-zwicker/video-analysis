@@ -441,6 +441,19 @@ PARAMETER_LIST = [
     Parameter('burrows/predug_area_threshold', 1000, UNIT.AREA_PIXEL,
               'The minimal area in pixels the burrow has to have in order to '
               'be considered as a predug.'),
+                  
+    Parameter('burrows/active_contour/blur_radius', 2, UNIT.LENGTH_PIXEL,
+              'Blur radius of the active contour algorithm used for refining '
+              'the burrow shape.'),
+    Parameter('burrows/active_contour/stiffness', 1e4, UNIT.AREA_PIXEL,
+              'Stiffness of the active contour algorithm used for refining the '
+              'burrow shape.'),
+    Parameter('burrows/active_contour/convergence_rate', 1e-2, UNIT.FACTOR,
+              'Convergence rate of the active contour algorithm used for '
+              'refining the burrow shape.'),
+    Parameter('burrows/active_contour/max_iterations', 100, UNIT.FACTOR,
+              'Maximal number of iterations of the active contour algorithm '
+              'used for refining the burrow shape.'),
           
     # analysis after tracking
     Parameter('analysis/frames', None, None,
