@@ -153,6 +153,10 @@ class ActiveContour(object):
             Pinv = self.get_evolution_matrix(len(points), ds)
             self._Pinv_cache[cache_key] = Pinv
     
+        # restrict control points to shape of the potential
+        points[:, 0] = np.clip(points[:, 0], 0, self.fx.shape[1] - 2)
+        points[:, 1] = np.clip(points[:, 1], 0, self.fx.shape[0] - 2)
+
         # create intermediate array
         points_initial = points.copy()
         ps = points.copy()
