@@ -51,7 +51,7 @@ class ActiveContour(object):
         self.gamma = gamma  #< convergence rate
         self.closed_loop = closed_loop
         
-        self.clear_cache() #< also initializes the cache
+        self.clear_cache()  #< also initializes the cache
         self.fx = self.fy = None
         self.info = {}
 
@@ -162,7 +162,7 @@ class ActiveContour(object):
             fex = image.subpixels(self.fx, points)
             fey = image.subpixels(self.fy, points)
             
-            # Move control points
+            # move control points
             ps[:, 0] = np.dot(Pinv, points[:, 0] + self.gamma*fex)
             ps[:, 1] = np.dot(Pinv, points[:, 1] + self.gamma*fey)
             
@@ -174,15 +174,17 @@ class ActiveContour(object):
             # check the distance that we evolved
             residual = np.abs(ps - points).sum()
 
-            # Restrict control points to potential
+            # restrict control points to shape of the potential
             points[:, 0] = np.clip(ps[:, 0], 0, self.fx.shape[1] - 2)
             points[:, 1] = np.clip(ps[:, 1], 0, self.fx.shape[0] - 2)
 
             if residual < self.residual_tolerance * self.gamma:
                 break
             
+        # collect additional information
         self.info['iteration_count'] = k + 1
         self.info['total_variation'] = np.abs(points_initial - points).sum()
     
         return points
+
     

@@ -8,6 +8,7 @@ Module that contains the class responsible for the fourth pass of the algorithm
 
 from __future__ import division
 
+import copy
 import functools
 import time
 
@@ -17,10 +18,11 @@ from scipy import cluster
 from shapely import geometry
 
 from .pass_base import PassBase
-from .objects.burrow import Burrow, BurrowTrackList
+from .objects.burrow import Burrow
 from utils.misc import unique_based_on_id, display_progress
 from utils.math import NormalDistribution, contiguous_true_regions
 from video.analysis import curves, regions
+from video.analysis.active_contour import ActiveContour
 from video.io import ImageWindow, VideoFile, VideoComposer
 from video.filters import FilterMonochrome
 
@@ -123,7 +125,11 @@ class FourthPass(PassBase):
         self.mouse_mask = np.zeros(self.background_video.shape[1:], np.uint8)
 
         if self.params['burrows/enabled_pass4']:
-            self.result['burrows/tracks'] = BurrowTrackList()
+            # self.result['burrows/tracks'] = BurrowTrackList()
+            # copy the older burrow tracks to adapt them to this pass
+            self.result['burrows/tracks'] = \
+                            copy.deepcopy(self.data['pass3/burrows/tracks'])
+
             self.burrow_mask = np.zeros(self.background_video.shape[1:], np.uint8)
 
         
@@ -152,7 +158,7 @@ class FourthPass(PassBase):
 
             # find the changes in the background
             if self.params['burrows/enabled_pass4']:
-                self.find_burrows(frame)
+                self.find_burrows_using_active_contour(frame)
 
             # store some debug information
             self.debug_process_frame(frame)
@@ -708,19 +714,23 @@ class FourthPass(PassBase):
         return burrows
 
 
-#     def active_burrows(self):
-#         """ returns a generator to iterate over all active burrows """
-#         for burrow_track in self.result['burrows/tracks']:
-#             if burrow_track.active:
-#                 yield burrow_track.last
-
     def active_burrows(self, time_interval=None):
         """ returns a generator to iterate over all active burrows """
         if time_interval is None:
             time_interval = self.params['burrows/adaptation_interval']
+            
+        # iterate over all burrow tracks and yield burrows if they are active
         for track_id, burrow_track in enumerate(self.result['burrows/tracks']):
-            if burrow_track.track_end >= self.frame_id - time_interval:
-                yield track_id, burrow_track.last
+            try:
+                # try getting the burrow at the current time 
+                burrow = burrow_track.get_burrow(self.frame_id)
+            except IndexError:
+                # see whether the track end is close to the current point
+                if burrow_track.track_end >= self.frame_id - time_interval:
+                    yield track_id, burrow_track.last
+            else:
+                # yield the burrow if it was found
+                yield track_id, burrow
 
 
     def add_burrows_to_tracks(self, burrows):
@@ -754,7 +764,7 @@ class FourthPass(PassBase):
                 track.active = False
 
 
-    def find_burrows(self, frame):
+    def find_burrows_from_statistics(self, frame):
         """ finds burrows from the current _frame """
         frame = self.blur_image(frame)
         
@@ -773,6 +783,64 @@ class FourthPass(PassBase):
 
 
     #===========================================================================
+    # FIND BURROWS USING AN ACTIVE CONTOUR MODEL
+    #===========================================================================
+
+
+    def get_gradient_strenght(self, frame):
+        """ calculates the gradient strength of the image in _frame """
+        # smooth the image to be able to find smoothed edges
+        frame_blurred = cv2.GaussianBlur(frame.astype(np.double), (0, 0), 3)
+        
+        # scale frame_blurred to [0, 1]
+        cv2.divide(frame_blurred, 256, dst=frame_blurred)
+
+        # do Sobel filtering to find the frame_blurred edges
+        grad_x = cv2.Sobel(frame_blurred, cv2.CV_64F, 1, 0, ksize=5)
+        grad_y = cv2.Sobel(frame_blurred, cv2.CV_64F, 0, 1, ksize=5)
+
+        # calculate the gradient strength
+        gradient_mag = frame_blurred #< reuse memory
+        np.hypot(grad_x, grad_y, out=gradient_mag)
+        
+        return gradient_mag
+    
+        
+    def find_burrows_using_active_contour(self, frame):
+        """ finds burrows using the previous estimate from pass3 and adapting
+        it to the image using an active contour model """
+        burrow_tracks = self.result['burrows/tracks']
+        ground_line = self.ground.linestring
+        dist_max = self.params['burrows/ground_point_distance']
+        
+        for burrow_track in burrow_tracks:
+            # get the burrow at the current time from this track 
+            try:
+                burrow = burrow_track.get_burrow(self.frame_id)
+            except IndexError:
+                # this burrow does not exist for this frame
+                continue
+            
+            # setup active contour algorithm
+            ac = ActiveContour(blur_radius=5,
+                               closed_loop=True,
+                               alpha=0, 
+                               beta=100,
+                               gamma=0.001)
+            ac.max_iterations = 500
+            ac.set_potential(self.get_gradient_strenght(frame))
+
+            # find the points close to the ground line, which will be anchored
+            ground_line = self.ground.linestring
+            anchor_idx = [idx for idx, point in enumerate(burrow.contour)
+                          if ground_line.distance(geometry.Point(point)) < dist_max]
+
+            # adapt the contour
+            burrow.contour = ac.find_contour(burrow.contour,
+                                             anchor_idx, anchor_idx)
+            
+
+    #===========================================================================
     # DEBUGGING
     #===========================================================================
 
@@ -780,7 +848,7 @@ class FourthPass(PassBase):
     def debug_setup(self):
         """ prepares everything for the debug output """
         # load parameters for video output        
-        video_output_period = 1#int(self.params['output/video/period'])
+        video_output_period = 1
         video_extension = self.params['output/video/extension']
         video_codec = self.params['output/video/codec']
         video_bitrate = self.params['output/video/bitrate']
