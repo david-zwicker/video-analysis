@@ -24,6 +24,7 @@ from utils.math import NormalDistribution, contiguous_true_regions
 from video.analysis import curves, regions
 from video.analysis.active_contour import ActiveContour
 from video.io import ImageWindow, VideoFile, VideoComposer
+from video.io.parallel import VideoPreprocessor
 from video.filters import FilterMonochrome
 
 from video import debug  # @UnusedImport
@@ -140,8 +141,22 @@ class FourthPass(PassBase):
         ground_profile = self.data['pass2/ground_profile']
         background_frame_offset = self.data['pass1/video/background_frame_offset']
 
+        # create the video iterator with preprocessing that will be done in a
+        # separate thread to speed up computations
+        video_iter = VideoPreprocessor(
+            video, functions={'gradient_strength': self.get_gradient_strenght},
+            use_threads=self.params['use_threads']
+        )
+        video_iter = display_progress(video_iter)
+
+
         # iterate over the video and analyze it
-        for background_id, frame in enumerate(display_progress(self.background_video)):
+        for background_id, data in enumerate(video_iter):
+            
+            # extract the images from the preprocessed data            
+            frame = data['raw']
+            gradient_strength = data['gradient_strength']
+            
             # calculate _frame id in the original video
             self.frame_id = (background_frame_offset 
                              + background_id * self.params['output/video/period']) 
@@ -158,7 +173,7 @@ class FourthPass(PassBase):
 
             # find the changes in the background
             if self.params['burrows/enabled_pass4']:
-                self.find_burrows_using_active_contour(frame)
+                self.find_burrows_using_active_contour(frame, gradient_strength)
 
             # store some debug information
             self.debug_process_frame(frame)
@@ -809,7 +824,7 @@ class FourthPass(PassBase):
         return gradient_mag
     
         
-    def find_burrows_using_active_contour(self, frame):
+    def find_burrows_using_active_contour(self, frame, gradient_strength):
         """ finds burrows using the previous estimate from pass3 and adapting
         it to the image using an active contour model """
         burrow_tracks = self.result['burrows/tracks']
@@ -831,7 +846,7 @@ class FourthPass(PassBase):
                                beta=1e4,
                                gamma=0.01)
             ac.max_iterations = 100
-            ac.set_potential(self.get_gradient_strenght(frame))
+            ac.set_potential(gradient_strength)
 
             # find the points close to the ground line, which will be anchored
             ground_line = self.ground.linestring
