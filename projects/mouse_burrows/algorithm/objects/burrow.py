@@ -250,7 +250,6 @@ class Burrow(shapes.Polygon):
         skip_length = self.parameters['centerline_skip_length']
 
         endpoints = [p.coords for p in self.endpoints]
-        print 'endpoints', endpoints
         self._centerline = self.get_centerline_smoothed(spacing=spacing,
                                                         skip_length=skip_length,
                                                         endpoints=endpoints)

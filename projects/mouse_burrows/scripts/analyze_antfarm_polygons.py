@@ -44,31 +44,13 @@ default_parameters = {
     'scale_bar/dist_bottom': 0.1,
     'scale_bar/dist_left': 0.1,
     'scale_bar/length_cm': 10,
+    'cage/width_min': 80,
+    'cage/width_max': 90,
 }
 
 
 ScaleBar = collections.namedtuple('ScaleBar', ['size', 'angle'])
 
-
-
-#FIXME: use burrow and ground line objects from tracking
-
-# class BurrowPolygon(shapes.Polygon):
-#     """ class representing a single burrow """ 
-#     @cached_property
-#     def centerline(self):
-#         return self.get_centerline_smoothed()
-#     
-#     @cached_property
-#     def length(self):
-#         return curves.curve_length(self.centerline)
-    
-#     
-#     
-# class GroundLine(geometry.LineString):
-#     """ class that represents the ground line """
-#     pass
-#     
 
 
 class AntfarmShapes(object):
@@ -83,7 +65,6 @@ class AntfarmShapes(object):
         """
         self.name = name
         self.output_folder = output_folder
-        self.scale_factor = 1
 
         self.burrows = []
         self.ground_line = None
@@ -104,7 +85,7 @@ class AntfarmShapes(object):
 
         obj = cls(None, name=name, **kwargs)
         
-        # determine which loaded to use for the individual files
+        # determine which loader to use for the individual files
         if ext == '.jpg' or ext == '.png':
             logging.debug('Use OpenCV image loader')
             if obj.output_folder:
@@ -124,6 +105,10 @@ class AntfarmShapes(object):
     
     def load_from_image(self, image, output_file=None):
         """ load the data from an image """
+        # find the scale bar
+        scale_mask = self.isolate_color(image, self.params['colors/scale_bar'])
+        self.scale_bar = self.get_scalebar_from_image(scale_mask)
+
         # find the ground line
         ground_mask = self.isolate_color(image, self.params['colors/ground_line'])
         self.ground_line = self.get_groundline_from_image(ground_mask)
@@ -135,44 +120,35 @@ class AntfarmShapes(object):
         # determine the end points
         for burrow in self.burrows:
             burrow.get_endpoints(self.ground_line)
-                
+            
         if output_file:
-            
-            logging.info('Creating debug output')
-            for burrow in self.burrows:
-                cline = burrow.centerline
-                cv2.polylines(image, [np.array(cline, np.int)],
-                              isClosed=False, color=(255, 0, 0), thickness=3)
-
-                for e_p in burrow.endpoints:
-                    if e_p.is_exit:
-                        color = (0, 0, 255)
-                    else:
-                        color = (0, 255, 0)
-                    coords = tuple([int(c) for c in e_p.coords])
-                    cv2.circle(image, coords, 10, color, thickness=-1)
-
-            cv2.cvtColor(image, cv2.cv.CV_RGB2BGR, image) #< convert to BGR
-            cv2.imwrite(output_file, image)
-            
-            logging.info('Wrote output file `%s`' % output_file)
-
-    
-    def get_groundline_from_image(self, mask, output_file=None):
-        """ load burrow polygons from an image """
-        # find the longest contour, which should be the ground line
-#         mask_thin = image.mask_thinning(mask)
+            self.make_debug_output(image, output_file)
                 
-        # determine contours in the mask
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_NONE)
+                
+    def make_debug_output(self, image, filename):
+        """ make debug output image """
+        logging.info('Creating debug output')
+        for burrow in self.burrows:
+            cline = burrow.centerline
+            cv2.polylines(image, [np.array(cline, np.int)],
+                          isClosed=False, color=(255, 0, 0), thickness=3)
+
+            for e_p in burrow.endpoints:
+                if e_p.is_exit:
+                    color = (0, 0, 255)
+                else:
+                    color = (0, 255, 0)
+                coords = tuple([int(c) for c in e_p.coords])
+                cv2.circle(image, coords, 10, color, thickness=-1)
+
+        cv2.cvtColor(image, cv2.cv.CV_RGB2BGR, image) #< convert to BGR
+        cv2.imwrite(filename, image)
         
-        # pick the largest contour
-        contour = max(contours, key=lambda cnt: cv2.arcLength(cnt, closed=True))
-        contour = contour[:, 0, :]
-        
-#         debug.show_shape(geometry.MultiPoint(contour), background=mask)
-        
+        logging.info('Wrote output file `%s`' % filename)
+
+
+    def _get_line_from_contour(self, contour):
+        """ determines a line described by a contour """
         # calculate the distance between all points on this contour
         dist = spatial.distance.pdist(contour, 'euclidean')
         dist = spatial.distance.squareform(dist)
@@ -198,14 +174,52 @@ class AntfarmShapes(object):
             
             # remove all old points that are in the same surrounding
             p_avail[p_close] = False
+        return points
+    
+    
+    def get_scalebar_from_image(self, mask):
+        """ finds the scale bar in the image """
+        # determine contours in the mask
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_NONE)
+        
+        # pick the largest contour
+        contour = max(contours, key=lambda cnt: cv2.arcLength(cnt, closed=True))
 
+        # determine the rectangle that describes the contour best
+        _, (w, h), rot = cv2.minAreaRect(contour)
+        
+        if max(w, h) > self.params['scale_bar/length_min']:
+            # we found the scale bar
+            if w > h:
+                scale_bar = ScaleBar(size=w, angle=rot)
+            else:
+                scale_bar = ScaleBar(size=h, angle=(rot + 90) % 180)
+                
+        else:
+            logging.debug('Did not find any scale bar.')
+            scale_bar = None
+            
+        return scale_bar
+
+    
+    def get_groundline_from_image(self, mask):
+        """ load burrow polygons from an image """
+        # determine contours in the mask
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_NONE)
+        
+        # pick the largest contour
+        contour = max(contours, key=lambda cnt: cv2.arcLength(cnt, closed=True))
+
+        # determine the ground line from the contour         
+        points = self._get_line_from_contour(contour[:, 0, :])
         ground_line = GroundProfile(points)
 
-        logging.info('Found a ground line of length %g ' % ground_line.length)
         return ground_line
         
             
-    def get_burrows_from_image(self, mask, output_file=None):
+    def get_burrows_from_image(self, mask):
         """ load burrow polygons from an image """
         # turn image into gray scale
         height, width = mask.shape
@@ -216,7 +230,6 @@ class AntfarmShapes(object):
 
         # iterate through the contours
         burrows = []
-        scale_bar = None
         for contour in contours:
             points = contour[:, 0, :]
             if len(points) <= 2:
@@ -237,26 +250,15 @@ class AntfarmShapes(object):
                 
                 if at_left and at_bottom and is_simple:
                     # the current polygon is the scale bar
-                    _, (w, h), rot = cv2.minAreaRect(contour)
+                    _, (w, h), _ = cv2.minAreaRect(contour)
                     
                     if max(w, h) > self.params['scale_bar/length_min']:
-                        # we found the scale bar
-                        if w > h:
-                            scale_bar = ScaleBar(size=w, angle=rot)
-                        else:
-                            scale_bar = ScaleBar(size=h, angle=(rot + 90) % 180)
-                        continue #< object has been processed
+                        raise RuntimeError('Found something that looks like a '
+                                           'scale bar')
 
             if area > self.params['burrow/area_min']:
                 burrows.append(Burrow(points))
             
-        if scale_bar:
-            raise RuntimeError('Found something that looks like a scale bar')
-            logging.info('Found scale bar of length %d' % scale_bar.size)
-            self.scale_factor = self.params['scale_bar/length_cm']/scale_bar.size
-            units = pint.UnitRegistry()
-            self.scale_factor *= units.cm
-
         logging.info('Found %d polygons' % len(burrows))
         return burrows
              
@@ -293,13 +295,32 @@ class AntfarmShapes(object):
         
     def get_statistics(self):
         """ returns statistics for all the polygons """
+        # check the scale bar
+        if self.scale_bar:
+            logging.info('Found scale bar of length %d' % self.scale_bar.size)
+            scale_factor = self.params['scale_bar/length_cm']/self.scale_bar.size
+            units = pint.UnitRegistry()
+            scale_factor *= units.cm
+
+            # check the ground line
+            points = self.ground_line.points
+            len_x_cm = abs(points[0, 0] - points[-1, 0]) * scale_factor
+            w_min = self.params['cage/width_min'] * units.cm
+            w_max = self.params['cage/width_max'] * units.cm
+            if not w_min < len_x_cm < w_max:
+                raise RuntimeError('The length (%d cm) of the ground line is '
+                                   'off.' % len_x_cm) 
+        else:
+            scale_factor = 1
+            
+        
         result = []
-        # iterate through all polygons
+        # iterate through all burrows
         for burrow in self.burrows:
-            data = {'area': burrow.area * self.scale_factor**2,
-                    'length': burrow.length * self.scale_factor,
-                    'pos_x': burrow.centroid[0] * self.scale_factor,
-                    'pos_y': burrow.centroid[1] * self.scale_factor}
+            data = {'area': burrow.area * scale_factor**2,
+                    'length': burrow.length * scale_factor,
+                    'pos_x': burrow.centroid[0] * scale_factor,
+                    'pos_y': burrow.centroid[1] * scale_factor}
             if self.name:
                 data['name'] = self.name
             result.append(data)
