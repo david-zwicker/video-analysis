@@ -181,6 +181,29 @@ def set_image_border(img, size=1, color=0):
     img[:,  :size] = color
     img[:, -size:] = color
     
+    
+    
+def mask_thinning(img):
+    """ simple thinning algorithm taken from 
+    http://opencvpython.blogspot.com/2012/05/skeletonization-using-opencv-python.html
+    """
+    size = np.size(img)
+    skel = np.zeros(img.shape, np.uint8)
+     
+    kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
+    while True:
+        eroded = cv2.erode(img, kernel)
+        temp = cv2.dilate(eroded, kernel)
+        cv2.subtract(img, temp, temp)
+        cv2.bitwise_or(skel, temp, skel)
+        img = eroded
+     
+        zeros = size - cv2.countNonZero(img)
+        if zeros==size:
+            break
+        
+    return skel
+    
 
 
 class regionprops(object):

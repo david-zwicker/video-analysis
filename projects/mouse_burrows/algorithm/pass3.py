@@ -978,9 +978,7 @@ class ThirdPass(PassBase):
             # indicate the currently active burrow shapes
             if self.params['burrows/enabled_pass3']:
                 for _, burrow in self.active_burrows():
-                    if burrow.two_exits:
-                        burrow_color = 'green'
-                    elif hasattr(burrow, 'elongated') and burrow.elongated:
+                    if hasattr(burrow, 'elongated') and burrow.elongated:
                         burrow_color = 'red'
                     else:
                         burrow_color = 'DarkOrange'

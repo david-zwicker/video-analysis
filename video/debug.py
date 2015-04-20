@@ -44,7 +44,11 @@ def _ax_format_coord(x, y, image):
     row = int(y + 0.5)
     if 0 <= col < image.shape[1] and 0 <= row < image.shape[0]:
         z = image[row, col]
-        return 'x=%1.2f, y=%1.2f, z=%1.5g' % (x, y, z)
+        if hasattr(z, '__iter__'):
+            z_str = "(" + ', '.join("%1.1f" % v for v in z) + ")"
+        else:
+            z_str = "%1.5g" % z
+        return 'x=%1.2f, y=%1.2f, z=%s' % (x, y, z_str)
     else:
         return 'x=%1.2f, y=%1.2f' % (x, y)
 

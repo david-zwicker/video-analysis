@@ -21,6 +21,31 @@ import curves
 
 
 
+class Point(object):
+    """ class that represents a single point """
+    
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        
+        
+    def __repr__(self):
+        return ("%s(x=%g, y=%g)" % (self.__class__.__name__, self.x, self.y))
+        
+     
+    @property
+    def coords(self):
+        return (self.x, self.y)
+
+    
+    def translate(self, x, y):
+        """ moves the point """
+        self.x += x
+        self.y += y
+        return self
+    
+
+
 class Rectangle(object):
     """ class that represents a rectangle """
     
@@ -496,7 +521,9 @@ class Polygon(object):
             """ estimate centerline between the one or two points """
             mask, offset = self.get_mask(margin=1, dtype=np.int32,
                                          ret_offset=True)
+
             p1 = (p1[0] - offset[0], p1[1] - offset[1])
+
             if maximize_distance or p2 is None:
                 dist_prev = 0 if maximize_distance else np.inf
                 # iterate until second point is found
@@ -526,13 +553,13 @@ class Polygon(object):
             path = regions.shortest_path_in_distance_map(distance_map, p2)
             return curves.translate_points(path, *offset)
         
-        
         if end_points is None:
             # determine both end points
             path = _find_point_connection(np.array(self.position),
                                           maximize_distance=True)
         else:
             end_points = np.squeeze(end_points)
+
             if end_points.shape == (2, ):
                 # determine one end point
                 path = _find_point_connection(end_points,
@@ -540,14 +567,30 @@ class Polygon(object):
             elif end_points.shape == (2, 2):
                 # both end points are already determined
                 path = _find_point_connection(end_points[0], end_points[1])
+                
+            elif end_points.ndim == 2 and end_points.shape[1] == 2:
+                # multiple end points found => we have to find the end points
+                # that are farthest apart
+                longest_path, length = None, 0
+                for k_1, p_1 in enumerate(end_points):
+                    for p_2 in end_points[:k_1]:
+                        path = _find_point_connection(p_1, p_2)
+                        path_len = curves.curve_length(path)
+                        if path_len > length:
+                            longest_path, length = path, path_len
+                        
+                path = longest_path
+                
             else:
-                raise TypeError('`end_points` must have shape (2,) or (2, 2)')
+                raise TypeError('`end_points` must have shape (2,) or (n, 2), '
+                                'but we found %s' % str(end_points.shape))
             
         return path
         
         
     def get_centerline_optimized(self, alpha=1e3, beta=1e6, gamma=0.01,
-                                 spacing=20, max_iterations=1000):
+                                 spacing=20, max_iterations=1000,
+                                 endpoints=None):
         """ determines the center line of the polygon using an active contour
         algorithm """
         # use an active contour algorithm to find centerline
@@ -561,7 +604,7 @@ class Polygon(object):
         ac.set_potential(potential)
         
         # initialize the centerline from the estimate
-        points = self.get_centerline_estimate()
+        points = self.get_centerline_estimate(endpoints)
         points = curves.make_curve_equidistant(points, spacing=spacing)        
         points = curves.translate_points(points, -offset[0], -offset[1])
         # anchor the end points
@@ -597,7 +640,8 @@ class Polygon(object):
         # do spline fitting to smooth the line
         try:
             tck, _ = interpolate.splprep(np.transpose(points), k=3, s=length)
-        except ValueError:
+        except (ValueError, TypeError):
+            # do not interpolate if there are problems
             pass
         else:
             # extend the center line in both directions to make sure that it

@@ -12,6 +12,7 @@ import copy
 import itertools
 
 import numpy as np
+from scipy import cluster 
 import shapely
 from shapely import geometry
 
@@ -39,19 +40,40 @@ def bool_nan(number):
 
 
 
+class EndPoint(shapes.Point):
+    """ class that is used to collect the end points of burrows """
+    
+    def __init__(self, x, y, is_exit=False):
+        super(EndPoint, self).__init__(x, y)
+        self.is_exit = is_exit
+
+    def __repr__(self):
+        return ("%s(x=%g, y=%g, is_exit=%r)" % 
+                (self.__class__.__name__, self.x, self.y, self.is_exit))
+        
+
+
 class Burrow(shapes.Polygon):
     """ represents a single burrow.
     Note that the contour are always given in clockwise direction
     """
     
+    # parameters that influence burrow detection and measurement
+    default_parameters = {'ground_point_distance': 20,
+                          'centerline_segment_length': 10,
+                          'centerline_skip_length': 10,
+                          'width': 20}
+    
+    # class controlling the storage of this class
     storage_class = LazyHDFCollection
+    # extra information for the storage
     array_columns = ('Outline X', 'Outline Y',
                      'Burrow length + Centerline X',
                      'Flag if burrow was refined + Centerline Y')
     
     
     def __init__(self, contour, centerline=None, length=None,
-                 refined=False, two_exits=False):
+                 refined=False, endpoints=None, parameters=None):
         """ initialize the structure using line on its contour """
         if len(contour) < 3:
             raise ValueError("Burrow contour must be defined by at least "
@@ -59,17 +81,32 @@ class Burrow(shapes.Polygon):
         
         super(Burrow, self).__init__(contour)
             
-        self.centerline = centerline
         self.refined = refined
-        self.two_exits = two_exits
+        self._centerline = None
+        self._endpoints = None
+
+        if parameters is None:
+            self.parameters = self.default_parameters
+        else:
+            self.parameters = parameters
+
+        if endpoints is not None:
+            self.endpoints = endpoints
+            
+        if centerline is not None:
+            self.centerline = centerline
 
         if length is not None:
             self.length = length
+        else:
+            self.length = -1
 
 
     def copy(self):
+        """ return a copy of this object """
         return Burrow(copy.copy(self.contour), copy.copy(self.centerline),
-                      self.length, self.refined)
+                      self.length, self.refined, copy.copy(self._endpoints),
+                      self.parameters)
 
         
     def __repr__(self):
@@ -82,25 +119,142 @@ class Burrow(shapes.Polygon):
             flags.append('area=%d' % self.polygon.area)
         if self.refined:
             flags.append('refined')
-        if self.two_exits:
-            flags.append('two_exits')
+        if self._endpoints is not None:
+            flags.append('%d endpoints' % len(self._endpoints))
             
         return ('Burrow(%s)' % (', '.join(flags)))
 
 
     @property
+    def endpoints(self):
+        if self._endpoints is None:
+            self.get_endpoints()
+        return self._endpoints
+    
+    @endpoints.setter
+    def endpoints(self, value):
+        self._endpoints = value
+        
+
+    def estimate_endpoints(self, p_start=None):
+        """ find the farthest two points in the burrow mask """
+        mask, offset = self.get_mask(margin=1, dtype=np.int32,
+                                     ret_offset=True)
+        # find a point in the mask
+        if p_start is None:
+            xs, ys = np.nonzero(mask)
+            p_start = EndPoint(xs[0], ys[0], is_exit=False)
+            dist_prev = 0
+        else:
+            p_start.translate(-offset[0], -offset[1])
+            dist_prev = np.inf # we only need one iteration
+
+        # iterate until the farthest pair of points is found
+        while True:
+            # make distance map starting from point p_start
+            distance_map = mask.copy()
+            regions.make_distance_map(distance_map,
+                                      start_points=(p_start.coords,))
+            # find point farthest point away from p_start
+            idx_max = np.unravel_index(distance_map.argmax(),
+                                       distance_map.shape)
+            dist = distance_map[idx_max]
+            p_end = EndPoint(idx_max[1], idx_max[0], is_exit=False)
+            if dist <= dist_prev:
+                break
+            dist_prev = dist
+            # take farthest point as new start point
+            p_start = p_end
+            
+        # return the two points
+        return [p.translate(*offset) for p in (p_start, p_end)]
+
+
+    def get_endpoints(self, ground_line=None):
+        """ estimate burrow exit points """
+        
+        if ground_line:
+            dist_max = self.parameters['ground_point_distance']
+            
+            # determine burrow points close to the ground
+            g_line = ground_line.linestring
+            endpoints = [point for point in self.contour
+                         if g_line.distance(geometry.Point(point)) < dist_max]
+
+            if len(endpoints) >= 2:
+                # check whether points are clustered around other points
+                endpoints = np.array(endpoints)
+        
+                # cluster the points to detect multiple connections 
+                # this is important when a burrow has multiple exits to the ground
+                dist_max = self.parameters['width']
+                data = cluster.hierarchy.fclusterdata(endpoints, dist_max,
+                                                      method='single', 
+                                                      criterion='distance')
+                
+                # find the exit points
+                exits, exit_size = [], []
+                for cluster_id in np.unique(data):
+                    points = endpoints[data == cluster_id]
+                    xm, ym = points.mean(axis=0)
+                    dist = np.hypot(points[:, 0] - xm, points[:, 1] - ym)
+                    exits.append(points[np.argmin(dist)])
+                    exit_size.append(len(points))
+        
+                exits = np.array(exits)
+                exit_size = np.array(exit_size)
+        
+                # sorted points by their size
+                endpoints = exits[np.argsort(-exit_size), :]
+    
+            # convert the endpoints to proper objects
+            endpoints = [EndPoint(x, y, is_exit=True) for x, y in endpoints]
+    
+        else:
+            endpoints = []
+
+        # fill in end points that have not yet been found            
+        if len(endpoints) == 0:
+            endpoints = self.estimate_endpoints()
+        elif len(endpoints) == 1:
+            endpoints = self.estimate_endpoints(endpoints[0])
+            
+        # store the endpoints in the cache and also return them
+        self._endpoints = endpoints
+        self._centerline = None #< delete cache of the centerline 
+        return endpoints
+
+
+    @property
     def centerline(self):
+        if self._centerline is None:
+            self.determine_centerline()
         return self._centerline
     
     @centerline.setter
     def centerline(self, points):
+#         if points is None:
+#             self.determine_centerline()
+#         else:
         if points is None:
             self._centerline = None
-            self.length = 0
         else:
             self._centerline = np.array(points, np.double)
             self.length = curves.curve_length(self._centerline)
         self._cache = {}
+
+
+    def determine_centerline(self):
+        """ determines the centerline """
+        spacing = self.parameters['centerline_segment_length']
+        skip_length = self.parameters['centerline_skip_length']
+
+        endpoints = [p.coords for p in self.endpoints]
+        print 'endpoints', endpoints
+        self._centerline = self.get_centerline_smoothed(spacing=spacing,
+                                                        skip_length=skip_length,
+                                                        endpoints=endpoints)
+        self.length = curves.curve_length(self._centerline)
 
 
     def merge(self, other):
@@ -163,8 +317,8 @@ class Burrow(shapes.Polygon):
     def get_bounding_rect(self, margin=0):
         """ returns the bounding rectangle of the burrow """
         burrow_points = self.contour
-        if self.centerline is not None:
-            burrow_points = np.vstack((burrow_points, self.centerline))
+        if self._centerline is not None:
+            burrow_points = np.vstack((burrow_points, self._centerline))
         bounds = geometry.MultiPoint(burrow_points).bounds
         bound_rect = regions.corners_to_rect(bounds[:2], bounds[2:])
         if margin:
@@ -195,8 +349,7 @@ class Burrow(shapes.Polygon):
             data1 = np.asarray(self.contour, np.double)
 
         # collect the data for the last two columns
-        data2 = np.array([[self.length, self.refined],
-                          [self.two_exits, np.nan]], np.double)
+        data2 = np.array([[self.length, self.refined]], np.double)
         if self.centerline is not None:
             data2 = np.concatenate((data2, self.centerline))
         
@@ -224,8 +377,9 @@ class Burrow(shapes.Polygon):
         return cls(contour=data_contour,
                    centerline=data_centerline,
                    length=data_attr[0, 0],
-                   refined=bool_nan(data_attr[0, 1]),
-                   two_exits=bool_nan(data_attr[1, 0]))
+                   refined=bool_nan(data_attr[0, 1]))
+    
+        # data_attr[1, 0] was previously used to indicate `two_exits` flag
         
         
         
