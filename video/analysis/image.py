@@ -184,26 +184,79 @@ def set_image_border(img, size=1, color=0):
     
     
 def mask_thinning(img):
-    """ simple thinning algorithm taken from 
+    """
+    returns the skeleton (thinned image) of a mask.
+    This uses `thinning.guo_hall_thinning` if available and otherwise falls back
+    to a slow python implementation taken from 
     http://opencvpython.blogspot.com/2012/05/skeletonization-using-opencv-python.html
     """
-    size = np.size(img)
-    skel = np.zeros(img.shape, np.uint8)
-     
-    kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
-    while True:
-        eroded = cv2.erode(img, kernel)
-        temp = cv2.dilate(eroded, kernel)
-        cv2.subtract(img, temp, temp)
-        cv2.bitwise_or(skel, temp, skel)
-        img = eroded
-     
-        zeros = size - cv2.countNonZero(img)
-        if zeros==size:
-            break
+    try:
+        import thinning
+    except ImportError:
+        # thinning module was not available and we use a python implementation
+        size = np.size(img)
+        skel = np.zeros(img.shape, np.uint8)
+         
+        kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
+        while True:
+            eroded = cv2.erode(img, kernel)
+            temp = cv2.dilate(eroded, kernel)
+            cv2.subtract(img, temp, temp)
+            cv2.bitwise_or(skel, temp, skel)
+            img = eroded
+         
+            zeros = size - cv2.countNonZero(img)
+            if zeros==size:
+                break
+    else:
+        # use the imported thinning algorithm
+        skel = thinning.guo_hall_thinning(img)
         
     return skel
     
+    
+    
+def detect_peaks(img, include_plateaus=True):
+    """
+    Takes an image and detect the peaks using the local maximum filter.
+    Returns a boolean mask of the peaks (i.e. 1 when the pixel's value is the
+    neighborhood maximum, 0 otherwise)
+    Code taken from http://stackoverflow.com/a/3689710/932593
+    """
+
+    # define an 8-connected neighborhood
+    neighborhood = ndimage.generate_binary_structure(2, 2)
+
+    if include_plateaus:
+        #apply the local maximum filter; all pixel of maximal value 
+        #in their neighborhood are set to 1
+        img_max = ndimage.maximum_filter(img, footprint=neighborhood)
+        local_max = (img == img_max)
+        #local_max is a mask that contains the peaks we are 
+        #looking for, but also the background.
+        #In order to isolate the peaks we must remove the background from the mask.
+    
+        #we create the mask of the background
+        background = (img == 0)
+    
+        #a little technicality: we must erode the background in order to 
+        #successfully subtract it form local_max, otherwise a line will 
+        #appear along the background border (artifact of the local maximum filter)
+        eroded_background = ndimage.binary_erosion(background,
+                                                   structure=neighborhood,
+                                                   border_value=1)
+    
+        #we obtain the final mask, containing only peaks, 
+        #by removing the background from the local_max mask
+        detected_peaks = local_max - eroded_background
+    
+    else:
+        neighborhood[1, 1] = 0
+        img_max = ndimage.maximum_filter(img, footprint=neighborhood)
+        detected_peaks = (img > img_max)
+
+    return detected_peaks
+
 
 
 class regionprops(object):
