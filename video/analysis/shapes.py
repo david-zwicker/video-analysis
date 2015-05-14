@@ -537,7 +537,7 @@ class Polygon(object):
             return skeleton
         
         
-    def get_morphological_graph(self, simplify_epsilon=1):
+    def get_morphological_graph(self, simplify_epsilon=0.1):
         """ gets the graph representing the skeleton of the polygon """
         # skeletonize the polygon
         skeleton, offset = self.get_skeleton(ret_offset=True)
@@ -551,15 +551,8 @@ class Polygon(object):
         # simplify the curves describing the edges, if requested
         if simplify_epsilon > 0:
             graph.simplify(simplify_epsilon)
-        
-#         geo1 = geometry.MultiPoint(graph.node_coordinates)
-#         geo2 = [geometry.LineString(data['line'])
-#                 for n1, n2, data in graph.edges_iter(data=True)]
-#     
-#         from .. import debug
-#         debug.show_shape(geo1, *geo2, background=skeleton)
-        
-        
+
+        # move the graph to the global coordinate system
         graph.translate(*offset)
         
         return graph
@@ -590,7 +583,7 @@ class Polygon(object):
                                                distance_map.shape)
                     dist = distance_map[idx_max]
                     p2 = idx_max[1], idx_max[0]
-                    # print 'p1', p1, 'p2', p2
+
                     if dist <= dist_prev:
                         break
                     dist_prev = dist
