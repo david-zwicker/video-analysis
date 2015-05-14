@@ -481,6 +481,7 @@ def shortest_path_in_distance_map(distance_map, end_point):
     leads from the given `end_point` to a start point (defined by having the
     minimal distance value in the map) """
     # make sure points outside the shape are not included in the distance
+    distance_map = distance_map.astype(np.int)
     distance_map[distance_map <= 1] = np.iinfo(distance_map.dtype).max
     
     xmax = distance_map.shape[1] - 1
@@ -488,7 +489,7 @@ def shortest_path_in_distance_map(distance_map, end_point):
     x, y = end_point
     points = [end_point]
     d = distance_map[y, x]
-
+    
     # iterate through path until we reached the minimum
     while True:
         if 0 < x < xmax and 0 < y < ymax:
@@ -517,4 +518,50 @@ def shortest_path_in_distance_map(distance_map, end_point):
     
     return points
 
+
+
+def get_farthest_points(mask, p1=None, ret_path=False):
+    """ returns the path between the two points in the mask which are farthest
+    away from each other. """
+    
+    # find a random starting point
+    if p1 is None:
+        # locate objects in the mask
+        contours, _ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_SIMPLE)
+         
+        # pick the largest contour
+        contour = max(contours, key=lambda cnt: cv2.arcLength(cnt, closed=True))
+        
+        # get point in the contour
+        p1 = (contour[0, 0, 0], contour[0, 0, 1])
+
+    # create a mask to hold the distance map
+    mask_int = np.empty_like(mask, np.int) 
+    np.clip(mask, 0, 1, mask_int)
+    
+    dist_prev = 0
+    # iterate until second point is found
+    while True:
+        # make distance map starting from point p1
+        distance_map = mask_int.copy()
+        make_distance_map(distance_map, start_points=(p1,))
+                
+        # find point farthest point away from p1
+        idx_max = np.unravel_index(distance_map.argmax(),
+                                   distance_map.shape)
+        dist = distance_map[idx_max]
+        p2 = idx_max[1], idx_max[0]
+
+        if dist <= dist_prev:
+            break
+        dist_prev = dist
+        # take farthest point as new start point
+        p1 = p2
+
+    # find path between p1 and p2
+    if ret_path:
+        return shortest_path_in_distance_map(distance_map, p2)
+    else:
+        return p1, p2
 
