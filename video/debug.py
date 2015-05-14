@@ -185,13 +185,31 @@ def show_shape(*shapes, **kwargs):
         line_width = kwargs.get('lw', 3)
         
         if isinstance(shape, (geometry.Point, geometry.point.Point)):
+            # simple point
             ax.plot(shape.x, shape.y, 'o', color=color, ms=20)
         
         elif isinstance(shape, geometry.MultiPoint):
+            # many points
             coords = np.array([(p.x, p.y) for p in shape])
             ax.plot(coords[:, 0], coords[:, 1], 'o', color=color, ms=5)
+            
+        elif isinstance(shape, geometry.LineString):
+            # simple line string
+            ax.plot(shape.xy[0], shape.xy[1], color=color, lw=line_width)
+            if mark_points:
+                ax.plot(shape.xy[0], shape.xy[1], 'o',
+                        markersize=2*line_width, color=color)
+            
+        elif isinstance(shape, geometry.multilinestring.MultiLineString):
+            # many line strings
+            for line in shape:
+                ax.plot(line.xy[0], line.xy[1], color=color, lw=line_width)
+                if mark_points:
+                    ax.plot(line.xy[0], line.xy[1], 'o',
+                            markersize=2*line_width, color=color)
         
         elif isinstance(shape, geometry.Polygon):
+            # simple polygon
             patch = descartes.PolygonPatch(shape,
                                            ec=kwargs.get('ec', 'none'),
                                            fc=color, alpha=0.5)
@@ -199,18 +217,16 @@ def show_shape(*shapes, **kwargs):
             if mark_points:
                 ax.plot(shape.xy[0], shape.xy[1], 'o',
                         markersize=2*line_width, color=color)
-            
-        elif isinstance(shape, geometry.LineString):
-            ax.plot(shape.xy[0], shape.xy[1], color=color, lw=line_width)
-            if mark_points:
-                ax.plot(shape.xy[0], shape.xy[1], 'o',
-                        markersize=2*line_width, color=color)
-            
-        elif isinstance(shape, geometry.multilinestring.MultiLineString):
-            for line in shape:
-                ax.plot(line.xy[0], line.xy[1], color=color, lw=line_width)
+                
+        elif isinstance(shape, geometry.MultiPolygon):
+            # many polygons
+            for polygon in shape:
+                patch = descartes.PolygonPatch(polygon,
+                                               ec=kwargs.get('ec', 'none'),
+                                               fc=color, alpha=0.5)
+                ax.add_patch(patch)
                 if mark_points:
-                    ax.plot(line.xy[0], line.xy[1], 'o',
+                    ax.plot(shape.xy[0], shape.xy[1], 'o',
                             markersize=2*line_width, color=color)
             
         else:
