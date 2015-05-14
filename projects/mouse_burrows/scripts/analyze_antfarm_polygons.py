@@ -20,6 +20,7 @@ import traceback
 import cv2
 import numpy as np
 from scipy import spatial
+from shapely import geometry
 import pint
 
 # add the root of the video-analysis project to the path
@@ -28,7 +29,7 @@ video_analysis_path = os.path.join(this_path, '..', '..')
 sys.path.append(video_analysis_path)
 
 from projects.mouse_burrows.algorithm.objects import Burrow, GroundProfile
-from video.analysis import shapes, image
+from video.analysis import shapes, image, regions
 from utils.data_structures import save_dict_to_csv
 
 from video import debug  # @UnusedImport
@@ -36,16 +37,17 @@ from video import debug  # @UnusedImport
 
 default_parameters = {
     'burrow/area_min': 10000,
-    'colors/burrow': (0, 0, 1),      #< burrow color in RGB
+    'colors/burrow': (1, 1, 0),      #< burrow color in RGB
     'colors/ground_line': (0, 1, 0), #< ground line color in RGB
-    'colors/scale_bar': (0, 0, 0),   #< scale bar color in RGB
+    'colors/scale_bar': (1, 1, 1),   #< scale bar color in RGB
+    'colors/isolation_closing_radius': 10, #< radius of mask for closing op.
     'scale_bar/area_max': 1000,
     'scale_bar/length_min': 100,
     'scale_bar/dist_bottom': 0.1,
     'scale_bar/dist_left': 0.1,
     'scale_bar/length_cm': 10,
     'cage/width_min': 80,
-    'cage/width_max': 90,
+    'cage/width_max': 95,
 }
 
 
@@ -110,16 +112,19 @@ class AntfarmShapes(object):
         self.scale_bar = self.get_scalebar_from_image(scale_mask)
 
         # find the ground line
-        ground_mask = self.isolate_color(image, self.params['colors/ground_line'])
+        ground_mask = self.isolate_color(image, self.params['colors/ground_line'],
+                                         dilate=1)
         self.ground_line = self.get_groundline_from_image(ground_mask)
 
         # find all the burrows
         burrow_mask = self.isolate_color(image, self.params['colors/burrow'])
-        self.burrows = self.get_burrows_from_image(burrow_mask)
+        self.burrows = self.get_burrows_from_image(burrow_mask, self.ground_line)
         
         # determine the end points
         for burrow in self.burrows:
             burrow.get_endpoints(self.ground_line)
+            burrow.morphological_graph = burrow.get_morphological_graph()
+            #graph.debug_visualization(background=image)
             
         if output_file:
             self.make_debug_output(image, output_file)
@@ -205,24 +210,27 @@ class AntfarmShapes(object):
     
     def get_groundline_from_image(self, mask):
         """ load burrow polygons from an image """
-        # determine contours in the mask
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_NONE)
+        # get the skeleton of the image
+        mask = image.mask_thinning(mask)
         
-        # pick the largest contour
-        contour = max(contours, key=lambda cnt: cv2.arcLength(cnt, closed=True))
-
-        # determine the ground line from the contour         
-        points = self._get_line_from_contour(contour[:, 0, :])
+        # get the path between the two points in the mask that are farthest
+        points = regions.get_farthest_points(mask, ret_path=True)
+        
+        # build the ground line from this
         ground_line = GroundProfile(points)
+        
+#         debug.show_shape(ground_line.linestring, background=mask)
 
         return ground_line
         
             
-    def get_burrows_from_image(self, mask):
+    def get_burrows_from_image(self, mask, ground_line):
         """ load burrow polygons from an image """
         # turn image into gray scale
         height, width = mask.shape
+        
+        # get a polygon for cutting away the sky
+        above_ground = ground_line.get_polygon(0)         
 
         # determine contours in the mask
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
@@ -243,7 +251,7 @@ class AntfarmShapes(object):
 
                 at_left = (rect.left < self.params['scale_bar/dist_left']*width)
                 max_dist_bottom = self.params['scale_bar/dist_bottom']
-                at_bottom = (rect.bottom > (1 - max_dist_bottom)*height)
+                at_bottom = (rect.bottom > (1 - max_dist_bottom) * height)
                 hull = cv2.convexHull(contour) 
                 hull_area = cv2.contourArea(hull)
                 is_simple = (hull_area < 2*area)
@@ -257,26 +265,41 @@ class AntfarmShapes(object):
                                            'scale bar')
 
             if area > self.params['burrow/area_min']:
-                burrows.append(Burrow(points))
+                # build the burrow polygon by removing the sky
+                burrow_poly = geometry.Polygon(points).difference(above_ground)
+                
+                # create a burrow from the outline
+                boundary = regions.get_enclosing_outline(burrow_poly)
+                burrow = Burrow(boundary.coords)
+                burrows.append(burrow)
             
         logging.info('Found %d polygons' % len(burrows))
         return burrows
              
         
-    def isolate_color(self, image, color, white_background=True):
+    def isolate_color(self, image, color, white_background=None, dilate=0):
         """ isolates a certain color channel from the image. Color should be a
         binary vector only containing 0 and 1 """
+        # determine whether the background is white or black if not given
+        if white_background is None:
+            white_background = (np.mean(image) > 128)
+            if white_background:
+                logging.debug('Image appears to have a white background.')
+            else:
+                logging.debug('Image appears to have a black background.')
+        
+        # determine the limits of the color function
         if white_background:
             limits = ((0, 230), (128, 255))
         else:
-            limits = ((0, 30), (128, 255))
+            limits = ((0, 30), (30, 255))
         bounds = np.array([limits[int(c)] for c in color], np.uint8)
 
         # find the mask highlighting the respective colors
         mask = cv2.inRange(image, bounds[:, 0], bounds[:, 1])
 
         # dilate the mask to close gaps in the outline
-        w = 5
+        w = self.params['colors/isolation_closing_radius']
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
         mask_dilated = cv2.dilate(mask, kernel)
 
@@ -288,6 +311,9 @@ class AntfarmShapes(object):
             cv2.fillPoly(mask_dilated, [contour[:, 0, :]], color=(255, 255, 255))
             
         # erode the mask and return it
+        if dilate != 0:
+            w = self.params['colors/isolation_closing_radius'] - dilate
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*w + 1, 2*w + 1))
         mask = cv2.erode(mask_dilated, kernel)
         
         return mask
@@ -297,7 +323,7 @@ class AntfarmShapes(object):
         """ returns statistics for all the polygons """
         # check the scale bar
         if self.scale_bar:
-            logging.info('Found scale bar of length %d' % self.scale_bar.size)
+            logging.info('Found %d pixel long scale bar' % self.scale_bar.size)
             scale_factor = self.params['scale_bar/length_cm']/self.scale_bar.size
             units = pint.UnitRegistry()
             scale_factor *= units.cm
@@ -308,11 +334,10 @@ class AntfarmShapes(object):
             w_min = self.params['cage/width_min'] * units.cm
             w_max = self.params['cage/width_max'] * units.cm
             if not w_min < len_x_cm < w_max:
-                raise RuntimeError('The length (%d cm) of the ground line is '
+                raise RuntimeError('The length (%s cm) of the ground line is '
                                    'off.' % len_x_cm) 
         else:
             scale_factor = 1
-            
         
         result = []
         # iterate through all burrows
@@ -324,9 +349,9 @@ class AntfarmShapes(object):
             if self.name:
                 data['name'] = self.name
             result.append(data)
+            
         return result
         
-    
         
 
 def process_polygon_file(path, output_folder=None, suppress_exceptions=False):

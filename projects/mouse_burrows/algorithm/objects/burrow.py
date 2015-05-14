@@ -207,7 +207,7 @@ class Burrow(shapes.Polygon):
                 # sorted points by their size
                 endpoints = exits[np.argsort(-exit_size), :]
     
-            # convert the endpoints to proper objects
+            # convert the end points to proper objects
             endpoints = [EndPoint(x, y, is_exit=True) for x, y in endpoints]
     
         else:
@@ -219,7 +219,7 @@ class Burrow(shapes.Polygon):
         elif len(endpoints) == 1:
             endpoints = self.estimate_endpoints(endpoints[0])
             
-        # store the endpoints in the cache and also return them
+        # store the end points in the cache and also return them
         self._endpoints = endpoints
         self._centerline = None #< delete cache of the centerline 
         return endpoints
@@ -254,6 +254,21 @@ class Burrow(shapes.Polygon):
                                                         skip_length=skip_length,
                                                         endpoints=endpoints)
         self.length = curves.curve_length(self._centerline)
+
+
+    def get_morphological_graph(self):
+        """ determines the morphological graph of the burrow, which also takes
+        into account the exit points """
+        # determine the morphological graph of the polygon
+        graph = super(Burrow, self).get_morphological_graph()
+        # this graph does not include the exits or other end points
+        
+        # add all the end points to the graph
+        for endpoint in self.endpoints:
+            edge_min, projection_id, _ = graph.get_closest_edge(endpoint.coords)
+            graph.connect_point_to_edge(endpoint.coords, edge_min, projection_id)
+        
+        return graph
 
 
     def merge(self, other):
