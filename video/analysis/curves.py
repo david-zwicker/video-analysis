@@ -61,7 +61,7 @@ def curve_length(points):
     if len(points) < 2:
         return 0
     else:
-        return cv2.arcLength(points, False)
+        return cv2.arcLength(np.asarray(points, np.single), False)
 #         return sum(math.hypot(p1[0] - p2[0], p1[1] - p2[1])
 #                    for p1, p2 in itertools.izip(points, points[1:]))
     # Note that a vectorized numpy version using np.diff and np.hypot or using 
