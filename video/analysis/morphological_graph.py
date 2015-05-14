@@ -19,26 +19,108 @@ import curves
         
         
 class MorphologicalGraph(nx.MultiGraph):
-    """ class that represents a morphological graph """
+    """ class that represents a morphological graph.
+    Note that a morphological graph generally might have parallel edges.
+    """
     
-    @property
-    def node_coordinates(self):
+    def __init__(self, *args, **kwargs):
+        super(MorphologicalGraph, self).__init__(*args, **kwargs)
+        self._unique_node_id = 0 #< used to ensure unique nodes
+        
+    
+    def get_node_points(self):
         """ returns the coordinates of all nodes """
         return nx.get_node_attributes(self, 'coords').values()
+
     
+    def get_edge_curves(self):
+        """ returns a list of all edge curves """
+        return nx.get_edge_attributes(self, 'curve').values()
+
     
     def add_node_point(self, coords):
         """ adds a node to the graph """
-        node_id = self.number_of_nodes() + 1
-        self.add_node(node_id, {'coords': coords})
+        # check whether this node already exists
+        for key, value in nx.get_node_attributes(self, 'coords').iteritems():
+            if np.allclose(coords, value):
+                # it does already exist => return its node_id
+                node_id = key
+                break
+        else:
+            # it does not exist => create a new node
+            self._unique_node_id += 1
+            node_id = self._unique_node_id 
+            self.add_node(node_id, {'coords': coords})
         return node_id
     
     
-    def add_edge_line(self, n1, n2, points):
+    def add_edge_line(self, n1, n2, curve):
         """ adds an edge to the graph """
-        points = np.asarray(points)
-        data = {'curve': points, 'length': cv2.arcLength(points, False)}
-        self.add_edge(n1, n2, attr_dict=data)
+        curve = np.asarray(curve)
+        p1, p2 = curve[0], curve[-1]
+        
+        coords1, coords2 = self.node[n1]['coords'], self.node[n2]['coords']
+        
+        if (np.allclose(p1, coords1) and np.allclose(p2, coords2)):
+            data = {'curve': curve,
+                    'length': curves.curve_length(curve)}
+            
+        elif (np.allclose(p1, coords2) and  np.allclose(p2, coords1)):
+            data = {'curve': curve[::-1],
+                    'length': curves.curve_length(curve)}
+            
+        else:
+            raise ValueError('The curve given by `curve` does not connect the '
+                             'specified nodes.')
+
+        if data['length'] > 1e-6:
+            self.add_edge(n1, n2, attr_dict=data)
+    
+    
+    def insert_node_into_edge(self, edge, point_id):
+        """ inserts a node into the given edge at the point given by point id """
+        if len(edge) == 2:
+            edge = next(self.edges_iter(nbunch=edge, keys=True))
+        
+        # get the curve of the edge to intersect with
+        curve = self.edge[edge[0]][edge[1]][edge[2]]['curve']
+        
+        # insert a new node    
+        node_id = self.add_node_point(curve[point_id])
+
+        # check which side is connected to which node
+        p1, p2 = curve[0], curve[-1]
+        coords1 = self.node[edge[0]]['coords']
+        coords2 = self.node[edge[1]]['coords']
+        
+        if (np.allclose(p1, coords1) and np.allclose(p2, coords2)):
+            self.add_edge_line(edge[0], node_id, curve[:point_id + 1])
+            self.add_edge_line(node_id, edge[1], curve[point_id:])
+            
+        elif (np.allclose(p1, coords2) and  np.allclose(p2, coords1)):
+            self.add_edge_line(edge[1], node_id, curve[:point_id + 1])
+            self.add_edge_line(node_id, edge[0], curve[point_id:])
+            
+        else:
+            raise ValueError('The edge (%d, %d) is inconsistent with its curve'
+                             % edge[:2])
+        
+        # break the old edge at the intersection point
+        self.remove_edge(*edge)
+        
+        return node_id
+
+    def connect_point_to_edge(self, point, edge, point_id):
+        """ adds a node representing the point and connect this point to
+        the given edge by intersecting the edge at the given support point.
+        An edge is specified by the ids of its two end nodes and an optional 
+        integer if there are multiple edges between the nodes """
+        # add new nodes and the edge between them
+        node_point = self.add_node_point(point)
+        node_int = self.insert_node_into_edge(edge, point_id) 
+        
+        self.add_edge_line(node_point, node_int,
+                           curve=[point, self.node[node_int]['coords']])
     
     
     def translate(self, x, y):
@@ -55,9 +137,9 @@ class MorphologicalGraph(nx.MultiGraph):
             
     def remove_short_edges(self, length_min=1):
         """ removes very short edges """
-        for n1, n2, data in self.edges_iter(data=True):
-            degrees = self.degree((n1, n2)) 
+        for n1, n2, key, data in self.edges_iter(data=True, keys=True):
             if data['length'] < length_min:
+                degrees = self.degree((n1, n2)) 
                 if (1 in degrees.values()):
                     # edge connected to at least one end point
                     self.remove_edge(n1, n2)
@@ -66,7 +148,7 @@ class MorphologicalGraph(nx.MultiGraph):
                             self.remove_node(n)
                 elif n1 == n2:
                     # loop
-                    self.remove_edge(n1, n2)
+                    self.remove_edge(n1, n2, key)
     
     
     def simplify(self, epsilon=0):
@@ -110,8 +192,10 @@ class MorphologicalGraph(nx.MultiGraph):
     
     def get_closest_node(self, point):
         """ get the node that is closest to a given point.
-        Returns the id of the node, its coordinates, and the distance to the
-        point.
+        This function returns three values:
+            * the id of the closest node
+            * its coordinates
+            * the distance of this node to the given point
         """
         node_min, coord_min, dist_min = None, None, np.inf
         for node, data in self.nodes_iter(data=True):
@@ -123,11 +207,15 @@ class MorphologicalGraph(nx.MultiGraph):
     
     
     def get_closest_edge(self, point):
-        """ get the edge that is closest to a given point.
+        """ get the edge that is closest to a given point. This function returns
+        three values:
+            * the edge (indicated by the two nodes that it connects)
+            * the id of the point on the connection curve
+            * the distance between this point and the given point
         """
         point = geometry.Point(point)
-        edge_min, dist_min = None, np.inf
-        for n1, n2, data in self.edges_iter(data=True):
+        edge_min, dist_min, data_min = None, np.inf, None
+        for n1, n2, key, data in self.edges_iter(data=True, keys=True):
             if 'linestring' in data:
                 line = data['linestring']
             else:
@@ -135,12 +223,13 @@ class MorphologicalGraph(nx.MultiGraph):
                 data['linestring'] = line
             dist = line.distance(point)
             if dist < dist_min:
-                edge_min, dist_min = (n1, n2), dist
+                edge_min, dist_min, data_min = (n1, n2, key), dist, data
 
         # calculate the projection point
         if edge_min:
             # find the index of the projection point on the line
-            coords = self.get_edge_data(*edge_min)['curve']
+            coords = data_min['curve']
+            #coords = self.get_edge_data(*edge_min)['curve']
             dists = np.linalg.norm(coords - np.array(point.coords), axis=1)
             projection_id = np.argmin(dists)
             dist = dists[projection_id]
@@ -152,7 +241,11 @@ class MorphologicalGraph(nx.MultiGraph):
             
     @classmethod
     def from_skeleton(cls, skeleton, copy=True, post_process=True):
-        """ determines the morphological graph from the image skeleton """
+        """ determines the morphological graph from the image `skeleton`
+        `copy` determines whether the skeleton is copied before its modified
+        `post_process` determines whether some post processing is performed
+            that removes spurious edges and nodes
+        """
         if copy:
             skeleton = skeleton.copy()
         graph = cls()
@@ -246,7 +339,21 @@ class MorphologicalGraph(nx.MultiGraph):
             # remove nodes of degree 2
             graph.simplify()
               
-        return graph  
+        return graph
+    
+    
+        return 
 
+    
+    def debug_visualization(self, **kwargs):
+        """ visualizes the morphological graph.
+        Keyword arguments are passed on to the `debug.show_shape` function
+        """
+        from .. import debug
+     
+        debug.show_shape(geometry.MultiLineString(self.get_edge_curves()),
+                         geometry.MultiPoint(self.get_node_points()),
+                         **kwargs)
+        
             
         
