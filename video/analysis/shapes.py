@@ -455,6 +455,12 @@ class Polygon(object):
     
     
     @cached_property
+    def perimeter(self):
+        """ return the perimeter of the polygon """
+        return self.contour_ring.length
+    
+    
+    @cached_property
     def eccentricity(self):
         """ return the eccentricity of the polygon
         The eccentricity will be between 0 and 1, corresponding to a circle

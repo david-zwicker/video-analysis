@@ -124,6 +124,10 @@ class ActiveContour(object):
         curve = np.asarray(curve)    
         points = curves.make_curve_equidistant(curve)
         
+        # check for marginal small cases
+        if len(points) <= 2:
+            return points
+        
         def _get_anchors(indices, coord):
             """ helper function for determining the anchor points """
             if indices is None or len(indices) == 0:

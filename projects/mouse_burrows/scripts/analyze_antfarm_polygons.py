@@ -9,6 +9,7 @@ from __future__ import division
 
 import argparse
 import collections
+import cPickle as pickle
 import functools
 import logging
 import multiprocessing as mp
@@ -29,14 +30,18 @@ video_analysis_path = os.path.join(this_path, '..', '..')
 sys.path.append(video_analysis_path)
 
 from projects.mouse_burrows.algorithm.objects import Burrow, GroundProfile
-from video.analysis import shapes, image, regions
-from utils.data_structures import save_dict_to_csv
+from video.analysis import curves, image, regions, shapes
+from utils import data_structures, math
 
 from video import debug  # @UnusedImport
 
 
 default_parameters = {
+    'burrow_parameters': {'ground_point_distance': 2},
     'burrow/area_min': 10000,
+    'cage/width_norm': 85.5,
+    'cage/width_min': 80,
+    'cage/width_max': 95,
     'colors/burrow': (1, 1, 0),      #< burrow color in RGB
     'colors/ground_line': (0, 1, 0), #< ground line color in RGB
     'colors/scale_bar': (1, 1, 1),   #< scale bar color in RGB
@@ -46,8 +51,6 @@ default_parameters = {
     'scale_bar/dist_bottom': 0.1,
     'scale_bar/dist_left': 0.1,
     'scale_bar/length_cm': 10,
-    'cage/width_min': 80,
-    'cage/width_max': 95,
 }
 
 
@@ -230,7 +233,7 @@ class AntfarmShapes(object):
         height, width = mask.shape
         
         # get a polygon for cutting away the sky
-        above_ground = ground_line.get_polygon(0)         
+        above_ground = ground_line.get_polygon(0, left=0, right=width)         
 
         # determine contours in the mask
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
@@ -243,7 +246,8 @@ class AntfarmShapes(object):
             if len(points) <= 2:
                 continue
 
-            area = cv2.contourArea(contour) #< get area of burrow
+            # get the burrow area
+            area = cv2.contourArea(contour)
 
             if area < self.params['scale_bar/area_max']:
                 # object could be a scale bar
@@ -265,12 +269,22 @@ class AntfarmShapes(object):
                                            'scale bar')
 
             if area > self.params['burrow/area_min']:
+                # build polygon out of the contour points
+                burrow_poly = geometry.Polygon(points)
+
+                # regularize the points to remove potential problems                
+                burrow_poly = regions.regularize_polygon(burrow_poly)
+                
+#                 debug.show_shape(geometry.Polygon(points), above_ground,
+#                                  background=mask)
+                
                 # build the burrow polygon by removing the sky
-                burrow_poly = geometry.Polygon(points).difference(above_ground)
+                burrow_poly = burrow_poly.difference(above_ground)
                 
                 # create a burrow from the outline
                 boundary = regions.get_enclosing_outline(burrow_poly)
-                burrow = Burrow(boundary.coords)
+                burrow = Burrow(boundary.coords,
+                                parameters=self.params['burrow_parameters'])
                 burrows.append(burrow)
             
         logging.info('Found %d polygons' % len(burrows))
@@ -318,15 +332,49 @@ class AntfarmShapes(object):
         
         return mask
     
+    
+    def _get_burrow_exit_length(self, burrow):        
+        """ calculates the length of all exists of the given burrow """
+        # identify all points that are close to the ground line
+        dist_max = burrow.parameters['ground_point_distance']
+        g_line = self.ground_line.linestring
+        points = burrow.contour
+        exitpoints = [g_line.distance(geometry.Point(point)) < dist_max
+                      for point in points]
+        
+        # find the indices of contiguous true regions
+        indices = math.contiguous_true_regions(exitpoints)
+
+        # find the total length of all exits        
+        exit_length = 0
+        for a, b in indices:
+            exit_length += curves.curve_length(points[a : b+1])
+        
+        # handle the first and last point if they both belong to an exit 
+        if exitpoints[0] and exitpoints[-1]:
+            exit_length += curves.point_distance(points[0], points[-1])
+            
+        return exit_length
+        
         
     def get_statistics(self):
         """ returns statistics for all the polygons """
+        result = {'name': self.name}
+            
+        # save results about ground line
+        points = self.ground_line.points
+        ground_width_px = abs(points[0, 0] - points[-1, 0])
+        ground_cm_per_pixel = self.params['cage/width_norm'] / ground_width_px
+        result['ground'] = {'ground_length': self.ground_line.length,
+                            'ground_width_pixel': ground_width_px,
+                            'cm_per_pixel': ground_cm_per_pixel}  
+        
         # check the scale bar
         if self.scale_bar:
             logging.info('Found %d pixel long scale bar' % self.scale_bar.size)
-            scale_factor = self.params['scale_bar/length_cm']/self.scale_bar.size
+            cm_per_pixel = self.params['scale_bar/length_cm']/self.scale_bar.size
             units = pint.UnitRegistry()
-            scale_factor *= units.cm
+            scale_factor = cm_per_pixel * units.cm
 
             # check the ground line
             points = self.ground_line.points
@@ -335,20 +383,26 @@ class AntfarmShapes(object):
             w_max = self.params['cage/width_max'] * units.cm
             if not w_min < len_x_cm < w_max:
                 raise RuntimeError('The length (%s cm) of the ground line is '
-                                   'off.' % len_x_cm) 
+                                   'off.' % len_x_cm)
+                
+            result['scale_bar'] = {'length_pixel': self.scale_bar.size,
+                                   'cm_per_pixel': cm_per_pixel}
         else:
             scale_factor = 1
+            result['scale_bar'] = None
         
-        result = []
-        # iterate through all burrows
+        # collect result of all burrows
+        result['burrows'] = []
         for burrow in self.burrows:
+            perimeter_exit = self._get_burrow_exit_length(burrow) 
             data = {'area': burrow.area * scale_factor**2,
                     'length': burrow.length * scale_factor,
+                    'perimeter': burrow.perimeter * scale_factor,
+                    'perimeter_exit': perimeter_exit * scale_factor,
+                    'openness': perimeter_exit / burrow.perimeter,
                     'pos_x': burrow.centroid[0] * scale_factor,
                     'pos_y': burrow.centroid[1] * scale_factor}
-            if self.name:
-                data['name'] = self.name
-            result.append(data)
+            result['burrows'].append(data)
             
         return result
         
@@ -380,13 +434,19 @@ def main():
     """ main routine of the program """
     # parse the command line arguments
     parser = argparse.ArgumentParser(description='Analyze antfarm polygons')
-    parser.add_argument('-o', '--output', dest='output', type=str,
-                        help='file to which the output statistics are written')
+    parser.add_argument('-c', '--result_csv', dest='result_csv', type=str,
+                        metavar='FILE.csv',
+                        help='csv file to which statistics about the burrows '
+                             'are written')
+    parser.add_argument('-p', '--result_pkl', dest='result_pkl', type=str,
+                        metavar='FILE.pkl',
+                        help='python pickle file to which all results from the '
+                             'algorithm are written')
     parser.add_argument('-f', '--folder', dest='folder', type=str,
-                        help='folder where output will be written to')
+                        help='folder where output images will be written to')
     parser.add_argument('-m', '--multi-processing', dest='multiprocessing',
                         action='store_true', help='turns on multiprocessing')
-    parser.add_argument('files', metavar='file', type=str, nargs='+',
+    parser.add_argument('files', metavar='FILE', type=str, nargs='+',
                         help='files to analyze')
 
     args = parser.parse_args()
@@ -402,28 +462,38 @@ def main():
                                      output_folder=args.folder,
                                      suppress_exceptions=True)
         pool = mp.Pool()
-        result = pool.map(job_func, files)
+        results = pool.map(job_func, files)
         
     else:
         # analyze data in the current process
         job_func = functools.partial(process_polygon_file,
                                      output_folder=args.folder,
                                      suppress_exceptions=False)
-        result = map(job_func, files)
+        results = map(job_func, files)
         
-    # create a dictionary of lists
-    table = collections.defaultdict(list) 
-    for burrows in result: #< iterate through all experiments
-        # sort the burrows from left to right
-        burrows = sorted(burrows, key=operator.itemgetter('pos_x'))
-        for burrow_id, properties in enumerate(burrows, 1): #< iter. all burrows
-            properties['burrow_id'] = burrow_id
-            for k, v in properties.iteritems(): #< iter. all burrow properties
-                table[k].append(v)
-                   
-    # write the data to a csv file     
-    first_columns = ['name', 'burrow_id']
-    save_dict_to_csv(table, args.output, first_columns=first_columns)
+    # write complete results as pickle file if requested
+    if args.result_pkl:
+        with open(args.result_pkl, "wb") as fp:
+            pickle.dump(results, fp)
+        
+    # write burrow results as csv file if requested
+    if args.result_csv:
+        # create a dictionary of lists
+        table = collections.defaultdict(list) 
+        # iterate through all experiments and save information about the burrows
+        for data in results:
+            # sort the burrows from left to right
+            burrows = sorted(data['burrows'], key=operator.itemgetter('pos_x'))
+            for burrow_id, properties in enumerate(burrows, 1): #< iter. all burrows
+                properties['burrow_id'] = burrow_id
+                properties['experiment'] = data['name']
+                for k, v in properties.iteritems(): #< iter. all burrow properties
+                    table[k].append(v)
+                       
+        # write the data to a csv file     
+        first_columns = ['experiment', 'burrow_id']
+        data_structures.save_dict_to_csv(table, args.result_csv,
+                                         first_columns=first_columns)
 
 
 

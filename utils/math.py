@@ -157,8 +157,11 @@ def contiguous_true_regions(condition):
     if len(condition) == 0:
         return []
     
+    # convert condition array to integer
+    condition = np.asarray(condition, np.int)
+    
     # Find the indices of changes in "condition"
-    d = np.diff(condition.astype(int))
+    d = np.diff(condition)
     idx, = d.nonzero() 
 
     # We need to start things after the change in "condition". Therefore, 

@@ -85,10 +85,9 @@ class Burrow(shapes.Polygon):
         self._centerline = None
         self._endpoints = None
 
-        if parameters is None:
-            self.parameters = self.default_parameters
-        else:
-            self.parameters = parameters
+        self.parameters = self.default_parameters.copy()
+        if parameters is not None:
+            self.parameters.update(parameters)
 
         if endpoints is not None:
             self.endpoints = endpoints
@@ -178,24 +177,27 @@ class Burrow(shapes.Polygon):
             
             # determine burrow points close to the ground
             g_line = ground_line.linestring
-            endpoints = [point for point in self.contour
-                         if g_line.distance(geometry.Point(point)) < dist_max]
+            exitpoints = [point for point in self.contour
+                          if g_line.distance(geometry.Point(point)) < dist_max]
 
-            if len(endpoints) >= 2:
+            if len(exitpoints) < 2:
+                endpoints = exitpoints
+            
+            else:
                 # check whether points are clustered around other points
-                endpoints = np.array(endpoints)
+                exitpoints = np.array(exitpoints)
         
                 # cluster the points to detect multiple connections 
                 # this is important when a burrow has multiple exits to the ground
                 dist_max = self.parameters['width']
-                data = cluster.hierarchy.fclusterdata(endpoints, dist_max,
+                data = cluster.hierarchy.fclusterdata(exitpoints, dist_max,
                                                       method='single', 
                                                       criterion='distance')
                 
                 # find the exit points
                 exits, exit_size = [], []
                 for cluster_id in np.unique(data):
-                    points = endpoints[data == cluster_id]
+                    points = exitpoints[data == cluster_id]
                     xm, ym = points.mean(axis=0)
                     dist = np.hypot(points[:, 0] - xm, points[:, 1] - ym)
                     exits.append(points[np.argmin(dist)])
