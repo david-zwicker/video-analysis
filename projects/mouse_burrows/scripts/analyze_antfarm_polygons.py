@@ -442,39 +442,49 @@ def main():
                         metavar='FILE.pkl',
                         help='python pickle file to which all results from the '
                              'algorithm are written')
+    parser.add_argument('-l', '--load_pkl', dest='load_pkl', type=str,
+                        metavar='FILE.pkl',
+                        help='python pickle file from which data is loaded')
     parser.add_argument('-f', '--folder', dest='folder', type=str,
                         help='folder where output images will be written to')
     parser.add_argument('-m', '--multi-processing', dest='multiprocessing',
                         action='store_true', help='turns on multiprocessing')
-    parser.add_argument('files', metavar='FILE', type=str, nargs='+',
+    parser.add_argument('files', metavar='FILE', type=str, nargs='*',
                         help='files to analyze')
 
     args = parser.parse_args()
-    
-    # get files to analyze
-    files = args.files
-    logging.info('Analyzing %d files.' % len(files))
-    
-    # collect burrows from all files
-    if args.multiprocessing:
-        # use multiple processes to analyze data
-        job_func = functools.partial(process_polygon_file,
-                                     output_folder=args.folder,
-                                     suppress_exceptions=True)
-        pool = mp.Pool()
-        results = pool.map(job_func, files)
+
+    if args.load_pkl:
+        # load file from pickled data
+        logging.info('Loading data from file `%s`.' % args.load_pkl)    
+        with open(args.load_pkl, "rb") as fp:
+            results = pickle.load(fp)
         
     else:
-        # analyze data in the current process
-        job_func = functools.partial(process_polygon_file,
-                                     output_folder=args.folder,
-                                     suppress_exceptions=False)
-        results = map(job_func, files)
+        # get files to analyze
+        files = args.files
+        logging.info('Analyzing %d files.' % len(files))
         
-    # write complete results as pickle file if requested
-    if args.result_pkl:
-        with open(args.result_pkl, "wb") as fp:
-            pickle.dump(results, fp)
+        # collect burrows from all files
+        if args.multiprocessing:
+            # use multiple processes to analyze data
+            job_func = functools.partial(process_polygon_file,
+                                         output_folder=args.folder,
+                                         suppress_exceptions=True)
+            pool = mp.Pool()
+            results = pool.map(job_func, files)
+            
+        else:
+            # analyze data in the current process
+            job_func = functools.partial(process_polygon_file,
+                                         output_folder=args.folder,
+                                         suppress_exceptions=False)
+            results = map(job_func, files)
+            
+        # write complete results as pickle file if requested
+        if args.result_pkl:
+            with open(args.result_pkl, "wb") as fp:
+                pickle.dump(results, fp)
         
     # write burrow results as csv file if requested
     if args.result_csv:
@@ -482,13 +492,16 @@ def main():
         table = collections.defaultdict(list) 
         # iterate through all experiments and save information about the burrows
         for data in results:
-            # sort the burrows from left to right
-            burrows = sorted(data['burrows'], key=operator.itemgetter('pos_x'))
-            for burrow_id, properties in enumerate(burrows, 1): #< iter. all burrows
-                properties['burrow_id'] = burrow_id
-                properties['experiment'] = data['name']
-                for k, v in properties.iteritems(): #< iter. all burrow properties
-                    table[k].append(v)
+            if data:
+                # sort the burrows from left to right
+                burrows = sorted(data['burrows'], key=operator.itemgetter('pos_x'))
+                # create a single row per burrow
+                for burrow_id, properties in enumerate(burrows, 1):
+                    properties['burrow_id'] = burrow_id
+                    properties['experiment'] = data['name']
+                    # iterate over all burrow properties
+                    for k, v in properties.iteritems():
+                        table[k].append(v)
                        
         # write the data to a csv file     
         first_columns = ['experiment', 'burrow_id']
