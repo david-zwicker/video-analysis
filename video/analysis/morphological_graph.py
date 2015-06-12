@@ -151,6 +151,17 @@ class MorphologicalGraph(nx.MultiGraph):
                     self.remove_edge(n1, n2, key)
     
     
+    def get_single_edge_data(self, n1, n2):
+        """ retrieve data from a single edge. This function fails with an error
+        if there are multiple edges between the nodes """
+        edges = self.get_edge_data(n1, n2)
+        if len(edges) == 1:
+            return edges[0]
+        else:
+            raise ValueError('There are multiple edges between the nodes %d '
+                             'and %d.' % (n1, n2))
+    
+    
     def simplify(self, epsilon=0):
         """ remove nodes with degree=2 and simplifies the curves describing the
         edges if epsilon is larger than 0 """
@@ -163,9 +174,10 @@ class MorphologicalGraph(nx.MultiGraph):
                     except ValueError:
                         # this can happen for a self-loop, where n1 == n2
                         continue
+                    
                     # get the points
-                    points1 = self.get_edge_data(n, n1)['curve']
-                    points2 = self.get_edge_data(n, n2)['curve']
+                    points1 = self.get_single_edge_data(n, n1)['curve']
+                    points2 = self.get_single_edge_data(n, n2)['curve']
 
                     # remove the node and the edges
                     self.remove_edges_from([(n, n1), (n, n2)])
@@ -187,7 +199,7 @@ class MorphologicalGraph(nx.MultiGraph):
     
     def get_point_on_edge(self, n1, n2, point_id):
         """ returns the point on the edge (n1, n2) that has the point_id """
-        return self.get_edge_data(n1, n2)['curve'][point_id, :] 
+        return self.get_single_edge_data(n1, n2)['curve'][point_id, :] 
     
     
     def get_closest_node(self, point):
@@ -229,7 +241,6 @@ class MorphologicalGraph(nx.MultiGraph):
         if edge_min:
             # find the index of the projection point on the line
             coords = data_min['curve']
-            #coords = self.get_edge_data(*edge_min)['curve']
             dists = np.linalg.norm(coords - np.array(point.coords), axis=1)
             projection_id = np.argmin(dists)
             dist = dists[projection_id]
