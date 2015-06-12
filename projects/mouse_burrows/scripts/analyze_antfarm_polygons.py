@@ -39,6 +39,7 @@ from video import debug  # @UnusedImport
 default_parameters = {
     'burrow_parameters': {'ground_point_distance': 2},
     'burrow/area_min': 10000,
+    'burrow/branch_length_min': 50,
     'cage/width_norm': 85.5,
     'cage/width_min': 80,
     'cage/width_max': 95,
@@ -107,7 +108,7 @@ class AntfarmShapes(object):
             
         return obj
     
-    
+
     def load_from_image(self, image, output_file=None):
         """ load the data from an image """
         # find the scale bar
@@ -123,24 +124,67 @@ class AntfarmShapes(object):
         burrow_mask = self.isolate_color(image, self.params['colors/burrow'])
         self.burrows = self.get_burrows_from_image(burrow_mask, self.ground_line)
         
-        # determine the end points
+        # determine additional burrow properties
         for burrow in self.burrows:
-            burrow.get_endpoints(self.ground_line)
-            burrow.morphological_graph = burrow.get_morphological_graph()
-            #graph.debug_visualization(background=image)
+            self.calculate_burrow_properties(burrow, self.ground_line)
             
         if output_file:
             self.make_debug_output(image, output_file)
+         
+        
+    def calculate_burrow_properties(self, burrow, ground_line=None):
+        """ calculates additional properties of the burrow """
+        
+        # determine the burrow end points
+        burrow.get_endpoints(ground_line)
+        
+        # determine the morphological graph
+        graph = burrow.get_morphological_graph()
+        length_min = self.params['burrow/branch_length_min']
+        graph.remove_short_edges(length_min=length_min)
+        graph.simplify()
+        burrow.morphological_graph = graph
+        
+        if ground_line:
+            # determine the fraction of the burrow that goes upwards
+            cline = burrow.centerline
+            clen = curves.curve_segment_lengths(cline)
+            length_going_up = clen[np.diff(cline[:, 1]) < 0].sum()
+            
+            # distinguish left from right burrows
+            center = (ground_line.points[0, 0] + ground_line.points[-1, 0]) / 2
+            burrow_on_left = (burrow.centroid[0] < center)
+            cline_left2right = (cline[0, 0] < cline[-1, 0])
+            if burrow_on_left ^ cline_left2right:
+                # burrow is on the left and centerline goes from right to left
+                # or burrow is on the right and centerline goes left to right
+                # => We measured the correct portion of the burrow
+                burrow.length_going_up = length_going_up
+                
+            else:
+                # burrow is on the left and centerline goes from left to right
+                # or burrow is on the right and centerline goes right to left
+                # => We measured the compliment of what we actually want
+                burrow.length_going_up = burrow.length - length_going_up
                 
                 
     def make_debug_output(self, image, filename):
         """ make debug output image """
         logging.info('Creating debug output')
+        
         for burrow in self.burrows:
+            # draw the morphological graph
+            for points in burrow.morphological_graph.get_edge_curves():
+                cv2.polylines(image, [np.array(points, np.int)],
+                              isClosed=False, color=(255, 255, 255),
+                              thickness=2)
+            
+            # draw the smooth centerline
             cline = burrow.centerline
             cv2.polylines(image, [np.array(cline, np.int)],
                           isClosed=False, color=(255, 0, 0), thickness=3)
 
+            # mark the end points
             for e_p in burrow.endpoints:
                 if e_p.is_exit:
                     color = (0, 0, 255)
@@ -394,14 +438,18 @@ class AntfarmShapes(object):
         # collect result of all burrows
         result['burrows'] = []
         for burrow in self.burrows:
-            perimeter_exit = self._get_burrow_exit_length(burrow) 
-            data = {'area': burrow.area * scale_factor**2,
+            perimeter_exit = self._get_burrow_exit_length(burrow)
+            graph = burrow.morphological_graph 
+            data = {'pos_x': burrow.centroid[0] * scale_factor,
+                    'pos_y': burrow.centroid[1] * scale_factor,
+                    'area': burrow.area * scale_factor**2,
                     'length': burrow.length * scale_factor,
+                    #'total_length': graph.get_total_length() * scale_factor,
+                    'length_going_up': burrow.length_going_up * scale_factor,
+                    'branch_count': graph.number_of_edges(),
                     'perimeter': burrow.perimeter * scale_factor,
                     'perimeter_exit': perimeter_exit * scale_factor,
-                    'openness': perimeter_exit / burrow.perimeter,
-                    'pos_x': burrow.centroid[0] * scale_factor,
-                    'pos_y': burrow.centroid[1] * scale_factor}
+                    'openness': perimeter_exit / burrow.perimeter}
             result['burrows'].append(data)
             
         return result
