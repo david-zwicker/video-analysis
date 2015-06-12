@@ -137,18 +137,24 @@ class MorphologicalGraph(nx.MultiGraph):
             
     def remove_short_edges(self, length_min=1):
         """ removes very short edges """
-        for n1, n2, key, data in self.edges_iter(data=True, keys=True):
-            if data['length'] < length_min:
-                degrees = self.degree((n1, n2)) 
-                if (1 in degrees.values()):
-                    # edge connected to at least one end point
-                    self.remove_edge(n1, n2)
-                    for n, d in degrees.iteritems():
-                        if d == 1:
-                            self.remove_node(n)
-                elif n1 == n2:
-                    # loop
-                    self.remove_edge(n1, n2, key)
+        # iterate until all short edges are removed
+        changed = True
+        while changed:
+            changed = False
+            for n1, n2, key, data in self.edges_iter(data=True, keys=True):
+                if data['length'] < length_min:
+                    degrees = self.degree((n1, n2)) 
+                    if (1 in degrees.values()):
+                        # edge connected to at least one end point
+                        self.remove_edge(n1, n2)
+                        for n, d in degrees.iteritems():
+                            if d == 1:
+                                self.remove_node(n)
+                        changed = True
+                    elif n1 == n2:
+                        # loop
+                        self.remove_edge(n1, n2, key)
+                        changed = True
     
     
     def get_single_edge_data(self, n1, n2):
@@ -156,7 +162,7 @@ class MorphologicalGraph(nx.MultiGraph):
         if there are multiple edges between the nodes """
         edges = self.get_edge_data(n1, n2)
         if len(edges) == 1:
-            return edges[0]
+            return edges.values()[0] #< return only element
         else:
             raise ValueError('There are multiple edges between the nodes %d '
                              'and %d.' % (n1, n2))
@@ -249,6 +255,14 @@ class MorphologicalGraph(nx.MultiGraph):
             
         return edge_min, projection_id, dist
                 
+                
+    def get_total_length(self):
+        """ return total length of all edges """
+        for _, _, data in self.edges_iter(data=True):
+            print curves.curve_length(data['curve'])
+        return sum(curves.curve_length(data['curve'])
+                   for _, _, data in self.edges_iter(data=True))
+
             
     @classmethod
     def from_skeleton(cls, skeleton, copy=True, post_process=True):
@@ -351,9 +365,6 @@ class MorphologicalGraph(nx.MultiGraph):
             graph.simplify()
               
         return graph
-    
-    
-        return 
 
     
     def debug_visualization(self, **kwargs):

@@ -70,6 +70,13 @@ def curve_length(points):
 
 
 
+def curve_segment_lengths(points):
+    """ returns the length of all segments of a curve """
+    dp = np.diff(points, axis=0)
+    return np.hypot(dp[:, 0], dp[:, 1])
+
+
+
 def merge_curves(points1, points2):
     """ merges two curves that touch each other """
     if np.allclose(points1[-1], points2[0]):

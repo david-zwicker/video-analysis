@@ -252,9 +252,10 @@ class Burrow(shapes.Polygon):
         skip_length = self.parameters['centerline_skip_length']
 
         endpoints = [p.coords for p in self.endpoints]
-        self._centerline = self.get_centerline_smoothed(spacing=spacing,
-                                                        skip_length=skip_length,
-                                                        endpoints=endpoints)
+        centerline = self.get_centerline_smoothed(spacing=spacing,
+                                                  skip_length=skip_length,
+                                                  endpoints=endpoints)
+        self._centerline = np.asarray(centerline)
         self.length = curves.curve_length(self._centerline)
 
 
