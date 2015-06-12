@@ -149,7 +149,7 @@ class AntfarmShapes(object):
             # determine the fraction of the burrow that goes upwards
             cline = burrow.centerline
             clen = curves.curve_segment_lengths(cline)
-            length_going_up = clen[np.diff(cline[:, 1]) < 0].sum()
+            length_upwards = clen[np.diff(cline[:, 1]) < 0].sum()
             
             # distinguish left from right burrows
             center = (ground_line.points[0, 0] + ground_line.points[-1, 0]) / 2
@@ -159,13 +159,13 @@ class AntfarmShapes(object):
                 # burrow is on the left and centerline goes from right to left
                 # or burrow is on the right and centerline goes left to right
                 # => We measured the correct portion of the burrow
-                burrow.length_going_up = length_going_up
+                burrow.length_upwards = min(burrow.length, length_upwards)
                 
             else:
                 # burrow is on the left and centerline goes from left to right
                 # or burrow is on the right and centerline goes right to left
                 # => We measured the compliment of what we actually want
-                burrow.length_going_up = burrow.length - length_going_up
+                burrow.length_upwards = max(0, burrow.length - length_upwards)
                 
                 
     def make_debug_output(self, image, filename):
@@ -439,14 +439,15 @@ class AntfarmShapes(object):
         result['burrows'] = []
         for burrow in self.burrows:
             perimeter_exit = self._get_burrow_exit_length(burrow)
-            graph = burrow.morphological_graph 
+            #graph = burrow.morphological_graph 
             data = {'pos_x': burrow.centroid[0] * scale_factor,
                     'pos_y': burrow.centroid[1] * scale_factor,
                     'area': burrow.area * scale_factor**2,
                     'length': burrow.length * scale_factor,
+                    'length_upwards': burrow.length_upwards * scale_factor,
+                    'fraction_upwards': burrow.length_upwards / burrow.length,
                     #'total_length': graph.get_total_length() * scale_factor,
-                    'length_going_up': burrow.length_going_up * scale_factor,
-                    'branch_count': graph.number_of_edges(),
+#                     'branch_count': graph.number_of_edges(),
                     'perimeter': burrow.perimeter * scale_factor,
                     'perimeter_exit': perimeter_exit * scale_factor,
                     'openness': perimeter_exit / burrow.perimeter}

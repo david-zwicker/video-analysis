@@ -229,15 +229,14 @@ class Burrow(shapes.Polygon):
 
     @property
     def centerline(self):
+        """ retrieve the centerline """
         if self._centerline is None:
             self.determine_centerline()
         return self._centerline
     
     @centerline.setter
     def centerline(self, points):
-#         if points is None:
-#             self.determine_centerline()
-#         else:
+        """ set the new centerline """
         if points is None:
             self._centerline = None
         else:
