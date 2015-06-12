@@ -572,7 +572,7 @@ class Polygon(object):
         
         def _find_point_connection(p1, p2=None, maximize_distance=False):
             """ estimate centerline between the one or two points """
-            mask, offset = self.get_mask(margin=1, dtype=np.int32,
+            mask, offset = self.get_mask(margin=2, dtype=np.int32,
                                          ret_offset=True)
 
             p1 = (p1[0] - offset[0], p1[1] - offset[1])
@@ -691,8 +691,11 @@ class Polygon(object):
         points = points[skip_points:-skip_points]
         
         # do spline fitting to smooth the line
+        smoothing_condition = length
+        spline_degree = 3
         try:
-            tck, _ = interpolate.splprep(np.transpose(points), k=3, s=length)
+            tck, _ = interpolate.splprep(np.transpose(points), k=spline_degree,
+                                         s=smoothing_condition)
         except (ValueError, TypeError):
             # do not interpolate if there are problems
             pass
