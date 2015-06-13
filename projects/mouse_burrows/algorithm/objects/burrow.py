@@ -169,48 +169,61 @@ class Burrow(shapes.Polygon):
         return [p.translate(*offset) for p in (p_start, p_end)]
 
 
+    def get_exit_regions(self, ground_line):
+        """ returns parts of the outline that are associated with exits """
+        # determine burrow points close to the ground
+        g_line = ground_line.linestring
+        dist_max = self.parameters['ground_point_distance']
+        exitpoints = [point for point in self.contour
+                      if g_line.distance(geometry.Point(point)) < dist_max]
+
+        if len(exitpoints) == 0:
+            exit_regions = []
+        elif len(exitpoints) == 1:
+            exit_regions = [exitpoints]
+        else:
+            # check whether points are clustered around other points
+            exitpoints = np.array(exitpoints)
+    
+            # cluster the points to detect multiple connections 
+            # this is important when a burrow has multiple exits to the ground
+            dist_max = self.parameters['width']
+            data = cluster.hierarchy.fclusterdata(exitpoints, dist_max,
+                                                  method='single', 
+                                                  criterion='distance')
+            
+            # find the exit points
+            exit_regions = [exitpoints[data == cluster_id, :]
+                            for cluster_id in np.unique(data)]
+            
+        return exit_regions
+
+
     def get_endpoints(self, ground_line=None):
         """ estimate burrow exit points """
         
         if ground_line:
-            dist_max = self.parameters['ground_point_distance']
+            # find exits, which are close to the ground line
+            exit_regions = self.get_exit_regions(ground_line)
             
-            # determine burrow points close to the ground
-            g_line = ground_line.linestring
-            exitpoints = [point for point in self.contour
-                          if g_line.distance(geometry.Point(point)) < dist_max]
-
-            if len(exitpoints) < 2:
-                endpoints = exitpoints
-            
-            else:
-                # check whether points are clustered around other points
-                exitpoints = np.array(exitpoints)
-        
-                # cluster the points to detect multiple connections 
-                # this is important when a burrow has multiple exits to the ground
-                dist_max = self.parameters['width']
-                data = cluster.hierarchy.fclusterdata(exitpoints, dist_max,
-                                                      method='single', 
-                                                      criterion='distance')
-                
-                # find the exit points
-                exits, exit_size = [], []
-                for cluster_id in np.unique(data):
-                    points = exitpoints[data == cluster_id]
-                    xm, ym = points.mean(axis=0)
-                    dist = np.hypot(points[:, 0] - xm, points[:, 1] - ym)
-                    exits.append(points[np.argmin(dist)])
-                    exit_size.append(len(points))
-        
-                exits = np.array(exits)
-                exit_size = np.array(exit_size)
-        
+            # find the exit points
+            exits, exit_size = [], []
+            for exit_points in exit_regions:
+                xm, ym = exit_points.mean(axis=0)
+                dist = np.hypot(exit_points[:, 0] - xm, exit_points[:, 1] - ym)
+                exits.append(exit_points[np.argmin(dist), :])
+                exit_size.append(len(exit_points))
+    
+            exits = np.array(exits)
+            exit_size = np.array(exit_size)
+    
+            if len(exits) > 0:
                 # sorted points by their size
                 endpoints = exits[np.argsort(-exit_size), :]
-    
-            # convert the end points to proper objects
-            endpoints = [EndPoint(x, y, is_exit=True) for x, y in endpoints]
+                # convert the end points to proper objects
+                endpoints = [EndPoint(x, y, is_exit=True) for x, y in endpoints]
+            else:
+                endpoints = []
     
         else:
             endpoints = []
