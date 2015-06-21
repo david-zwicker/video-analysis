@@ -639,7 +639,7 @@ class FirstPass(PassBase):
         sky_mask = sky_mask.astype(np.uint8, copy=False)*255
         
         # Finding sure sky region using a distance transform
-        dist_transform = cv2.distanceTransform(sky_mask, cv2.cv.CV_DIST_L2, 5)
+        dist_transform = cv2.distanceTransform(sky_mask, cv2.DIST_L2, 5)
 
         if len(dist_transform) == 2:
             # fallback for old behavior of OpenCV, where an additional parameter
@@ -651,7 +651,7 @@ class FirstPass(PassBase):
         sand_mask = regions.get_largest_region(binarized).astype(np.uint8, copy=False)*255
         
         # Finding sure sand region using a distance transform
-        dist_transform = cv2.distanceTransform(sand_mask, cv2.cv.CV_DIST_L2, 5)
+        dist_transform = cv2.distanceTransform(sand_mask, cv2.DIST_L2, 5)
         if len(dist_transform) == 2:
             # fallback for old behavior of OpenCV, where an additional parameter
             # would be returned
@@ -1083,7 +1083,7 @@ class FirstPass(PassBase):
 
         # run grabCut algorithm
         # have to convert to color image, since cv2.grabCut only supports color, yet
-        frame_clr = cv2.cvtColor(frame, cv2.cv.CV_GRAY2RGB)
+        frame_clr = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
         bgdmodel = np.zeros((1, 65), np.float64)
         fgdmodel = np.zeros((1, 65), np.float64)
         cv2.grabCut(frame_clr, mask, (0, 0, 1, 1),
@@ -1180,7 +1180,7 @@ class FirstPass(PassBase):
         if 'ground_estimate' in self.params['debug/output']:
             self.debug['ground']['estimate1'] = points_est1
             self.debug['ground']['estimate2'] = points_est2
-            frame = cv2.cvtColor(frame, cv2.cv.CV_GRAY2BGR)
+            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
             cv2.polylines(frame, [np.array(points_est1, np.int32)],
                           isClosed=False, color=(0, 0, 255), thickness=2)
             if points_est1 is not points_est2:
@@ -1206,7 +1206,7 @@ class FirstPass(PassBase):
         points_est1 = self.debug['ground']['estimate1']
         points_est2 = self.debug['ground']['estimate2']
         frame = cv2.cvtColor(self.background.image.astype(np.uint8),
-                             cv2.cv.CV_GRAY2BGR)
+                             cv2.COLOR_GRAY2BGR)
         
         # plot rectangle where the template matched
         if 'template_rect_max' in self.debug['ground']:
@@ -1339,9 +1339,9 @@ class FirstPass(PassBase):
             offset = (0, 0)
 
         # find the contour of the mask    
-        contours, _ = cv2.findContours(mask.astype(np.uint8, copy=False),
-                                       cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
+        contours = cv2.findContours(mask.astype(np.uint8, copy=False),
+                                    cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_SIMPLE)[1]
         
         if not contours:
             raise RuntimeError('Could not find any contour')
@@ -1429,7 +1429,7 @@ class FirstPass(PassBase):
         
         # get the cross-correlation between the profile and the template
         conv = cv2.matchTemplate(profile.astype(np.uint8),
-                                 template, cv2.cv.CV_TM_SQDIFF)
+                                 template, cv2.TM_SQDIFF)
         
 #         import matplotlib.pyplot as plt
 #         plt.plot(profile/profile.max(), 'b', label='profile')
@@ -1770,7 +1770,7 @@ class FirstPass(PassBase):
 #                          wait_for_key=False)
         
         # have to convert to color image, since grabCut only supports color
-        img = cv2.cvtColor(img, cv2.cv.CV_GRAY2RGB)
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         bgdmodel = np.zeros((1, 65), np.float64)
         fgdmodel = np.zeros((1, 65), np.float64)
         # run GrabCut algorithm

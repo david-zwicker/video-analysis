@@ -430,9 +430,9 @@ class ThirdPass(PassBase):
 #             offset = (0, 0)
 # 
 #         # find the contour of the mask    
-#         contours, _ = cv2.findContours(mask.astype(np.uint8, copy=False),
-#                                        cv2.RETR_EXTERNAL,
-#                                        cv2.CHAIN_APPROX_SIMPLE)
+#         contours = cv2.findContours(mask.astype(np.uint8, copy=False),
+#                                     cv2.RETR_EXTERNAL,
+#                                     cv2.CHAIN_APPROX_SIMPLE)[1]
 #         
 #         if not contours:
 #             raise RuntimeError('Could not find any contour')
@@ -645,7 +645,7 @@ class ThirdPass(PassBase):
 #         add_to_mask(cv2.GC_FGD, self.params['burrows/width_min']/2)
 # 
 #         # have to convert to color image, since grabCut only supports color
-#         img = cv2.cvtColor(img, cv2.cv.CV_GRAY2RGB)
+#         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 #         bgdmodel = np.zeros((1, 65), np.float64)
 #         fgdmodel = np.zeros((1, 65), np.float64)
 #         # run GrabCut algorithm

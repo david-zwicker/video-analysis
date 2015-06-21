@@ -198,9 +198,9 @@ def get_external_contour(points, resolution=None):
     cv2.fillPoly(mask, [ps_int], 255, offset=(-x_off, -y_off))
 
     # find the contour of this mask to recover the exterior contour
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                   cv2.CHAIN_APPROX_SIMPLE,
-                                   offset=(x_off, y_off))
+    contours = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+                                cv2.CHAIN_APPROX_SIMPLE,
+                                offset=(x_off, y_off))[1]
     return np.array(np.squeeze(contours))*resolution
 
 
@@ -527,8 +527,8 @@ def get_farthest_points(mask, p1=None, ret_path=False):
     # find a random starting point
     if p1 is None:
         # locate objects in the mask
-        contours, _ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
+        contours = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_SIMPLE)[1]
          
         # pick the largest contour
         contour = max(contours, key=lambda cnt: cv2.arcLength(cnt, closed=True))

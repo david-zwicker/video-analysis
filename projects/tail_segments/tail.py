@@ -266,7 +266,7 @@ class Tail(shapes.Polygon):
     def centerline(self):
         """ determine the center line of the tail """
         mask, offset = self.mask
-        dist_map = cv2.distanceTransform(mask, cv2.cv.CV_DIST_L2, 5)
+        dist_map = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
         
         # setup active contour algorithm
         ac = ActiveContour(blur_radius=self.centerline_blur_radius,

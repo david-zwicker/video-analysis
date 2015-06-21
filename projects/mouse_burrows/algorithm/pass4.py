@@ -561,9 +561,8 @@ class FourthPass(PassBase):
          
         #labels, num_features = ndimage.measurements.label(self.burrow_mask)
         # extend the contour to the ground line
-        contours, _ = cv2.findContours(self.burrow_mask,
-                                       cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
+        contours = cv2.findContours(self.burrow_mask, cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_SIMPLE)[1]
 
         burrow_chunks = []
         for contour in contours:

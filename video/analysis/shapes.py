@@ -653,7 +653,7 @@ class Polygon(object):
 
         # set the potential from the  distance map
         mask, offset = self.get_mask(1, ret_offset=True)
-        potential = cv2.distanceTransform(mask, cv2.cv.CV_DIST_L2, 5)
+        potential = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
         ac.set_potential(potential)
         
         # initialize the centerline from the estimate

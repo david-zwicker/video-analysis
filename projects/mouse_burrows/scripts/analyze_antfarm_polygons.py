@@ -100,7 +100,7 @@ class AntfarmShapes(object):
                 output_file = None
                 
             image = cv2.imread(path)
-            cv2.cvtColor(image, cv2.cv.CV_BGR2RGB, image) #< convert to RGB
+            cv2.cvtColor(image, cv2.COLOR_BGR2RGB, image) #< convert to RGB
             obj.load_from_image(image, output_file)
             
         else:
@@ -131,6 +131,30 @@ class AntfarmShapes(object):
         if output_file:
             self.make_debug_output(image, output_file)
          
+         
+    def _add_burrow_angle_statistics(self, burrow, ground_line):
+        """ adds statistics about the burrow slopes to the burrow object """
+        # determine the fraction of the burrow that goes upwards
+        cline = burrow.centerline
+        clen = curves.curve_segment_lengths(cline)
+        length_upwards = clen[np.diff(cline[:, 1]) < 0].sum()
+        
+        # distinguish left from right burrows
+        center = (ground_line.points[0, 0] + ground_line.points[-1, 0]) / 2
+        burrow_on_left = (burrow.centroid[0] < center)
+        cline_left2right = (cline[0, 0] < cline[-1, 0])
+        if burrow_on_left ^ cline_left2right:
+            # burrow is on the left and centerline goes from right to left
+            # or burrow is on the right and centerline goes left to right
+            # => We measured the correct portion of the burrow
+            burrow.length_upwards = min(burrow.length, length_upwards)
+            
+        else:
+            # burrow is on the left and centerline goes from left to right
+            # or burrow is on the right and centerline goes right to left
+            # => We measured the compliment of what we actually want
+            burrow.length_upwards = max(0, burrow.length - length_upwards)
+            
         
     def calculate_burrow_properties(self, burrow, ground_line=None):
         """ calculates additional properties of the burrow """
@@ -143,29 +167,11 @@ class AntfarmShapes(object):
         length_min = self.params['burrow/branch_length_min']
         graph.remove_short_edges(length_min=length_min)
         graph.simplify()
+        graph.debug_visualization()
         burrow.morphological_graph = graph
         
         if ground_line:
-            # determine the fraction of the burrow that goes upwards
-            cline = burrow.centerline
-            clen = curves.curve_segment_lengths(cline)
-            length_upwards = clen[np.diff(cline[:, 1]) < 0].sum()
-            
-            # distinguish left from right burrows
-            center = (ground_line.points[0, 0] + ground_line.points[-1, 0]) / 2
-            burrow_on_left = (burrow.centroid[0] < center)
-            cline_left2right = (cline[0, 0] < cline[-1, 0])
-            if burrow_on_left ^ cline_left2right:
-                # burrow is on the left and centerline goes from right to left
-                # or burrow is on the right and centerline goes left to right
-                # => We measured the correct portion of the burrow
-                burrow.length_upwards = min(burrow.length, length_upwards)
-                
-            else:
-                # burrow is on the left and centerline goes from left to right
-                # or burrow is on the right and centerline goes right to left
-                # => We measured the compliment of what we actually want
-                burrow.length_upwards = max(0, burrow.length - length_upwards)
+            self._add_burrow_angle_statistics(burrow, ground_line)
                 
                 
     def make_debug_output(self, image, filename):
@@ -193,7 +199,7 @@ class AntfarmShapes(object):
                 coords = tuple([int(c) for c in e_p.coords])
                 cv2.circle(image, coords, 10, color, thickness=-1)
 
-        cv2.cvtColor(image, cv2.cv.CV_RGB2BGR, image) #< convert to BGR
+        cv2.cvtColor(image, cv2.COLOR_RGB2BGR, image) #< convert to BGR
         cv2.imwrite(filename, image)
         
         logging.info('Wrote output file `%s`' % filename)
@@ -232,8 +238,8 @@ class AntfarmShapes(object):
     def get_scalebar_from_image(self, mask):
         """ finds the scale bar in the image """
         # determine contours in the mask
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_NONE)
+        contours = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_NONE)[1]
         
         # pick the largest contour
         contour = max(contours, key=lambda cnt: cv2.arcLength(cnt, closed=True))
@@ -280,8 +286,8 @@ class AntfarmShapes(object):
         above_ground = ground_line.get_polygon(0, left=0, right=width)         
 
         # determine contours in the mask
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
+        contours = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_SIMPLE)[1]
 
         # iterate through the contours
         burrows = []
@@ -362,8 +368,8 @@ class AntfarmShapes(object):
         mask_dilated = cv2.dilate(mask, kernel)
 
         # fill the objects
-        contours, _ = cv2.findContours(mask_dilated.copy(), cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
+        contours = cv2.findContours(mask_dilated.copy(), cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_SIMPLE)[1]
         
         for contour in contours:
             cv2.fillPoly(mask_dilated, [contour[:, 0, :]], color=(255, 255, 255))

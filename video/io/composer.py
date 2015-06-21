@@ -167,7 +167,7 @@ class VideoComposer(VideoFileWriter):
         
         # check color properties
         if frame.ndim == 3 and image.ndim == 2:
-            image = cv2.cvtColor(image, cv2.cv.CV_GRAY2RGB)
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
         elif frame.ndim == 2 and image.ndim == 3:
             raise ValueError('Cannot add a color image to a monochrome one')
         
@@ -189,7 +189,7 @@ class VideoComposer(VideoFileWriter):
         
         # check color properties
         if frame.ndim == 3 and image.ndim == 2:
-            image = cv2.cvtColor(image, cv2.cv.CV_GRAY2RGB)
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
         elif frame.ndim == 2 and image.ndim == 3:
             raise ValueError('Cannot add a color image to a monochrome one')
 
@@ -213,9 +213,8 @@ class VideoComposer(VideoFileWriter):
             # given value is a mask 
             if copy:
                 mask_or_contour = mask_or_contour.copy()
-            contours, _ = cv2.findContours(mask_or_contour,
-                                           cv2.RETR_EXTERNAL,
-                                           cv2.CHAIN_APPROX_SIMPLE)
+            contours = cv2.findContours(mask_or_contour, cv2.RETR_EXTERNAL,
+                                        cv2.CHAIN_APPROX_SIMPLE)[1]
             
         if self.zoom_factor != 1:
             contours = np.asarray(contours, np.double) / self.zoom_factor
