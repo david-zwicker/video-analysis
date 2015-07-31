@@ -42,6 +42,9 @@ def _get_predug_from_file(args):
     except KeyError:
         logging.warn('Data of `%s` could not be read', filename)
         predug = None
+    except Exception as e:
+        logging.warn('Exception occurred: %s' % e)
+        predug = 'error'
     else:
         predug = result.get_burrow_predug(pass_id)
     
@@ -67,10 +70,12 @@ def get_predug_statistics(result_files, ret_shapes=False, parameters=None,
         
     # sort the resulting data into two categories
     predugs = []
-    no_predug_count = 0
+    no_predug_count, error_count = 0, 0
     for res in results:
         if res is None:
             no_predug_count += 1
+        if res == 'error':
+            error_count += 1
         else:
             predugs.append(res)
     
@@ -78,6 +83,7 @@ def get_predug_statistics(result_files, ret_shapes=False, parameters=None,
     areas = [predug.area for predug in predugs]
     statistics = {'predug_count': len(predugs),
                   'no_predug_count': no_predug_count,
+                  'error_count': error_count,
                   'area_mean': np.mean(areas),
                   'area_std': np.std(areas)}
     
@@ -85,35 +91,7 @@ def get_predug_statistics(result_files, ret_shapes=False, parameters=None,
         return statistics, predugs
     else:
         return statistics
-
-
-def make_plot(traces):
-    import matplotlib.pyplot as plt
     
-    # show the result if requested
-    #plt.plot(ground[:, 0], ground[:, 1], 'b-', lw=3)
-     
-    # determine traces that are far from the average
-    dist = []
-    for k, trace in enumerate(traces):
-        ys = np.interp(ground[:, 0], trace[:, 0], trace[:, 1])
-        dist.append(np.linalg.norm(ground[:, 1] - ys))
-        if dist[-1] < 0.3:
-            plt.plot(trace[:, 0], trace[:, 1], 'k-', alpha=0.2)
-            if dist[-1] > 0.2:
-                print 'Possibly bad ground profile', filenames[k]
-        else:
-            plt.plot(trace[:, 0], trace[:, 1], 'r-', alpha=0.2)
-            print 'Bad ground profile', filenames[k]
-     
-    traces = [t for k, t in enumerate(traces)
-              if dist[k] < 0.3]
-    ground = curves.average_normalized_functions(traces)
-     
-    plt.plot(ground[:, 0], ground[:, 1], 'g-', lw=3)
-    plt.gca().invert_yaxis()
-    plt.show()
-
 
 
 def main():
