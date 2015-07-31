@@ -54,3 +54,7 @@
     - [711, 1563]
   - - [231, 339]
     - [625, 97]
+20150531_BW_E13_edf:
+  segmentation_dividers:
+  - - !!python/tuple [1227, 1489]
+    - !!python/tuple [1117, 1459]
