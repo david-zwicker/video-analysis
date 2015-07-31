@@ -13,6 +13,7 @@ import math
 import numpy as np
 from scipy import interpolate, odr
 
+import cv2
 from shapely import geometry
 
 import shapes
@@ -60,11 +61,35 @@ def curve_length(points):
     if len(points) < 2:
         return 0
     else:
-        return sum(math.hypot(p1[0] - p2[0], p1[1] - p2[1])
-                   for p1, p2 in itertools.izip(points, points[1:]))
+        return cv2.arcLength(np.asarray(points, np.single), False)
+#         return sum(math.hypot(p1[0] - p2[0], p1[1] - p2[1])
+#                    for p1, p2 in itertools.izip(points, points[1:]))
     # Note that a vectorized numpy version using np.diff and np.hypot or using 
     # np.linalg.norm is considerably slower for the typical short lists that
     # are encountered here.
+
+
+
+def curve_segment_lengths(points):
+    """ returns the length of all segments of a curve """
+    dp = np.diff(points, axis=0)
+    return np.hypot(dp[:, 0], dp[:, 1])
+
+
+
+def merge_curves(points1, points2):
+    """ merges two curves that touch each other """
+    if np.allclose(points1[-1], points2[0]):
+        return np.r_[points1, points2]
+    elif np.allclose(points1[0], points2[0]):
+        return np.r_[points1[::-1], points2]
+    elif np.allclose(points1[0], points2[-1]):
+        return np.r_[points1[::-1], points2[::-1]]
+    elif np.allclose(points1[-1], points2[-1]):
+        return np.r_[points1, points2[::-1]]
+    else:
+        raise ValueError('The two curves do not touch each other at their end '
+                         'points')
 
 
 

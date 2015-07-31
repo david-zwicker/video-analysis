@@ -355,8 +355,8 @@ class TailSegmentationTracking(object):
         cv2.morphologyEx(bw, cv2.MORPH_OPEN, np.ones((3, 3)), dst=bw)
 
         # find features in the binary image
-        contours, _ = cv2.findContours(bw.astype(np.uint8), cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
+        contours = cv2.findContours(bw.astype(np.uint8), cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_SIMPLE)[1]
 
         # determine the rectangle where objects can lie in
         h, w = self._frame.shape
@@ -415,8 +415,8 @@ class TailSegmentationTracking(object):
         labels, _ = self.get_features(tails, use_annotations=use_annotations)
 
         # find the contours of these features
-        contours, _ = cv2.findContours(labels, cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
+        contours = cv2.findContours(labels, cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_SIMPLE)[1]
 
         # locate the tails using these contours
         tails = []

@@ -34,6 +34,11 @@ class GroundProfile(object):
     @points.setter
     def points(self, value):
         self._points = np.asarray(value, np.double)
+        
+        # make sure that the points increase from left to right
+        if self._points[0, 0] > self._points[-1, 0]:
+            self._points = self._points[::-1]
+            
         self._cache = {} #< reset the cache of the cached_property
         
         

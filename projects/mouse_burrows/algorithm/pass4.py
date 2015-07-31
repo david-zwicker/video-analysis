@@ -18,7 +18,7 @@ from scipy import cluster
 from shapely import geometry
 
 from .pass_base import PassBase
-from .objects.burrow import Burrow
+from .objects.burrow import Burrow, BurrowTrackList
 from utils.misc import unique_based_on_id, display_progress
 from utils.math import NormalDistribution, contiguous_true_regions
 from video.analysis import curves, regions
@@ -126,10 +126,12 @@ class FourthPass(PassBase):
         self.mouse_mask = np.zeros(self.background_video.shape[1:], np.uint8)
 
         if self.params['burrows/enabled_pass4']:
-            # self.result['burrows/tracks'] = BurrowTrackList()
             # copy the older burrow tracks to adapt them to this pass
-            self.result['burrows/tracks'] = \
+            try:
+                self.result['burrows/tracks'] = \
                             copy.deepcopy(self.data['pass3/burrows/tracks'])
+            except KeyError:
+                self.result['burrows/tracks'] = BurrowTrackList()
 
             self.burrow_mask = np.zeros(self.background_video.shape[1:], np.uint8)
 
@@ -559,9 +561,8 @@ class FourthPass(PassBase):
          
         #labels, num_features = ndimage.measurements.label(self.burrow_mask)
         # extend the contour to the ground line
-        contours, _ = cv2.findContours(self.burrow_mask,
-                                       cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
+        contours = cv2.findContours(self.burrow_mask, cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_SIMPLE)[1]
 
         burrow_chunks = []
         for contour in contours:

@@ -18,6 +18,7 @@ from shapely import geometry
 from utils.cache import cached_property
 from active_contour import ActiveContour
 import curves
+import image
 
 
 
@@ -400,7 +401,7 @@ class Polygon(object):
     
     @contour.setter 
     def contour(self, points):
-        """ set the contour of the burrow.
+        """ set the contour of the polygon.
         `point_list` can be a list/array of points or a shapely LinearRing
         """ 
         if points is None:
@@ -427,13 +428,13 @@ class Polygon(object):
         
     @cached_property
     def contour_ring(self):
-        """ return the linear ring of the burrow contour """
+        """ return the linear ring of the polygon contour """
         return geometry.LinearRing(self.contour)
     
         
     @cached_property
     def polygon(self):
-        """ return the polygon of the burrow contour """
+        """ return the shapely polygon """
         return geometry.Polygon(self.contour)
     
     
@@ -449,13 +450,19 @@ class Polygon(object):
     
     @cached_property
     def area(self):
-        """ return the area of the burrow shape """
+        """ return the area of the polygon """
         return self.polygon.area
     
     
     @cached_property
+    def perimeter(self):
+        """ return the perimeter of the polygon """
+        return self.contour_ring.length
+    
+    
+    @cached_property
     def eccentricity(self):
-        """ return the eccentricity of the burrow shape
+        """ return the eccentricity of the polygon
         The eccentricity will be between 0 and 1, corresponding to a circle
         and a straight line, respectively.
         """
@@ -470,7 +477,7 @@ class Polygon(object):
     
                 
     def contains(self, point):
-        """ returns True if the point is inside the burrow """
+        """ returns True if the point is inside the polygon """
         return self.polygon.contains(geometry.Point(point))
     
     
@@ -487,7 +494,7 @@ class Polygon(object):
         
     
     def get_bounding_rect(self, margin=0):
-        """ returns the bounding rectangle of the burrow """
+        """ returns the bounding rectangle of the polygon """
         bound_rect = self.bounds
         if margin:
             bound_rect.buffer(margin)
@@ -495,12 +502,18 @@ class Polygon(object):
             
         
     def get_mask(self, margin=0, dtype=np.uint8, ret_offset=False):
-        """ builds a mask of the burrow """
+        """ builds a mask of the polygon.
+        
+        `margin` adds an extra margin to the boundary
+        `dtype` determines the dtype of the output
+        `ret_offset` determines whether the coordinates of the upper left point
+            of the mask are returned
+        """
         # prepare the array to store the mask into
         rect = self.get_bounding_rect(margin=margin)
         mask = np.zeros((rect[3], rect[2]), dtype)
 
-        # draw the burrow into the mask
+        # draw the polygon into the mask
         contour = np.asarray(self.contour, np.int)
         offset = (-rect[0], -rect[1])
         cv2.fillPoly(mask, [contour], color=1, offset=offset)
@@ -509,6 +522,46 @@ class Polygon(object):
             return mask, (-offset[0], -offset[1])
         else:
             return mask
+
+        
+    def get_skeleton(self, ret_offset=False):
+        """ gets the binary skeleton image of the polygon
+
+        `ret_offset` determines whether the coordinates of the upper left point
+            of the skeleton mask are returned
+        """
+        if ret_offset:
+            mask, offset = self.get_mask(margin=2, ret_offset=True)
+        else:
+            mask = self.get_mask(ret_offset=False)
+        
+        skeleton = image.mask_thinning(mask)
+        
+        if ret_offset:
+            return skeleton, offset
+        else:
+            return skeleton
+        
+        
+    def get_morphological_graph(self, simplify_epsilon=0.1):
+        """ gets the graph representing the skeleton of the polygon """
+        # skeletonize the polygon
+        skeleton, offset = self.get_skeleton(ret_offset=True)
+        
+        # lazy import to prevent circular imports
+        from morphological_graph import MorphologicalGraph
+        
+        # build the morphological graph from the skeleton
+        graph = MorphologicalGraph.from_skeleton(skeleton, copy=False)
+        
+        # simplify the curves describing the edges, if requested
+        if simplify_epsilon > 0:
+            graph.simplify(simplify_epsilon)
+
+        # move the graph to the global coordinate system
+        graph.translate(*offset)
+        
+        return graph
         
         
     def get_centerline_estimate(self, end_points=None):
@@ -519,7 +572,7 @@ class Polygon(object):
         
         def _find_point_connection(p1, p2=None, maximize_distance=False):
             """ estimate centerline between the one or two points """
-            mask, offset = self.get_mask(margin=1, dtype=np.int32,
+            mask, offset = self.get_mask(margin=2, dtype=np.int32,
                                          ret_offset=True)
 
             p1 = (p1[0] - offset[0], p1[1] - offset[1])
@@ -536,7 +589,7 @@ class Polygon(object):
                                                distance_map.shape)
                     dist = distance_map[idx_max]
                     p2 = idx_max[1], idx_max[0]
-                    # print 'p1', p1, 'p2', p2
+
                     if dist <= dist_prev:
                         break
                     dist_prev = dist
@@ -600,7 +653,7 @@ class Polygon(object):
 
         # set the potential from the  distance map
         mask, offset = self.get_mask(1, ret_offset=True)
-        potential = cv2.distanceTransform(mask, cv2.cv.CV_DIST_L2, 5)
+        potential = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
         ac.set_potential(potential)
         
         # initialize the centerline from the estimate
@@ -638,8 +691,11 @@ class Polygon(object):
         points = points[skip_points:-skip_points]
         
         # do spline fitting to smooth the line
+        smoothing_condition = length
+        spline_degree = 3
         try:
-            tck, _ = interpolate.splprep(np.transpose(points), k=3, s=length)
+            tck, _ = interpolate.splprep(np.transpose(points), k=spline_degree,
+                                         s=smoothing_condition)
         except (ValueError, TypeError):
             # do not interpolate if there are problems
             pass
@@ -653,7 +709,7 @@ class Polygon(object):
             points = interpolate.splev(s, tck)
             points = zip(*points) #< transpose list
         
-            # restrict center line to burrow shape
+            # restrict center line to polygon shape
             cline = geometry.LineString(points).intersection(self.polygon)
             
             if isinstance(cline, geometry.MultiLineString):

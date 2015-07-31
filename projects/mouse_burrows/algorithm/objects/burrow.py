@@ -85,10 +85,9 @@ class Burrow(shapes.Polygon):
         self._centerline = None
         self._endpoints = None
 
-        if parameters is None:
-            self.parameters = self.default_parameters
-        else:
-            self.parameters = parameters
+        self.parameters = self.default_parameters.copy()
+        if parameters is not None:
+            self.parameters.update(parameters)
 
         if endpoints is not None:
             self.endpoints = endpoints
@@ -170,45 +169,61 @@ class Burrow(shapes.Polygon):
         return [p.translate(*offset) for p in (p_start, p_end)]
 
 
+    def get_exit_regions(self, ground_line):
+        """ returns parts of the outline that are associated with exits """
+        # determine burrow points close to the ground
+        g_line = ground_line.linestring
+        dist_max = self.parameters['ground_point_distance']
+        exitpoints = [point for point in self.contour
+                      if g_line.distance(geometry.Point(point)) < dist_max]
+
+        if len(exitpoints) == 0:
+            exit_regions = []
+        elif len(exitpoints) == 1:
+            exit_regions = [exitpoints]
+        else:
+            # check whether points are clustered around other points
+            exitpoints = np.array(exitpoints)
+    
+            # cluster the points to detect multiple connections 
+            # this is important when a burrow has multiple exits to the ground
+            dist_max = self.parameters['width']
+            data = cluster.hierarchy.fclusterdata(exitpoints, dist_max,
+                                                  method='single', 
+                                                  criterion='distance')
+            
+            # find the exit points
+            exit_regions = [exitpoints[data == cluster_id, :]
+                            for cluster_id in np.unique(data)]
+            
+        return exit_regions
+
+
     def get_endpoints(self, ground_line=None):
         """ estimate burrow exit points """
         
         if ground_line:
-            dist_max = self.parameters['ground_point_distance']
+            # find exits, which are close to the ground line
+            exit_regions = self.get_exit_regions(ground_line)
             
-            # determine burrow points close to the ground
-            g_line = ground_line.linestring
-            endpoints = [point for point in self.contour
-                         if g_line.distance(geometry.Point(point)) < dist_max]
-
-            if len(endpoints) >= 2:
-                # check whether points are clustered around other points
-                endpoints = np.array(endpoints)
-        
-                # cluster the points to detect multiple connections 
-                # this is important when a burrow has multiple exits to the ground
-                dist_max = self.parameters['width']
-                data = cluster.hierarchy.fclusterdata(endpoints, dist_max,
-                                                      method='single', 
-                                                      criterion='distance')
-                
-                # find the exit points
-                exits, exit_size = [], []
-                for cluster_id in np.unique(data):
-                    points = endpoints[data == cluster_id]
-                    xm, ym = points.mean(axis=0)
-                    dist = np.hypot(points[:, 0] - xm, points[:, 1] - ym)
-                    exits.append(points[np.argmin(dist)])
-                    exit_size.append(len(points))
-        
-                exits = np.array(exits)
-                exit_size = np.array(exit_size)
-        
+            # find the exit points
+            exits, exit_size = [], []
+            for exit_points in exit_regions:
+                xm, ym = exit_points.mean(axis=0)
+                dist = np.hypot(exit_points[:, 0] - xm, exit_points[:, 1] - ym)
+                exits.append(exit_points[np.argmin(dist), :])
+                exit_size.append(len(exit_points))
+    
+            exits = np.array(exits)
+            exit_size = np.array(exit_size)
+    
+            if len(exits) > 0:
                 # sorted points by their size
                 endpoints = exits[np.argsort(-exit_size), :]
-    
-            # convert the endpoints to proper objects
-            endpoints = [EndPoint(x, y, is_exit=True) for x, y in endpoints]
+                # convert the end points to proper objects
+                endpoints = [EndPoint(x, y, is_exit=True) for x, y in endpoints]
+            else:
+                endpoints = []
     
         else:
             endpoints = []
@@ -219,7 +234,7 @@ class Burrow(shapes.Polygon):
         elif len(endpoints) == 1:
             endpoints = self.estimate_endpoints(endpoints[0])
             
-        # store the endpoints in the cache and also return them
+        # store the end points in the cache and also return them
         self._endpoints = endpoints
         self._centerline = None #< delete cache of the centerline 
         return endpoints
@@ -227,15 +242,14 @@ class Burrow(shapes.Polygon):
 
     @property
     def centerline(self):
+        """ retrieve the centerline """
         if self._centerline is None:
             self.determine_centerline()
         return self._centerline
     
     @centerline.setter
     def centerline(self, points):
-#         if points is None:
-#             self.determine_centerline()
-#         else:
+        """ set the new centerline """
         if points is None:
             self._centerline = None
         else:
@@ -250,10 +264,26 @@ class Burrow(shapes.Polygon):
         skip_length = self.parameters['centerline_skip_length']
 
         endpoints = [p.coords for p in self.endpoints]
-        self._centerline = self.get_centerline_smoothed(spacing=spacing,
-                                                        skip_length=skip_length,
-                                                        endpoints=endpoints)
+        centerline = self.get_centerline_smoothed(spacing=spacing,
+                                                  skip_length=skip_length,
+                                                  endpoints=endpoints)
+        self._centerline = np.asarray(centerline)
         self.length = curves.curve_length(self._centerline)
+
+
+    def get_morphological_graph(self):
+        """ determines the morphological graph of the burrow, which also takes
+        into account the exit points """
+        # determine the morphological graph of the polygon
+        graph = super(Burrow, self).get_morphological_graph()
+        # this graph does not include the exits or other end points
+        
+        # add all the end points to the graph
+        for endpoint in self.endpoints:
+            edge_min, projection_id, _ = graph.get_closest_edge(endpoint.coords)
+            graph.connect_point_to_edge(endpoint.coords, edge_min, projection_id)
+        
+        return graph
 
 
     def merge(self, other):

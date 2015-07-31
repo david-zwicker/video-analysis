@@ -16,7 +16,7 @@ shapely     | Library for manipulating geometric shapes
 yaml        | YAML binding for writing out data
 
 
-Optional python packages:
+Optional python packages that can be installed via pip:
 
 Package      | Usage                                      
 -------------|-------------------------------------------
@@ -26,5 +26,6 @@ faulthandler | Detecting low level crashes
 grip         | Converting markdown to html 
 pandas       | Writing results to csv files
 pint         | Reporting results with physical units
-sharedmem    | Showing the videos in a separate process while iterating 
+sharedmem    | Showing the videos in a separate process while iterating
+thinning     | package for thinning binary images
 tqdm         | Showing a progress bar while iterating

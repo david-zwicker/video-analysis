@@ -14,7 +14,6 @@ import platform
 import logging
 
 import cv2
-import cv2.cv as cv # still necessary for some constants
 
 from .base import VideoBase, VideoImageStackBase
 
@@ -54,10 +53,10 @@ class VideoOpenCV(VideoBase):
         # an empty video instead. We thus fail later by checking the video length
         
         # determine _movie properties
-        size = (int(self._movie.get(cv.CV_CAP_PROP_FRAME_WIDTH)),
-                int(self._movie.get(cv.CV_CAP_PROP_FRAME_HEIGHT)))
-        frame_count = int(self._movie.get(cv.CV_CAP_PROP_FRAME_COUNT))
-        fps = self._movie.get(cv.CV_CAP_PROP_FPS)
+        size = (int(self._movie.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                int(self._movie.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        frame_count = int(self._movie.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = self._movie.get(cv2.CAP_PROP_FPS)
         self.pix_fmt = 'bgr' #< seems to be OpenCV default
 
         if frame_count == 0:
@@ -87,7 +86,7 @@ class VideoOpenCV(VideoBase):
         
     def get_frame_pos(self):
         """ returns the 0-based index of the next frame """
-        return int(self._movie.get(cv.CV_CAP_PROP_POS_FRAMES))
+        return int(self._movie.get(cv2.CAP_PROP_POS_FRAMES))
 
 
     def set_frame_pos(self, index):
@@ -103,7 +102,7 @@ class VideoOpenCV(VideoBase):
             # OpenCV seeking is not exact to the frame
             # => we seek about 1 sec before the frame ...
             if index > frame_pos + self.fps:
-                self._movie.set(cv.CV_CAP_PROP_POS_FRAMES, index - self.fps)
+                self._movie.set(cv2.CAP_PROP_POS_FRAMES, index - self.fps)
             
             # ... and iterate through the remaining frames
             for _ in xrange(self.get_frame_pos(), index):
@@ -208,7 +207,7 @@ class VideoWriterOpenCV(object):
                 raise ValueError('Video format `%s` is unsupported.' % codec) 
         
         # get the code defining the video format
-        fourcc = cv2.cv.FOURCC(*codec)
+        fourcc = cv2.VideoWriter_fourcc(*codec)
         self._writer = cv2.VideoWriter(self.filename, fourcc=fourcc, fps=fps,
                                        frameSize=(size[1], size[0]),
                                        isColor=is_color)
