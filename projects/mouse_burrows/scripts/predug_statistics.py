@@ -73,7 +73,7 @@ def get_predug_statistics(result_files, ret_shapes=False, parameters=None,
     for res in results:
         if res is None:
             no_predug_count += 1
-        if res == 'error':
+        elif res == 'error':
             error_count += 1
         else:
             predugs.append(res)
