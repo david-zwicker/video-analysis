@@ -44,7 +44,7 @@ def _get_predug_from_file(args):
         logging.warn('Data of `%s` could not be read', filename)
         predug = None
     except Exception as e:
-        logging.warn('Exception occurred: %s' % e)
+        logging.warn('Exception occurred: %s' % str(e))
         predug = 'error'
     
     return predug
@@ -60,7 +60,7 @@ def get_predug_statistics(result_files, ret_shapes=False, parameters=None,
     """
     # analyze all the files
     jobs = [(filename, parameters, verbose, pass_id)
-            for filename in result_files[:32]]
+            for filename in result_files]
     
     if multiprocessing:
         results = mp.Pool().map(_get_predug_from_file, jobs)
