@@ -39,14 +39,13 @@ def _get_predug_from_file(args):
     # load the results and find the predug
     try:
         result = load_result_file(filename, parameters)
+        predug = result.get_burrow_predug(pass_id)
     except KeyError:
         logging.warn('Data of `%s` could not be read', filename)
         predug = None
     except Exception as e:
         logging.warn('Exception occurred: %s' % e)
         predug = 'error'
-    else:
-        predug = result.get_burrow_predug(pass_id)
     
     return predug
 
@@ -61,7 +60,7 @@ def get_predug_statistics(result_files, ret_shapes=False, parameters=None,
     """
     # analyze all the files
     jobs = [(filename, parameters, verbose, pass_id)
-            for filename in result_files[:10]]
+            for filename in result_files[:32]]
     
     if multiprocessing:
         results = mp.Pool().map(_get_predug_from_file, jobs)
