@@ -12,7 +12,7 @@ from __future__ import division
 
 import cv2
 import numpy as np
-from scipy import interpolate
+from scipy import interpolate, spatial
 from shapely import geometry
 
 from utils.cache import cached_property
@@ -683,7 +683,9 @@ class Polygon(object):
         if points is None:
             points = self.get_centerline_optimized(spacing=spacing, **kwargs)
         
+        # get properties of the line
         length = curves.curve_length(points)
+        endpoints = points[0], points[-1]
         
         # get the points to interpolate
         points = curves.make_curve_equidistant(points, spacing=spacing)
@@ -702,15 +704,17 @@ class Polygon(object):
         else:
             # extend the center line in both directions to make sure that it
             # crosses the outline
-            overshoot = 5*skip_length #< absolute overshoot
+            overshoot = 20*skip_length #< absolute overshoot
             num_points = (length + 2*overshoot)/spacing
             overshoot /= length #< overshoot relative to total length
             s = np.linspace(-overshoot, 1 + overshoot, num_points)
             points = interpolate.splev(s, tck)
             points = zip(*points) #< transpose list
         
-            # restrict center line to polygon shape
-            cline = geometry.LineString(points).intersection(self.polygon)
+            # restrict center line to the section between the end points
+            dists = spatial.distance.cdist(endpoints, points)
+            ks = sorted(np.argmin(dists, axis=1))
+            cline = geometry.LineString(points[ks[0] : ks[1]+1])
             
             if isinstance(cline, geometry.MultiLineString):
                 points = max(cline, key=lambda obj: obj.length).coords

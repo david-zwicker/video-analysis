@@ -245,7 +245,7 @@ class AntfarmShapes(object):
     def show_debug_image(self):
         """ shows the debug image on screen """
         self.add_debug_output()
-        cv2.imshow(self.image)
+        debug.show_image(self.image)
 
 
     def _get_line_from_contour(self, contour):
@@ -524,7 +524,7 @@ def process_polygon_file(path, output_folder=None, suppress_exceptions=False,
         logging.info('Analyzing file `%s`' % path)
         
         # load from image
-        pc = AntfarmShapes.load_from_file(path, output_folder=output_folder)
+        pc = AntfarmShapes.load_from_file(path)
         
         if output_folder:
             output_file = os.path.join(output_folder, pc.filename)
