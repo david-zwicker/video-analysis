@@ -62,7 +62,7 @@ ScaleBar = collections.namedtuple('ScaleBar', ['size', 'angle'])
 class AntfarmShapes(object):
     """ class that manages shapes in an antfarm """
     
-    def __init__(self, parameters=None, name='', output_folder=None):
+    def __init__(self, parameters=None, name=''):
         """ initializes the polygon collection
         `polygons` is a list of polygons
         `parameters` are parameters for the algorithms of this class
@@ -70,7 +70,7 @@ class AntfarmShapes(object):
         `debug_output` can be a folder to which debug output will be written 
         """
         self.name = name
-        self.output_folder = output_folder
+        self.image = None
 
         self.burrows = []
         self.ground_line = None
@@ -94,42 +94,41 @@ class AntfarmShapes(object):
         # determine which loader to use for the individual files
         if ext == '.jpg' or ext == '.png':
             logging.debug('Use OpenCV image loader')
-            if obj.output_folder:
-                output_file = os.path.join(obj.output_folder, filename)
-            else:
-                output_file = None
                 
-            image = cv2.imread(path)
-            cv2.cvtColor(image, cv2.COLOR_BGR2RGB, image) #< convert to RGB
-            obj.load_from_image(image, output_file)
+            img = cv2.imread(path)
+            obj.image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) #< convert to RGB
+            obj.filename = filename
             
         else:
             raise ValueError("Don't know how to read `*%s` files" % ext)
-            
+
+        obj.analyze_image()
+
         return obj
     
 
-    def load_from_image(self, image, output_file=None):
+    def analyze_image(self):
         """ load the data from an image """
+        # load parameters
+        color_scale_bar = self.params['colors/scale_bar']
+        color_ground_line = self.params['colors/ground_line']
+        color_burrow = self.params['colors/burrow']
+        
         # find the scale bar
-        scale_mask = self.isolate_color(image, self.params['colors/scale_bar'])
+        scale_mask = self.isolate_color(self.image, color_scale_bar)
         self.scale_bar = self.get_scalebar_from_image(scale_mask)
 
         # find the ground line
-        ground_mask = self.isolate_color(image, self.params['colors/ground_line'],
-                                         dilate=1)
+        ground_mask = self.isolate_color(self.image, color_ground_line, dilate=1)
         self.ground_line = self.get_groundline_from_image(ground_mask)
 
         # find all the burrows
-        burrow_mask = self.isolate_color(image, self.params['colors/burrow'])
+        burrow_mask = self.isolate_color(self.image, color_burrow)
         self.burrows = self.get_burrows_from_image(burrow_mask, self.ground_line)
         
         # determine additional burrow properties
         for burrow in self.burrows:
             self.calculate_burrow_properties(burrow, self.ground_line)
-            
-        if output_file:
-            self.make_debug_output(image, output_file)
          
          
     def _add_burrow_angle_statistics(self, burrow, ground_line):
@@ -164,30 +163,62 @@ class AntfarmShapes(object):
         
         # determine the morphological graph
         graph = burrow.get_morphological_graph()
+        
+        # combine multiple branches at exits and remove short branches that are
+        # not exits
+        exit_nodes = []
+        for points_exit in burrow.get_exit_regions(ground_line):
+            exit_line = geometry.LineString(points_exit)
+
+            # find the graph nodes that are close to the exit            
+            graph_nodes = []
+            for node, data in graph.nodes(data=True):
+                node_point = geometry.Point(data['coords'])
+                if exit_line.distance(node_point) < 3:
+                    graph_nodes.append((node, node_point))
+
+            # find the graph node that is closest to the exit point
+            exit_point = exit_line.interpolate(0.5, normalized=True)
+            dists = [exit_point.distance(node_point)
+                     for _, node_point in graph_nodes]
+            exit_id = np.argmin(dists)
+            
+            for node_id, (node, _) in enumerate(graph_nodes):
+                if node_id == exit_id:
+                    # save the exit node for later use
+                    exit_nodes.append(node)
+                else:
+                    # remove additional graph nodes
+                    graph.remove_node(node)                           
+                
+        # remove short branches that are not exit nodes
         length_min = self.params['burrow/branch_length_min']
-        graph.remove_short_edges(length_min=length_min)
+        graph.remove_short_edges(length_min=length_min,
+                                 exclude_nodes=exit_nodes)
+                
+        # remove nodes of degree two  
         graph.simplify()
-        graph.debug_visualization()
+
         burrow.morphological_graph = graph
         
         if ground_line:
             self._add_burrow_angle_statistics(burrow, ground_line)
                 
                 
-    def make_debug_output(self, image, filename):
+    def add_debug_output(self):
         """ make debug output image """
         logging.info('Creating debug output')
         
         for burrow in self.burrows:
             # draw the morphological graph
             for points in burrow.morphological_graph.get_edge_curves():
-                cv2.polylines(image, [np.array(points, np.int)],
+                cv2.polylines(self.image, [np.array(points, np.int)],
                               isClosed=False, color=(255, 255, 255),
                               thickness=2)
             
             # draw the smooth centerline
             cline = burrow.centerline
-            cv2.polylines(image, [np.array(cline, np.int)],
+            cv2.polylines(self.image, [np.array(cline, np.int)],
                           isClosed=False, color=(255, 0, 0), thickness=3)
 
             # mark the end points
@@ -197,12 +228,24 @@ class AntfarmShapes(object):
                 else:
                     color = (0, 255, 0)
                 coords = tuple([int(c) for c in e_p.coords])
-                cv2.circle(image, coords, 10, color, thickness=-1)
+                cv2.circle(self.image, coords, 10, color, thickness=-1)
 
-        cv2.cvtColor(image, cv2.COLOR_RGB2BGR, image) #< convert to BGR
-        cv2.imwrite(filename, image)
+        
+    def write_debug_image(self, filename):
+        """ write the debug output image to file """
+        self.add_debug_output()
+
+        img = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR) #< convert to BGR
+        
+        cv2.imwrite(filename, img)
         
         logging.info('Wrote output file `%s`' % filename)
+        
+        
+    def show_debug_image(self):
+        """ shows the debug image on screen """
+        self.add_debug_output()
+        cv2.imshow(self.image)
 
 
     def _get_line_from_contour(self, contour):
@@ -341,12 +384,12 @@ class AntfarmShapes(object):
         return burrows
              
         
-    def isolate_color(self, image, color, white_background=None, dilate=0):
+    def isolate_color(self, img, color, white_background=None, dilate=0):
         """ isolates a certain color channel from the image. Color should be a
         binary vector only containing 0 and 1 """
         # determine whether the background is white or black if not given
         if white_background is None:
-            white_background = (np.mean(image) > 128)
+            white_background = (np.mean(img) > 128)
             if white_background:
                 logging.debug('Image appears to have a white background.')
             else:
@@ -360,7 +403,7 @@ class AntfarmShapes(object):
         bounds = np.array([limits[int(c)] for c in color], np.uint8)
 
         # find the mask highlighting the respective colors
-        mask = cv2.inRange(image, bounds[:, 0], bounds[:, 1])
+        mask = cv2.inRange(img, bounds[:, 0], bounds[:, 1])
 
         # dilate the mask to close gaps in the outline
         w = self.params['colors/isolation_closing_radius']
@@ -460,15 +503,16 @@ class AntfarmShapes(object):
             result['burrows'].append(data)
             
         return result
-        
+    
         
 
-def process_polygon_file(path, output_folder=None, suppress_exceptions=False):
+def process_polygon_file(path, output_folder=None, suppress_exceptions=False,
+                         debug=False):
     """ process a single shape file given by path """
     if suppress_exceptions:
         # run the function within a catch-all try-except-block
         try:
-            result = process_polygon_file(path, output_folder, False)
+            result = process_polygon_file(path, output_folder, False, debug)
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
@@ -478,7 +522,17 @@ def process_polygon_file(path, output_folder=None, suppress_exceptions=False):
     else:
         # do the actual computation
         logging.info('Analyzing file `%s`' % path)
+        
+        # load from image
         pc = AntfarmShapes.load_from_file(path, output_folder=output_folder)
+        
+        if output_folder:
+            output_file = os.path.join(output_folder, pc.filename)
+            pc.write_debug_image(output_file)
+        
+        if debug:
+            pc.show_debug_image()
+
         result = pc.get_statistics()
 
     return result
@@ -502,8 +556,11 @@ def main():
                         help='python pickle file from which data is loaded')
     parser.add_argument('-f', '--folder', dest='folder', type=str,
                         help='folder where output images will be written to')
-    parser.add_argument('-m', '--multi-processing', dest='multiprocessing',
+    flags = parser.add_mutually_exclusive_group(required=False)
+    flags.add_argument('-m', '--multi-processing', dest='multiprocessing',
                         action='store_true', help='turns on multiprocessing')
+    flags.add_argument('-d', '--debug', dest='debug', action='store_true',
+                        help='does debug output')
     parser.add_argument('files', metavar='FILE', type=str, nargs='*',
                         help='files to analyze')
 
@@ -533,7 +590,8 @@ def main():
             # analyze data in the current process
             job_func = functools.partial(process_polygon_file,
                                          output_folder=args.folder,
-                                         suppress_exceptions=False)
+                                         suppress_exceptions=False,
+                                         debug=args.debug)
             results = map(job_func, files)
             
         # write complete results as pickle file if requested

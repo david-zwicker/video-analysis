@@ -280,8 +280,7 @@ class Burrow(shapes.Polygon):
         
         # add all the end points to the graph
         for endpoint in self.endpoints:
-            edge_min, projection_id, _ = graph.get_closest_edge(endpoint.coords)
-            graph.connect_point_to_edge(endpoint.coords, edge_min, projection_id)
+            graph.add_and_connect_node_point(endpoint.coords)
         
         return graph
 

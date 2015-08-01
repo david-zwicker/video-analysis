@@ -435,7 +435,7 @@ PARAMETER_LIST = [
               'The standard deviation of the Gaussian that is used for '
               'smoothing temporal data that is associated with activity '
               'measurements.'),
-    Parameter('burrows/predug_analyze_time', 30*60, UNIT.TIME_FRAMES,
+    Parameter('burrows/predug_analyze_time', 30*60, UNIT.TIME_FRAMES, #< 1 min
               'The time duration after burrow detection at which the predug is '
               'analyzed.'),
     Parameter('burrows/predug_area_threshold', 1000, UNIT.AREA_PIXEL,

@@ -283,26 +283,34 @@ class Analyzer(DataHandler):
         return area_excavated, time_burrow_grew
     
     
-    def get_burrow_predug(self, pass_id=3):
+    def get_burrow_predug(self, pass_id=3, ret_track_id=False):
         """ identifies the predug from the burrow traces """
 
         burrow_tracks = self.data['pass%d/burrows/tracks' % pass_id]
         predug_analyze_time = self.params['burrows/predug_analyze_time']
-        predug_area_threshold = self.params['burrows/predug_area_threshold']
+        area_threshold = self.params['burrows/predug_area_threshold']
         
         # iterate over all burrow tracks and find the burrow that was largest
         # after a short initial time, which indicates that it was the predug
-        predug, predug_area = None, 0
-        for burrow_track in burrow_tracks:
+        predug, predug_track_id, predug_area = None, None, 0 
+        for track_id, burrow_track in enumerate(burrow_tracks):
             # get the burrow shortly after it has been detected
             t_analyze = burrow_track.track_start + predug_analyze_time
-            burrow = burrow_track.get_burrow(t_analyze)
-            
-            if burrow.area > predug_area_threshold and burrow.area > predug_area:
-                predug = burrow
-                predug_area = burrow.area
-                    
-        return predug
+            try:
+                burrow = burrow_track.get_burrow(t_analyze)
+            except IndexError:
+                # burrow is exists for shorter than predug_analyze_time
+                pass
+            else:
+                if burrow.area > area_threshold and burrow.area > predug_area:
+                    predug = burrow
+                    predug_track_id = track_id
+                    predug_area = burrow.area
+
+        if ret_track_id:
+            return predug, predug_track_id
+        else:                    
+            return predug
         
     
     #===========================================================================
