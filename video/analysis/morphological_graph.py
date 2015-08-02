@@ -135,13 +135,25 @@ class MorphologicalGraph(nx.MultiGraph):
             data['curve'] += offset
             
             
-    def remove_short_edges(self, length_min=1):
-        """ removes very short edges """
+    def remove_short_edges(self, length_min=1, exclude_nodes=None):
+        """ removes edges that are shorter than the given minimal length. If
+        `exclude_nodes` is given, nodes mentioned in their are left untouched.
+        """
+        if exclude_nodes is None:
+            exclude_nodes = set()
+        else:
+            exclude_nodes = set(exclude_nodes)
+        
         # iterate until all short edges are removed
         changed = True
         while changed:
             changed = False
             for n1, n2, key, data in self.edges_iter(data=True, keys=True):
+                # skip nodes that are to be excluded
+                if n1 in exclude_nodes or n2 in exclude_nodes:
+                    continue
+                
+                # check the length of the current edge
                 if data['length'] < length_min:
                     degrees = self.degree((n1, n2)) 
                     if (1 in degrees.values()):
@@ -151,8 +163,9 @@ class MorphologicalGraph(nx.MultiGraph):
                             if d == 1:
                                 self.remove_node(n)
                         changed = True
+                        
                     elif n1 == n2:
-                        # loop
+                        # edge is a loop and can be safely removed
                         self.remove_edge(n1, n2, key)
                         changed = True
     
@@ -263,6 +276,12 @@ class MorphologicalGraph(nx.MultiGraph):
         return sum(curves.curve_length(data['curve'])
                    for _, _, data in self.edges_iter(data=True))
 
+            
+    def add_and_connect_node_point(self, point):
+        """ adds a point to the graph and connects it to the nearest edge """
+        edge_min, projection_id, _ = self.get_closest_edge(point)
+        self.connect_point_to_edge(point, edge_min, projection_id)
+            
             
     @classmethod
     def from_skeleton(cls, skeleton, copy=True, post_process=True):
