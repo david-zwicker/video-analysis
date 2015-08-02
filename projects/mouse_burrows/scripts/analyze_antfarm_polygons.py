@@ -20,7 +20,7 @@ import traceback
 
 import cv2
 import numpy as np
-from scipy import spatial
+from scipy import cluster, ndimage, spatial
 from shapely import geometry
 import pint
 
@@ -38,8 +38,9 @@ from video import debug  # @UnusedImport
 
 default_parameters = {
     'burrow_parameters': {'ground_point_distance': 2},
-    'burrow/area_min': 10000,
-    'burrow/branch_length_min': 50,
+    'burrow/area_min': 5000,
+    'burrow/width_typical': 30,
+    'burrow/branch_length_min': 100,
     'cage/width_norm': 85.5,
     'cage/width_min': 80,
     'cage/width_max': 95,
@@ -75,6 +76,8 @@ class AntfarmShapes(object):
         self.burrows = []
         self.ground_line = None
         self.scale_bar = None
+        
+        self._debug = {'possible_branches': []}
         
         self.params = default_parameters.copy()
         if parameters is not None:
@@ -119,7 +122,7 @@ class AntfarmShapes(object):
         self.scale_bar = self.get_scalebar_from_image(scale_mask)
 
         # find the ground line
-        ground_mask = self.isolate_color(self.image, color_ground_line, dilate=1)
+        ground_mask = self.isolate_color(self.image, color_ground_line, dilate=10)
         self.ground_line = self.get_groundline_from_image(ground_mask)
 
         # find all the burrows
@@ -158,8 +161,122 @@ class AntfarmShapes(object):
     def calculate_burrow_properties(self, burrow, ground_line=None):
         """ calculates additional properties of the burrow """
         
+        # load some parameters
+        burrow_width = self.params['burrow/width_typical']
+        min_length = self.params['burrow/branch_length_min']
+        
         # determine the burrow end points
-        burrow.get_endpoints(ground_line)
+        endpoints = burrow.get_endpoints(ground_line)
+        
+        # get distance map from centerline
+        distance_map, offset = burrow.get_mask(margin=2, dtype=np.uint16,
+                                               ret_offset=True)
+        cline = burrow.centerline
+        start_points = curves.translate_points(cline, -offset[0], -offset[1])
+        regions.make_distance_map(distance_map, start_points)
+        
+        # determine endpoints, which are not already part of the centerline
+        end_coords = np.array([ep.coords for ep in endpoints])
+        dists = spatial.distance.cdist(end_coords, cline)
+        extra_ends = end_coords[dists.min(axis=1) > burrow_width, :].tolist()
+        extra_ends = curves.translate_points(extra_ends, -offset[0], -offset[1])
+        
+        # get additional points that are far away from the centerline
+        map_max = ndimage.filters.maximum_filter(distance_map, burrow_width)
+        map_maxima =  (distance_map == map_max) & (distance_map > min_length)
+        maxima = np.array(np.nonzero(map_maxima)).T
+        
+        # determine the object from which we measure the distance to the sky
+        if ground_line is not None:
+            outside = ground_line.linestring
+        else:
+            outside = geometry.MultiPoint(end_coords)
+
+        # define a helper function for checking the connection to the ground
+        burrow_poly = burrow.polygon.buffer(2)
+        def _direct_conn_to_ground(point, has_offset=False):
+            """ helper function checking the connection to the ground """
+            if has_offset:
+                point = (point[0] + offset[0], point[1] + offset[1])
+            p_ground = curves.get_projection_point(outside, point)
+            conn_line = geometry.LineString([point, p_ground])
+            return conn_line.length < 1 or conn_line.within(burrow_poly)
+        
+        branch_points = []
+        if maxima.size > 0:
+            if len(maxima) == 1:
+                clusters = [0]
+            else:
+                # cluster maxima to reduce them to single end points 
+                # this is important when a burrow has multiple exits to the ground
+                clusters = cluster.hierarchy.fclusterdata(maxima, burrow_width,
+                                                          method='single', 
+                                                          criterion='distance')
+            
+            cluster_ids = np.unique(clusters)
+            logging.debug('Found %d possible branch point(s)' % len(cluster_ids))
+            
+            # find the additional point from the clusters
+            for cluster_id in cluster_ids:
+                candidates = maxima[clusters == cluster_id, :]
+                
+                # get point with maximal distance from center line
+                dists = [distance_map[x, y] for x, y in candidates]
+                y, x = candidates[np.argmax(dists)] 
+                
+                # check whether this point is close to an endpoint
+                point = geometry.Point(x + offset[0], y + offset[1])
+                branch_depth = point.distance(outside)
+                if (branch_depth > min_length or 
+                        not _direct_conn_to_ground((x, y), has_offset=True)):
+                    branch_points.append((x, y))
+
+            # save some output for debugging
+            self._debug['possible_branches'] = \
+                    curves.translate_points(branch_points, offset[0], offset[1])
+
+        # find the burrow branches
+        burrow.branches = []
+        
+        if extra_ends or branch_points:
+            num_branches = len(extra_ends) + len(branch_points)
+            logging.info('Found %d possible branch(es)' % num_branches)
+
+            # create generator for iterating over all additional points
+            gen = ((p_class, p_coords)
+                   for p_class, points in enumerate([extra_ends, branch_points])
+                   for p_coords in points)
+
+            # connect all additional points to the centerline -> branches
+            for ep_id, ep in gen:
+                line = regions.shortest_path_in_distance_map(distance_map, ep)
+                line = curves.translate_points(line, offset[0], offset[1])
+                
+                # estimate the depth of the branch
+                depth = max(geometry.Point(p).distance(outside)
+                            for p in (line[0], line[-1]))
+                
+                # check whether the line corresponds to an open branch
+                # open branches are branches where all connection lines between
+                # the branch and ground line are fully contained in the burrow
+                # polygon
+                if ep_id == 1 and depth < min_length:
+                    num_direct = sum(1 for p_branch in line
+                                     if _direct_conn_to_ground(p_branch))
+                    ratio_direct = num_direct / len(line)
+                    if ratio_direct > 0.75:                        
+                        # the ground is directly reachable from most points
+                        line = None
+                
+                if line:
+                    burrow.branches.append(line)
+        
+        if ground_line:
+            self._add_burrow_angle_statistics(burrow, ground_line)
+        
+        return
+        
+        # filter branches to make sure that they are not all connected to ground
         
         # determine the morphological graph
         graph = burrow.get_morphological_graph()
@@ -200,18 +317,27 @@ class AntfarmShapes(object):
         graph.simplify()
 
         burrow.morphological_graph = graph
-        
-        if ground_line:
-            self._add_burrow_angle_statistics(burrow, ground_line)
                 
                 
     def add_debug_output(self):
         """ make debug output image """
         logging.info('Creating debug output')
         
+        for point in self._debug['possible_branches']:
+            coords = tuple([int(c) for c in point])
+            cv2.circle(self.image, coords, 10, color=(255, 255, 255),
+                       thickness=-1)       
+        
         for burrow in self.burrows:
             # draw the morphological graph
-            for points in burrow.morphological_graph.get_edge_curves():
+#             for points in burrow.morphological_graph.get_edge_curves():
+#                 cv2.polylines(self.image, [np.array(points, np.int)],
+#                               isClosed=False, color=(255, 255, 255),
+#                               thickness=2)
+
+
+            # draw the additional branches
+            for points in burrow.branches:
                 cv2.polylines(self.image, [np.array(points, np.int)],
                               isClosed=False, color=(255, 255, 255),
                               thickness=2)
@@ -326,7 +452,7 @@ class AntfarmShapes(object):
         height, width = mask.shape
         
         # get a polygon for cutting away the sky
-        above_ground = ground_line.get_polygon(0, left=0, right=width)         
+        above_ground = ground_line.get_polygon(0, left=0, right=width)
 
         # determine contours in the mask
         contours = cv2.findContours(mask, cv2.RETR_EXTERNAL,
@@ -368,19 +494,17 @@ class AntfarmShapes(object):
                 # regularize the points to remove potential problems                
                 burrow_poly = regions.regularize_polygon(burrow_poly)
                 
-#                 debug.show_shape(geometry.Polygon(points), above_ground,
-#                                  background=mask)
-                
                 # build the burrow polygon by removing the sky
                 burrow_poly = burrow_poly.difference(above_ground)
                 
                 # create a burrow from the outline
                 boundary = regions.get_enclosing_outline(burrow_poly)
+
                 burrow = Burrow(boundary.coords,
                                 parameters=self.params['burrow_parameters'])
                 burrows.append(burrow)
             
-        logging.info('Found %d polygons' % len(burrows))
+        logging.info('Found %d polygon(s)' % len(burrows))
         return burrows
              
         
@@ -487,7 +611,12 @@ class AntfarmShapes(object):
         # collect result of all burrows
         result['burrows'] = []
         for burrow in self.burrows:
+            # calculate some additional statistics
             perimeter_exit = self._get_burrow_exit_length(burrow)
+            exit_count = sum(1 for ep in burrow.endpoints if ep.is_exit)
+            branch_length = sum(curves.curve_length(points)
+                                for points in burrow.branches)
+            
             #graph = burrow.morphological_graph 
             data = {'pos_x': burrow.centroid[0] * scale_factor,
                     'pos_y': burrow.centroid[1] * scale_factor,
@@ -495,8 +624,10 @@ class AntfarmShapes(object):
                     'length': burrow.length * scale_factor,
                     'length_upwards': burrow.length_upwards * scale_factor,
                     'fraction_upwards': burrow.length_upwards / burrow.length,
-                    #'total_length': graph.get_total_length() * scale_factor,
-#                     'branch_count': graph.number_of_edges(),
+                    'exit_count': exit_count,
+                    'branch_length': branch_length * scale_factor,
+                    'branch_count': len(burrow.branches),
+                    'total_length': (branch_length + burrow.length)*scale_factor,
                     'perimeter': burrow.perimeter * scale_factor,
                     'perimeter_exit': perimeter_exit * scale_factor,
                     'openness': perimeter_exit / burrow.perimeter}
@@ -517,6 +648,7 @@ def process_polygon_file(path, output_folder=None, suppress_exceptions=False,
             raise
         except:
             traceback.print_exc()
+            print('Exception occurred for file `%s`' % path)
             result = []
             
     else:
@@ -564,7 +696,11 @@ def main():
     parser.add_argument('files', metavar='FILE', type=str, nargs='*',
                         help='files to analyze')
 
+    # parse the command line arguments
     args = parser.parse_args()
+    
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
 
     if args.load_pkl:
         # load file from pickled data

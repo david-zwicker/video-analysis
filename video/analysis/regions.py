@@ -477,9 +477,9 @@ MASK[1, :] = MASK[:, 1] = 1
 MASK[0, 0] = MASK[2, 0] = MASK[0, 2] = MASK[2, 2] = np.sqrt(2)
 
 def shortest_path_in_distance_map(distance_map, end_point):
-    """ finds and returns the shortest path in the distance map `distance_map` that
-    leads from the given `end_point` to a start point (defined by having the
-    minimal distance value in the map) """
+    """ finds and returns the shortest path in the distance map `distance_map`
+    that leads from the given `end_point` to a start point (defined by having
+    the minimal distance value in the map) """
     # make sure points outside the shape are not included in the distance
     distance_map = distance_map.astype(np.int)
     distance_map[distance_map <= 1] = np.iinfo(distance_map.dtype).max
@@ -487,7 +487,7 @@ def shortest_path_in_distance_map(distance_map, end_point):
     xmax = distance_map.shape[1] - 1
     ymax = distance_map.shape[0] - 1
     x, y = end_point
-    points = [end_point]
+    points = [(x, y)] #< make sure end_point is a tuple
     d = distance_map[y, x]
     
     # iterate through path until we reached the minimum
