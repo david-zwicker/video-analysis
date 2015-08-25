@@ -170,9 +170,32 @@ def get_largest_region(mask, ret_area=False):
 
 
 
+def get_contour_from_largest_region(mask, ret_area=False):
+    """ determines the contour of the largest region in the mask """
+    contours = cv2.findContours(mask.astype(np.uint8, copy=False),
+                                cv2.RETR_EXTERNAL,
+                                cv2.CHAIN_APPROX_SIMPLE)[1]
+    
+    if not contours:
+        raise RuntimeError('Could not find any contour')
+    
+    # find the contour with the largest area, in case there are multiple
+    contour_areas = [cv2.contourArea(cnt) for cnt in contours]
+    contour_id = np.argmax(contour_areas)
+
+    # simplify the contour
+    contour = np.squeeze(np.asarray(contours[contour_id], np.double))
+    
+    if ret_area:
+        return contour, contour_areas[contour_id]
+    else:
+        return contour
+
+    
+
 def get_external_contour(points, resolution=None):
-    """ takes a list of `points` defining a linear ring, which can be self-intersecting,
-    and returns an approximation to the external contour """
+    """ takes a list of `points` defining a linear ring, which can be 
+    self-intersecting, and returns an approximation to the external contour """
     if resolution is None:
         # determine resolution from minimal distance of consecutive points
         dist_min = np.inf

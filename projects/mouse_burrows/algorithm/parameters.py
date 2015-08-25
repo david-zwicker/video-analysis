@@ -281,6 +281,25 @@ PARAMETER_LIST = [
     Parameter('ground/smoothing_sigma', 1000, UNIT.TIME_FRAMES,
               'Standard deviation for Gaussian smoothing over time'),
     
+    # Predug localization
+    Parameter('predug/wait_interval', 300, #60*30, #< 1 minutes
+              UNIT.TIME_FRAMES,
+              'The time period after which the predug is detected.'),
+    Parameter('predug/search_height_factor', 0.5, UNIT.FACTOR,
+              'Determines the height of the area in which the predug is '
+              'searched for. Half the height is this factor times the maximal '
+              'vertical span of the ground line.'),
+    Parameter('predug/search_width_factor', 0.5, UNIT.FACTOR,
+              'Determines the width of the area in which the predug is '
+              'searched for. Half the width is this factor times the width of '
+              'the valley defined by the ground line.'),
+    Parameter('predug/search_zscore_threshold', 0.5, UNIT.FACTOR,
+              'The zscore threshold that is used to distinguish predug pixels '
+              'from background sand pixels.'),
+    Parameter('predug/simplify_threshold', 5, UNIT.AREA_PIXEL,
+              'Threshold value for simplifying the contour line of the '
+              'predug.'),
+    
     # Mouse and the associated tracking
     Parameter('mouse/intensity_threshold', 1, UNIT.FACTOR,
               'Determines how much brighter than the background (usually the '

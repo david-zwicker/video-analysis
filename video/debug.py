@@ -57,7 +57,14 @@ def _ax_format_coord(x, y, image):
 def show_image(*images, **kwargs):
     """ shows a collection of images using matplotlib and waits for the user
     to continue """
+    import matplotlib
     import matplotlib.pyplot as plt
+    
+    # the macosx backend does not support proper interpolation, yet
+    if matplotlib.get_backend() == 'MacOSX':
+        interpolation = 'nearest'
+    else:
+        interpolation = 'none'
 
     # determine the number of rows and columns to show
     num_rows, num_cols = get_subplot_shape(len(images))
@@ -111,7 +118,7 @@ def show_image(*images, **kwargs):
             
         # plot the image
         if isinstance(image, np.ndarray):
-            img = ax.imshow(image, interpolation='none', aspect=aspect,
+            img = ax.imshow(image, interpolation=interpolation, aspect=aspect,
                             vmin=vmin, vmax=vmax, norm=norm)
             # add the colorbar
             if image.min() != image.max():

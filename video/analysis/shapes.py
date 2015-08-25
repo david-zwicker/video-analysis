@@ -63,6 +63,12 @@ class Rectangle(object):
         return cls(x1, y1, x2 - x1, y2 - y1)
     
     @classmethod
+    def from_centerpoint(cls, centerpoint, width, height):
+        x = centerpoint[0] - width/2
+        y = centerpoint[1] - height/2
+        return cls(x, y, width, height)
+    
+    @classmethod
     def from_list(cls, data):
         return cls(*data)
     
@@ -135,17 +141,19 @@ class Rectangle(object):
     @corners.setter
     def corners(self, ps):
         self.set_corners(ps[0], ps[1])
-    
+        
     @property
     def contour(self):
         x2, y2 = self.x + self.width, self.y + self.height
-        return ((self.x, self.y), (x2, self.y),
-                (x2, y2), (self.x, y2))
+        return ((self.x, self.y),
+                (x2, self.y),
+                (x2, y2),
+                (self.x, y2))
     
     @property
     def slices(self):
-        slice_x = slice(self.x, self.x + self.width)
-        slice_y = slice(self.y, self.y + self.height)
+        slice_x = slice(int(self.x), int(self.x + self.width))
+        slice_y = slice(int(self.y), int(self.y + self.height))
         return slice_x, slice_y
 
     @property
@@ -191,6 +199,17 @@ class Rectangle(object):
         this rectangle """
         return ((self.left <= points[:, 0]) & (points[:, 0] <= self.right) &
                 (self.top  <= points[:, 1]) & (points[:, 1] <= self.bottom))
+        
+        
+    @property
+    def contour_ring(self):
+        """ return the linear ring of the polygon contour """
+        return geometry.LinearRing(self.contour)
+    
+    @property
+    def polygon(self):
+        """ return the shapely polygon """
+        return geometry.Polygon(self.contour)
 
 
 
