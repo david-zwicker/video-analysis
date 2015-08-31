@@ -240,10 +240,10 @@ class FirstPass(PassBase):
                 if never_analyzed or do_ground:
                     # find or refine the ground line
                     self.ground = self.get_ground_profile(self.ground)
-                    wait_interval = self.params['predug/wait_interval']
-                    if self.predug is None and (self.frame_id >= wait_interval):
+                    #wait_interval = self.params['predug/wait_interval']
+                    #if self.predug is None and (self.frame_id >= wait_interval):
                         # find predug after the first ground line was found
-                        self.find_predug()
+                        #self.find_predug()
         
                 if self.params['burrows/enabled_pass1'] and (never_analyzed or do_burrows):
                     self.find_burrows()

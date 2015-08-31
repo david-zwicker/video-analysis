@@ -152,7 +152,7 @@ class ActiveContour(object):
         # try loading the evolution matrix from the cache            
         cache_key = (len(points), ds)
         Pinv = self._Pinv_cache.get(cache_key, None)
-        if not Pinv:
+        if Pinv is None:
             # add new item to cache
             Pinv = self.get_evolution_matrix(len(points), ds)
             self._Pinv_cache[cache_key] = Pinv

@@ -1,3 +1,7 @@
+* Make the predug location independent from the pass1 code
+    - it should only take a background image and a determined ground line
+    - this should probably go into the `processes` package
+    - this would allow us to use it within the pass1 code and externally to determine predugs for existing images
 * Write a manual of assumption we make about the videos in order to track everything
 * Gather more statistics about why certain parts of the algorithm failed
 * Refine the centerline by moving the points more toward the actual center
