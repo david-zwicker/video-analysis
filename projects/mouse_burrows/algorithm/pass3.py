@@ -808,7 +808,11 @@ class ThirdPass(PassBase):
             
             # make sure that the burrow centerline lies within the ground region
             ground_poly = geometry.Polygon(self.get_ground_polygon_points())
-            line = burrow.linestring.intersection(ground_poly)
+            if burrow.linestring.length > 0:
+                line = burrow.linestring.intersection(ground_poly)
+            else:
+                line = None
+            
             if isinstance(line, geometry.multilinestring.MultiLineString):
                 # pick the longest line if there are multiple
                 index_longest = np.argmax(l.length for l in line)
