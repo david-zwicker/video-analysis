@@ -297,7 +297,7 @@ class Burrow(shapes.Polygon):
 
     @cached_property
     def linestring(self):
-        if self.centerline is None:
+        if self.centerline is None or len(self.centerline) < 2:
             return geometry.LineString()
         else:
             return geometry.LineString(self.centerline)

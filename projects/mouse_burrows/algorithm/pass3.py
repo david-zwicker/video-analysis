@@ -804,7 +804,13 @@ class ThirdPass(PassBase):
                 continue
             if polygon.is_empty:
                 continue
-            burrow.contour = regions.get_enclosing_outline(polygon)
+            
+            try:
+                burrow.contour = regions.get_enclosing_outline(polygon)
+            except TypeError:
+                # can occur in corner cases where the enclosing outline cannot
+                # be found
+                continue
             
             # make sure that the burrow centerline lies within the ground region
             ground_poly = geometry.Polygon(self.get_ground_polygon_points())
