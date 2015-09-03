@@ -165,10 +165,19 @@ class Analyzer(DataHandler):
     # BURROW STATISTICS
     #===========================================================================
 
+
+    def _get_burrow_tracks(self, pass_id=3):
+        """ return the burrow tracks or throw an error if not avaiable """ 
+        try:
+            return self.data['pass%d/burrows/tracks' % pass_id]
+        except KeyError:
+            raise ValueError('Data from pass %d is not available.' % pass_id)
+
         
     def get_burrow_lengths(self, pass_id=3):
         """ returns a list of burrows containing their length over time """
-        burrow_tracks = self.data['pass%d/burrows/tracks' % pass_id]
+        burrow_tracks = self._get_burrow_tracks(pass_id)
+        
         results = []
         for burrow_track in burrow_tracks:
             # read raw data
@@ -188,8 +197,8 @@ class Analyzer(DataHandler):
     def get_main_burrow(self, pass_id=3):
         """ returns the track of the main burrow, which is defined to be the
         longest burrow """
-        burrow_tracks = self.data['pass%d/burrows/tracks' % pass_id]
-
+        burrow_tracks = self._get_burrow_tracks(pass_id)
+        
         # find the longest burrow 
         main_track, main_length = None, 0
         for burrow_track in burrow_tracks:
@@ -236,7 +245,7 @@ class Analyzer(DataHandler):
         if frames is None:
             frames = self.get_frame_range()
 
-        burrow_tracks = self.data['pass%d/burrows/tracks' % pass_id]
+        burrow_tracks = self._get_burrow_tracks(pass_id)
 
         # find the burrow areas 
         area_excavated = 0
@@ -286,7 +295,7 @@ class Analyzer(DataHandler):
     def get_burrow_predug(self, pass_id=3, ret_track_id=False):
         """ identifies the predug from the burrow traces """
 
-        burrow_tracks = self.data['pass%d/burrows/tracks' % pass_id]
+        burrow_tracks = self._get_burrow_tracks(pass_id)
         predug_analyze_time = self.params['burrows/predug_analyze_time']
         area_threshold = self.params['burrows/predug_area_threshold']
         
