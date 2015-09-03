@@ -809,14 +809,24 @@ class Analyzer(DataHandler):
         if any(key in keys for key in ('burrow_area_excavated',
                                        'mouse_digging_rate',
                                        'time_burrow_grew')):
+            
             stats = [self.get_burrow_growth_statistics((f.start, f.stop))
-                          for f in frame_slices]
+                     for f in frame_slices]
             stats = np.array(stats)
             
             if 'burrow_area_excavated' in keys or 'mouse_digging_rate' in keys:
-                result['burrow_area_excavated'] = stats[:, 0] * self.length_scale**2
+                try:
+                    area_excavated = stats[:, 0] * self.length_scale**2
+                except IndexError:
+                    area_excavated = []
+                result['burrow_area_excavated'] = area_excavated
+                 
             if 'time_burrow_grew' in keys:
-                result['time_burrow_grew'] = stats[:, 1] * self.time_scale
+                try:
+                    burrow_time = stats[:, 1] * self.time_scale
+                except IndexError:
+                    burrow_time = []
+                result['time_burrow_grew'] = burrow_time 
                                         
         # calculate the digging rate by considering burrows and the mouse
         if 'mouse_digging_rate' in keys:
