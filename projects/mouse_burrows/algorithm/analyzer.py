@@ -737,6 +737,10 @@ class Analyzer(DataHandler):
                                                              frame_range[1:])]
         frame_slices = [slice(a, b + 1) for a, b in frame_ivals]
 
+        # length of the periods
+        period_durations = [(b - a + 1) * self.time_scale
+                            for a, b in frame_ivals] 
+
         # save the time slices used for analysis
         result = {'frame_interval': frame_ivals,
                   'period_start': [a*self.time_scale for a, _ in frame_ivals],
@@ -768,6 +772,8 @@ class Analyzer(DataHandler):
                 duration = [np.count_nonzero(states[t_slice] == 0)
                             for t_slice in frame_slices]
                 result[key] = duration * self.time_scale
+                key_fraction = key.replace('time_', 'fraction_')
+                result[key_fraction] = result[key] / period_durations
 
         # get velocity statistics
         speed_statistics = {
@@ -827,6 +833,7 @@ class Analyzer(DataHandler):
                 except IndexError:
                     burrow_time = []
                 result['time_burrow_grew'] = burrow_time 
+                result['fraction_burrow_grew'] = burrow_time / period_durations 
                                         
         # calculate the digging rate by considering burrows and the mouse
         if 'mouse_digging_rate' in keys:
