@@ -738,8 +738,8 @@ class Analyzer(DataHandler):
         frame_slices = [slice(a, b + 1) for a, b in frame_ivals]
 
         # length of the periods
-        period_durations = [(b - a + 1) * self.time_scale
-                            for a, b in frame_ivals] 
+        period_durations = (np.array([(b - a + 1) for a, b in frame_ivals]) 
+                            * self.time_scale) 
 
         # save the time slices used for analysis
         result = {'frame_interval': frame_ivals,
@@ -773,7 +773,7 @@ class Analyzer(DataHandler):
                             for t_slice in frame_slices]
                 result[key] = duration * self.time_scale
                 key_fraction = key.replace('time_', 'fraction_')
-                result[key_fraction] = result[key] / period_durations
+                result[key_fraction] = np.array(result[key]) / period_durations
 
         # get velocity statistics
         speed_statistics = {
