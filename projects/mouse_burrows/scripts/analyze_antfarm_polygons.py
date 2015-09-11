@@ -40,7 +40,8 @@ default_parameters = {
     'burrow_parameters': {'ground_point_distance': 2},
     'burrow/area_min': 5000,
     'burrow/width_typical': 30,
-    'burrow/branch_length_min': 100,
+    'burrow/branch_length_min': 150,
+    'burrow/branch_point_separation': 100,
     'cage/width_norm': 85.5,
     'cage/width_min': 80,
     'cage/width_max': 95,
@@ -203,15 +204,17 @@ class AntfarmShapes(object):
             return conn_line.length < 1 or conn_line.within(burrow_poly)
         
         branch_points = []
+        branch_point_separation = self.params['burrow/branch_point_separation']
         if maxima.size > 0:
             if len(maxima) == 1:
                 clusters = [0]
             else:
                 # cluster maxima to reduce them to single end points 
                 # this is important when a burrow has multiple exits to the ground
-                clusters = cluster.hierarchy.fclusterdata(maxima, burrow_width,
-                                                          method='single', 
-                                                          criterion='distance')
+                clusters = cluster.hierarchy.fclusterdata(
+                    maxima, branch_point_separation,
+                    method='single', criterion='distance'
+                )
             
             cluster_ids = np.unique(clusters)
             logging.debug('Found %d possible branch point(s)' % len(cluster_ids))
