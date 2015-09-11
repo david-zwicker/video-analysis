@@ -96,6 +96,14 @@ ground
 * `ground/frame_margin = 50`: Width of the margin to the frame in which the ground profile is not determined
 * `ground/active_snake_gamma = 0.1`: Time scale of the active snake evolution algorithm for finding the ground line. Too large gammas may lead to instabilities in the algorithm, while too small gammas may cause a very slow convergence.
 
+predug
+------
+* `predug/wait_interval = 300`: The time period after which the predug is detected.
+* `predug/search_height_factor = 0.5`: Determines the height of the area in which the predug is searched for. Half the height is this factor times the maximal vertical span of the ground line.
+* `predug/simplify_threshold = 5`: Threshold value for simplifying the contour line of the predug.
+* `predug/search_width_factor = 0.5`: Determines the width of the area in which the predug is searched for. Half the width is this factor times the width of the valley defined by the ground line.
+* `predug/search_zscore_threshold = 0.5`: The zscore threshold that is used to distinguish predug pixels from background sand pixels.
+
 mouse
 -----
 * `mouse/moving_threshold_cm_sec = 5`: The threshold value of the speed above which the mouse is considered to be moving.
