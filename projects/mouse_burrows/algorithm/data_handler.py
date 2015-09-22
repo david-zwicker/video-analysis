@@ -278,16 +278,28 @@ class DataHandler(object):
 
         # restrict the analysis to an interval of frames
         frames = self.data.get('parameters/video/frames', None)
+        
+        # check whether frames are given
         if frames is None:
-            frames_start = self.data.get('parameters/video/frames_skip', 0)
-            frames_end = self.video.frame_count
+            frames_start, frames_end = None, None
         else:
             frames_start, frames_end = frames
+            
+        # supply defaults for missing values 
+        if frames_start is None:
+            frames_start = self.data.get('parameters/video/frames_skip', 0)
+        if frames_end is None:
+            frames_end = self.video.frame_count
+            
+        # skip additional frames if requested
         if frames_skipped_in_this_pass > 0:
             frames_start += frames_skipped_in_this_pass
+        # count last frame from the end when it is negative 
         if frames_end < 0:
             frames_end += self.video.frame_count
-        if frames_start != 0 or frames_end != self.video.frame_count:
+            
+        # apply the filter on the video
+        if not(frames_start == 0 and frames_end == self.video.frame_count):
             self.video = self.video[frames_start:frames_end]
             
         video_info['frames'] = (frames_start, frames_end)
