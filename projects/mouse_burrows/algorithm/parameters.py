@@ -96,19 +96,7 @@ PARAMETER_LIST = [
               "Rectangle to which the video is cropped. This can be either four "
               "numbers [left, top, width, height] or some string like "
               "'upper left', 'lower right', etc."),
-    Parameter('video/remove_water_bottle', True, UNIT.BOOLEAN,
-              'Flag that indicates whether the water bottle should be removed '
-              'from the video'),
-    Parameter('video/water_bottle_template', 'water_bottle.png', None,
-              'Name of the template for removing the water bottle from the '
-              'background estimate.'),
-    Parameter('video/water_bottle_region', [0.8, 1., 0., 0.3], None,
-              'Defines the region [x_min, x_max, y_min, y_max] in which the '
-              'upper left corner of the water bottle rectangle lies. The '
-              'coordinates are given relative to the cage width and height. '
-              'This is used to restrict the template matching to a sensible '
-              'region.'),
-          
+
     # Logging
     Parameter('logging/enabled',  True, UNIT.BOOLEAN,
               'Flag indicating whether logging is enabled'),
@@ -281,21 +269,51 @@ PARAMETER_LIST = [
     Parameter('ground/smoothing_sigma', 1000, UNIT.TIME_FRAMES,
               'Standard deviation for Gaussian smoothing over time'),
     
+    # Water bottle localization
+    Parameter('water_bottle/remove_from_video', True, UNIT.BOOLEAN,
+              'Flag that indicates whether the water bottle should be removed '
+              'from the video'),
+    Parameter('water_bottle/template_image', 'water_bottle.png', None,
+              'Name of the template for removing the water bottle from the '
+              'background estimate.'),
+    Parameter('water_bottle/template_width', 60, UNIT.LENGTH_PIXEL,
+              'Width of the water bottle template. This will be scaled to the '
+              'right dimensions'),                  
+    Parameter('water_bottle/template_height', 60, UNIT.LENGTH_PIXEL,
+              'Width of the water bottle template. This will be scaled to the '
+              'right dimensions'),                  
+    Parameter('water_bottle/search_region', [0.8, 1., 0., 0.3], None,
+              'Defines the region [x_min, x_max, y_min, y_max] in which the '
+              'upper left corner of the water bottle rectangle lies. The '
+              'coordinates are given relative to the cage width and height. '
+              'This is used to restrict the template matching to a sensible '
+              'region.'),
+          
     # Predug localization
+    Parameter('predug/locate_predug', False, UNIT.BOOLEAN,
+              'Flag determining whether the predug should be located.'),
+    Parameter('predug/template_file', 'predug.yaml', None,
+              'Name of the template for detecting the predug.'),
+    Parameter('predug/template_width', 100, UNIT.LENGTH_PIXEL,
+              'Width of the predug template. This will be scaled to the right '
+              'dimensions'),                  
+    Parameter('predug/template_height', 100, UNIT.LENGTH_PIXEL,
+              'Width of the predug template. This will be scaled to the right '
+              'dimensions'),                  
     Parameter('predug/wait_interval', 300, #60*30, #< 1 minutes
               UNIT.TIME_FRAMES,
               'The time period after which the predug is detected.'),
-    Parameter('predug/search_height_factor', 0.5, UNIT.FACTOR,
+    Parameter('predug/search_height_factor', 1, UNIT.FACTOR,
               'Determines the height of the area in which the predug is '
               'searched for. Half the height is this factor times the maximal '
               'vertical span of the ground line.'),
-    Parameter('predug/search_width_factor', 0.5, UNIT.FACTOR,
+    Parameter('predug/search_width_factor', 0.75, UNIT.FACTOR,
               'Determines the width of the area in which the predug is '
               'searched for. Half the width is this factor times the width of '
               'the valley defined by the ground line.'),
-    Parameter('predug/search_zscore_threshold', 0.5, UNIT.FACTOR,
-              'The zscore threshold that is used to distinguish predug pixels '
-              'from background sand pixels.'),
+#     Parameter('predug/search_zscore_threshold', 0.5, UNIT.FACTOR,
+#               'The zscore threshold that is used to distinguish predug pixels '
+#               'from background sand pixels.'),
     Parameter('predug/simplify_threshold', 5, UNIT.AREA_PIXEL,
               'Threshold value for simplifying the contour line of the '
               'predug.'),

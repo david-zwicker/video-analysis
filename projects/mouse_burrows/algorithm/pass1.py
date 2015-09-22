@@ -19,7 +19,6 @@ top to bottom. The origin is thus in the upper left corner.
 
 from __future__ import division
 
-import operator
 import os
 import time
 from collections import defaultdict, Counter
@@ -39,6 +38,7 @@ from video.io.parallel import VideoPreprocessor
 from .pass_base import PassBase
 from .processes.ground_detector import GroundDetectorGlobal
 from .processes.background import BackgroundExtractor
+from .processes.predug_detector import PredugDetector
 from .objects.moving_objects import MovingObject, ObjectTrack, ObjectTrackList
 from .objects.ground import GroundProfile, GroundProfileList
 from .objects.burrow import Burrow, BurrowTrack, BurrowTrackList
@@ -197,7 +197,7 @@ class FirstPass(PassBase):
         
         # create the video iterator with preprocessing that will be done in a
         # separate thread to speed up computations
-        if self.params['video/remove_water_bottle']:
+        if self.params['water_bottle/remove_from_video']:
             preprocess = self.remove_water_bottle
         else:
             preprocess = None
@@ -240,10 +240,14 @@ class FirstPass(PassBase):
                 if never_analyzed or do_ground:
                     # find or refine the ground line
                     self.ground = self.get_ground_profile(self.ground)
-                    #wait_interval = self.params['predug/wait_interval']
-                    #if self.predug is None and (self.frame_id >= wait_interval):
+                    
+                    # find the predug if necessary
+                    if (self.predug is None and
+                        self.params['predug/locate_predug'] and
+                        self.frame_id >= self.params['predug/wait_interval']):
+                        
                         # find predug after the first ground line was found
-                        #self.find_predug()
+                        self.find_predug()
         
                 if self.params['burrows/enabled_pass1'] and (never_analyzed or do_burrows):
                     self.find_burrows()
@@ -565,14 +569,20 @@ class FirstPass(PassBase):
         from the background estimate later """
         
         # load the template
-        filename = self.params['video/water_bottle_template']
+        filename = self.params['water_bottle/template_image']
         path = os.path.join(os.path.dirname(__file__), 'assets', filename)
         if not os.path.isfile(path):
             return None
         bottle = cv2.imread(path)[:, :, 0]
+        
+        # scale the image to the right size
+        image_size = (self.params['water_bottle/template_width'],
+                      self.params['water_bottle/template_height'])
+        bottle = cv2.resize(bottle, image_size)
+        
 
         # crop the image to the ROI
-        points = self.params['video/water_bottle_region']
+        points = self.params['water_bottle/search_region']
         x_min = int(points[0]*frame.shape[1])
         x_max = int(points[1]*frame.shape[1])
         y_min = int(points[2]*frame.shape[0])
@@ -1292,106 +1302,22 @@ class FirstPass(PassBase):
     
             
     #===========================================================================
-    # FINDING PREDUG
+    # FINDING BURROWS
     #===========================================================================
-   
-   
-    def _search_predug_in_region(self, region):
-        """ searches for the predug in the rectangular `region` """
-        slice_x, slice_y = region.slices
-
-        # determine the image in the region, only considering under ground
-        img = self.background.image[slice_y, slice_x]
-        mask = self.get_ground_mask(color=1)[slice_y, slice_x]
-        mask = ~mask.astype(np.bool)
-        img[mask] = np.nan
-
-        # calculate the statistics of this image 
-        img_mean = np.nanmean(img)
-        img_std = np.nanstd(img)
-        
-        # convert image to uint8 to use with opencv functions
-        img[mask] = 255
-        img = img.astype(np.uint8)
-        
-        # threshold image
-        z_score = self.params['predug/search_zscore_threshold']
-        img_thresh = int(img_mean - z_score * img_std)
-        _, predug_mask = cv2.threshold(img, img_thresh, 255,
-                                       cv2.THRESH_BINARY_INV)
-        
-        # slight smoothing using morphological transformation
-        kernel =  cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        cv2.morphologyEx(predug_mask, cv2.MORPH_CLOSE, kernel)
-        
-        # determine the predug polygon
-        try:
-            contour = regions.get_contour_from_largest_region(predug_mask)
-        except RuntimeError:
-            # could not find any contour => return null polygon
-            return shapes.Polygon(np.zeros((3, 2)))
-        
-        # simplify the contour to make it more useable
-        threshold = self.params['predug/simplify_threshold']
-        contour = regions.simplify_contour(contour, threshold)
-        
-        # shift the contour back to the original position
-        contour += np.array((region.x, region.y))
-        return shapes.Polygon(contour)
    
 
     def find_predug(self):
         """ tries to locate the predug using the ground line and the background
         image """
+        # initialize the detector 
+        predug_detector = PredugDetector(self.background.image, self.ground,
+                                         self.params)
 
-        # determine the height of the search region
-        ground_points = self.ground.points
-        y_deep = ground_points[:, 1].max()
-        factor = self.params['predug/search_height_factor']
-        height = factor * (y_deep - self.ground.points[:, 1].min())
+        # do the actual detection
+        self.predug = predug_detector.detect()
         
-        # determine the width of the search region
-        y_mid = ground_points[:, 1].mean()
-        mid_line = geometry.LineString(((0, y_mid),
-                                        (ground_points[:, 0].max(), y_mid)))
-        points = mid_line.intersection(self.ground.linestring)
-
-        if len(points) != 2:
-            self.logger.warn('The ground line crossed its midline not exactly '
-                             'twice => The ground line is likely messed up.')
-            return
-        
-        x1, x2 = sorted((points[0].x, points[1].x))
-        factor = self.params['predug/search_width_factor']
-        width = factor * (x2 - x1)
-        
-        # determine the two serach regions
-        region_l = shapes.Rectangle.from_centerpoint((x1, y_deep), width, height)
-        region_r = shapes.Rectangle.from_centerpoint((x2, y_deep), width, height)
-        
-        # determine the possible contours in both regions
-        candidates = [self._search_predug_in_region(region)
-                      for region in (region_l, region_r)] 
-        
-        candidate = max(candidates, key=operator.attrgetter('area'))
-        
-        area_min = self.params['burrows/area_min']
-        if candidate.area > area_min:
-            self.predug = Burrow(candidate.contour)
-        else:
-            self.predug = None
-        
-#         debug.show_shape(self.ground.linestring,
-#                          region_l.contour_ring, region_r.contour_ring,
-#                          self.predug.contour_ring,
-#                          background=self.background.image)            
-# 
-#         exit()
-    
-            
-    #===========================================================================
-    # FINDING BURROWS
-    #===========================================================================
+        # save the contour of the predug
+        self.data['pass1/burrows/predug'] = self.predug.contour
    
         
     def get_potential_burrows_mask(self):
@@ -2085,6 +2011,11 @@ class FirstPass(PassBase):
                             debug_video.add_line(centerline,
                                                  burrow_color, is_closed=False,
                                                  width=2, mark_points=True)
+                           
+            # indicate the predug if it was found 
+            if self.predug:
+                debug_video.add_line(self.predug.contour, 'white',
+                                     is_closed=True)
         
             # indicate the mouse position
             if len(self.tracks) > 0:

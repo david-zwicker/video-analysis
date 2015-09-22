@@ -62,17 +62,11 @@
 <li>
 <code>video/frames_skip = 0</code>: Number of frames that are skipped before starting the analysis. This value is only considered if <code>video/frames</code> is None.</li>
 <li>
-<code>video/remove_water_bottle = True</code>: Flag that indicates whether the water bottle should be removed from the video</li>
-<li>
 <code>video/cropping_rect = None</code>: Rectangle to which the video is cropped. This can be either four numbers [left, top, width, height] or some string like 'upper left', 'lower right', etc.</li>
-<li>
-<code>video/water_bottle_template = water_bottle.png</code>: Name of the template for removing the water bottle from the background estimate.</li>
 <li>
 <code>video/blur_sigma_color = 0</code>: Standard deviation in color space of the bilateral filter</li>
 <li>
 <code>video/frames = None</code>: Frames of the video which are analyzed [start and end index should be given]</li>
-<li>
-<code>video/water_bottle_region = [0.8, 1.0, 0.0, 0.3]</code>: Defines the region [x_min, x_max, y_min, y_max] in which the upper left corner of the water bottle rectangle lies. The coordinates are given relative to the cage width and height. This is used to restrict the template matching to a sensible region.</li>
 <li>
 <code>video/blur_radius = 3</code>: Radius of the blur filter to remove noise</li>
 <li>
@@ -244,19 +238,41 @@
 </ul>
 
 <h2>
+<a id="user-content-water_bottle" class="anchor" href="#water_bottle" aria-hidden="true"><span class="octicon octicon-link"></span></a>water_bottle</h2>
+
+<ul>
+<li>
+<code>water_bottle/template_image = water_bottle.png</code>: Name of the template for removing the water bottle from the background estimate.</li>
+<li>
+<code>water_bottle/search_region = [0.8, 1.0, 0.0, 0.3]</code>: Defines the region [x_min, x_max, y_min, y_max] in which the upper left corner of the water bottle rectangle lies. The coordinates are given relative to the cage width and height. This is used to restrict the template matching to a sensible region.</li>
+<li>
+<code>water_bottle/template_width = 60</code>: Width of the water bottle template. This will be scaled to the right dimensions</li>
+<li>
+<code>water_bottle/remove_from_video = True</code>: Flag that indicates whether the water bottle should be removed from the video</li>
+<li>
+<code>water_bottle/template_height = 60</code>: Width of the water bottle template. This will be scaled to the right dimensions</li>
+</ul>
+
+<h2>
 <a id="user-content-predug" class="anchor" href="#predug" aria-hidden="true"><span class="octicon octicon-link"></span></a>predug</h2>
 
 <ul>
 <li>
-<code>predug/wait_interval = 300</code>: The time period after which the predug is detected.</li>
+<code>predug/locate_predug = False</code>: Flag determining whether the predug should be located.</li>
 <li>
-<code>predug/search_height_factor = 0.5</code>: Determines the height of the area in which the predug is searched for. Half the height is this factor times the maximal vertical span of the ground line.</li>
+<code>predug/template_width = 100</code>: Width of the predug template. This will be scaled to the right dimensions</li>
+<li>
+<code>predug/template_file = predug.yaml</code>: Name of the template for detecting the predug.</li>
 <li>
 <code>predug/simplify_threshold = 5</code>: Threshold value for simplifying the contour line of the predug.</li>
 <li>
-<code>predug/search_width_factor = 0.5</code>: Determines the width of the area in which the predug is searched for. Half the width is this factor times the width of the valley defined by the ground line.</li>
+<code>predug/wait_interval = 300</code>: The time period after which the predug is detected.</li>
 <li>
-<code>predug/search_zscore_threshold = 0.5</code>: The zscore threshold that is used to distinguish predug pixels from background sand pixels.</li>
+<code>predug/search_height_factor = 1</code>: Determines the height of the area in which the predug is searched for. Half the height is this factor times the maximal vertical span of the ground line.</li>
+<li>
+<code>predug/search_width_factor = 0.75</code>: Determines the width of the area in which the predug is searched for. Half the width is this factor times the width of the valley defined by the ground line.</li>
+<li>
+<code>predug/template_height = 100</code>: Width of the predug template. This will be scaled to the right dimensions</li>
 </ul>
 
 <h2>

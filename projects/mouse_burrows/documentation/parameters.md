@@ -7,12 +7,9 @@ video
 -----
 * `video/filename_pattern = raw_video/*.MTS`: Filename pattern used to look for videos
 * `video/frames_skip = 0`: Number of frames that are skipped before starting the analysis. This value is only considered if `video/frames` is None.
-* `video/remove_water_bottle = True`: Flag that indicates whether the water bottle should be removed from the video
 * `video/cropping_rect = None`: Rectangle to which the video is cropped. This can be either four numbers [left, top, width, height] or some string like 'upper left', 'lower right', etc.
-* `video/water_bottle_template = water_bottle.png`: Name of the template for removing the water bottle from the background estimate.
 * `video/blur_sigma_color = 0`: Standard deviation in color space of the bilateral filter
 * `video/frames = None`: Frames of the video which are analyzed [start and end index should be given]
-* `video/water_bottle_region = [0.8, 1.0, 0.0, 0.3]`: Defines the region [x_min, x_max, y_min, y_max] in which the upper left corner of the water bottle rectangle lies. The coordinates are given relative to the cage width and height. This is used to restrict the template matching to a sensible region.
 * `video/blur_radius = 3`: Radius of the blur filter to remove noise
 * `video/initial_adaptation_frames = 100`: Number of initial frames to skip during analysis
 * `video/blur_method = gaussian`: The method to be used for reducing noise in the video. The supported methods are `mean`, `gaussian`, `bilateral`, in increasing complexity, i.e. decreasing speed.
@@ -96,13 +93,24 @@ ground
 * `ground/frame_margin = 50`: Width of the margin to the frame in which the ground profile is not determined
 * `ground/active_snake_gamma = 0.1`: Time scale of the active snake evolution algorithm for finding the ground line. Too large gammas may lead to instabilities in the algorithm, while too small gammas may cause a very slow convergence.
 
+water_bottle
+------------
+* `water_bottle/template_image = water_bottle.png`: Name of the template for removing the water bottle from the background estimate.
+* `water_bottle/search_region = [0.8, 1.0, 0.0, 0.3]`: Defines the region [x_min, x_max, y_min, y_max] in which the upper left corner of the water bottle rectangle lies. The coordinates are given relative to the cage width and height. This is used to restrict the template matching to a sensible region.
+* `water_bottle/template_width = 60`: Width of the water bottle template. This will be scaled to the right dimensions
+* `water_bottle/remove_from_video = True`: Flag that indicates whether the water bottle should be removed from the video
+* `water_bottle/template_height = 60`: Width of the water bottle template. This will be scaled to the right dimensions
+
 predug
 ------
-* `predug/wait_interval = 300`: The time period after which the predug is detected.
-* `predug/search_height_factor = 0.5`: Determines the height of the area in which the predug is searched for. Half the height is this factor times the maximal vertical span of the ground line.
+* `predug/locate_predug = False`: Flag determining whether the predug should be located.
+* `predug/template_width = 100`: Width of the predug template. This will be scaled to the right dimensions
+* `predug/template_file = predug.yaml`: Name of the template for detecting the predug.
 * `predug/simplify_threshold = 5`: Threshold value for simplifying the contour line of the predug.
-* `predug/search_width_factor = 0.5`: Determines the width of the area in which the predug is searched for. Half the width is this factor times the width of the valley defined by the ground line.
-* `predug/search_zscore_threshold = 0.5`: The zscore threshold that is used to distinguish predug pixels from background sand pixels.
+* `predug/wait_interval = 300`: The time period after which the predug is detected.
+* `predug/search_height_factor = 1`: Determines the height of the area in which the predug is searched for. Half the height is this factor times the maximal vertical span of the ground line.
+* `predug/search_width_factor = 0.75`: Determines the width of the area in which the predug is searched for. Half the width is this factor times the width of the valley defined by the ground line.
+* `predug/template_height = 100`: Width of the predug template. This will be scaled to the right dimensions
 
 mouse
 -----
