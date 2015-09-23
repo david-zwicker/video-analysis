@@ -54,11 +54,12 @@ class PredugDetector(object):
                 pts = np.array(poly.buffer(margin).boundary.coords, np.int32)
                 cv2.fillPoly(mask, [pts], color)
                 
-        # prepare the mask for the grabCut algorithm 
+        # prepare the mask for the grabCut algorithm
+        burrow_width = self.params['burrows/width'] 
         mask = np.full_like(img, cv2.GC_BGD, dtype=np.uint8) #< sure background
-        fill_mask(cv2.GC_PR_BGD, 10) #< possible background
+        fill_mask(cv2.GC_PR_BGD, 0.25*burrow_width) #< possible background
         fill_mask(cv2.GC_PR_FGD, 0) #< possible foreground
-        fill_mask(cv2.GC_FGD, -10) #< sure foreground
+        fill_mask(cv2.GC_FGD, -0.25*burrow_width) #< sure foreground
 
         # run GrabCut algorithm
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
@@ -81,7 +82,8 @@ class PredugDetector(object):
         predug_mask = predug_mask.astype(np.uint8)
         
         # simplify the mask using binary operations
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
+        w = int(0.5*burrow_width)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w))
         predug_mask = cv2.morphologyEx(predug_mask, cv2.MORPH_OPEN, kernel)
          
         # extract the outline of the predug
