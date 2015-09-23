@@ -290,7 +290,7 @@ PARAMETER_LIST = [
               'region.'),
           
     # Predug localization
-    Parameter('predug/locate_predug', False, UNIT.BOOLEAN,
+    Parameter('predug/locate_predug', True, UNIT.BOOLEAN,
               'Flag determining whether the predug should be located.'),
     Parameter('predug/template_file', 'predug.yaml', None,
               'Name of the template for detecting the predug.'),
@@ -300,7 +300,7 @@ PARAMETER_LIST = [
     Parameter('predug/template_height', 100, UNIT.LENGTH_PIXEL,
               'Width of the predug template. This will be scaled to the right '
               'dimensions'),                  
-    Parameter('predug/wait_interval', 300, #60*30, #< 1 minutes
+    Parameter('predug/wait_interval', 300, #< 1 minutes
               UNIT.TIME_FRAMES,
               'The time period after which the predug is detected.'),
     Parameter('predug/search_height_factor', 1, UNIT.FACTOR,

@@ -11,11 +11,10 @@ import os
 
 import numpy as np
 import cv2
-from shapely import geometry
+from shapely import affinity, geometry
 import yaml
 
 from video.analysis import regions, shapes, curves
-from ..objects.burrow import Burrow 
 
 # from video import debug
 
@@ -28,67 +27,69 @@ class PredugDetector(object):
         self.image = background_image
         self.ground = ground
         self.params = parameters
-
-
-    def get_ground_mask(self):
-        """ returns a binary mask distinguishing the ground from the sky """
-        # build a mask with for the ground
-        height, width = self.image.shape
-        mask_ground = np.zeros((height, width), np.uint8)
         
-        # create a mask for the region below the current mask_ground profile
-        ground_points = np.empty((len(self.ground) + 4, 2), np.int32)
-        ground_points[:-4, :] = self.ground.points
-        ground_points[-4, :] = (width, ground_points[-5, 1])
-        ground_points[-3, :] = (width, height)
-        ground_points[-2, :] = (0, height)
-        ground_points[-1, :] = (0, ground_points[0, 1])
-        cv2.fillPoly(mask_ground, np.array([ground_points], np.int32), color=1)
+        self.predug_rect = None
+        self.predug = None
 
-        return mask_ground
     
-
-    def _search_predug_in_region_old(self, region):
-        """ searches for the predug in the rectangular `region` """
+    def _refine_predug(self, candidate):
+        """ uses the color information directly to specify the predug """
+        # determine a bounding rectangle
+        region = candidate.bounds
+        size = max(region.width, region.height)
+        region.buffer(0.5*size) #< increase by 50% in each direction
+        
+        # extract the region from the image
         slice_x, slice_y = region.slices
+        img = self.image[slice_y, slice_x].astype(np.uint8, copy=True)
 
-        # determine the image in the region, only considering under ground
-        img = self.image[slice_y, slice_x]
-        mask = self.get_ground_mask()[slice_y, slice_x]
-        mask = ~mask.astype(np.bool)
-        img[mask] = np.nan
+        # build the estimate polygon
+        poly_p = affinity.translate(candidate.polygon, -region.x, -region.y)        
+        poly_s = affinity.translate(self.ground.get_sky_polygon(),
+                                    -region.x, -region.y)        
+        
+        def fill_mask(color, margin=0):
+            """ fills the mask with the buffered regions """
+            for poly in (poly_p, poly_s):
+                pts = np.array(poly.buffer(margin).boundary.coords, np.int32)
+                cv2.fillPoly(mask, [pts], color)
+                
+        # prepare the mask for the grabCut algorithm 
+        mask = np.full_like(img, cv2.GC_BGD, dtype=np.uint8) #< sure background
+        fill_mask(cv2.GC_PR_BGD, 10) #< possible background
+        fill_mask(cv2.GC_PR_FGD, 0) #< possible foreground
+        fill_mask(cv2.GC_FGD, -10) #< sure foreground
 
-        # calculate the statistics of this image 
-        img_mean = np.nanmean(img)
-        img_std = np.nanstd(img)
-        
-        # convert image to uint8 to use with opencv functions
-        img[mask] = 255
-        img = img.astype(np.uint8)
-        
-        # threshold image
-        z_score = self.params['predug/search_zscore_threshold']
-        img_thresh = int(img_mean - z_score * img_std)
-        _, predug_mask = cv2.threshold(img, img_thresh, 255,
-                                       cv2.THRESH_BINARY_INV)
-        
-        # slight smoothing using morphological transformation
-        kernel =  cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        cv2.morphologyEx(predug_mask, cv2.MORPH_CLOSE, kernel)
-        
-        # determine the predug polygon
+        # run GrabCut algorithm
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        bgdmodel = np.zeros((1, 65), np.float64)
+        fgdmodel = np.zeros((1, 65), np.float64)
         try:
-            contour = regions.get_contour_from_largest_region(predug_mask)
-        except RuntimeError:
-            # could not find any contour => return null polygon
-            return shapes.Polygon(np.zeros((3, 2)))
+            cv2.grabCut(img, mask, (0, 0, 1, 1),
+                        bgdmodel, fgdmodel, 2, cv2.GC_INIT_WITH_MASK)
+        except:
+            # any error in the GrabCut algorithm makes the whole function useless
+            logging.warn('GrabCut algorithm failed for predug')
+            return candidate
         
-        # simplify the contour to make it more useable
-        threshold = self.params['predug/simplify_threshold']
-        contour = regions.simplify_contour(contour, threshold)
+        # turn the sky into background
+        pts = np.array(poly_s.boundary.coords, np.int32)
+        cv2.fillPoly(mask, [pts], cv2.GC_BGD)
+
+        # extract a binary mask determining the predug 
+        predug_mask = (mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD)
+        predug_mask = predug_mask.astype(np.uint8)
         
-        # shift the contour back to the original position
-        contour += np.array((region.x, region.y))
+        # simplify the mask using binary operations
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
+        predug_mask = cv2.morphologyEx(predug_mask, cv2.MORPH_OPEN, kernel)
+         
+        # extract the outline of the predug
+        contour = regions.get_contour_from_largest_region(predug_mask)
+        
+        # translate curves back into global coordinate system
+        contour = curves.translate_points(contour, region.x, region.y)
+        
         return shapes.Polygon(contour)
    
 
@@ -142,8 +143,9 @@ class PredugDetector(object):
         res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(res)
         
-        # create a Burrow from this estimate
+        # determine the rough outline of the predug in the region 
         coords = curves.translate_points(coords, *max_loc)
+        # determine the outline of the predug in the video 
         coords = curves.translate_points(coords, region.x, region.y)
                 
         return max_val, shapes.Polygon(coords)  
@@ -184,16 +186,18 @@ class PredugDetector(object):
 
         if score_r > score_l:
             logging.info('Located predug on the right side.')
-            candidate = candidate_r
+            self.predug_rect = candidate_r
         else:
             logging.info('Located predug on the left side.')
-            candidate = candidate_l        
+            self.predug_rect = candidate_l     
             
-        area_min = self.params['burrows/area_min']
-        if candidate.area > area_min:
-            return Burrow(candidate.contour)
-        else:
-            return None    
+        # refine the predug
+        self.predug = self._refine_predug(self.predug_rect)   
+        
+#         debug.show_shape(geometry.Polygon(self.predug.contour),
+#                          background=self.image)
+            
+        return self.predug
         
 
     

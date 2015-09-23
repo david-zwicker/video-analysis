@@ -1316,8 +1316,12 @@ class FirstPass(PassBase):
         # do the actual detection
         self.predug = predug_detector.detect()
         
+        self.logger.info('Found predug of area %d', self.predug.area)
+        
         # save the contour of the predug
         self.data['pass1/burrows/predug'] = self.predug.contour
+        predug_rect = predug_detector.predug_rect
+        self.data['pass1/burrows/predug_rect'] = predug_rect.contour
    
         
     def get_potential_burrows_mask(self):
