@@ -300,7 +300,7 @@ PARAMETER_LIST = [
     Parameter('predug/template_height', 100, UNIT.LENGTH_PIXEL,
               'Width of the predug template. This will be scaled to the right '
               'dimensions'),                  
-    Parameter('predug/wait_interval', 300, #< 1 minutes
+    Parameter('predug/wait_interval', 300,#30*60, #< 1 minute
               UNIT.TIME_FRAMES,
               'The time period after which the predug is detected.'),
     Parameter('predug/search_height_factor', 1, UNIT.FACTOR,
@@ -317,6 +317,8 @@ PARAMETER_LIST = [
     Parameter('predug/simplify_threshold', 5, UNIT.AREA_PIXEL,
               'Threshold value for simplifying the contour line of the '
               'predug.'),
+    Parameter('predug/debug_image', True, UNIT.BOOLEAN,
+              'Determines whether a debug image of the predug is saved.'),
     
     # Mouse and the associated tracking
     Parameter('mouse/intensity_threshold', 1, UNIT.FACTOR,

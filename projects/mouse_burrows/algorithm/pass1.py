@@ -1322,6 +1322,19 @@ class FirstPass(PassBase):
         self.data['pass1/burrows/predug'] = self.predug.contour
         predug_rect = predug_detector.predug_rect
         self.data['pass1/burrows/predug_rect'] = predug_rect.contour
+        
+        if self.params['predug/debug_image']:
+            # extract image
+            bounds = self.predug.bounds
+            region = shapes.Rectangle.from_centerpoint(bounds.centroid,
+                                                       2*bounds.width,
+                                                       2*bounds.height)
+            slice_x, slice_y = region.slices
+            predug_img = self.background.image[slice_y, slice_x].astype(np.uint8)
+            
+            # write file
+            filename = self.get_filename('predug.jpg', 'debug')
+            cv2.imwrite(filename, predug_img)
    
         
     def get_potential_burrows_mask(self):
