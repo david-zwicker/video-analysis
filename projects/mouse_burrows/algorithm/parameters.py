@@ -294,6 +294,10 @@ PARAMETER_LIST = [
               'Flag determining whether the predug should be located.'),
     Parameter('predug/template_file', 'predug.yaml', None,
               'Name of the template for detecting the predug.'),
+    Parameter('predug/scale_predug', True, UNIT.BOOLEAN,
+              'Flag indicating whether the predug template will be scaled to '
+              'the sizes given in `predug/template_width` and '
+              '`predug/template_height`.'),
     Parameter('predug/template_width', 100, UNIT.LENGTH_PIXEL,
               'Width of the predug template. This will be scaled to the right '
               'dimensions'),                  

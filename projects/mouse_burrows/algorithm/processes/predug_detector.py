@@ -124,16 +124,17 @@ class PredugDetector(object):
         # read the image from the file as grey scale
         template = cv2.imread(path)[:, :, 0]
         
-        # get the scaled size of the template image
-        target_size = (int(self.params['predug/template_width']),
-                       int(self.params['predug/template_height']))
-        
-        # scale the predug coordinates to match the template size
-        coords[:, 0] *= target_size[0] / template.shape[1] #< x-coordinates
-        coords[:, 1] *= target_size[1] / template.shape[0] #< y-coordinates
-
-        # scale the template image itself
-        template = cv2.resize(template, target_size)
+        if self.params['predug/scale_predug']:
+            # get the scaled size of the template image
+            target_size = (int(self.params['predug/template_width']),
+                           int(self.params['predug/template_height']))
+            
+            # scale the predug coordinates to match the template size
+            coords[:, 0] *= target_size[0] / template.shape[1] #< x-coordinates
+            coords[:, 1] *= target_size[1] / template.shape[0] #< y-coordinates
+    
+            # scale the template image itself
+            template = cv2.resize(template, target_size)
         
         if reflect:
             # reflect the image on the vertical center line
