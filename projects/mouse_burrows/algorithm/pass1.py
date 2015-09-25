@@ -576,8 +576,8 @@ class FirstPass(PassBase):
         bottle = cv2.imread(path)[:, :, 0]
         
         # scale the image to the right size
-        image_size = (self.params['water_bottle/template_width'],
-                      self.params['water_bottle/template_height'])
+        image_size = (int(self.params['water_bottle/template_width']),
+                      int(self.params['water_bottle/template_height']))
         bottle = cv2.resize(bottle, image_size)
         
 
