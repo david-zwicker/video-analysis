@@ -112,7 +112,7 @@ PARAMETER_LIST = [
     Parameter('debug/output', [], None,
               "List of identifiers determining what debug output is produced. "
               "Supported identifiers include 'video', 'explored_area', "
-              "'background', 'difference', 'cage_estimate', "
+              "'background', 'difference', 'cage_estimate', 'predug', "
               "'ground_estimate', 'explored_area_mask'."),
     Parameter('debug/use_multiprocessing', True, UNIT.BOOLEAN,
               'Flag indicating whether multiprocessing should be used to read '
@@ -317,8 +317,6 @@ PARAMETER_LIST = [
     Parameter('predug/simplify_threshold', 5, UNIT.AREA_PIXEL,
               'Threshold value for simplifying the contour line of the '
               'predug.'),
-    Parameter('predug/debug_image', True, UNIT.BOOLEAN,
-              'Determines whether a debug image of the predug is saved.'),
     
     # Mouse and the associated tracking
     Parameter('mouse/intensity_threshold', 1, UNIT.FACTOR,

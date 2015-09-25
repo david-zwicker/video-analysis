@@ -1323,7 +1323,7 @@ class FirstPass(PassBase):
         predug_rect = predug_detector.predug_rect
         self.data['pass1/burrows/predug_rect'] = predug_rect.contour
         
-        if self.params['predug/debug_image']:
+        if 'predug' in self.params['debug/output']:
             # extract image
             bounds = self.predug.bounds
             region = shapes.Rectangle.from_centerpoint(bounds.centroid,
