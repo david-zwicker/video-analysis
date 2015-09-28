@@ -143,15 +143,16 @@ class PredugDetector(object):
             coords[:, 0] = template_width - coords[:, 0] - 1
             
         # do the template matching
-        res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+        res = cv2.matchTemplate(img, template, cv2.TM_SQDIFF_NORMED)#cv2.TM_CCOEFF_NORMED)
+        min_val, _, min_loc, _ = cv2.minMaxLoc(res)
+        #_, max_val, _, max_loc = cv2.minMaxLoc(res)
         
         # determine the rough outline of the predug in the region 
-        coords = curves.translate_points(coords, *max_loc)
+        coords = curves.translate_points(coords, *min_loc)
         # determine the outline of the predug in the video 
         coords = curves.translate_points(coords, region.x, region.y)
                 
-        return max_val, shapes.Polygon(coords)  
+        return min_val, shapes.Polygon(coords)  
 
 
     def detect(self):
@@ -187,7 +188,7 @@ class PredugDetector(object):
         score_l, candidate_l = self._search_predug_in_region(region_l, False)
         score_r, candidate_r = self._search_predug_in_region(region_r, True)
 
-        if score_r > score_l:
+        if score_r < score_l:
             logging.info('Located predug on the right side.')
             self.predug_rect = candidate_r
         else:
