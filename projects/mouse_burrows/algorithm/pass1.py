@@ -2056,10 +2056,12 @@ class FirstPass(PassBase):
             if self.debug.get('video.mark.rects'):
                 for rect in self.debug['video.mark.rects']:
                     debug_video.add_rectangle(rect)
+                self.debug['video.mark.rects'] = None
                     
             if self.debug.get('video.mark.points'):
                 debug_video.add_points(self.debug['video.mark.points'],
                                        radius=4, color='y')
+                self.debug['video.mark.points'] = None
                 
             if self.debug.get('video.mark.highlight', False):
                 rect = (0, 0, self.video.size[0], self.video.size[1])
