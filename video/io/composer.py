@@ -260,8 +260,18 @@ class VideoComposer(VideoFileWriter):
             thickness = int(np.ceil(width / self.zoom_factor))
         else:
             thickness = int(width)
-        cv2.rectangle(self._frame, *rect_to_corners(rect),
-                      color=get_color(color), thickness=thickness)
+        
+        # extract the corners of the rectangle
+        try:    
+            corners = rect.corners
+        except AttributeError:
+            corners = rect_to_corners(rect)
+            
+        corners = [(int(p[0]), int(p[1])) for p in corners]
+            
+        # draw the rectangle
+        cv2.rectangle(self._frame, *corners, color=get_color(color),
+                      thickness=thickness)
         
         
     @skip_if_no_output

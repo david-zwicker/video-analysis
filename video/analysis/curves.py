@@ -52,7 +52,14 @@ def angle_between_points(p1, p2, p3):
 
 def translate_points(points, xoff, yoff):
     """ translate points by a certain offset """
-    return [(p[0] + xoff, p[1] + yoff) for p in points]
+    if isinstance(points, np.ndarray):
+        # handle numpy array
+        offset = np.array([xoff, yoff])
+        return points + offset[..., :]
+    
+    else:
+        # use simple list comprehension
+        return [(p[0] + xoff, p[1] + yoff) for p in points]
 
 
 

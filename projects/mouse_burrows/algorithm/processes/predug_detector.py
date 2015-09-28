@@ -30,6 +30,7 @@ class PredugDetector(object):
         
         self.predug_rect = None
         self.predug = None
+        self.search_rectangles = []
 
     
     def _refine_predug(self, candidate):
@@ -143,16 +144,17 @@ class PredugDetector(object):
             coords[:, 0] = template_width - coords[:, 0] - 1
             
         # do the template matching
-        res = cv2.matchTemplate(img, template, cv2.TM_SQDIFF_NORMED)#cv2.TM_CCOEFF_NORMED)
-        min_val, _, min_loc, _ = cv2.minMaxLoc(res)
-        #_, max_val, _, max_loc = cv2.minMaxLoc(res)
+#         res = cv2.matchTemplate(img, template, cv2.TM_SQDIFF_NORMED)
+#         val_best, _, loc_best, _ = cv2.minMaxLoc(res)
+        res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
+        _, val_best, _, loc_best = cv2.minMaxLoc(res)
         
         # determine the rough outline of the predug in the region 
-        coords = curves.translate_points(coords, *min_loc)
+        coords = curves.translate_points(coords, *loc_best)
         # determine the outline of the predug in the video 
         coords = curves.translate_points(coords, region.x, region.y)
                 
-        return min_val, shapes.Polygon(coords)  
+        return val_best, shapes.Polygon(coords)  
 
 
     def detect(self):
@@ -161,9 +163,10 @@ class PredugDetector(object):
 
         # determine the height of the search region
         ground_points = self.ground.points
-        y_deep = ground_points[:, 1].max()
+        y_min = ground_points[:, 1].min()
+        y_max = ground_points[:, 1].max()
         factor = self.params['predug/search_height_factor']
-        height = factor * (y_deep - self.ground.points[:, 1].min())
+        height = factor * (y_max - y_min)
         
         # determine the width of the search region
         y_mid = ground_points[:, 1].mean()
@@ -181,19 +184,37 @@ class PredugDetector(object):
         width = factor * (x2 - x1)
         
         # determine the two serach regions
-        region_l = shapes.Rectangle.from_centerpoint((x1, y_deep), width, height)
-        region_r = shapes.Rectangle.from_centerpoint((x2, y_deep), width, height)
+        y_top = y_max - 0.15*height
+        region_l = shapes.Rectangle.from_centerpoint((x1, y_top), width, height)
+        region_r = shapes.Rectangle.from_centerpoint((x2, y_top), width, height)
+
+        self.search_rectangles = [region_l, region_r] 
         
         # determine the possible contours in both regions
         score_l, candidate_l = self._search_predug_in_region(region_l, False)
         score_r, candidate_r = self._search_predug_in_region(region_r, True)
+        logging.debug('Predug template matching scores: left=%g, right=%g',
+                      score_l, score_r)
 
-        if score_r < score_l:
-            logging.info('Located predug on the right side.')
+        predug_location = self.params['predug/location']
+        if predug_location == 'left':
+            logging.info('Predug was specified on the left side.')
+            self.predug_rect = candidate_l
+
+        if predug_location == 'right':
+            logging.info('Predug was specified on the right side.')
             self.predug_rect = candidate_r
+
+        elif predug_location == 'auto':
+            if score_r > score_l:
+                logging.info('Located predug on the right side.')
+                self.predug_rect = candidate_r
+            else:
+                logging.info('Located predug on the left side.')
+                self.predug_rect = candidate_l    
+                
         else:
-            logging.info('Located predug on the left side.')
-            self.predug_rect = candidate_l     
+            raise ValueError('Unknown predug location `%s`' % predug_location) 
             
         # refine the predug
         self.predug = self._refine_predug(self.predug_rect)   

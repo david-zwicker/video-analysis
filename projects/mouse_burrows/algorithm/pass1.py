@@ -1296,7 +1296,8 @@ class FirstPass(PassBase):
         ground_points[-3, :] = (width, height)
         ground_points[-2, :] = (0, height)
         ground_points[-1, :] = (0, ground_points[0, 1])
-        cv2.fillPoly(mask_ground, np.array([ground_points], np.int32), color=color)
+        cv2.fillPoly(mask_ground, np.array([ground_points], np.int32),
+                     color=color)
 
         return mask_ground
     
@@ -1316,6 +1317,7 @@ class FirstPass(PassBase):
         # do the actual detection
         self.predug = predug_detector.detect()
         
+        self.debug['video.mark.rects'] = predug_detector.search_rectangles
         self.logger.info('Found predug of area %d', self.predug.area)
         
         # save the contour of the predug
@@ -1324,17 +1326,7 @@ class FirstPass(PassBase):
         self.data['pass1/burrows/predug_rect'] = predug_rect.contour
         
         if 'predug' in self.params['debug/output']:
-            # extract image
-            bounds = self.predug.bounds
-            region = shapes.Rectangle.from_centerpoint(bounds.centroid,
-                                                       2*bounds.width,
-                                                       2*bounds.height)
-            slice_x, slice_y = region.slices
-            predug_img = self.background.image[slice_y, slice_x].astype(np.uint8)
-            
-            # write file
-            filename = self.get_filename('predug.jpg', 'debug')
-            cv2.imwrite(filename, predug_img)
+            self.debug_predug_image()
    
         
     def get_potential_burrows_mask(self):
@@ -2060,11 +2052,15 @@ class FirstPass(PassBase):
                                  (300, 20), anchor='top')
             debug_video.add_text(self.debug['video.mark.text2'],
                                  (300, 50), anchor='top')
-            if self.debug.get('video.mark.rect1'):
-                debug_video.add_rectangle(self.debug['rect1'])
+            
+            if self.debug.get('video.mark.rects'):
+                for rect in self.debug['video.mark.rects']:
+                    debug_video.add_rectangle(rect)
+                    
             if self.debug.get('video.mark.points'):
                 debug_video.add_points(self.debug['video.mark.points'],
                                        radius=4, color='y')
+                
             if self.debug.get('video.mark.highlight', False):
                 rect = (0, 0, self.video.size[0], self.video.size[1])
                 debug_video.add_rectangle(rect, 'w', 10)
@@ -2119,4 +2115,31 @@ class FirstPass(PassBase):
                     self.logger.exception('Error while writing out the debug '
                                           'video `%s`' % video) 
             
+            
+    def debug_predug_image(self):
+        """ creates an image with details about the located predug """
+        # extract image
+        bounds = self.predug.bounds
+        region = shapes.Rectangle.from_centerpoint(bounds.centroid,
+                                                   2*bounds.width,
+                                                   2*bounds.height)
+        slice_x, slice_y = region.slices
+        img = self.background.image[slice_y, slice_x].astype(np.uint8)
+
+        # get the extracted rectangle
+        predug_rect = self.data['pass1/burrows/predug_rect']
+        coords = curves.translate_points(predug_rect, -region.x, -region.y)
+        cv2.polylines(img, [np.array(coords, np.int32)], isClosed=True,
+                      color=[255, 0, 0])
+
+        # get the refined predug 
+        predug_poly = self.data['pass1/burrows/predug']
+        coords = curves.translate_points(predug_poly, -region.x, -region.y)
+        cv2.polylines(img, [np.array(coords, np.int32)], isClosed=True,
+                      color=[0, 255, 0])
+        
+        # write file
+        filename = self.get_filename('predug.jpg', 'debug')
+        cv2.imwrite(filename, img)
+
     

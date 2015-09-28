@@ -292,6 +292,9 @@ PARAMETER_LIST = [
     # Predug localization
     Parameter('predug/locate_predug', True, UNIT.BOOLEAN,
               'Flag determining whether the predug should be located.'),
+    Parameter('predug/location', 'auto', UNIT.STRING,
+              'Where the predug is located. Can be one of [`left`, `right`, '
+              '`auto`]. For `auto`, the predug is searched on both sides.'),
     Parameter('predug/template_file', 'predug.yaml', None,
               'Name of the template for detecting the predug.'),
     Parameter('predug/scale_predug', True, UNIT.BOOLEAN,
