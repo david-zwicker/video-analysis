@@ -209,7 +209,7 @@ class Analyzer(DataHandler):
                 area_max = 0
                 for track_id, burrow_track in enumerate(burrow_tracks):
                     burrow = burrow_track.last
-                    area = burrow.polygon.intersect(predug).area
+                    area = burrow.polygon.intersection(predug).area
                     if area > area_max:
                         area_max = area
                         predug_track_id = track_id
