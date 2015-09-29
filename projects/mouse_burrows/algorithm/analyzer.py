@@ -286,7 +286,7 @@ class Analyzer(DataHandler):
         # correct for predug if present
         predug = self.get_burrow_predug()
         if predug.area > 0:
-            if burrow_track.last.overlap(predug):
+            if burrow_track.last.intersects(predug):
                 areas = np.clip(areas - predug.area, 0, np.inf)
         
         # do some Gaussian smoothing to get rid of fluctuations
