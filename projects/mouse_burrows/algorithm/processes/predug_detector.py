@@ -28,8 +28,9 @@ class PredugDetector(object):
         self.ground = ground
         self.params = parameters
         
-        self.predug_rect = None
         self.predug = None
+        self.predug_rect = None
+        self.predug_location = None
         self.search_rectangles = []
 
     
@@ -198,20 +199,24 @@ class PredugDetector(object):
 
         predug_location = self.params['predug/location']
         if predug_location == 'left':
-            logging.info('Predug was specified on the left side.')
+            logging.info('Predug was specified to be on the left side.')
             self.predug_rect = candidate_l
+            self.predug_location = 'left'
 
         if predug_location == 'right':
-            logging.info('Predug was specified on the right side.')
+            logging.info('Predug was specified to be on the right side.')
             self.predug_rect = candidate_r
+            self.predug_location = 'right'
 
         elif predug_location == 'auto':
             if score_r > score_l:
                 logging.info('Located predug on the right side.')
                 self.predug_rect = candidate_r
+                self.predug_location = 'right'
             else:
                 logging.info('Located predug on the left side.')
                 self.predug_rect = candidate_l    
+                self.predug_location = 'left'
                 
         else:
             raise ValueError('Unknown predug location `%s`' % predug_location) 

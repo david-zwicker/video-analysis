@@ -1318,7 +1318,8 @@ class FirstPass(PassBase):
         self.predug = predug_detector.detect()
         
         self.debug['video.mark.rects'] = predug_detector.search_rectangles
-        self.logger.info('Found predug of area %d', self.predug.area)
+        self.logger.info('Found predug of area %d on the %s', self.predug.area,
+                         predug_detector.predug_location)
         
         # save the contour of the predug
         self.data['pass1/burrows/predug'] = self.predug.contour
