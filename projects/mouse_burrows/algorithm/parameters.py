@@ -288,7 +288,7 @@ PARAMETER_LIST = [
               'coordinates are given relative to the cage width and height. '
               'This is used to restrict the template matching to a sensible '
               'region.'),
-          
+    
     # Predug localization
     Parameter('predug/locate_predug', True, UNIT.BOOLEAN,
               'Flag determining whether the predug should be located.'),

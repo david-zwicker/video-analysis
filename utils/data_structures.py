@@ -97,6 +97,22 @@ def get_chunk_size(shape, num_elements):
     
 
 
+class OmniContainer(object):
+    """ helper class that acts as a container that contains everything """
+    def __bool__(self, key):
+        return True
+    
+    def __contains__(self, key):
+        return True
+    
+    def __delitem__(self, key):
+        pass
+    
+    def __repr__(self):
+        return '%s()' % self.__class__.__name__
+    
+    
+
 class LazyLoadError(RuntimeError):
     """ exception that can be thrown if lazy-loading failed """
     pass
