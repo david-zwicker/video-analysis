@@ -94,7 +94,7 @@
 
 <ul>
 <li>
-<code>debug/output = []</code>: List of identifiers determining what debug output is produced. Supported identifiers include 'video', 'explored_area', 'background', 'difference', 'cage_estimate', 'ground_estimate', 'explored_area_mask'.</li>
+<code>debug/output = []</code>: List of identifiers determining what debug output is produced. Supported identifiers include 'video', 'explored_area', 'background', 'difference', 'cage_estimate', 'predug', 'ground_estimate', 'explored_area_mask'.</li>
 <li>
 <code>debug/folder = debug/</code>: Folder to which debug videos are written</li>
 <li>
@@ -258,7 +258,9 @@
 
 <ul>
 <li>
-<code>predug/locate_predug = False</code>: Flag determining whether the predug should be located.</li>
+<code>predug/scale_predug = True</code>: Flag indicating whether the predug template will be scaled to the sizes given in <code>predug/template_width</code> and <code>predug/template_height</code>.</li>
+<li>
+<code>predug/locate_predug = True</code>: Flag determining whether the predug should be located.</li>
 <li>
 <code>predug/template_width = 100</code>: Width of the predug template. This will be scaled to the right dimensions</li>
 <li>
@@ -269,6 +271,8 @@
 <code>predug/wait_interval = 300</code>: The time period after which the predug is detected.</li>
 <li>
 <code>predug/search_height_factor = 1</code>: Determines the height of the area in which the predug is searched for. Half the height is this factor times the maximal vertical span of the ground line.</li>
+<li>
+<code>predug/location = auto</code>: Where the predug is located. Can be one of [<code>left</code>, <code>right</code>, <code>auto</code>]. For <code>auto</code>, the predug is searched on both sides.</li>
 <li>
 <code>predug/search_width_factor = 0.75</code>: Determines the width of the area in which the predug is searched for. Half the width is this factor times the width of the valley defined by the ground line.</li>
 <li>

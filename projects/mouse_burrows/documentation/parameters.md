@@ -23,7 +23,7 @@ logging
 
 debug
 -----
-* `debug/output = []`: List of identifiers determining what debug output is produced. Supported identifiers include 'video', 'explored_area', 'background', 'difference', 'cage_estimate', 'ground_estimate', 'explored_area_mask'.
+* `debug/output = []`: List of identifiers determining what debug output is produced. Supported identifiers include 'video', 'explored_area', 'background', 'difference', 'cage_estimate', 'predug', 'ground_estimate', 'explored_area_mask'.
 * `debug/folder = debug/`: Folder to which debug videos are written
 * `debug/use_multiprocessing = True`: Flag indicating whether multiprocessing should be used to read and display videos
 * `debug/window_position = None`: Position (x, y) of the top-left corner of the debug window
@@ -103,12 +103,14 @@ water_bottle
 
 predug
 ------
-* `predug/locate_predug = False`: Flag determining whether the predug should be located.
+* `predug/scale_predug = True`: Flag indicating whether the predug template will be scaled to the sizes given in `predug/template_width` and `predug/template_height`.
+* `predug/locate_predug = True`: Flag determining whether the predug should be located.
 * `predug/template_width = 100`: Width of the predug template. This will be scaled to the right dimensions
 * `predug/template_file = predug.yaml`: Name of the template for detecting the predug.
 * `predug/simplify_threshold = 5`: Threshold value for simplifying the contour line of the predug.
 * `predug/wait_interval = 300`: The time period after which the predug is detected.
 * `predug/search_height_factor = 1`: Determines the height of the area in which the predug is searched for. Half the height is this factor times the maximal vertical span of the ground line.
+* `predug/location = auto`: Where the predug is located. Can be one of [`left`, `right`, `auto`]. For `auto`, the predug is searched on both sides.
 * `predug/search_width_factor = 0.75`: Determines the width of the area in which the predug is searched for. Half the width is this factor times the width of the valley defined by the ground line.
 * `predug/template_height = 100`: Width of the predug template. This will be scaled to the right dimensions
 

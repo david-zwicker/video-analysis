@@ -929,6 +929,11 @@ class Analyzer(DataHandler):
         
         result = {}
         
+        # predug statistics
+        if 'predug_area' in keys:
+            predug = self.get_burrow_predug()
+            result['predug_area'] = predug.area * self.length_scale**2
+        
         # check if the burrows need to be analyzed
         if any(key in keys for key in ('burrow_area_total',
                                        'burrow_length_total',
@@ -952,11 +957,11 @@ class Analyzer(DataHandler):
 
             # save the data
             if 'burrow_length_max' in keys:
-                result['burrow_length_max'] = length_max*self.length_scale
+                result['burrow_length_max'] = length_max * self.length_scale
             if 'burrow_length_total' in keys:
-                result['burrow_length_total'] = length_total*self.length_scale
+                result['burrow_length_total'] = length_total * self.length_scale
             if 'burrow_area_total' in keys:
-                result['burrow_area_total'] = area_total*self.length_scale**2
+                result['burrow_area_total'] = area_total * self.length_scale**2
 
         # check if the main burrow needs to be analyzed
         if any(key in keys for key in ('burrow_main_initiated',
