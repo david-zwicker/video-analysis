@@ -203,7 +203,7 @@ class PredugDetector(object):
             self.predug_rect = candidate_l
             self.predug_location = 'left'
 
-        if predug_location == 'right':
+        elif predug_location == 'right':
             logging.info('Predug was specified to be on the right side.')
             self.predug_rect = candidate_r
             self.predug_location = 'right'
