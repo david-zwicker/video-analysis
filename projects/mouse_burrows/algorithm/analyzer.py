@@ -22,12 +22,8 @@ from .data_handler import DataHandler
 from .objects import mouse
 from utils.data_structures import OmniContainer
 from utils.math import contiguous_int_regions_iter, is_equidistant
+from external.kids_cache import cache
 from video.analysis import curves
-
-try:
-    from functools import lru_cache
-except ImportError:
-    from backports.lru_cache import lru_cache
 
 try:
     import pint
@@ -188,7 +184,7 @@ class Analyzer(DataHandler):
             return predug
         
     
-    @lru_cache  
+    @cache
     def get_burrow_predug(self, ret_track_id=False, pass_id=3):
         """ loads the predug from the data.
         If `ret_track_id` is given, the burrow track that overlaps most with
