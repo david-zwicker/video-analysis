@@ -1317,6 +1317,7 @@ class FirstPass(PassBase):
         # do the actual detection
         self.predug = predug_detector.detect()
         
+        # save debug information
         self.debug['video.mark.rects'] = predug_detector.search_rectangles
         self.logger.info('Found predug of area %d on the %s', self.predug.area,
                          predug_detector.predug_location)
@@ -2046,28 +2047,29 @@ class FirstPass(PassBase):
                                            obj_color, thickness=1)
                 
             # add additional debug information
-            debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
-            debug_video.add_text('#obj:%d' % self.debug['object_count'],
-                                 (120, 20), anchor='top')
-            debug_video.add_text(self.debug['video.mark.text1'],
-                                 (300, 20), anchor='top')
-            debug_video.add_text(self.debug['video.mark.text2'],
-                                 (300, 50), anchor='top')
+            if debug_video.output_this_frame:
+                debug_video.add_text(str(self.frame_id), (20, 20), anchor='top')   
+                debug_video.add_text('#obj:%d' % self.debug['object_count'],
+                                     (120, 20), anchor='top')
+                debug_video.add_text(self.debug['video.mark.text1'],
+                                     (300, 20), anchor='top')
+                debug_video.add_text(self.debug['video.mark.text2'],
+                                     (300, 50), anchor='top')
             
-            if self.debug.get('video.mark.rects'):
-                for rect in self.debug['video.mark.rects']:
-                    debug_video.add_rectangle(rect)
-                self.debug['video.mark.rects'] = None
+                if self.debug.get('video.mark.rects'):
+                    for rect in self.debug['video.mark.rects']:
+                        debug_video.add_rectangle(rect)
+                    self.debug['video.mark.rects'] = None
+                        
+                if self.debug.get('video.mark.points'):
+                    debug_video.add_points(self.debug['video.mark.points'],
+                                           radius=4, color='y')
+                    self.debug['video.mark.points'] = None
                     
-            if self.debug.get('video.mark.points'):
-                debug_video.add_points(self.debug['video.mark.points'],
-                                       radius=4, color='y')
-                self.debug['video.mark.points'] = None
-                
-            if self.debug.get('video.mark.highlight', False):
-                rect = (0, 0, self.video.size[0], self.video.size[1])
-                debug_video.add_rectangle(rect, 'w', 10)
-                self.debug['video.mark.highlight'] = False
+                if self.debug.get('video.mark.highlight', False):
+                    rect = (0, 0, self.video.size[0], self.video.size[1])
+                    debug_video.add_rectangle(rect, 'w', 10)
+                    self.debug['video.mark.highlight'] = False
             
             if 'video.show' in self.output:
                 if debug_video.output_this_frame:
