@@ -107,31 +107,24 @@ def get_dawn_from_brightness(brightness, output_file=None,
 
 
 
-def main():
+def detect_dawn(video_file, output_file=None, output_hdf5_file=None):
     """ main routine of the program """
     # determine the video file
-    try:
-        video_file = sys.argv[1]
-    except IndexError:
-        raise ValueError('The input video has to be specified')
     print('Analyze video file `%s`' % video_file)
     
     # determine the output file
-    if len(sys.argv) > 2:
-        output_file = sys.argv[2]
-    else:
+    if output_file is None:
         output_file = os.path.splitext(video_file)[0] + '_dawn.txt'
     print('Write the result to `%s`' % output_file)
 
     # determine the brightness file
-    if len(sys.argv) > 3:
-        output_hdf5_file = sys.argv[3]
-    else:
+    if output_hdf5_file is None:
         output_hdf5_file = os.path.splitext(video_file)[0] + '_brightness.hdf5'
     print('Write the brightness data to `%s`' % output_hdf5_file)
     
     # calculate the brightness
-    brightness = determine_average_frame_brightness(video_file, output_hdf5_file)
+    brightness = determine_average_frame_brightness(video_file,
+                                                    output_hdf5_file)
     
     # determine the frame where the light is switched on
     frame_dawn = get_dawn_from_brightness(brightness, output_file)
@@ -141,4 +134,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    detect_dawn(*sys.argv)
+    
+    
