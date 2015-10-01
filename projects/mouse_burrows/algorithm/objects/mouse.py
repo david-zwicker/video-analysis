@@ -98,7 +98,8 @@ class MouseStateConverter(object):
     
     
     def dict_to_int(self, state):
-        """ converts the dictionary representation to the integer representation """
+        """ converts the dictionary representation to the integer
+        representation """
         res = 0
         for fac, cat in itertools.izip(self.factors, self.categories):
             if cat.name in state:
@@ -112,7 +113,8 @@ class MouseStateConverter(object):
     
     
     def int_to_dict(self, value):
-        """ converts the integer representation to the dictionary representation """
+        """ converts the integer representation to the dictionary
+        representation """
         res = {}
         for cat in self.categories:
             res[cat.name] = cat.states[value % cat.length]
@@ -195,25 +197,33 @@ def state_symbols_match(pattern, value):
 class MouseTrack(object):
     """ class that describes the mouse track """
     
-    hdf_attributes = {'column_names': ('Position X', 'Position Y', 'Mouse State',
+    hdf_attributes = {'column_names': ('Position X', 'Position Y',
+                                       'Mouse State',
                                        'Index of closest ground point',
                                        'Distance from ground'),
                       'mouse_states': state_converter.get_state_description()}
     storage_class = LazyHDFValue
     
-    def __init__(self, trajectory, states=None, ground_idx=None, ground_dist=None):
+    def __init__(self, trajectory, states=None, ground_idx=None,
+                 ground_dist=None):
+        """ initialize track with positions given as `trajectory`, the mouse
+        `states` at each time point, the index of the nearest ground point
+        `ground_idx` and the distance to the ground `ground_dist` along the
+        mouse trail """
         self.pos = trajectory
         self.velocity = None
         
-        # initialize arrays
+        # initialize additional arrays
         if states is not None:
             self.states = np.asarray(states, np.int)
         else:
             self.states = np.zeros(len(trajectory), np.int)
+            
         if ground_idx is not None:
             self.ground_idx = np.asarray(ground_idx, np.double)
         else:
             self.ground_idx = np.zeros(len(trajectory), np.double) + np.nan
+            
         if ground_dist is not None:
             self.ground_dist = np.asarray(ground_dist, np.double)
         else:
@@ -304,13 +314,15 @@ def test_state_conversion():
         symbols = state_converter.int_to_symbols(value)
         val = state_converter.symbols_to_int(symbols)
         if symbols != state_converter.int_to_symbols(val):
-            raise AssertionError('Wrong symbol representation: %d != %s' % (value, symbols))
+            raise AssertionError('Wrong symbol representation: %d != %s'
+                                 % (value, symbols))
 
         # test conversion to dictionary
         state = state_converter.int_to_dict(value)
         val = state_converter.dict_to_int(state)
         if state != state_converter.int_to_dict(val):
-            raise AssertionError('Wrong symbol representation: %d != %s' % (value, state))
+            raise AssertionError('Wrong symbol representation: %d != %s'
+                                 % (value, state))
         
     print('The test was successful.') 
 

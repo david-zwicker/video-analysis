@@ -89,13 +89,31 @@ class Interpolate_1D_Extrapolated(interpolate.interp1d):
     Here, we return the value at the boundary for all points beyond it.
     """
     
-    def __call__(self, x):
-        if x < self.x[0]:
-            return self.y[0]
-        elif x > self.x[-1]:
-            return self.y[-1]
+    def __call__(self, x, dtype=np.double):
+        """ call the interpolator with appropriate bounds """
+        if isinstance(x, np.ndarray):
+            # x is a numpy array for which we can have vectorized results
+            
+            # determine indices
+            i_left = (x <= self.x[0])
+            i_right = (x >= self.x[-1])
+            i_mid = ~i_left & ~i_right #< x is in the right range
+            
+            y = np.empty_like(x, dtype=dtype)
+            y[i_left] = self.y[0]
+            y[i_right] = self.y[-1]
+            parent = super(Interpolate_1D_Extrapolated, self)
+            y[i_mid] = parent.__call__(x[i_mid])
+            return y
+            
         else:
-            return super(Interpolate_1D_Extrapolated, self).__call__(x)
+            # x is simple scalar
+            if x < self.x[0]:
+                return self.y[0]
+            elif x > self.x[-1]:
+                return self.y[-1]
+            else:
+                return super(Interpolate_1D_Extrapolated, self).__call__(x)
             
             
 
