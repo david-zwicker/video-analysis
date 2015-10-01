@@ -40,7 +40,8 @@ class Analyzer(DataHandler):
     # list of classes that manage analysis passes
     pass_classes = [FirstPass, SecondPass, ThirdPass, FourthPass]
     # list of mouse states that are returned by default
-    mouse_states_default = ('.A.', '.H.', '.V.', '.D.', '.B ', '.[B|D]E', '...')
+    mouse_states_default = ['.A.', '.H.', '.V.', '.D.', '.B ', '.[B|D]E', '...']
+    
     
     def __init__(self, *args, **kwargs):
         """ initialize the analyzer """
@@ -73,6 +74,7 @@ class Analyzer(DataHandler):
         self._cache = {}
         
         
+    @cache
     def get_frame_range(self):
         """ returns the range of frames that is going to be analyzed """
         # get the frames that were actually analyzed in the video
