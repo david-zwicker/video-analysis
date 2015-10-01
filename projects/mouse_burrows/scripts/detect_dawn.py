@@ -61,18 +61,27 @@ def get_dawn_from_brightness(brightness, output_file=None,
         to check the result of the algorithm
     """
     # average over window to reduce amount of data
-    data_len = len(brightness) // averaging_window
-    data_raw = np.empty(data_len, np.double)
-    for i in xrange(data_len):
-        ia = i*averaging_window
-        data_raw[i] = np.mean(brightness[ia: ia + averaging_window])
+    if averaging_window > 1:
+        data_len = len(brightness) // averaging_window
+        data_raw = np.empty(data_len, np.double)
+        for i in xrange(data_len):
+            ia = i*averaging_window
+            data_raw[i] = np.mean(brightness[ia: ia + averaging_window])
+            
+    else:
+        data_len = len(brightness)
+        data_raw = brightness
     
     # filter the data
     data = ndimage.filters.gaussian_filter1d(data_raw, smoothing_sigma,
                                              mode='nearest')
     
     # determine the maximal change in brightness
-    data_roi = data[margin : -margin]
+    if margin > 0:
+        data_roi = data[margin : -margin]
+    else:
+        data_roi = data
+        
     pos_max = np.argmax(np.gradient(data_roi))
     frame_dawn = (pos_max + margin) * averaging_window
     
@@ -107,7 +116,7 @@ def get_dawn_from_brightness(brightness, output_file=None,
 
 
 
-def detect_dawn(video_file, output_file=None, output_hdf5_file=None):
+def detect_dawn(video_file, output_file=None, output_hdf5_file=None, **kwargs):
     """ main routine of the program """
     # determine the video file
     print('Analyze video file `%s`' % video_file)
@@ -127,7 +136,7 @@ def detect_dawn(video_file, output_file=None, output_hdf5_file=None):
                                                     output_hdf5_file)
     
     # determine the frame where the light is switched on
-    frame_dawn = get_dawn_from_brightness(brightness, output_file)
+    frame_dawn = get_dawn_from_brightness(brightness, output_file, **kwargs)
     
     print('Lights are switch on in frame %d' % frame_dawn)
     
