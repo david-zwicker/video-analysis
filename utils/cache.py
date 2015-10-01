@@ -15,7 +15,7 @@ import collections
 class DictFiniteCapacity(collections.OrderedDict):
     """ cache with a limited number of items """
     
-    default_capacity = 100    
+    default_capacity = 100
     
     def __init__(self, *args, **kwargs):
         self.capacity = kwargs.pop('capacity', self.default_capacity)

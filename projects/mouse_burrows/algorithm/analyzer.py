@@ -219,6 +219,12 @@ class Analyzer(DataHandler):
             return predug
         
         
+    def burrow_has_predug(self, burrow):
+        """ check whether the burrow had a predug """ 
+        predug = self.get_burrow_predug()
+        return burrow.intersects(predug)
+        
+        
     def _get_burrow_tracks(self, pass_id=3):
         """ return the burrow tracks or throw an error if not avaiable """ 
         try:
@@ -964,12 +970,30 @@ class Analyzer(DataHandler):
                                        'burrow_main_peak_activity')):
             # determine the main burrow
             burrow_main = self.get_main_burrow()
+            
+            # check when it was initiated
             if 'burrow_main_initiated' in keys:
                 if burrow_main:
-                    time_start = burrow_main.track_start * self.time_scale
+                    if self.burrow_has_predug(burrow_main.last):
+                        # initiation is defined as the time point when the
+                        # burrow grew larger than the predug
+                        for time, burrow in itertools.izip(burrow_main.times,
+                                                           burrow_main.burrows):
+                            if burrow.area > predug.area:
+                                time_start = time * self.time_scale
+                                break
+                        else:
+                            # burrow never got larger then the predug
+                            time_start = None
+                    else:
+                        # predug does not overlap with the main burrow
+                        time_start = burrow_main.track_start * self.time_scale
                 else:
+                    # there was no main  burrow
                     time_start = None
                 result['burrow_main_initiated'] = time_start
+                
+            # check for the peak activity
             if 'burrow_main_peak_activity' in keys:
                 time_peak = self.get_burrow_peak_activity(burrow_main)
                 result['burrow_main_peak_activity'] = time_peak

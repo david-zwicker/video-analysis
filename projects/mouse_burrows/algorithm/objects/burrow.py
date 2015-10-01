@@ -447,6 +447,11 @@ class BurrowTrack(object):
         
     
     @property
+    def first(self):
+        """ return the first burrow in the track """
+        return self.burrows[0]
+    
+    @property
     def last(self):
         """ return the last burrow in the track """
         return self.burrows[-1]
