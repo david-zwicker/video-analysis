@@ -172,12 +172,12 @@ class HPCProjectBase(object):
         # get the temporary directory to which video data should be copied 
         video_folder_temporary = self.parameters['video/folder_temporary']
         if video_folder_temporary:
+            video_folder_temporary = video_folder_temporary.format(
+                WORKFOLDER=self.folder, VIDEO_NAME=video_name)
             video_file_temporary = os.path.join(
-                video_folder_temporary.format(WORKFOLDER=self.folder,
-                                              VIDEO_NAME=video_name),
-                os.path.basename(video_file)
-            )
+                video_folder_temporary, os.path.basename(video_file))
         else:
+            video_folder_temporary = os.path.dirname(video_file)
             video_file_temporary = video_file
         
         # setup tracking parameters
@@ -192,6 +192,7 @@ class HPCProjectBase(object):
                   'JOB_DIRECTORY': self.folder,
                   'NAME': self.name,
                   'VIDEO_FILE_SOURCE': video_file,
+                  'VIDEO_FOLDER_TEMPORARY': video_folder_temporary,
                   'VIDEO_FILE_TEMPORARY': video_file_temporary,
                   'TRACKING_PARAMETERS': pprint.pformat(tracking_parameters),
                   'SPECIFIC_PARAMETERS': pprint.pformat(parameters),
