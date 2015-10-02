@@ -58,6 +58,8 @@
 
 <ul>
 <li>
+<code>video/folder_temporary = None</code>: Folder in which the video should be stored temporarily, e.g. to speed up the analysis.</li>
+<li>
 <code>video/filename_pattern = raw_video/*.MTS</code>: Filename pattern used to look for videos</li>
 <li>
 <code>video/frames_skip = 0</code>: Number of frames that are skipped before starting the analysis. This value is only considered if <code>video/frames</code> is None.</li>
@@ -417,6 +419,9 @@
 <code>burrows/adaptation_interval = 100</code>: How often are the burrow shapes adapted</li>
 <li>
 <code>burrows/grabcut_burrow_core_area_min = 500</code>: Minimal area the sure region of the mask for the grab cut algorithm is supposed to have</li>
+<li>
+<code>burrows/initiation_threshold = 300</code>: Minimal area that a burrow has to be dug in order to be counted as <code>initiated</code>
+</li>
 </ul>
 
 <h2>

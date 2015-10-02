@@ -270,6 +270,26 @@ class Analyzer(DataHandler):
         return main_track
     
     
+    def get_burrow_initiated(self, burrow):
+        """ determines when the `burrow` was initiated """
+
+        # determine the area threshold used for initiation detection
+        area_threshold = self.params['burrows/initiation_threshold']
+        if self.burrow_has_predug(burrow.last):
+            area_threshold += self.get_burrow_predug().area
+        
+        # initiation is defined as the time point when the
+        # burrow grew larger than the predug
+        for time, burrow in itertools.izip(burrow.times, burrow.burrows):
+            if burrow.area > area_threshold:
+                time_start = time * self.time_scale
+                break
+        else:
+            # burrow never got larger then the predug
+            time_start = None
+        return time_start
+
+                    
     def get_burrow_peak_activity(self, burrow_track):
         """ determines the time point of the main burrowing activity for the
         given burrow """
@@ -973,24 +993,10 @@ class Analyzer(DataHandler):
             # check when it was initiated
             if 'burrow_main_initiated' in keys:
                 if burrow_main:
-                    if self.burrow_has_predug(burrow_main.last):
-                        # initiation is defined as the time point when the
-                        # burrow grew larger than the predug
-                        for time, burrow in itertools.izip(burrow_main.times,
-                                                           burrow_main.burrows):
-                            if burrow.area > predug.area:
-                                time_start = time * self.time_scale
-                                break
-                        else:
-                            # burrow never got larger then the predug
-                            time_start = None
-                    else:
-                        # predug does not overlap with the main burrow
-                        time_start = burrow_main.track_start * self.time_scale
+                    initated = self.get_burrow_initiated(burrow_main)
                 else:
-                    # there was no main  burrow
-                    time_start = None
-                result['burrow_main_initiated'] = time_start
+                    initated = None
+                result['burrow_main_initiated'] = initated
                 
             # check for the peak activity
             if 'burrow_main_peak_activity' in keys:

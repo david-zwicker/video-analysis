@@ -5,6 +5,7 @@ Parameters
 
 video
 -----
+* `video/folder_temporary = None`: Folder in which the video should be stored temporarily, e.g. to speed up the analysis.
 * `video/filename_pattern = raw_video/*.MTS`: Filename pattern used to look for videos
 * `video/frames_skip = 0`: Number of frames that are skipped before starting the analysis. This value is only considered if `video/frames` is None.
 * `video/cropping_rect = None`: Rectangle to which the video is cropped. This can be either four numbers [left, top, width, height] or some string like 'upper left', 'lower right', etc.
@@ -181,6 +182,7 @@ burrows
 * `burrows/centerline_segment_length = 15`: Length of a segment of the center line of a burrow
 * `burrows/adaptation_interval = 100`: How often are the burrow shapes adapted
 * `burrows/grabcut_burrow_core_area_min = 500`: Minimal area the sure region of the mask for the grab cut algorithm is supposed to have
+* `burrows/initiation_threshold = 300`: Minimal area that a burrow has to be dug in order to be counted as `initiated`
 
 analysis
 --------

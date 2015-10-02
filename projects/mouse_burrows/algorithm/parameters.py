@@ -491,6 +491,9 @@ PARAMETER_LIST = [
     Parameter('burrows/predug_area_threshold', 1000, UNIT.AREA_PIXEL,
               'The minimal area in pixels the burrow has to have in order to '
               'be considered as a predug.'),
+    Parameter('burrows/initiation_threshold', 300, UNIT.AREA_PIXEL,
+              'Minimal area that a burrow has to be dug in order to be counted '
+              'as `initiated`'),
                   
     Parameter('burrows/active_contour/blur_radius', 2, UNIT.LENGTH_PIXEL,
               'Blur radius of the active contour algorithm used for refining '

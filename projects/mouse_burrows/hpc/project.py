@@ -159,7 +159,7 @@ class HPCProjectBase(object):
         """ prepare the work directory by setting up all necessary files """
         
         if prepare_workfolder == 'auto':
-            pass1_requested = (1 in self.passes)
+            pass1_requested = any(i in self.passes for i in [0, 1])
             self.clean_workfolder(purge=pass1_requested)
         elif 'clean' in prepare_workfolder:
             self.clean_workfolder()
