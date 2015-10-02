@@ -707,9 +707,9 @@ class FirstPass(PassBase):
       
     
     def find_moving_features(self, frame, threshold=None):
-        """ finds moving features in a _frame.
+        """ finds moving features in a frame.
         This works by building a model of the current background and subtracting
-        this from the current _frame. Everything that deviates significantly from
+        this from the current frame. Everything that deviates significantly from
         the background must be moving. Here, we additionally only focus on 
         features that become brighter, i.e. move forward.
         """
@@ -723,7 +723,8 @@ class FirstPass(PassBase):
         background_blurred = self.background.blurred
 
         # calculate the difference to the current background model
-        cv2.subtract(frame, background_blurred, dtype=cv2.CV_8U, dst=mask_moving)
+        cv2.subtract(frame, background_blurred, dtype=cv2.CV_8U,
+                     dst=mask_moving)
         # Note that all points where the difference would be negative are set
         # to zero. However, we only need the positive differences.
         
