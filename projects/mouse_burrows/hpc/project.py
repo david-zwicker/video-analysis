@@ -169,16 +169,29 @@ class HPCProjectBase(object):
         # get the folder in which the current project resides
         folder_code = os.path.abspath(utils.files.MAIN_DIRECTORY)
         
+        # get the temporary directory to which video data should be copied 
+        video_folder_temporary = self.parameters['video/folder_temporary']
+        if video_folder_temporary:
+            video_file_temporary = os.path.join(
+                video_folder_temporary.format(WORKFOLDER=self.folder),
+                os.path.basename(video_file)
+            )
+        else:
+            video_file_temporary = video_file
+        
         # setup tracking parameters
         tracking_parameters = self.parameters.to_dict(flatten=True)
+        
         # extract the factor for the lengths and provide it separately
         scale_length = tracking_parameters.pop('scale_length', 1)
         scale_length = parameters.pop('scale_length', scale_length)
+        
         # setup all variables that might be used in the templates
         params = {'FOLDER_CODE': folder_code,
                   'JOB_DIRECTORY': self.folder,
                   'NAME': self.name,
-                  'VIDEO_FILE': video_file,
+                  'VIDEO_FILE_SOURCE': video_file,
+                  'VIDEO_FILE_TEMPORARY': video_file_temporary,
                   'TRACKING_PARAMETERS': pprint.pformat(tracking_parameters),
                   'SPECIFIC_PARAMETERS': pprint.pformat(parameters),
                   'SCALE_LENGTH': scale_length}

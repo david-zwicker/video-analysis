@@ -22,7 +22,7 @@ parameters = {TRACKING_PARAMETERS}  # @UndefinedVariable
 # set job parameters
 job_id = sys.argv[1]
 parameters.update({{
-    'video/filename_pattern': "{VIDEO_FILE}",
+    'video/filename_pattern': "{VIDEO_FILE_TEMPORARY}",
     'base_folder': "{JOB_DIRECTORY}",
     'logging/folder': ".",
     'debug/folder': ".",

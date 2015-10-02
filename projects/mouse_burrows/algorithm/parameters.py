@@ -75,6 +75,9 @@ PARAMETER_LIST = [
     # Video input
     Parameter('video/filename_pattern', 'raw_video/*.MTS', UNIT.SUBFOLDER,
               'Filename pattern used to look for videos'),
+    Parameter('video/folder_temporary', None, UNIT.SUBFOLDER,
+              'Folder in which the video should be stored temporarily, e.g. to '
+              'speed up the analysis.'),
     Parameter('video/initial_adaptation_frames', 100, UNIT.TIME_FRAMES,
               'Number of initial frames to skip during analysis'),
     Parameter('video/blur_method', 'gaussian', UNIT.STRING,

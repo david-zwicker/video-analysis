@@ -109,6 +109,7 @@ predug
 * `predug/template_file = predug.yaml`: Name of the template for detecting the predug.
 * `predug/simplify_threshold = 5`: Threshold value for simplifying the contour line of the predug.
 * `predug/wait_interval = 300`: The time period after which the predug is detected.
+* `predug/debug_with_lines = True`: Flag indicating whether lines should be drawn on the debug image of the predug.
 * `predug/search_height_factor = 1`: Determines the height of the area in which the predug is searched for. Half the height is this factor times the maximal vertical span of the ground line.
 * `predug/location = auto`: Where the predug is located. Can be one of [`left`, `right`, `auto`]. For `auto`, the predug is searched on both sides.
 * `predug/search_width_factor = 0.75`: Determines the width of the area in which the predug is searched for. Half the width is this factor times the width of the valley defined by the ground line.
