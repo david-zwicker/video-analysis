@@ -173,8 +173,8 @@ class HPCProjectBase(object):
         video_folder_temporary = self.parameters['video/folder_temporary']
         if video_folder_temporary:
             video_file_temporary = os.path.join(
-                video_folder_temporary.vformat(WORKFOLDER=self.folder,
-                                               VIDEO_NAME=video_name),
+                video_folder_temporary.format(WORKFOLDER=self.folder,
+                                              VIDEO_NAME=video_name),
                 os.path.basename(video_file)
             )
         else:
