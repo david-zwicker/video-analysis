@@ -324,6 +324,9 @@ PARAMETER_LIST = [
     Parameter('predug/simplify_threshold', 5, UNIT.AREA_PIXEL,
               'Threshold value for simplifying the contour line of the '
               'predug.'),
+    Parameter('predug/debug_with_lines', True, UNIT.BOOLEAN,
+              'Flag indicating whether lines should be drawn on the debug '
+              'image of the predug.'),
     
     # Mouse and the associated tracking
     Parameter('mouse/intensity_threshold', 1, UNIT.FACTOR,

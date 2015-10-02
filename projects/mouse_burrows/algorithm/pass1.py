@@ -2131,17 +2131,18 @@ class FirstPass(PassBase):
         slice_x, slice_y = region.slices
         img = self.background.image[slice_y, slice_x].astype(np.uint8)
 
-        # get the extracted rectangle
-        predug_rect = self.data['pass1/burrows/predug_rect']
-        coords = curves.translate_points(predug_rect, -region.x, -region.y)
-        cv2.polylines(img, [np.array(coords, np.int32)], isClosed=True,
-                      color=[255, 0, 0])
-
-        # get the refined predug 
-        predug_poly = self.data['pass1/burrows/predug']
-        coords = curves.translate_points(predug_poly, -region.x, -region.y)
-        cv2.polylines(img, [np.array(coords, np.int32)], isClosed=True,
-                      color=[0, 255, 0])
+        if self.params['predug/debug_with_lines']:
+            # get the extracted rectangle
+            predug_rect = self.data['pass1/burrows/predug_rect']
+            coords = curves.translate_points(predug_rect, -region.x, -region.y)
+            cv2.polylines(img, [np.array(coords, np.int32)], isClosed=True,
+                          color=[255, 0, 0])
+    
+            # get the refined predug 
+            predug_poly = self.data['pass1/burrows/predug']
+            coords = curves.translate_points(predug_poly, -region.x, -region.y)
+            cv2.polylines(img, [np.array(coords, np.int32)], isClosed=True,
+                          color=[0, 255, 0])
         
         # write file
         filename = self.get_filename('predug.jpg', 'debug')
