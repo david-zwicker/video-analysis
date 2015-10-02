@@ -12,6 +12,6 @@
 echo "Start job with id $SLURM_JOB_ID"
 
 # copy video to temporary location if necessary
-rsync -avzh --progress "{VIDEO_FILE_SOURCE}" "{VIDEO_FILE_TEMPORARY}"
+rsync -avzh --progress {VIDEO_FILE_SOURCE} {VIDEO_FILE_TEMPORARY}
 
 echo "Ended job with id $SLURM_JOB_ID"
