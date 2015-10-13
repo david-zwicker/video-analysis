@@ -315,7 +315,7 @@ class FirstPass(PassBase):
             self.logger.debug('The cage is estimated to be contained in the '
                               'rectangle %s', rect_large)
              
-            # crop _frame to this rectangle, which should surely contain the cage
+            # crop frame to this rectangle, which should surely contain the cage
             region_slices = regions.rect_to_slices(rect_large) 
             frame = frame[region_slices]
     

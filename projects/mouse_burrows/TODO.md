@@ -1,5 +1,4 @@
-* Use the GrabCut algorithm to refine predugs
-* Write a script for locating the predugs in videos without rerunning the analysis
+* Determine video location such that video data is not copied multiple times
 * Write a manual of assumption we make about the videos in order to track everything
 * Gather more statistics about why certain parts of the algorithm failed
 * Refine the centerline by moving the points more toward the actual center
@@ -27,9 +26,6 @@
 
 Performance improvements:
 -------------------------
-* Make sure that images and masks are not copied to often (rather use internal cache structures, which should be faster)
-	- Do operations in place as often as possible
-* Generally cache all kernels for morphological operations, since these are costly to make
 
 
 Low priority enhancements:

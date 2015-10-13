@@ -161,12 +161,17 @@ def get_largest_region(mask, ret_area=False):
     # find all regions and label them
     labels, num_features = ndimage.measurements.label(mask)
 
-    # find the label of the largest region
-    label_max = np.argmax(
-        ndimage.measurements.sum(labels, labels, index=range(1, num_features + 1))
-    ) + 1
+    # find the areas corresponding to all regions
+    areas = [np.sum(labels == label)
+             for label in xrange(1, num_features + 1)]
     
-    return labels == label_max
+    # find the label of the largest region
+    label_max = np.argmax(areas) + 1
+    
+    if ret_area:
+        return labels == label_max, areas[label_max - 1]
+    else:
+        return labels == label_max
 
 
 
