@@ -934,13 +934,9 @@ class FirstPass(PassBase):
 
             # add new information to explored area
             for track in self.tracks:
-                # TODO: draw the track contour into the explored area
                 cv2.drawContours(self.explored_area, contours, 
                                  contourIdx=track.last.label, color=1,
                                  thickness=-1)
-                #points = np.squeezecontours[track.last.label]
-                #cv2.fillPoly(self.explored_area, )
-                #s elf.explored_area[moving_objects == track.last.label] = 1
 
         
     #===========================================================================
