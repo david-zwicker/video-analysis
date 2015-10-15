@@ -85,13 +85,16 @@ class BackgroundExtractor(object):
                 t_s, i_s = regions.get_overlapping_slices(obj.last.pos,
                                                           self._object_mask.shape,
                                                           frame.shape)
-                adaptation_rate[i_s[0], i_s[1]] *= self._object_mask[t_s[0], t_s[1]]
+                # create a mask with zeros where the object is
+                object_mask = self._object_mask[t_s[0], t_s[1]]
+                # mask the object in the adaptation rate 
+                adaptation_rate[i_s[0], i_s[1]] *= object_mask
                 
         else:
             # use the default adaptation rate everywhere when mouse is unknown
             adaptation_rate = self.params['adaptation_rate']
 
-        # adapt the background to current frame, but only inside the mask 
+        # adapt the background to current frame, but only inside the mask
         self.image += adaptation_rate*(frame - self.image)
         
         # initialize the blurring of the image if requested

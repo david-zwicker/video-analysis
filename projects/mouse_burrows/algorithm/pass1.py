@@ -746,7 +746,7 @@ class FirstPass(PassBase):
         return mask_moving
 
 
-    def _find_objects_in_binary_image(self, labels, num_features):
+    def _find_objects_in_binary_image(self, contours):
         """ finds objects in a binary image.
         Returns a list with characteristic properties
         """
@@ -754,9 +754,9 @@ class FirstPass(PassBase):
         # find large objects (which could be the mouse)
         objects = []
         largest_obj = MovingObject((0, 0), 0)
-        for label in xrange(1, num_features + 1):
+        for label, contour in enumerate(contours):
             # calculate the image moments
-            moments = cv2.moments((labels == label).astype(np.uint8, copy=False))
+            moments = cv2.moments(contour)
             area = moments['m00']
 
             # check whether this object is too large
@@ -792,11 +792,11 @@ class FirstPass(PassBase):
         self.tracks = []
 
 
-    def _handle_object_tracks(self, frame, labels, num_features):
+    def _handle_object_tracks(self, frame, contours):
         """ analyzes objects in a single _frame and tries to add them to
         previous tracks """
         # get potential objects
-        objects_found = self._find_objects_in_binary_image(labels, num_features)
+        objects_found = self._find_objects_in_binary_image(contours)
         
         if objects_found is None:
             # if there are no useful objects, end all current tracks
@@ -880,8 +880,10 @@ class FirstPass(PassBase):
         
             # find all distinct features and label them
             try:
-                num_features = ndimage.measurements.label(moving_objects,
-                                                          output=moving_objects)
+                contours = cv2.findContours(moving_objects, cv2.RETR_EXTERNAL,
+                                            cv2.CHAIN_APPROX_SIMPLE)[1]
+#                 num_features = ndimage.measurements.label(moving_objects,
+#                                                           output=moving_objects)
             except RuntimeError:
                 # in some rare cases the function wants to store data in a data
                 # format with more bits, where it has to create a new array
@@ -889,6 +891,8 @@ class FirstPass(PassBase):
                 # have to iterate again anyway
                 num_features = np.inf
                 #moving_objects, num_features = ndimage.measurements.label(moving_objects)
+                
+            num_features = len(contours)
                 
             if num_features > self.params['tracking/object_count_max']:
                 threshold *= 1.1 #< increase threshold to find less features
@@ -902,7 +906,7 @@ class FirstPass(PassBase):
         
         # plot the contour of the movement if debug video is enabled
         if 'video' in self.output:
-            self.output['video'].add_contour(moving_objects, color='g', copy=True)
+            self.output['video'].add_contour(contours, color='g')
         
         if num_features == 0:
             # no features found => end all current tracks
@@ -910,7 +914,7 @@ class FirstPass(PassBase):
             
         else:
             # some moving features have been found => handle these 
-            self._handle_object_tracks(frame, moving_objects, num_features)
+            self._handle_object_tracks(frame, contours)
 
             # check whether objects moved and call them a mouse
             obj_moving = [obj.is_moving() for obj in self.tracks]
@@ -930,7 +934,13 @@ class FirstPass(PassBase):
 
             # add new information to explored area
             for track in self.tracks:
-                self.explored_area[moving_objects == track.last.label] = 1
+                # TODO: draw the track contour into the explored area
+                cv2.drawContours(self.explored_area, contours, 
+                                 contourIdx=track.last.label, color=1,
+                                 thickness=-1)
+                #points = np.squeezecontours[track.last.label]
+                #cv2.fillPoly(self.explored_area, )
+                #s elf.explored_area[moving_objects == track.last.label] = 1
 
         
     #===========================================================================

@@ -89,3 +89,5 @@ class WorkerThread(object):
             
         # retrieve the result
         return self._result
+    
+

@@ -206,7 +206,10 @@ class VideoComposer(VideoFileWriter):
         """ adds the contours of a mask.
         Note that this function modifies the mask, unless copy=True
         """
-        if any(s == 1 for s in mask_or_contour.shape[:2]):
+        if isinstance(mask_or_contour, list):
+            # assume that it is a list of contours
+            contours = mask_or_contour
+        elif any(s == 1 for s in mask_or_contour.shape[:2]):
             # given value is a list of contour points
             contours = [mask_or_contour]
         else:
