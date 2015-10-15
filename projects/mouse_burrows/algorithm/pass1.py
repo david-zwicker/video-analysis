@@ -603,12 +603,12 @@ class FirstPass(PassBase):
         
         
     def remove_water_bottle(self, frame):
-        """ returns a copy of the _frame in which the water bottle has been
+        """ returns a copy of the frame in which the water bottle has been
         removed """
         frame = frame.copy()
         # get variables from cache
         if 'water_bottle_rect' not in self._cache:
-            # locate the water bottle in the _frame
+            # locate the water bottle in the frame
             wb_rect = self.find_water_bottle(frame)
             shape = (wb_rect.width, wb_rect.height)
             wb_img = np.zeros(shape, np.double)
@@ -626,15 +626,19 @@ class FirstPass(PassBase):
         wb_x, wb_y = wb_rect.slices
         wb = frame[wb_y, wb_x]
         
-        # adapt the water bottle image to current _frame 
+        # adapt the water bottle image to current frame 
         adaptation_rate = self.params['background/adaptation_rate']
         wb_img += adaptation_rate*(wb - wb_img)
         
         # remove the background and add the median of it instead
         # this removes extreme colors from the region
         w = wb_rect.width//2
-        wb[:, w:] += np.median(wb_img[:, w:]) - wb_img[:, w:]
-        wb[:, :w] += np.median(wb_img[:, :w]) - wb_img[:, :w]
+        # process left half
+        change = np.median(wb_img[:, :w]) - wb_img[:, :w]
+        cv2.add(wb[:, :w], change, wb[:, :w], dtype=cv2.CV_8U)
+        # process right half
+        change = np.median(wb_img[:, w:]) - wb_img[:, w:]
+        cv2.add(wb[:, w:], change, wb[:, w:], dtype=cv2.CV_8U)
         
         return frame
     

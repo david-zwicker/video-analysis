@@ -281,12 +281,12 @@ class FilterResize(VideoFilterBase):
         
        
     def _process_frame(self, frame):
-        # resize the _frame if necessary
+        # resize the frame if necessary
         if self.interpolation:
             frame = cv2.resize(frame, self.size,
                                interpolation=self.interpolation)
 
-        # pass the _frame to the parent function
+        # pass the frame to the parent function
         return super(FilterResize, self)._process_frame(frame)
     
 

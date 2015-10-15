@@ -120,7 +120,7 @@ class PredugDetector(object):
         
         # load the template image
         img_file = yaml_content['image']
-        coords = np.array(yaml_content['coordinates'])
+        coords = np.array(yaml_content['coordinates'], np.double)
         path = os.path.join(os.path.dirname(__file__), '..', 'assets', img_file)
         
         # read the image from the file as grey scale
