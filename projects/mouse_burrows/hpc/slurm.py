@@ -100,7 +100,13 @@ class ProjectSingleSlurm(HPCProjectBase):
                 cmd.append(self.files_job[pass_id][0])
 
                 # submit command and fetch job_id from output
-                res = sp.check_output(cmd)
+                try:
+                    res = sp.check_output(cmd)
+                except sp.CalledProcessError as err:
+                    # output the error message if there is any
+                    self.logger.error(err.output)
+                    raise
+                    
                 job_id = int(res.split()[-1])
                 # save job_id to file
                 with open(self.job_ids_file, 'a') as f:
