@@ -759,8 +759,8 @@ class FirstPass(PassBase):
             moments = cv2.moments(contour)
             area = moments['m00']
 
-            # check whether this object is too large
-            if area > self.params['mouse/area_max']:
+            # check whether the area is in the right range
+            if not 0 < area < self.params['mouse/area_max']:
                 continue
 
             # get the coordinates of the center of mass
