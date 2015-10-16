@@ -310,7 +310,8 @@ class FirstPass(PassBase):
             # find the largest bright are, which should contain the cage
             cage_mask = regions.get_largest_region(binarized_frame)
             
-            # find an enclosing rectangle, which usually overestimates the cage bounding box
+            # find an enclosing rectangle, which usually overestimates the cage
+            # bounding box
             rect_large = regions.find_bounding_box(cage_mask)
             self.logger.debug('The cage is estimated to be contained in the '
                               'rectangle %s', rect_large)
@@ -546,11 +547,21 @@ class FirstPass(PassBase):
         if 'cage_estimate' in self.params['debug/output']:
             self.produce_cage_debug_image(frame, frame_binarized)
 
-        width_ok = self.params['cage/width_min'] < rect_cage.width < self.params['cage/width_max']
-        height_ok = self.params['cage/height_min'] < rect_cage.height < self.params['cage/height_max']
+        # check the bounds of the rectangle
+        width_min = self.params['cage/width_min']
+        width_max = self.params['cage/width_max']
+        height_min = self.params['cage/height_min']
+        height_max = self.params['cage/height_max']
+        
+        width_ok = width_min < rect_cage.width < width_max
+        height_ok = height_min < rect_cage.height < height_max
+        
         if not (width_ok and height_ok):
-            raise RuntimeError('The cage bounding box (%dx%d) is out of the '
-                               'limits.' % (rect_cage.width, rect_cage.height)) 
+            raise RuntimeError('The cage bounding box is outside the limits: '
+                               '%d < width < %d, but width = %d;'
+                               '%d < height < %d, but height = %d.'                               
+                               % (width_min, width_max, rect_cage.width,
+                                  height_min, height_max, rect_cage.height)) 
         
         self.logger.debug('The cage was determined to lie in %s', rect_cage)
         
