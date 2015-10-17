@@ -50,18 +50,19 @@ class PredugDetector(object):
         poly_s = affinity.translate(self.ground.get_sky_polygon(),
                                     -region.x, -region.y)        
         
-        def fill_mask(color, margin=0):
+        def fill_mask(mask, color, margin=0):
             """ fills the mask with the buffered regions """
             for poly in (poly_p, poly_s):
                 pts = np.array(poly.buffer(margin).boundary.coords, np.int32)
+                print('color=', color)
                 cv2.fillPoly(mask, [pts], np.uint8(color))
                 
         # prepare the mask for the grabCut algorithm
         burrow_width = self.params['burrows/width'] 
         mask = np.full_like(img, cv2.GC_BGD, dtype=np.uint8) #< sure background
-        fill_mask(cv2.GC_PR_BGD, 0.25*burrow_width) #< possible background
-        fill_mask(cv2.GC_PR_FGD, 0) #< possible foreground
-        fill_mask(cv2.GC_FGD, -0.25*burrow_width) #< sure foreground
+        fill_mask(mask, cv2.GC_PR_BGD, 0.25*burrow_width) #< possible background
+        fill_mask(mask, cv2.GC_PR_FGD, 0) #< possible foreground
+        fill_mask(mask, cv2.GC_FGD, -0.25*burrow_width) #< sure foreground
 
         # run GrabCut algorithm
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
