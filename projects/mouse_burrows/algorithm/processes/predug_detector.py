@@ -54,8 +54,7 @@ class PredugDetector(object):
             """ fills the mask with the buffered regions """
             for poly in (poly_p, poly_s):
                 pts = np.array(poly.buffer(margin).boundary.coords, np.int32)
-                print('color=', color)
-                cv2.fillPoly(mask, [pts], np.uint8(color))
+                cv2.fillPoly(mask, pts=[pts], color=int(color))
                 
         # prepare the mask for the grabCut algorithm
         burrow_width = self.params['burrows/width'] 
@@ -78,7 +77,7 @@ class PredugDetector(object):
         
         # turn the sky into background
         pts = np.array(poly_s.boundary.coords, np.int32)
-        cv2.fillPoly(mask, [pts], cv2.GC_BGD)
+        cv2.fillPoly(mask, [pts], color=int(cv2.GC_BGD))
 
         # extract a binary mask determining the predug 
         predug_mask = (mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD)
