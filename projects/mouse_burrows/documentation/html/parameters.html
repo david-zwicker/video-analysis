@@ -430,6 +430,8 @@
 <ul>
 <li>
 <code>analysis/frames = None</code>: Frames of the video which are included in the report of the analysis [start and end index should be given]. If this is omitted, all analyzed frames are included</li>
+<li>
+<code>analysis/burrow_pass = 3</code>: Determines the video analysis pass from which the burrow data is loaded to do analysis.</li>
 </ul>
 
 <h2>
@@ -458,6 +460,20 @@
 <code>resources/pass4/job_id = None</code>: Job id of pass 4</li>
 <li>
 <code>resources/pass4/time = 1500</code>: Maximal computation minutes for pass 4</li>
+</ul>
+</li>
+<li>
+<code>pass0</code>
+
+<ul>
+<li>
+<code>resources/pass0/cores = 1</code>: Number of cores for pass 0</li>
+<li>
+<code>resources/pass0/memory = 2000</code>: Maximal RAM per core for pass 0 [in MB]</li>
+<li>
+<code>resources/pass0/job_id = None</code>: Job id of pass 0</li>
+<li>
+<code>resources/pass0/time = 600</code>: Maximal computation minutes for pass 0</li>
 </ul>
 </li>
 <li>

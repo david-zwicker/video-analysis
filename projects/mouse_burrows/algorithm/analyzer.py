@@ -71,6 +71,7 @@ class Analyzer(DataHandler):
             self.length_scale = self.length_scale_mag
 
         self.speed_scale = self.length_scale / self.time_scale
+        self.burrow_pass = self.parameters['analysis/burrow_pass']
         self._cache = {}
         
         
@@ -154,12 +155,21 @@ class Analyzer(DataHandler):
     #===========================================================================
     # BURROW STATISTICS
     #===========================================================================
+        
+        
+    def _get_burrow_tracks(self):
+        """ return the burrow tracks or throw an error if not avaiable """
+        pass_id = self.burrow_pass 
+        try:
+            return self.data['pass%d/burrows/tracks' % pass_id]
+        except KeyError:
+            raise ValueError('Data from pass %d is not available.' % pass_id)
 
    
-    def find_burrow_predug(self, pass_id=3, ret_track_id=False):
+    def find_burrow_predug(self, ret_track_id=False):
         """ identifies the predug from the burrow traces """
 
-        burrow_tracks = self._get_burrow_tracks(pass_id)
+        burrow_tracks = self._get_burrow_tracks()
         predug_analyze_time = self.params['burrows/predug_analyze_time']
         area_threshold = self.params['burrows/predug_area_threshold']
         
@@ -187,11 +197,10 @@ class Analyzer(DataHandler):
         
     
     @cache
-    def get_burrow_predug(self, ret_track_id=False, pass_id=3):
+    def get_burrow_predug(self, ret_track_id=False):
         """ loads the predug from the data.
         If `ret_track_id` is given, the burrow track that overlaps most with
         the predug is also returned.
-        `pass_id` refers to the pass from which the burrow tracks are read
         """
         try:
             predug_data = self.data['pass1/burrows/predug']
@@ -207,7 +216,7 @@ class Analyzer(DataHandler):
             
             if predug_data:
                 # look at all the burrow tracks
-                burrow_tracks = self._get_burrow_tracks(pass_id)
+                burrow_tracks = self._get_burrow_tracks()
                 area_max = 0
                 for track_id, burrow_track in enumerate(burrow_tracks):
                     burrow = burrow_track.last
@@ -225,19 +234,11 @@ class Analyzer(DataHandler):
         """ check whether the burrow had a predug """ 
         predug = self.get_burrow_predug()
         return burrow.intersects(predug)
-        
-        
-    def _get_burrow_tracks(self, pass_id=3):
-        """ return the burrow tracks or throw an error if not avaiable """ 
-        try:
-            return self.data['pass%d/burrows/tracks' % pass_id]
-        except KeyError:
-            raise ValueError('Data from pass %d is not available.' % pass_id)
 
         
-    def get_burrow_lengths(self, pass_id=3):
+    def get_burrow_lengths(self):
         """ returns a list of burrows containing their length over time """
-        burrow_tracks = self._get_burrow_tracks(pass_id)
+        burrow_tracks = self._get_burrow_tracks()
         
         results = []
         for burrow_track in burrow_tracks:
@@ -255,10 +256,10 @@ class Analyzer(DataHandler):
         return results
     
     
-    def get_main_burrow(self, pass_id=3):
+    def get_main_burrow(self):
         """ returns the track of the main burrow, which is defined to be the
         longest burrow """
-        burrow_tracks = self._get_burrow_tracks(pass_id)
+        burrow_tracks = self._get_burrow_tracks()
         
         # find the longest burrow 
         main_track, main_length = None, 0
@@ -329,16 +330,15 @@ class Analyzer(DataHandler):
         return times[np.argmax(area_rate)] * self.time_scale
     
     
-    def get_burrow_growth_statistics(self, frames=None, pass_id=3):
+    def get_burrow_growth_statistics(self, frames=None):
         """ calculates the area that was excavated during the frames given """
         if frames is None:
             frames = self.get_frame_range()
 
-        burrow_tracks = self._get_burrow_tracks(pass_id)
+        burrow_tracks = self._get_burrow_tracks()
 
         # load the predug, if available
-        predug, predug_track_id = self.get_burrow_predug(ret_track_id=True,
-                                                         pass_id=pass_id)
+        predug, predug_track_id = self.get_burrow_predug(ret_track_id=True)
         # if it is not availble, both values will be None
 
         # find the burrow areas 
@@ -961,7 +961,7 @@ class Analyzer(DataHandler):
                                        'burrow_length_max')):
             # load the burrow tracks and get the last time frame
             length_max, length_total, area_total = 0, 0, 0
-            burrow_tracks = self._get_burrow_tracks(pass_id=3)
+            burrow_tracks = self._get_burrow_tracks()
             if burrow_tracks:
                 last_time = max(bt.track_end for bt in burrow_tracks)
                 # gather burrow statistics
@@ -973,7 +973,7 @@ class Analyzer(DataHandler):
                         area_total += bt.last.area
                         
             # correct for predug
-            predug = self.get_burrow_predug(pass_id=3)
+            predug = self.get_burrow_predug()
             area_total -= predug.area
 
             # save the data

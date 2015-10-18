@@ -187,6 +187,7 @@ burrows
 analysis
 --------
 * `analysis/frames = None`: Frames of the video which are included in the report of the analysis [start and end index should be given]. If this is omitted, all analyzed frames are included
+* `analysis/burrow_pass = 3`: Determines the video analysis pass from which the burrow data is loaded to do analysis.
 
 project
 -------
@@ -200,6 +201,11 @@ resources
   * `resources/pass4/memory = 2000`: Maximal RAM per core for pass 4 [in MB]
   * `resources/pass4/job_id = None`: Job id of pass 4
   * `resources/pass4/time = 1500`: Maximal computation minutes for pass 4
+* `pass0`
+  * `resources/pass0/cores = 1`: Number of cores for pass 0
+  * `resources/pass0/memory = 2000`: Maximal RAM per core for pass 0 [in MB]
+  * `resources/pass0/job_id = None`: Job id of pass 0
+  * `resources/pass0/time = 600`: Maximal computation minutes for pass 0
 * `pass1`
   * `resources/pass1/cores = 3`: Number of cores for pass 1
   * `resources/pass1/memory = 1000`: Maximal RAM per core for pass 1 [in MB]

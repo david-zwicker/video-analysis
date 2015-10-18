@@ -513,6 +513,9 @@ PARAMETER_LIST = [
               'Frames of the video which are included in the report of the '
               'analysis [start and end index should be given]. If this is '
               'omitted, all analyzed frames are included'),
+    Parameter('analysis/burrow_pass', 3, UNIT.INTEGER,
+              'Determines the video analysis pass from which the burrow data '
+              'is loaded to do analysis.'),
                   
     # Computation resources
     Parameter('project/symlink_folder', None, None,
