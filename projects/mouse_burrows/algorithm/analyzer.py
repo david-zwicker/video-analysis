@@ -71,7 +71,7 @@ class Analyzer(DataHandler):
             self.length_scale = self.length_scale_mag
 
         self.speed_scale = self.length_scale / self.time_scale
-        self.burrow_pass = self.parameters['analysis/burrow_pass']
+        self.burrow_pass = self.data['parameters/analysis/burrow_pass']
         self._cache = {}
         
         
