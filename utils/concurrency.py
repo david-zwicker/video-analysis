@@ -6,6 +6,8 @@ Created on Feb 15, 2015
 
 from __future__ import division
 
+import multiprocessing as mp
+import traceback
 import threading
 
 
@@ -90,4 +92,49 @@ class WorkerThread(object):
         # retrieve the result
         return self._result
     
+
+    
+class LogExceptions(object):
+    """
+    class that wraps a function to log any exceptions to the multiprocessing 
+    logger. Adapted from http://stackoverflow.com/a/7678125/932593
+    """
+
+    def __init__(self, function):
+        self._function = function
+        return
+
+    def __call__(self, *args, **kwargs):
+        try:
+            result = self._function(*args, **kwargs)
+
+        except Exception:
+            # Here we add some debugging help. If multiprocessing's
+            # debugging is on, it will arrange to log the traceback
+            mp.get_logger().error(traceback.format_exc())
+            # Re-raise the original exception so the Pool worker can
+            # clean up
+            raise
+
+        # It was fine, give a normal answer
+        return result
+    pass
+
+
+
+class LoggingPool(mp.Pool):
+    """
+    adapted version of the multiprocessing pool class that takes care of logging
+    exceptions that occurred in the child processes. 
+    Adapted from http://stackoverflow.com/a/7678125/932593
+    """
+    
+    def apply_async(self, func, args=(), kwds={}, callback=None):
+        parent = super(self, LoggingPool)
+        return parent.apply_async(LogExceptions(func), args, kwds, callback)
+    
+    def map_async(self, func, iterable, chunksize=None, callback=None):
+        parent = super(self, LoggingPool)
+        return parent.map_async(LogExceptions(func), iterable, chunksize,
+                                callback)
 
