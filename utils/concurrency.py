@@ -10,6 +10,8 @@ import multiprocessing as mp
 import traceback
 import threading
 
+from multiprocessing.pool import Pool
+
 
 
 class WorkerThread(object):
@@ -122,7 +124,7 @@ class LogExceptions(object):
 
 
 
-class LoggingPool(mp.Pool):
+class LoggingPool(Pool):
     """
     adapted version of the multiprocessing pool class that takes care of logging
     exceptions that occurred in the child processes. 
