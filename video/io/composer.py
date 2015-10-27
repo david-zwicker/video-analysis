@@ -73,6 +73,15 @@ class VideoComposer(VideoFileWriter):
                                             is_color, **kwargs)
 
 
+    def get_color(self, color):
+        """ takes the color and converts it into a usable representation """
+        color = get_color(color)
+        if not self.is_color:
+            # turn into grey scale
+            color = int(np.mean(color))
+        return color
+
+
     @property
     def output_this_frame(self):
         """ determines whether the current _frame should be written to the video """
@@ -225,7 +234,7 @@ class VideoComposer(VideoFileWriter):
             thickness = np.ceil(thickness / self.zoom_factor)
             
         cv2.drawContours(self._frame, contours, -1,
-                         get_color(color), thickness=int(thickness))
+                         self.get_color(color), thickness=int(thickness))
     
     
     @skip_if_no_output
@@ -246,7 +255,7 @@ class VideoComposer(VideoFileWriter):
             line_points = (points[start:end, :]/self.zoom_factor).astype(np.int)
             thickness = int(np.ceil(width / self.zoom_factor))
             cv2.polylines(self._frame, [line_points],
-                          isClosed=is_closed, color=get_color(color),
+                          isClosed=is_closed, color=self.get_color(color),
                           thickness=thickness)
             # mark the anchor points if requested
             if mark_points:
@@ -273,7 +282,7 @@ class VideoComposer(VideoFileWriter):
         corners = [(int(p[0]), int(p[1])) for p in corners]
             
         # draw the rectangle
-        cv2.rectangle(self._frame, *corners, color=get_color(color),
+        cv2.rectangle(self._frame, *corners, color=self.get_color(color),
                       thickness=thickness)
         
         
@@ -287,7 +296,7 @@ class VideoComposer(VideoFileWriter):
             radius = int(np.ceil(radius / self.zoom_factor))
             if thickness > 0:
                 thickness = int(np.ceil(thickness / self.zoom_factor))
-            cv2.circle(self._frame, pos, radius, get_color(color),
+            cv2.circle(self._frame, pos, radius, self.get_color(color),
                        thickness=thickness)
         except (ValueError, OverflowError):
             pass
@@ -331,7 +340,7 @@ class VideoComposer(VideoFileWriter):
             
         # place text
         cv2.putText(self._frame, text, tuple(pos), font, fontScale=size,
-                    color=get_color(color), thickness=1)
+                    color=self.get_color(color), thickness=1)
         
         
     def close(self):
