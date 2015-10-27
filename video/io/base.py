@@ -92,6 +92,18 @@ class VideoBase(object):
     
     
     @property
+    def width(self):
+        """ returns the width of the video """
+        return self.size[0]
+
+    
+    @property
+    def height(self):
+        """ returns the height of the video """
+        return self.size[1]
+
+    
+    @property
     def shape(self):
         """ returns the shape of the data describing the movie """
         shape = (self.frame_count, self.size[1], self.size[0])
@@ -127,14 +139,17 @@ class VideoBase(object):
     def set_frame_pos(self, index):
         """ sets the 0-based index of the next frame """
         if self.seekable:
+            # if the video is seekable, we can just set the new position
             if 0 <= index < self.frame_count:
                 self._frame_pos = index
             else:
                 raise IndexError('Seeking to frame %d was not possible.' % index)
+            
         elif index >= self.get_frame_pos():
-            # skip some frames
+            # video is not seekable => we can skip some frames to fast forward
             for _ in xrange(self.get_frame_pos(), index):
                 self.get_next_frame()
+                
         else:
             raise NotSeekableError('Cannot seek to frame %d, because the video '
                                    'is already at frame %d' % 
@@ -318,14 +333,22 @@ class VideoFilterBase(VideoBase):
     def set_frame_pos(self, index):
         self._source.set_frame_pos(index)
         self._frame_pos = index
-    
+
+
+    def get_frame_pos(self):
+        return self._source.get_frame_pos()
+
     
     def get_frame(self, index):
-        return self._process_frame(self._source.get_frame(index))
+        frame = self._source.get_frame(index)
+        self._frame_pos = index
+        return self._process_frame(frame)
           
                 
     def get_next_frame(self):
-        return self._process_frame(self._source.get_next_frame()) 
+        frame = self._source.get_next_frame()
+        self._frame_pos += 1
+        return self._process_frame(frame) 
     
     
     def close(self, propagate=True):
@@ -362,7 +385,7 @@ class VideoSlice(VideoFilterBase):
         self._step = step
             
         # calculate the number of frames to be expected
-        frame_count = int(np.ceil((self._stop - self._start)/self._step))
+        frame_count = int(np.ceil((self._stop - self._start) / self._step))
 
         # seek the source video to the start position
         source.set_frame_pos(start)
@@ -385,6 +408,10 @@ class VideoSlice(VideoFilterBase):
 
         self._source.set_frame_pos(self._start + index*self._step)
         self._frame_pos = index
+
+
+    def get_frame_pos(self):
+        return self._frame_pos
         
         
     def get_frame(self, index):

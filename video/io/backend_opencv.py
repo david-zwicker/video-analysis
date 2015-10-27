@@ -44,6 +44,8 @@ class VideoOpenCV(VideoBase):
     Class handling a single movie file using OpenCV
     """ 
     
+    seekable = True #< this video is seekable
+    
     def __init__(self, filename):
         # load the _movie
         self.filename = os.path.expanduser(filename)

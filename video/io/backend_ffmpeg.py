@@ -76,7 +76,8 @@ class VideoFFmpeg(VideoBase):
     """ 
     
     seek_max_frames = 100 #< the maximal number of frames we seek through
-    seek_offset = 1 #< seconds we place the rough seek before the target time 
+    seek_offset = 1 #< seconds we place the rough seek before the target time
+    seekable = True #< this video is seekable
 
     def __init__(self, filename, bufsize=None, pix_fmt="rgb24"):
         """ initialize a video that will be read with FFmpeg
@@ -134,23 +135,30 @@ class VideoFFmpeg(VideoBase):
         """ Opens the file, creates the pipe. """
         logger.debug('Open video `%s`' % self.filename)
         self.close() # close if anything was opened
-        
+
         if index > 0:
             # we have to seek to another index/time
 
             # determine the time that we have to seek to
             # the -0.1 is necessary to prevent rounding errors
-            starttime = (index - 0.1)/self.fps
+            starttime = (index - 0.1) / self.fps
             
-            if index < self.seek_max_frames:
-                # we only have to seek a little bit
-                i_arg = ['-i', self.filename,
-                         '-ss', "%.03f" % starttime]
-            else:
-                # we first seek to a keyframe and then proceed from there
-                i_arg = ['-ss', "%.03f" % (starttime - self.seek_offset),
-                         '-i', self.filename,
-                         '-ss', "%.03f" % self.seek_offset]
+            if FFMPEG_VERSION > (2, 1):
+                # newer ffmpeg version, which supports accurate seeking
+                i_arg = ['-ss', "%.03f" % starttime,
+                         '-i', self.filename]
+                
+            else: # FFMPEG_VERSION <= (2, 1)
+                # older ffmpeg version, which does not support accurate seeking
+                if index < self.seek_max_frames:
+                    # we only have to seek a little bit
+                    i_arg = ['-i', self.filename,
+                             '-ss', "%.03f" % starttime]
+                else:
+                    # we first seek to a keyframe and then proceed from there
+                    i_arg = ['-ss', "%.03f" % (starttime - self.seek_offset),
+                             '-i', self.filename,
+                             '-ss', "%.03f" % self.seek_offset]
 
             logger.debug('Seek video to frame %d (=%.03f s)', index, starttime)
             

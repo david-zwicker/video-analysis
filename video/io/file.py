@@ -131,6 +131,7 @@ class VideoFileStack(VideoBase):
             raise IOError('Could not find any files matching the pattern `%s`' % filename_scheme)
 
         # load all the files that have been found
+        self.seekable = True
         frame_count = 0
         last_video = None
         for filename in filenames:
@@ -157,6 +158,10 @@ class VideoFileStack(VideoBase):
 
             # save the video in the list
             self._videos.append(video)
+            
+            # check whether this video is seekable
+            if not video.seekable:
+                self.seekable = False
             
             logger.info('Found video `%s`', video.filename)
 
