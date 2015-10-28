@@ -179,9 +179,6 @@ class FourthPass(PassBase):
 
             # store some debug information
             self.debug_process_frame(frame)
-            
-            if background_id % 1000 == 0:
-                self.logger.debug('Analyzed _frame %d', self.frame_id)
 
 
     @staticmethod

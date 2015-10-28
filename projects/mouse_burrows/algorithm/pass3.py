@@ -163,7 +163,8 @@ class ThirdPass(PassBase):
             frame_offset = 0
 
         # iterate over the video and analyze it
-        for self.frame_id, frame in enumerate(display_progress(video), frame_offset):
+        for self.frame_id, frame in enumerate(display_progress(video),
+                                              frame_offset):
             
             # adapt the background to current _frame 
             adaptation_rate = self.params['background/adaptation_rate']
@@ -190,9 +191,6 @@ class ThirdPass(PassBase):
             
             # store some information in the debug dictionary
             self.debug_process_frame(frame, mouse_track)
-            
-            if self.frame_id % 1000 == 0:
-                self.logger.debug('Analyzed _frame %d', self.frame_id)
 
 
     def write_mouse_state(self):

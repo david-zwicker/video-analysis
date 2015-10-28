@@ -259,7 +259,7 @@ class DataHandler(object):
             video_filename_pattern = os.path.join(self.data['parameters/base_folder'],
                                                   self.data['parameters/video/filename_pattern'])
             self.video = load_any_video(video_filename_pattern)
-             
+            
         elif isinstance(video, str):
             self.video = load_any_video(video)
             video_filename_pattern = None

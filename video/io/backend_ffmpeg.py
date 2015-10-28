@@ -160,7 +160,7 @@ class VideoFFmpeg(VideoBase):
                              '-i', self.filename,
                              '-ss', "%.03f" % self.seek_offset]
 
-            logger.debug('Seek video to frame %d (=%.03f s)', index, starttime)
+            logger.debug('Seek video to frame %d (=%.03fs)', index, starttime)
             
         else:
             # we can just open the video at the first frame

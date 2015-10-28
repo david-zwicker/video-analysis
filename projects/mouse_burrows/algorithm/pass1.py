@@ -112,8 +112,8 @@ class FirstPass(PassBase):
         self.debug_setup()
         self.setup_processing()
 
-        self.log_event('Pass 1 - Started iterating through the video with %d frames.' %
-                       self.video.frame_count)
+        self.log_event('Pass 1 - Started iterating through the video with %d '
+                       'frames.' % self.video.frame_count)
         self.set_status('Initialized video analysis')
         start_time = time.time()            
         

@@ -16,8 +16,8 @@ import functools
 import collections
 
 
-CacheInfo = collections.namedtuple(
-    'CacheInfo', 'type hits misses maxsize currsize')
+CacheInfo = collections.namedtuple('CacheInfo',
+                                   'type hits misses maxsize currsize')
 
 
 def make_key(obj, typed=True):
