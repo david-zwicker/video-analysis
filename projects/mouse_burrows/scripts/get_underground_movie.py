@@ -26,7 +26,7 @@ from utils.misc import display_progress
 
 
 
-def make_underground_video(result_file, output_video, display='time',
+def make_underground_video(result_file, output_video=None, display='time',
                            blank_duration=5, blank_wait=50):
     """ main routine of the program
     `result_file` is the file where the results from the video analysis are
@@ -68,6 +68,9 @@ def make_underground_video(result_file, output_video, display='time',
                            'analysis.')
     
     # create output video
+    if output_video is None:
+        output_video = analyzer.get_filename('underground', 'results')
+    
     video_codec = analyzer.params['output/video/codec']
     video_bitrate = analyzer.params['output/video/bitrate']
     fps = video_input.fps
