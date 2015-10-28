@@ -21,12 +21,12 @@ except ImportError:
                  'thus not available.')
 
 
-def display_progress(iterator, total=None):
+def display_progress(iterator, total=None, mininterval=5):
     """
     displays a progress bar when iterating
     """
     if tqdm is not None:
-        return tqdm(iterator, total=total, leave=True)
+        return tqdm(iterator, total=total, leave=True, mininterval=mininterval)
     else:
         return iterator
     
