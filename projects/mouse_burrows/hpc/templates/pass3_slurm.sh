@@ -13,6 +13,10 @@
 echo "Start job with id $SLURM_JOB_ID"
 echo $SLURM_JOB_ID >> pass3_job_id.txt
 
+# copy video to temporary location if necessary
+mkdir -p {VIDEO_FOLDER_TEMPORARY}
+rsync -avzh --progress {VIDEO_FILE_SOURCE} {VIDEO_FOLDER_TEMPORARY}
+
 # increase process limit, because ffmpeg needs many threads
 ulimit -u 2048
 
