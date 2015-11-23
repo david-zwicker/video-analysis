@@ -262,7 +262,6 @@ class VideoComposer(VideoFileWriter):
                 for p in points[start:end, :]:
                     self.add_circle(p, 2*width, color, thickness=-1)
 
-        
     
     @skip_if_no_output
     def add_rectangle(self, rect, color='w', width=1):
