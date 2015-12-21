@@ -1,4 +1,3 @@
-* Determine video location such that video data is not copied multiple times
 * Write a manual of assumption we make about the videos in order to track everything
 * Gather more statistics about why certain parts of the algorithm failed
 * Refine the centerline by moving the points more toward the actual center
