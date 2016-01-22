@@ -471,7 +471,8 @@ def make_distance_map(mask, start_points, end_points=None):
     # initialize the shape
     ymax, xmax = mask.shape[:2]
     stack = defaultdict(set)
-    stack[2] = set(start_points) #< initialize the stack with the start points
+    # initialize the stack with the start points
+    stack[2] = set(tuple(p) for p in start_points) 
 
     # loop until all points are filled
     while stack:
