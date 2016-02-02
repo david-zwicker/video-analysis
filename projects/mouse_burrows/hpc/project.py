@@ -86,8 +86,8 @@ class HPCProjectBase(object):
             self.passes = passes
 
         # create bare result object to initialize parameters consistently
-        self.data_handler = DataHandler(self.name, parameters=parameters,
-                                        initialize_parameters=True)
+        parameters.pop('scale_length', None) #< 
+        self.data_handler = DataHandler(self.name, parameters=parameters)
         
         
     @property
