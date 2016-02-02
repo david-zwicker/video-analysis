@@ -15,10 +15,10 @@ import time
 
 import numpy as np
 
-from ..algorithm.parameters import PARAMETERS_DEFAULT
+from ..algorithm.data_handler import DataHandler
 from ..simple import load_result_file
-from utils.data_structures import DictXpath
 import utils.files
+
 
 
 def process_trials(logfile, max_iterations=10, log_append=True):
@@ -85,10 +85,11 @@ class HPCProjectBase(object):
         else:
             self.passes = passes
 
-        # save tracking parameters
-        self.parameters = DictXpath(PARAMETERS_DEFAULT)
-        if parameters is not None:
-            self.parameters.from_dict(parameters)
+        # create bare result object to initialize parameters consistently
+        self.data_handler = DataHandler(self.name, parameters=parameters,
+                                        initialize_parameters=False)
+        # make parameters easily accessible
+        self.parameters = self.data_handler.parameters
             
         
     def clean_workfolder(self, purge=False):
@@ -195,6 +196,7 @@ class HPCProjectBase(object):
         
         # setup tracking parameters
         tracking_parameters = self.parameters.to_dict(flatten=True)
+        result_file = self.data_handler.get_filename('results.hdf5', 'results')
         
         # extract the factor for the lengths and provide it separately
         scale_length = tracking_parameters.pop('scale_length', 1)
@@ -204,6 +206,7 @@ class HPCProjectBase(object):
         params = {'FOLDER_CODE': folder_code,
                   'JOB_DIRECTORY': self.folder,
                   'NAME': self.name,
+                  'RESULT_FILE': result_file,
                   'VIDEO_FILE_SOURCE': video_file,
                   'VIDEO_FOLDER_TEMPORARY': video_folder_temporary,
                   'VIDEO_FILE_TEMPORARY': video_file_temporary,
