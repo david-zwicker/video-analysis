@@ -41,12 +41,14 @@ class ProjectSingleSlurm(HPCProjectBase):
                  1: ['pass1_slurm.sh', 'pass1_single.py'], 
                  2: ['pass2_slurm.sh', 'pass2_single.py'],
                  3: ['pass3_slurm.sh', 'pass3_single.py'],
-                 4: ['pass4_slurm.sh', 'pass4_single.py']}
+                 4: ['pass4_slurm.sh', 'pass4_single.py'],
+                 9: ['make_underground_video.sh']}
     files_cleanup = {0: [],
                      1: ['pass1_job_id.txt', 'status_pass1.yaml', 'log_pass1*'],
                      2: ['pass2_job_id.txt', 'status_pass2.yaml', 'log_pass2*'],
                      3: ['pass3_job_id.txt', 'status_pass3.yaml', 'log_pass3*'],
-                     4: ['pass4_job_id.txt', 'status_pass4.yaml', 'log_pass4*']}
+                     4: ['pass4_job_id.txt', 'status_pass4.yaml', 'log_pass4*'],
+                     9: []}
     
     # file name patterns used here
     job_id_file = 'pass%d_job_id.txt'

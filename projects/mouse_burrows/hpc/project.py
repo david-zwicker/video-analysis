@@ -16,6 +16,7 @@ import time
 import numpy as np
 
 from ..algorithm.parameters import PARAMETERS_DEFAULT
+from ..simple import load_result_file
 from utils.data_structures import DictXpath
 import utils.files
 
@@ -113,6 +114,17 @@ class HPCProjectBase(object):
                         os.remove(file_path)
                     except OSError:
                         pass
+
+
+    @classmethod
+    def create_from_resultfile(cls, result_file, passes=None, **kwargs):
+        """ create the project from existing result file """
+        # read results from result file
+        result = load_result_file(result_file, **kwargs)
+        
+        # create project
+        return cls(folder=result.folder, name=result.name,
+                   parameters=result.parameters, passes=passes)
 
 
     @classmethod
