@@ -86,8 +86,7 @@ class HPCProjectBase(object):
             self.passes = passes
 
         # create bare result object to initialize parameters consistently
-        self.data_handler = DataHandler(self.name, parameters=parameters,
-                                        initialize_parameters=False)
+        self.data_handler = DataHandler(self.name, parameters=parameters)
         # make parameters easily accessible
         self.parameters = self.data_handler.data['parameters']
             
