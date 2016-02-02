@@ -87,7 +87,7 @@ class HPCProjectBase(object):
 
         # create bare result object to initialize parameters consistently
         self.data_handler = DataHandler(self.name, parameters=parameters,
-                                        initialize_parameters=False)
+                                        initialize_parameters=True)
         
         
     @property
@@ -149,8 +149,8 @@ class HPCProjectBase(object):
         parameters is a dictionary that sets the parameters that are
             used for tracking. There is a special parameter 'scale_length' that
             we look for, which is applied in the first pass only.
-        passes is an integer which is 1, 2 or 3, indicating whether only the first
-            tracking pass or also the second one should be initialized
+        passes is an integer which is 1, 2 or 3, indicating whether only the
+            first tracking pass or also the second one should be initialized
         prepare_workfolder can be 'none', 'clean', or 'purge', which indicates
             increasing amounts of files that will be deleted before creating
             the project. If it is set to 'auto', the folder will be purged
