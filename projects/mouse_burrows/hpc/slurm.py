@@ -48,7 +48,7 @@ class ProjectSingleSlurm(HPCProjectBase):
                      2: ['pass2_job_id.txt', 'status_pass2.yaml', 'log_pass2*'],
                      3: ['pass3_job_id.txt', 'status_pass3.yaml', 'log_pass3*'],
                      4: ['pass4_job_id.txt', 'status_pass4.yaml', 'log_pass4*'],
-                     9: []}
+                     9: ['log_underground*']}
     
     # file name patterns used here
     job_id_file = 'pass%d_job_id.txt'

@@ -11,9 +11,16 @@
 
 echo "Start job with id $SLURM_JOB_ID"
 
-# copy video to temporary location if necessary
+# load python environment
+source ~/.profile
+# change to job directory
+cd {JOB_DIRECTORY}
+# run script to create underground movie
 ~/Code/video-analysis/projects/mouse_burrows/scripts/get_underground_movie.py \
     --result_file {RESULT_FILE} \
     --scale_bar
+
+
+#    --result_file {JOB_DIRECTORY}/results/{NAME}_results.yaml \
 
 echo "Ended job with id $SLURM_JOB_ID"
