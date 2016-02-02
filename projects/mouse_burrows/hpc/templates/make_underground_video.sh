@@ -20,7 +20,8 @@ cd {JOB_DIRECTORY}
     --result_file {RESULT_FILE} \
     --scale_bar
 
-
 #    --result_file {JOB_DIRECTORY}/results/{NAME}_results.yaml \
+
+
 
 echo "Ended job with id $SLURM_JOB_ID"

@@ -17,7 +17,7 @@ import numpy as np
 
 from ..algorithm.data_handler import DataHandler
 from ..simple import load_result_file
-import utils.files
+from utils.files import MAIN_DIRECTORY, change_directory
 
 
 
@@ -191,7 +191,7 @@ class HPCProjectBase(object):
             self.clean_workfolder(purge=True)
         
         # get the folder in which the current project resides
-        folder_code = os.path.abspath(utils.files.MAIN_DIRECTORY)
+        folder_code = os.path.abspath(MAIN_DIRECTORY)
         
         # get the temporary directory to which video data should be copied 
         video_folder_temporary = self.parameters['video/folder_temporary']
@@ -206,7 +206,11 @@ class HPCProjectBase(object):
         
         # setup tracking parameters
         tracking_parameters = self.parameters.to_dict(flatten=True)
-        result_file = self.data_handler.get_filename('results.hdf5', 'results')
+        
+        # get the result file
+        with change_directory(self.folder):
+            result_file = self.data_handler.get_filename('results.hdf5',
+                                                         'results')
         
         # extract the factor for the lengths and provide it separately
         scale_length = tracking_parameters.pop('scale_length', 1)
