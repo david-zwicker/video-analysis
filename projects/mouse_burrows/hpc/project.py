@@ -86,9 +86,13 @@ class HPCProjectBase(object):
             self.passes = passes
 
         # create bare result object to initialize parameters consistently
-        self.data_handler = DataHandler(self.name, parameters=parameters)
-        # make parameters easily accessible
-        self.parameters = self.data_handler.data['parameters']
+        self.data_handler = DataHandler(self.name, parameters=parameters,
+                                        initialize_parameters=False)
+        
+        
+    @property
+    def parameters(self):
+        return self.data_handler.data['parameters']
             
         
     def clean_workfolder(self, purge=False):
@@ -123,8 +127,14 @@ class HPCProjectBase(object):
         result = load_result_file(result_file, **kwargs)
         
         # create project
-        return cls(folder=result.folder, name=result.name,
-                   parameters=result.parameters, passes=passes)
+        project = cls(folder=result.folder, name=result.name,
+                      parameters=result.parameters, passes=passes)
+        
+        # replace the data_handler by the actual result file, since it contains
+        # the right information
+        project.data_handler = result
+        
+        return project
 
 
     @classmethod
