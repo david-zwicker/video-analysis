@@ -171,8 +171,8 @@ class DataHandler(object):
     def scale_parameters(self, factor_length=1, factor_time=1):
         """ scales the parameters in length and time """
         scale_parameters(self.data['parameters'],
-                        factor_length=factor_length,
-                        factor_time=factor_time)
+                         factor_length=factor_length,
+                         factor_time=factor_time)
             
             
     @property

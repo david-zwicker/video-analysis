@@ -89,7 +89,7 @@ class HPCProjectBase(object):
         self.data_handler = DataHandler(self.name, parameters=parameters,
                                         initialize_parameters=False)
         # make parameters easily accessible
-        self.parameters = self.data_handler.parameters
+        self.parameters = self.data_handler.data['parameters']
             
         
     def clean_workfolder(self, purge=False):
