@@ -15,9 +15,10 @@ import time
 
 import numpy as np
 
-from ..algorithm.data_handler import DataHandler
+from ..algorithm.parameters import PARAMETERS_DEFAULT
 from ..simple import load_result_file
-from utils.files import MAIN_DIRECTORY, change_directory
+from utils.data_structures import DictXpath
+from utils.files import MAIN_DIRECTORY
 
 
 
@@ -85,15 +86,10 @@ class HPCProjectBase(object):
         else:
             self.passes = passes
 
-        # create bare result object to initialize parameters consistently
-        parameters.pop('scale_length', None) #< parameter is not necessary
-        self.data_handler = DataHandler(self.name, parameters=parameters,
-                                        initialize_parameters=True)
-        
-        
-    @property
-    def parameters(self):
-        return self.data_handler.data['parameters']
+        # save tracking parameters
+        self.parameters = DictXpath(PARAMETERS_DEFAULT)
+        if parameters is not None:
+            self.parameters.from_dict(parameters)
             
         
     def clean_workfolder(self, purge=False):
@@ -130,10 +126,6 @@ class HPCProjectBase(object):
         # create project
         project = cls(folder=result.folder, name=result.name,
                       parameters=result.parameters, passes=passes)
-        
-        # replace the data_handler by the actual result file, since it contains
-        # the right information
-        project.data_handler = result
         
         return project
 
@@ -207,11 +199,6 @@ class HPCProjectBase(object):
         # setup tracking parameters
         tracking_parameters = self.parameters.to_dict(flatten=True)
         
-        # get the result file
-        with change_directory(self.folder):
-            result_file = self.data_handler.get_filename('results.yaml',
-                                                         'results')
-        
         # extract the factor for the lengths and provide it separately
         scale_length = tracking_parameters.pop('scale_length', 1)
         scale_length = parameters.pop('scale_length', scale_length)
@@ -220,7 +207,6 @@ class HPCProjectBase(object):
         params = {'FOLDER_CODE': folder_code,
                   'JOB_DIRECTORY': self.folder,
                   'NAME': self.name,
-                  'RESULT_FILE': result_file,
                   'VIDEO_FILE_SOURCE': video_file,
                   'VIDEO_FOLDER_TEMPORARY': video_folder_temporary,
                   'VIDEO_FILE_TEMPORARY': video_file_temporary,
