@@ -107,9 +107,8 @@ def make_underground_video(result_file, output_video=None, display='time',
                 video_output.set_frame(blank_frame)
                 
         video_bout = video_input[start:finish + 1]
-        iterator = display_progress(enumerate(video_bout, start), duration)
         
-        for frame_id, frame in iterator:
+        for frame_id, frame in enumerate(video_bout, start):
             video_output.set_frame(frame, copy=True)
 
             if scale_bar:
