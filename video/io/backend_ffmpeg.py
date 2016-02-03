@@ -219,11 +219,13 @@ class VideoFFmpeg(VideoBase):
                          self._frame_pos, self.frame_count,
                          self._frame_pos/self.fps, self.duration))
             
-            if not hasattr(self, 'lastread'):
-                raise FFmpegError("Failed to read the first frame of video file %s. "
-                                  "That might mean that the file is corrupted. That "
-                                  "may also mean that you are using a deprecated "
-                                  "version of FFmpeg." % self.filename)
+            if self.lastread is None:
+                raise FFmpegError(
+                    "Failed to read the first frame of video file %s. That "
+                    "might mean that the file is corrupted. That may also mean "
+                    "that your version of FFmpeg (%s) is too old."
+                    % (self.filename, FFMPEG_VERSION)
+                )
 
             result = self.lastread
 
