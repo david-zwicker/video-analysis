@@ -209,7 +209,7 @@ class HPCProjectBase(object):
         
         # get the result file
         with change_directory(self.folder):
-            result_file = self.data_handler.get_filename('results.hdf5',
+            result_file = self.data_handler.get_filename('results.yaml',
                                                          'results')
         
         # extract the factor for the lengths and provide it separately
