@@ -120,6 +120,8 @@ class HPCProjectBase(object):
     @classmethod
     def create_from_resultfile(cls, result_file, passes=None, **kwargs):
         """ create the project from existing result file """
+        logging.info('Create project from result file `%s`', result_file)
+        
         # read results from result file
         result = load_result_file(result_file, **kwargs)
         
