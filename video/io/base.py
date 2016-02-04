@@ -72,7 +72,8 @@ class VideoBase(object):
         
     
     def __str__(self):
-        """ returns a string representation with important properties of the video """
+        """ returns a string representation with important properties of the
+        video """
         result = "%s(%s)" % (self.__class__.__name__,
                              ', '.join(self.get_property_list()))
         if len(self._listeners) == 1:
@@ -122,7 +123,8 @@ class VideoBase(object):
     
     
     def register_listener(self, listener_callback):
-        """ registers a listener function, which will be called if this video is advanced """
+        """ registers a listener function, which will be called if this video 
+        is advanced """
         self._listeners.append(listener_callback)
     
     
@@ -264,7 +266,8 @@ class VideoIterator(object):
 
 
 class VideoImageStackBase(VideoBase):
-    """ abstract base class that represents a movie stored as individual frame images """
+    """ abstract base class that represents a movie stored as individual frame
+    images """
     
     def __init__(self, filename_scheme, fps=None):
         # find all the files belonging to this stack
@@ -279,9 +282,11 @@ class VideoImageStackBase(VideoBase):
         elif frame.shape[2] == 3:
             is_color = True
         else:
-            raise ValueError('The last dimension of the data must be either 1 or 3.')
+            raise ValueError('The last dimension of the data must be either 1 '
+                             'or 3.')
                 
-        super(VideoImageStackBase, self).__init__(size=size, frame_count=frame_count,
+        super(VideoImageStackBase, self).__init__(size=size,
+                                                  frame_count=frame_count,
                                                   fps=fps, is_color=is_color)
         
         
@@ -292,7 +297,8 @@ class VideoFilterBase(VideoBase):
     This class does not hold its own data, but is more like a view in numpy.
     """
      
-    def __init__(self, source, size=None, frame_count=None, fps=None, is_color=None):
+    def __init__(self, source, size=None, frame_count=None, fps=None,
+                 is_color=None):
         
         # store an iterator of the source video
         self._source = source

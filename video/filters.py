@@ -6,7 +6,8 @@ Created on Aug 1, 2014
 Filter are iterators that take a video as an input and return a special Video
 that can be iterated over, but that doesn't store its data in memory.
 
-Some filters allow to access the underlying frames at random using the get_frame method
+Some filters allow to access the underlying frames at random using the
+get_frame method
 
 '''
 
@@ -53,7 +54,7 @@ def get_color_range(dtype):
   
 
 class FilterFunction(VideoFilterBase):
-    """ smoothes every _frame """
+    """ applies function to every frame """
     
     def __init__(self, source, function):
         
@@ -93,7 +94,8 @@ class FilterNormalize(VideoFilterBase):
         self._alpha = None
         
         super(FilterNormalize, self).__init__(source)
-        logger.debug('Created filter for normalizing range [%g..%g]', vmin, vmax)
+        logger.debug('Created filter for normalizing range [%g..%g]',
+                     vmin, vmax)
 
 
     def _process_frame(self, frame):
@@ -114,9 +116,11 @@ class FilterNormalize(VideoFilterBase):
             # some safety checks on the first run:
             fmin, fmax = get_number_range(frame.dtype)
             if self._fmin < fmin:
-                logger.warn('Lower normalization bound is below what the format can hold.')
+                logger.warn('Lower normalization bound is below what the '
+                            'format can hold.')
             if self._fmax > fmax:
-                logger.warn('Upper normalization bound is above what the format can hold.')
+                logger.warn('Upper normalization bound is above what the '
+                            'format can hold.')
 
         # clip the data before converting
         np.clip(frame, self._fmin, self._fmax, out=frame)
@@ -206,7 +210,8 @@ class FilterCrop(VideoFilterBase):
         self.slices = rect_to_slices(self.rect)
 
         # correct the size, since we are going to crop the movie
-        super(FilterCrop, self).__init__(source, size=self.rect[2:], is_color=is_color)
+        super(FilterCrop, self).__init__(source, size=self.rect[2:],
+                                         is_color=is_color)
         logger.debug('Created filter for cropping to rectangle %s', self.rect)
         
        
@@ -291,6 +296,33 @@ class FilterResize(VideoFilterBase):
     
 
 
+class FilterRotate(VideoFilterBase):
+    """ returns the video rotated in counter-clockwise direction """
+    
+    def __init__(self, source, angle=0):
+        """ rotate the video by angle in counter-clockwise direction """
+        if angle == 0 or angle == 180:
+            size = source.size
+        elif angle == 90 or angle == 270:
+            size = (source.size[1], source.size[0])
+        else: 
+            raise ValueError('angle must be from [0, 90, 180, 270]')
+        self.angle = angle
+        
+        # correct the size, since we are going to crop the movie
+        super(FilterRotate, self).__init__(source, size=size)
+        
+        
+    def _process_frame(self, frame):
+        # rotate the array
+        frame = np.rot90(frame, self.angle % 90)
+
+        # pass the frame to the parent function
+        return super(FilterRotate, self)._process_frame(frame)
+        
+
+
+
 class FilterMonochrome(VideoFilterBase):
     """ returns the video as monochrome """
     
@@ -298,7 +330,8 @@ class FilterMonochrome(VideoFilterBase):
         self.mode = COLOR_CHANNELS.get(mode.lower(), mode.lower())
         super(FilterMonochrome, self).__init__(source, is_color=False)
 
-        logger.debug('Created filter for converting video to monochrome with method `%s`', mode)
+        logger.debug('Created filter for converting video to monochrome with '
+                     'method `%s`', mode)
 
 
     def _process_frame(self, frame):
@@ -312,7 +345,8 @@ class FilterMonochrome(VideoFilterBase):
             else:
                 frame = frame[:, :, self.mode]
         except ValueError:
-            raise ValueError('Unsupported conversion method to monochrome: %s' % self.mode)
+            raise ValueError('Unsupported conversion method to monochrome: %s'
+                             % self.mode)
     
         # pass the frame to the parent function
         return super(FilterMonochrome, self)._process_frame(frame)
@@ -390,7 +424,8 @@ class FilterDiffBase(VideoFilterBase):
         self._prev_frame = None
         
         # correct the _frame count since we are going to return differences
-        super(FilterDiffBase, self).__init__(source, frame_count=source.frame_count-1)
+        super(FilterDiffBase, self).__init__(source,
+                                             frame_count=source.frame_count-1)
     
     
     def set_frame_pos(self, index):
@@ -439,7 +474,8 @@ class FilterTimeDifference(FilterDiffBase):
         # correct the _frame count since we are going to return differences
         super(FilterTimeDifference, self).__init__(source)
 
-        logger.debug('Created filter for calculating differences between consecutive frames.')
+        logger.debug('Created filter for calculating differences between '
+                     'consecutive frames.')
 
       
     def _compare_frames(self, this_frame, prev_frame):
