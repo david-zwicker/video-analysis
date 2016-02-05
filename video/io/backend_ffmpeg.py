@@ -224,7 +224,7 @@ class VideoFFmpeg(VideoBase):
                     "Failed to read the first frame of video file %s. That "
                     "might mean that the file is corrupted. That may also mean "
                     "that your version of FFmpeg (%s) is too old."
-                    % (self.filename, FFMPEG_VERSION)
+                    % (self.filename, '.'.join(FFMPEG_VERSION))
                 )
 
             result = self.lastread
