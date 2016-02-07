@@ -224,14 +224,15 @@ class VideoFFmpeg(VideoBase):
                     "Failed to read the first frame of video file %s. That "
                     "might mean that the file is corrupted. That may also mean "
                     "that your version of FFmpeg (%s) is too old."
-                    % (self.filename, '.'.join(FFMPEG_VERSION))
+                    % (self.filename, '.'.join(str(v) for v in FFMPEG_VERSION))
                 )
 
             result = self.lastread
 
         else:
             # frame has been obtained properly
-            result = np.frombuffer(s, dtype='uint8').reshape((h, w, len(s)//(w*h)))
+            shape = (h, w, self.depth)
+            result = np.frombuffer(s, dtype='uint8').reshape(shape)
             self.lastread = result
             self._frame_pos += 1
             
