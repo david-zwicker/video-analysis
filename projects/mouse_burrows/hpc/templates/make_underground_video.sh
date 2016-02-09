@@ -1,6 +1,7 @@
 #!/bin/bash
 
 #SBATCH -n {PASS9/CORES}     # Number of cores
+#SBATCH -N 1                 # Ensure that all cores are on one machine
 #SBATCH -t {PASS9/TIME}      # Runtime in minutes
 #SBATCH -p {SLURM_PARTITION} # Partition to submit to
 #SBATCH --mem-per-cpu={PASS9/MEMORY}   # Memory per cpu in MB (see also --mem)
