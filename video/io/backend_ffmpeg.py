@@ -212,8 +212,8 @@ class VideoFFmpeg(VideoBase):
             if frames_remaining < 5 or frames_remaining < 0.01*self.frame_count:
                 raise StopIteration
             
-            logger.warn("Warning: in file %s, %d bytes wanted but %d bytes read, "
-                        "at frame %d/%d, at time %.02f/%.02f sec. "
+            logger.warn("Warning: in file %s, %d bytes wanted but %d bytes "
+                        "read, at frame %d/%d, at time %.02f/%.02f sec. "
                         "Using the last valid frame instead." %
                         (self.filename, nbytes, len(s),
                          self._frame_pos, self.frame_count,

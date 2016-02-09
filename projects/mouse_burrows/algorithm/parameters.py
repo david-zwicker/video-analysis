@@ -545,6 +545,7 @@ PARAMETER_LIST = [
     Parameter('resources/pass4/cores', 2, UNIT.INTEGER, 'Number of cores for pass 4'),
     Parameter('resources/pass4/time', 25*60, None, 'Maximal computation minutes for pass 4'),
     Parameter('resources/pass4/memory', 2000, None, 'Maximal RAM per core for pass 4 [in MB]'),
+    Parameter('resources/pass9/cores', 2, UNIT.INTEGER, 'Number of cores for pass 9'),
     Parameter('resources/pass9/job_id', None, None, 'Job id of pass 9'),              
     Parameter('resources/pass9/time', 50*60, None, 'Maximal computation minutes for pass 9'),
     Parameter('resources/pass9/memory', 2000, None, 'Maximal RAM per core for pass 9 [in MB]'),
