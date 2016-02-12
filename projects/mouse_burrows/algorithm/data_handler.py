@@ -27,7 +27,7 @@ from utils.data_structures import (DictXpathLazy, LazyHDFValue,
 from utils.misc import get_loglevel_from_name
 from utils.cache import cached_property
 from video.io import load_any_video
-from video.filters import FilterCrop, FilterMonochrome
+from video.filters import FilterCrop, FilterMonochrome, FilterRotate
 
 
 LOGGING_FILE_MODES = {'create': 'w', #< create new log file 
@@ -315,6 +315,12 @@ class DataHandler(object):
         color_channel = 'green' if self.video.is_color else None
         video_info['color_channel'] = color_channel
 
+        # rotate the video if requested
+        if self.data['parameters/video/rotation'] != 0:
+            angle = 90 * self.data['parameters/video/rotation']
+            self.video = FilterRotate(self.video, angle=angle)
+
+        # crop the video if requested
         if crop_video and cropping_rect is not None:
             if isinstance(cropping_rect, str):
                 # crop according to the supplied string

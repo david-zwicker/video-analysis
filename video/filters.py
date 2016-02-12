@@ -319,7 +319,6 @@ class FilterRotate(VideoFilterBase):
 
         # pass the frame to the parent function
         return super(FilterRotate, self)._process_frame(frame)
-        
 
 
 

@@ -95,6 +95,10 @@ PARAMETER_LIST = [
               'Number of frames that are skipped before starting the '
               'analysis. This value is only considered if `video/frames` '
               'is None.'),
+    Parameter('video/rotation', UNIT.INTEGER, 0,
+              "Specifies how much the video will be rotated in "
+              "counter-clockwise direction. The value specified will be "
+              "multiplied by 90 degrees to specify the amount of rotation."),
     Parameter('video/cropping_rect', None, None,
               "Rectangle to which the video is cropped. This can be either four "
               "numbers [left, top, width, height] or some string like "

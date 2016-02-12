@@ -25,20 +25,22 @@ QUADRANTS_HALF = {'5': {'short': 'U', 'position': 'upper'},
 
 
 
-def identifier_single(data):
+def identifier_single(data, datesep='_', mousesep='_'):
     """ return the identifier of a single experiment """
     # check whether there is an id
     if 'id' in data:
-        result = "%(index)s_" % data
+        result = data['index'] + "_"
     else:
         result = ""
         
+    # add the date
+    result += data['date'] + datesep
+        
     # check whether we are dealing with a single mouse or multiple
     if isinstance(data['mouse'], basestring):
-        result += "%(date)s_%(mouse)s" % data
+        result += data['mouse']
     else:
-        mice = '_'.join(data['mouse'])
-        result += "%s_%s" % (data['date'], mice)
+        result += '_'.join(data['mouse'])
         
     return result
 
