@@ -315,7 +315,7 @@ class FilterRotate(VideoFilterBase):
         
     def _process_frame(self, frame):
         # rotate the array
-        frame = np.rot90(frame, self.angle % 90)
+        frame = np.rot90(frame, self.angle // 90)
 
         # pass the frame to the parent function
         return super(FilterRotate, self)._process_frame(frame)
