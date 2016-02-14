@@ -105,6 +105,9 @@ PARAMETER_LIST = [
               "numbers [left, top, width, height] or some string like "
               "'upper left', 'lower right', etc."),
     # Parameters of the video reading class
+    Parameter('video/video_parameters/reopen_delay', 0, UNIT.TIME_SECONDS, 
+              "Delay in seconds before a video is reopened. This can prevent "
+              "some problems with filesystems"),
     Parameter('video/video_parameters/seek_method', 'auto', UNIT.STRING, 
               "Method used for seeking in videos. Can be any of ['exact', "
               "'keyframe', 'auto']. If 'auto', the method is determined based "

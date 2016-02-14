@@ -255,7 +255,6 @@ class DataHandler(object):
                    frames_skipped_in_this_pass=0):
         """ loads the video and applies a monochrome and cropping filter """
         video_parameters = self.data['parameters/video/video_parameters']
-        self.data['parameters/video'].pprint()
         
         # initialize the video
         if video is None:

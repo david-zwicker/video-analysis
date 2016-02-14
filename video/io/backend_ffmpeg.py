@@ -19,6 +19,7 @@ import os
 import re
 import logging
 import subprocess
+import time
 
 import numpy as np
 
@@ -80,6 +81,7 @@ class VideoFFmpeg(VideoBase):
     parameters_default = {
         'bufsize': None,    #< buffer size for communicating with ffmpeg
         'pix_fmt': 'rgb24', #< pixel format returned by ffmpeg
+        'reopen_delay': 0, #< seconds to wait before reopening a video
         'seek_method': 'auto', #< method used for seeking
         'seek_max_frames': 100, #< the maximal number of frames we seek through
         'seek_offset': 1, #< seconds the rough seek is placed before the target
@@ -141,7 +143,15 @@ class VideoFFmpeg(VideoBase):
     def open(self, index=0):
         """ Opens the file, creates the pipe. """
         logger.debug('Open video `%s`' % self.filename)
-        self.close() # close if anything was opened
+        
+        # close video if it was opened
+        if not self.closed:
+            self.close() 
+        
+            # wait some time until we reopen the video 
+            reopen_delay = self.parameters['reopen_delay']
+            if reopen_delay > 0:
+                time.sleep(reopen_delay)
 
         if index > 0:
             # we have to seek to another index/time
@@ -283,6 +293,7 @@ class VideoFFmpeg(VideoBase):
                 self.proc.terminate()
                 self.proc.stdout.close()
                 self.proc.stderr.close()
+                self.proc.wait()
             except IOError:
                 pass
             self.proc = None
