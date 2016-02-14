@@ -151,6 +151,8 @@ class VideoFFmpeg(VideoBase):
             # wait some time until we reopen the video 
             reopen_delay = self.parameters['reopen_delay']
             if reopen_delay > 0:
+                logger.debug('Wait %g seconds before reopening video', 
+                             reopen_delay)
                 time.sleep(reopen_delay)
 
         if index > 0:
