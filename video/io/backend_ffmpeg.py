@@ -467,6 +467,16 @@ class VideoWriterFFmpeg(object):
                   "failed, possibly because the bitrate you specified "
                   "was too high or too low for the video codec.")
             
+            # add parameters of the video for additional information
+            error += ("\n"
+                      "Video: %{size}s %{color}s %{fps}g frames/sec\n"
+                      "Codec: %{codec}s with bitrate %{bitrate}s\n"
+                      % {'size': 'x'.join(self.size),
+                         'color': 'color' if self.is_color else 'monochrome',
+                         'fps': self.fps,
+                         'codec': self.codec,
+                         'bitrate': self.bitrate})
+            
             raise FFmpegError(error)
 
         else:
