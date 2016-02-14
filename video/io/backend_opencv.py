@@ -46,8 +46,14 @@ class VideoOpenCV(VideoBase):
     
     seekable = True #< this video is seekable
     
-    def __init__(self, filename):
-        # load the _movie
+    def __init__(self, filename, parameters=None):
+        """ load the video from filename `filename` """
+        if parameters:
+            self.parameters = parameters
+        else:
+            self.parameters = {}
+        
+        # load the video
         self.filename = os.path.expanduser(filename)
         
         self._movie = cv2.VideoCapture(self.filename)
@@ -113,12 +119,13 @@ class VideoOpenCV(VideoBase):
             # just double check that we are at the right frame
             if self.get_frame_pos() != index:
                 raise IndexError('Seeking to frame %d was not possible. The '
-                                 'video is at frame %d.' % (index, self.get_frame_pos()))
+                                 'video is at frame %d.'
+                                 % (index, self.get_frame_pos()))
 
 
     def get_next_frame(self):
         """ returns the next frame """
-        # get the next frame, which automatically increments the internal frame index
+        # get the next frame, which automatically increments the internal index
         ret, frame = self._movie.read()
             
         if ret:
@@ -193,7 +200,7 @@ class VideoWriterOpenCV(object):
         """
         Saves the video to the file indicated by filename.
         codec must be a fourcc code from http://www.fourcc.org/codecs.php
-            If codec is None, the code is determined from the filename extension.
+            If codec is None, the code is determined from the filename extension
         """
         self.filename = os.path.expanduser(filename)
         self.size = size

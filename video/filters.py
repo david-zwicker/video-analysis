@@ -306,7 +306,8 @@ class FilterRotate(VideoFilterBase):
         elif angle == 90 or angle == 270:
             size = (source.size[1], source.size[0])
         else: 
-            raise ValueError('angle must be from [0, 90, 180, 270]')
+            raise ValueError('angle must be from [0, 90, 180, 270] but was %s',
+                             angle)
         self.angle = angle
         
         # correct the size, since we are going to crop the movie

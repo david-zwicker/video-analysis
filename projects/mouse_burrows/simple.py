@@ -64,11 +64,10 @@ def scan_video(name, video=None, parameters=None, passes=2, **kwargs):
 
 def scan_video_in_folder(folder, name, parameters=None, **kwargs):
     """ scans a single video from a folder """
-    
     # create parameter dictionary
     params = dict(PARAMETERS_DEFAULT).copy()
     params.update(parameters)
-    
+        
     # set the folder in the respective parameters
     params['base_folder'] = folder
         

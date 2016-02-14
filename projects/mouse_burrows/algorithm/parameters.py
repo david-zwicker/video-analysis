@@ -31,6 +31,7 @@ class UNIT(object):
     AREA_PIXEL = 15
     TIME_FRAMES = 20
     RATE_FRAMES = 21
+    TIME_SECONDS = 22
     SPEED_PIXEL_FRAME = 30
     SPEED_CM_SEC = 31
     DEPRECATED = 100
@@ -95,7 +96,7 @@ PARAMETER_LIST = [
               'Number of frames that are skipped before starting the '
               'analysis. This value is only considered if `video/frames` '
               'is None.'),
-    Parameter('video/rotation', UNIT.INTEGER, 0,
+    Parameter('video/rotation', 0, UNIT.INTEGER,
               "Specifies how much the video will be rotated in "
               "counter-clockwise direction. The value specified will be "
               "multiplied by 90 degrees to specify the amount of rotation."),
@@ -103,6 +104,19 @@ PARAMETER_LIST = [
               "Rectangle to which the video is cropped. This can be either four "
               "numbers [left, top, width, height] or some string like "
               "'upper left', 'lower right', etc."),
+    # Parameters of the video reading class
+    Parameter('video/video_parameters/seek_method', 'auto', UNIT.STRING, 
+              "Method used for seeking in videos. Can be any of ['exact', "
+              "'keyframe', 'auto']. If 'auto', the method is determined based "
+              "on the ffmpeg version."),
+    Parameter('video/video_parameters/seek_max_frames', 100, UNIT.INTEGER, 
+              "The maximal number of frames that will be seeked by simply "
+              "iterating the video. If larger jumps are desired, the video "
+              "will be reopened."),
+    Parameter('video/video_parameters/seek_offset', 1, UNIT.TIME_SECONDS, 
+              "The time the rough seek is placed before the target in order to "
+              "make sure a keyframe is hit. This is only used if 'keyframe' is "
+              "chosen as a 'seek_method'"),
 
     # Logging
     Parameter('logging/enabled',  True, UNIT.BOOLEAN,

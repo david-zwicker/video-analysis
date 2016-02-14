@@ -34,15 +34,16 @@ else:
 
 
 
-def load_any_video(video_filename_pattern):
+def load_any_video(video_filename_pattern, parameters=None):
     """ loads either a video file or a video file stack, depending
     on the video_filename_pattern supplied """
     if any(c in video_filename_pattern for c in r'*?%'):
         # contains placeholder => load multiple videos
-        return VideoFileStack(video_filename_pattern, keep_files_open=False)
+        return VideoFileStack(video_filename_pattern, keep_files_open=False,
+                              parameters=parameters)
     else:
         # no placeholder => load single video
-        return VideoFile(video_filename_pattern)
+        return VideoFile(video_filename_pattern, parameters=parameters)
 
 
 
@@ -71,7 +72,8 @@ class VideoFileStack(VideoBase):
     """ 
     
     def __init__(self, filename_scheme='%d', index_start=1, index_end=None,
-                 video_file_class=VideoFile, keep_files_open=True):
+                 video_file_class=VideoFile, keep_files_open=True,
+                 parameters=None):
         """
         initialize the VideoFileStack.
         
@@ -96,6 +98,11 @@ class VideoFileStack(VideoBase):
         self._offsets = []
         # internal pointer to the current video from which to take a frame
         self._video_pos = 0
+        
+        # get parameters from video_file_class and the ones given here 
+        self.parameters = video_file_class.parameters_default.copy()
+        if parameters:
+            self.parameters.update(parameters)
         
         self.keep_files_open = keep_files_open
         
@@ -124,11 +131,13 @@ class VideoFileStack(VideoBase):
                     break
 
         else:
-            logger.warn('It seems as the filename scheme refers to a single file.')
+            logger.warn('It seems as the filename scheme refers to a single '
+                        'file.')
             filenames = [filename_scheme]
 
         if not filenames:
-            raise IOError('Could not find any files matching the pattern `%s`' % filename_scheme)
+            raise IOError('Could not find any files matching the pattern `%s`'
+                          % filename_scheme)
 
         # load all the files that have been found
         self.seekable = True
@@ -138,7 +147,7 @@ class VideoFileStack(VideoBase):
             
             # try to load the video with given index
             try:
-                video = video_file_class(filename)
+                video = video_file_class(filename, parameters=self.parameters)
             except IOError:
                 raise IOError('Could not read video `%s`' % filename)
                 continue
@@ -146,11 +155,15 @@ class VideoFileStack(VideoBase):
             # compare its format to the previous videos
             if last_video:
                 if video.fps != last_video.fps:
-                    raise ValueError('The FPS value of two videos does not agree')
+                    raise ValueError('The frame rates of two videos differ')
                 if video.size != last_video.size:
-                    raise ValueError('The size of two videos does not agree')
+                    raise ValueError('The sizes of two videos differ')
                 if video.is_color != last_video.is_color:
-                    raise ValueError('The color format of two videos does not agree')
+                    raise ValueError('The color formats of two videos differ')
+            
+            # set parameters of the video
+            if self.parameters:
+                video.parameters = self.parameters
             
             # calculate at which frame this video starts
             self._offsets.append(frame_count)  
@@ -171,8 +184,10 @@ class VideoFileStack(VideoBase):
         if not self._videos:
             raise RuntimeError('Could not load any videos')
                         
-        super(VideoFileStack, self).__init__(size=video.size, frame_count=frame_count,
-                                             fps=video.fps, is_color=video.is_color)
+        super(VideoFileStack, self).__init__(size=video.size,
+                                             frame_count=frame_count,
+                                             fps=video.fps,
+                                             is_color=video.is_color)
 
 
     @property
@@ -186,7 +201,8 @@ class VideoFileStack(VideoBase):
 
 
     def get_video_index(self, frame_index):
-        """ returns the video and local frame_index to which a certain frame belongs """
+        """ returns the video and local frame_index to which a certain frame
+        belongs """
         
         for video_index, video_start in enumerate(self._offsets):
             if frame_index < video_start:

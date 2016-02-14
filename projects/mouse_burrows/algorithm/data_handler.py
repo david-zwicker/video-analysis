@@ -254,14 +254,20 @@ class DataHandler(object):
     def load_video(self, video=None, crop_video=True, cropping_rect=None,
                    frames_skipped_in_this_pass=0):
         """ loads the video and applies a monochrome and cropping filter """
+        video_parameters = self.data['parameters/video/video_parameters']
+        self.data['parameters/video'].pprint()
+        
         # initialize the video
         if video is None:
-            video_filename_pattern = os.path.join(self.data['parameters/base_folder'],
-                                                  self.data['parameters/video/filename_pattern'])
-            self.video = load_any_video(video_filename_pattern)
+            video_filename_pattern = os.path.join(
+                self.data['parameters/base_folder'],
+                self.data['parameters/video/filename_pattern']
+            )
+            self.video = load_any_video(video_filename_pattern,
+                                        parameters=video_parameters)
             
         elif isinstance(video, str):
-            self.video = load_any_video(video)
+            self.video = load_any_video(video, parameters=video_parameters)
             video_filename_pattern = None
                 
         else:

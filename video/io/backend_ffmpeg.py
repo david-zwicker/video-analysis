@@ -75,35 +75,42 @@ class VideoFFmpeg(VideoBase):
     """ Class handling a single movie file using FFmpeg
     """ 
     
-    seek_max_frames = 100 #< the maximal number of frames we seek through
-    seek_offset = 1 #< seconds we place the rough seek before the target time
+    #seek_max_frames = 100 
     seekable = True #< this video is seekable
+    parameters_default = {
+        'bufsize': None,    #< buffer size for communicating with ffmpeg
+        'pix_fmt': 'rgb24', #< pixel format returned by ffmpeg
+        'seek_method': 'auto', #< method used for seeking
+        'seek_max_frames': 100, #< the maximal number of frames we seek through
+        'seek_offset': 1, #< seconds the rough seek is placed before the target
+    }
 
-    def __init__(self, filename, bufsize=None, pix_fmt="rgb24"):
+    def __init__(self, filename, parameters=None):
         """ initialize a video that will be read with FFmpeg
-        filename is the name of the filename
-        bufsize denotes the size of the pipe buffer used for reading
-        pix_fmt denotes the pixel format
+        filename is the name of the filename.
+        `parameters` denotes additional parameters 
         """
+        self.parameters = self.parameters_default.copy()
+        if parameters:
+            self.parameters.update(parameters)
 
+        # get information about the video using FFmpeg
         self.filename = os.path.expanduser(filename)
-        
-        # get information about the frame using FFmpeg
         infos = ffmpeg_parse_infos(self.filename)
         self.duration = infos['video_duration']
         self.FFmpeg_duration = infos['duration']
 
         self.infos = infos
 
-        self.pix_fmt = pix_fmt
-        if pix_fmt == 'rgba':
+        self.pix_fmt = self.parameters['pix_fmt']
+        if self.pix_fmt == 'rgba':
             self.depth = 4
-        elif pix_fmt == 'rgb24':
+        elif self.pix_fmt == 'rgb24':
             self.depth = 3
         else:
-            raise ValueError('Unsupported pixel format `%s`' % pix_fmt)
+            raise ValueError('Unsupported pixel format `%s`' % self.pix_fmt)
 
-        if bufsize is None:
+        if self.parameters['bufsize'] is None:
             w, h = infos['video_size']
             bufsize = self.depth * w * h + 100
 
@@ -143,22 +150,34 @@ class VideoFFmpeg(VideoBase):
             # the -0.1 is necessary to prevent rounding errors
             starttime = (index - 0.1) / self.fps
             
-            if FFMPEG_VERSION > (2, 1):
+            # determine which method to use for seeking
+            seek_method = self.parameters['seek_method']
+            if seek_method == 'auto':
+                if FFMPEG_VERSION > (2, 1):
+                    seek_method = 'exact'
+                else:
+                    seek_method = 'keyframe' 
+            
+            if seek_method == 'exact':
                 # newer ffmpeg version, which supports accurate seeking
                 i_arg = ['-ss', "%.03f" % starttime,
                          '-i', self.filename]
                 
-            else: # FFMPEG_VERSION <= (2, 1)
+            elif seek_method == 'keyframe':
                 # older ffmpeg version, which does not support accurate seeking
-                if index < self.seek_max_frames:
+                if index < self.parameters['seek_max_frames']:
                     # we only have to seek a little bit
                     i_arg = ['-i', self.filename,
                              '-ss', "%.03f" % starttime]
                 else:
                     # we first seek to a keyframe and then proceed from there
-                    i_arg = ['-ss', "%.03f" % (starttime - self.seek_offset),
+                    seek_offset = self.parameters['seek_offset']
+                    i_arg = ['-ss', "%.03f" % (starttime - seek_offset),
                              '-i', self.filename,
-                             '-ss', "%.03f" % self.seek_offset]
+                             '-ss', "%.03f" % seek_offset]
+                    
+            else:
+                raise ValueError('Unknown seek method `%s`' % seek_method)
 
             logger.debug('Seek video to frame %d (=%.03fs)', index, starttime)
             
@@ -184,7 +203,8 @@ class VideoFFmpeg(VideoBase):
     def set_frame_pos(self, index):
         """ sets the video to position index """
         if index != self._frame_pos:
-            max_future_frame = self._frame_pos + self.seek_max_frames
+            max_future_frame = self._frame_pos + \
+                               self.parameters['seek_max_frames']
             if (index < self._frame_pos) or (index > max_future_frame):
                 self.open(index)
             else:
@@ -516,7 +536,8 @@ def ffmpeg_parse_infos(filename, print_infos=False):
     try:
         keyword = ('frame=' if is_GIF else 'Duration: ')
         line = [l for l in lines if keyword in l][0]
-        match = re.findall("([0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9])", line)[0]
+        match = re.findall("([0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9])",
+                           line)[0]
         result['duration'] = time_to_seconds(match)
     except:
         raise IOError("Failed to read the duration of file %s.\n"
@@ -539,8 +560,9 @@ def ffmpeg_parse_infos(filename, print_infos=False):
 
         # get the frame rate. Sometimes it's 'tbr', sometimes 'fps', sometimes
         # tbc, and sometimes tbc/2...
-        # Current policy: Trust tbr first, then fps. If result is near from x*1000/1001
-        # where x is 23,24,25,50, replace by x*1000/1001 (very common case for the fps).
+        # Current policy: Trust tbr first, then fps. If result is near from 
+        # x*1000/1001 where x is 23,24,25,50, replace by x*1000/1001 (very 
+        # common case for the fps).
         
         try:
             match = re.search("( [0-9]*.| )[0-9]* tbr", line)
@@ -549,7 +571,8 @@ def ffmpeg_parse_infos(filename, print_infos=False):
 
         except:
             match = re.search("( [0-9]*.| )[0-9]* fps", line)
-            result['video_fps'] = float(line[match.start():match.end()].split(' ')[1])
+            substr = line[match.start():match.end()]
+            result['video_fps'] = float(substr.split(' ')[1])
 
         # It is known that a fps of 24 is often written as 24000/1001
         # but then FFmpeg nicely rounds it to 23.98, which we hate.
@@ -567,6 +590,7 @@ def ffmpeg_parse_infos(filename, print_infos=False):
         # >>> result['video_duration'] = result['video_nframes'] / result['video_fps']
 
     return result
+
 
 
 def time_to_seconds(time):
@@ -601,3 +625,4 @@ def time_to_seconds(time):
     
     else:
         return time
+    
