@@ -471,7 +471,7 @@ class VideoWriterFFmpeg(object):
             error += ("\n"
                       "Video: %{size}s %{color}s %{fps}g frames/sec\n"
                       "Codec: %{codec}s with bitrate %{bitrate}s\n"
-                      % {'size': 'x'.join(self.size),
+                      % {'size': ' x '.join(str(v) for v in self.size),
                          'color': 'color' if self.is_color else 'monochrome',
                          'fps': self.fps,
                          'codec': self.codec,
