@@ -408,6 +408,11 @@ class Analyzer(DataHandler):
             # read raw data for the frames that we are interested in 
             mouse_track = self.data['pass2/mouse_trajectory']
             
+        except KeyError:
+            raise RuntimeError('The mouse trajectory has to be determined '
+                               'before the track data can be extracted.')
+        
+        else:            
             # extract the right attribute from the mouse track
             if attribute == 'trajectory_smoothed':
                 sigma = self.data['parameters/tracking/position_smoothing_window']
@@ -425,10 +430,6 @@ class Analyzer(DataHandler):
             if night_only:
                 data = data[self.get_frame_roi()]
                 
-        except KeyError:
-            raise RuntimeError('The mouse trajectory has to be determined '
-                               'before the transitions can be analyzed.')
-        
         return data
 
 
@@ -745,6 +746,33 @@ class Analyzer(DataHandler):
     #===========================================================================
     # GENERAL ROUTINES
     #===========================================================================
+
+
+    def get_mouse_ground_distances(self, nigth_only=False):
+        """ return the distance of the mouse to the ground for all time points.
+        Negative distances indicate that the mouse is below the ground.
+        """
+        # try loading the distances from the tracked data
+        try:
+            mouse_ground_dists = self.get_mouse_track_data(
+                                           'ground_dist', night_only=nigth_only)
+        except RuntimeError:
+            # data from second pass is not available
+            mouse_ground_dists = None
+
+        # if this it not possible, try to estimate it from the first pass
+        if mouse_ground_dists is None:
+            raise NotImplementedError
+            #< TODO fill in the code
+
+        # make sure that the data is not completely useless
+        if np.all(np.isnan(mouse_ground_dists)):
+            raise RuntimeError('The distance of the mouse to the ground is not '
+                               'available. Either the second pass has not '
+                               'finished yet or there was a general problem '
+                               'with the video analysis.')
+            
+        return mouse_ground_dists
 
 
     def get_mouse_ground_distance_max(self, frame_ivals):

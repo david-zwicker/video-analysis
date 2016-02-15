@@ -53,15 +53,7 @@ def make_underground_video(result_file, output_video=None, display='time',
         video_input = FilterCrop(video_input, rect=cropping_cage)
     
     # get the distance of the mouse to the ground
-    mouse_ground_dists = analyzer.get_mouse_track_data('ground_dist',
-                                                       night_only=False)
-    
-    # check whether we have enough information and issue a message otherwise
-    if np.all(np.isnan(mouse_ground_dists)):
-        raise RuntimeError('The distance of the mouse to the ground is not '
-                           'available. Either the third pass has not finished '
-                           'yet or there was a general problem with the video '
-                           'analysis.')
+    mouse_ground_dists = analyzer.get_mouse_ground_distances()
     
     # create output video
     if output_video is None:

@@ -408,10 +408,14 @@ class VideoWriterFFmpeg(object):
             + ['-r', "%.02f" % fps, filename]
         )
         
+        # estimate the buffer size with some safety margins
+        depth = 3 if is_color else 1
+        bufsize = 2 * depth * size[0] * size[1] + 100
+        
         # start FFmpeg, which should wait for input
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                                      stdout=DEVNULL, stderr=subprocess.PIPE,
-                                     bufsize=self.bufsize)
+                                     bufsize=bufsize)
 
         if debug:
             logger.info('Start writing video `%s` with codec `%s` using '
