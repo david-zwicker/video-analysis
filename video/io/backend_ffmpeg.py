@@ -114,7 +114,7 @@ class VideoFFmpeg(VideoBase):
 
         if self.parameters['bufsize'] is None:
             w, h = infos['video_size']
-            bufsize = self.depth * w * h + 100
+            bufsize = 2 * self.depth * w * h + 100 #< add some safety margin
 
         self.bufsize = bufsize
         self.proc = None
@@ -410,7 +410,8 @@ class VideoWriterFFmpeg(object):
         
         # start FFmpeg, which should wait for input
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                     stdout=DEVNULL, stderr=subprocess.PIPE)
+                                     stdout=DEVNULL, stderr=subprocess.PIPE,
+                                     bufsize=self.bufsize)
 
         if debug:
             logger.info('Start writing video `%s` with codec `%s` using '
