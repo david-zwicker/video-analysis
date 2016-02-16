@@ -353,6 +353,10 @@ PARAMETER_LIST = [
               'image of the predug.'),
     
     # Mouse and the associated tracking
+    Parameter('mouse/max_count', 1, UNIT.INTEGER,
+              'Maximal number of mice to be found. Most of the code has only '
+              'been tested with `max_count = 1`, but we eventually want to '
+              'extend this to more mice.'),
     Parameter('mouse/intensity_threshold', 1, UNIT.FACTOR,
               'Determines how much brighter than the background (usually the '
               'sky) the mouse has to be. This value is measured in terms of '
@@ -537,7 +541,7 @@ PARAMETER_LIST = [
     Parameter('analysis/burrow_pass', 3, UNIT.INTEGER,
               'Determines the video analysis pass from which the burrow data '
               'is loaded to do analysis.'),
-                  
+                                    
     # Computation resources
     Parameter('project/symlink_folder', None, None,
               'If set, a symlink pointing to the base_folder will be created '
@@ -571,6 +575,21 @@ PARAMETER_LIST = [
     Parameter('resources/pass9/time', 50*60, None, 'Maximal computation minutes for pass 9'),
     Parameter('resources/pass9/memory', 2000, None, 'Maximal RAM per core for pass 9 [in MB]'),
 ]
+
+
+
+def _test_parameter_consistency():
+    """ test the default values of the parameters """
+    for p in PARAMETER_LIST:
+        UNIT.parser[p.unit](p.default_value)
+
+try:        
+    _test_parameter_consistency()
+except ValueError:
+    print('A default value for a parameter was not consistent with the given '
+          'unit.')
+    raise
+
 
 
 # collect all parameters in a convenient dictionary

@@ -934,14 +934,31 @@ class FirstPass(PassBase):
                 if self.result['objects/moved_first_in_frame'] is None:
                     self.result['objects/moved_first_in_frame'] = self.frame_id
                     
-                # remove the tracks that didn't move
-                # this essentially assumes that there is only one mouse
-                for k, obj in enumerate(self.tracks):
-                    if obj_moving[k]:
-                        # keep only the moving object in the current list
-                        self.tracks = [obj]
+                
+                # keep the `mouse_max_count` largest objects in the current list
+                # of moving objects. Move the remaining objects to the results
+                mouse_max_count = self.params['mouse/max_count']
+                obj_max = np.argsort(obj.area * int(obj_moving[obj_id])
+                                     for obj_id, obj in enumerate(self.tracks))
+                obj_keep = set(obj_max[:mouse_max_count])
+                
+                # filter the tracks
+                new_tracks = []
+                for obj_id, obj in enumerate(self.tracks):
+                    if obj_id in obj_keep:
+                        new_tracks.append(obj)
                     else:
                         self.result['objects/tracks'].append(obj)
+                        
+                self.tracks = new_tracks
+                # remove the tracks that didn't move
+                # this essentially assumes that there is only one mouse
+#                 for k, obj in enumerate(self.tracks):
+#                     if obj_moving[k]:
+#                         # keep only the moving object in the current list
+#                         self.tracks = [obj]
+#                     else:
+#                         self.result['objects/tracks'].append(obj)
 
             # add new information to explored area
             for track in self.tracks:

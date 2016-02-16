@@ -15,6 +15,7 @@ The MIT license text is included in the present package in the file
 
 from __future__ import division
 
+import fcntl
 import os
 import re
 import logging
@@ -209,6 +210,12 @@ class VideoFFmpeg(VideoBase):
         self.proc = subprocess.Popen(cmd, bufsize=self.bufsize,
                                      stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
+        
+        # set the stderr to non-blocking; used the idea from
+        #     http://stackoverflow.com/a/8980466/932593
+        # this only works on UNIX!
+        fcntl.fcntl(self.proc.stderr.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
+        
         self._frame_pos = index
 
 
@@ -230,9 +237,20 @@ class VideoFFmpeg(VideoBase):
 
     def get_next_frame(self):
         """ retrieve the next frame from the video """
+        # read standard error output and log it if requested
+        try:
+            stderr_content = self.proc.stderr.read()
+        except IOError:
+            # nothing to read from stderr
+            pass
+        else:
+            if self.debug:
+                logger.info(stderr_content)
+        
         w, h = self.size
         nbytes = self.depth*w*h
 
+        # read the next frame from the process 
         s = self.proc.stdout.read(nbytes)
 
         if len(s) != nbytes:
@@ -416,6 +434,11 @@ class VideoWriterFFmpeg(object):
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                                      stdout=DEVNULL, stderr=subprocess.PIPE,
                                      bufsize=bufsize)
+        
+        # set the stderr to non-blocking; used the idea from
+        #     http://stackoverflow.com/a/8980466/932593
+        # this only works on UNIX!
+        fcntl.fcntl(self.proc.stderr.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
 
         if debug:
             logger.info('Start writing video `%s` with codec `%s` using '
@@ -473,28 +496,25 @@ class VideoWriterFFmpeg(object):
                   "was too high or too low for the video codec.")
             
             # add parameters of the video for additional information
-            error += ("\n"
-                      "Video: %{size}s %{color}s %{fps}g frames/sec\n"
-                      "Codec: %{codec}s with bitrate %{bitrate}s\n"
-                      % {'size': ' x '.join(str(v) for v in self.size),
-                         'color': 'color' if self.is_color else 'monochrome',
-                         'fps': self.fps,
-                         'codec': self.codec,
-                         'bitrate': self.bitrate})
+            error += "\nVideo: {size} {color}\nCodec: {codec}\n".format(
+                        **{'size': ' x '.join(str(v) for v in self.size),
+                           'color': 'color' if self.is_color else 'monochrome',
+                           'codec': self.codec})
             
             raise FFmpegError(error)
 
         else:
             self.frames_written += 1   
         
-        # check for extra output in debug mode
-        if self.debug:
-            stderr_read = os.read(self.proc.stderr.fileno(), 1024)
-            FFmpeg_output = stderr_read 
-            while len(stderr_read) == 1024:
-                stderr_read = os.read(self.proc.stderr.fileno(), 1024)
-                FFmpeg_output += stderr_read
-            logger.info(FFmpeg_output)
+        # read standard error output and log it if requested
+        try:
+            stderr_content = self.proc.stderr.read()
+        except IOError:
+            # nothing to read from stderr
+            pass
+        else:
+            if self.debug:
+                logger.info(stderr_content)
         
         
     def close(self):

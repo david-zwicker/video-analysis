@@ -748,22 +748,41 @@ class Analyzer(DataHandler):
     #===========================================================================
 
 
-    def get_mouse_ground_distances(self, nigth_only=False):
+    def get_mouse_ground_distances(self):
         """ return the distance of the mouse to the ground for all time points.
         Negative distances indicate that the mouse is below the ground.
         """
         # try loading the distances from the tracked data
         try:
-            mouse_ground_dists = self.get_mouse_track_data(
-                                           'ground_dist', night_only=nigth_only)
+            raise RuntimeError
+            mouse_ground_dists = self.get_mouse_track_data('ground_dist')
         except RuntimeError:
             # data from second pass is not available
             mouse_ground_dists = None
 
         # if this it not possible, try to estimate it from the first pass
         if mouse_ground_dists is None:
-            raise NotImplementedError
-            #< TODO fill in the code
+            self.logger.warn('Using the tracks from the first pass to measure '
+                             'the distance of the mouse to the ground.')
+            
+            # initialize the result array
+            frame_count = self.data['pass1/video/frames'][1]
+            ground_profile = self.data['pass2/ground_profile']
+            mouse_ground_dists = np.full(frame_count, np.inf)
+            
+            # iterate over all tracks
+            for track in self.data['pass1/objects/tracks']:
+                for frame_id, obj in track:
+                    # load the ground and determine distance to point
+                    ground = ground_profile.get_ground_profile(frame_id)
+                    ground_dist =  ground.get_distance(obj.pos, signed=True)
+                    
+                    # keep the minimal distance 
+                    mouse_ground_dists[frame_id] = \
+                                min(ground_dist, mouse_ground_dists[frame_id])
+                
+            # replace distances that were not determined by nan
+            mouse_ground_dists[np.isinf(mouse_ground_dists)] = np.nan
 
         # make sure that the data is not completely useless
         if np.all(np.isnan(mouse_ground_dists)):
