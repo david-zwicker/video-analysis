@@ -244,8 +244,7 @@ class VideoFFmpeg(VideoBase):
             # nothing to read from stderr
             pass
         else:
-            if self.debug:
-                logger.info(stderr_content)
+            logger.debug(stderr_content)
         
         w, h = self.size
         nbytes = self.depth*w*h
@@ -373,7 +372,7 @@ class VideoWriterFFmpeg(object):
     """
         
     def __init__(self, filename, size, fps, is_color=True, codec="libx264",
-                 bitrate=None, debug=False):
+                 bitrate=None):
         """
         Initializes the video writer.
         `filename` is the name of the video
@@ -382,7 +381,6 @@ class VideoWriterFFmpeg(object):
         `is_color` is a flag indicating whether the video is in color
         `codec` selects a codec supported by FFmpeg
         `bitrate` determines the associated bitrate
-        `debug` indicates whether we are in debug mode with more output
         """
         
         self.filename = os.path.expanduser(filename)
@@ -390,17 +388,19 @@ class VideoWriterFFmpeg(object):
         self.ext = self.filename.split(".")[-1]
         self.size = size
         self.is_color = is_color
-        self.debug = debug
         self.frames_written = 0   
 
         if size[0] % 2 != 0 or size[1] % 2 != 0:
             raise ValueError('Both dimensions of the video must be even for '
                              'the video codec to work properly')
 
+        # determine whether we are in debug mode
+        debug = (logger.getEffectiveLevel() >= logging.DEBUG)
+
         #FIXME: consider adding the flags
         # "-f ismv"  "-movflags frag_keyframe"
         # to avoid corrupted mov files, if movie writing is interrupted
-
+        
         # build the FFmpeg command
         cmd = (
             [FFMPEG_BINARY, '-y',
@@ -440,12 +440,8 @@ class VideoWriterFFmpeg(object):
         # this only works on UNIX!
         fcntl.fcntl(self.proc.stderr.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
 
-        if debug:
-            logger.info('Start writing video `%s` with codec `%s` using '
-                        'FFmpeg with debug output.', filename, codec)
-        else:
-            logger.info('Start writing video `%s` with codec `%s` using '
-                        'FFmpeg.', filename, codec)
+        logger.info('Start writing video `%s` with codec `%s` using FFmpeg.',
+                    filename, codec)
 
     
     @property
@@ -513,8 +509,7 @@ class VideoWriterFFmpeg(object):
             # nothing to read from stderr
             pass
         else:
-            if self.debug:
-                logger.info(stderr_content)
+            logger.debug(stderr_content)
         
         
     def close(self):

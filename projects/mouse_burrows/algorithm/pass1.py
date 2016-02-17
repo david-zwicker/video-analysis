@@ -2007,8 +2007,7 @@ class FirstPass(PassBase):
             self.output['video'] = VideoComposer(
                 debug_file, size=self.video.size, fps=self.video.fps,
                 is_color=True, output_period=video_output_period,
-                codec=video_codec, bitrate=video_bitrate,
-                debug=self.debug_enabled
+                codec=video_codec, bitrate=video_bitrate
             )
             
             if 'video.show' in debug_output:
@@ -2031,7 +2030,7 @@ class FirstPass(PassBase):
                 video_writer = VideoComposer(
                     debug_file, self.video.size, self.video.fps, is_color=False,
                     output_period=video_output_period, codec=video_codec,
-                    bitrate=video_bitrate, debug=self.debug_enabled
+                    bitrate=video_bitrate
                 )
                 self.output[identifier + '.video'] = video_writer
         
