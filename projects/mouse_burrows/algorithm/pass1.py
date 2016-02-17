@@ -934,13 +934,13 @@ class FirstPass(PassBase):
                 if self.result['objects/moved_first_in_frame'] is None:
                     self.result['objects/moved_first_in_frame'] = self.frame_id
                     
-                
                 # keep the `mouse_max_count` largest objects in the current list
                 # of moving objects. Move the remaining objects to the results
                 mouse_max_count = self.params['mouse/max_count']
-                obj_max = np.argsort(obj.area * int(obj_moving[obj_id])
-                                     for obj_id, obj in enumerate(self.tracks))
-                obj_keep = set(obj_max[:mouse_max_count])
+                obj_id_moving = np.nonzero(obj_moving)[0]
+                obj_largest = np.argsort([self.tracks[k].last.size
+                                          for k in obj_id_moving])
+                obj_keep = set(obj_id_moving[obj_largest[:mouse_max_count]])
                 
                 # filter the tracks
                 new_tracks = []
