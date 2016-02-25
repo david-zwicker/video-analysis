@@ -58,6 +58,34 @@ def subpixels(img, pts):
 
 
 
+def get_subimage(img, slice_x, slice_y, width=None, height=None):
+    """
+    extracts the subimage specified by `slice_x` and `slice_y`.
+    Optionally, the image can also be resampled, by specifying a different
+    number of pixels in either direction using the last two arguments
+    """
+    p1_x, p2_x = slice_x[:2]
+    p1_y, p2_y = slice_y[:2]
+
+    if width is None:
+        width = p2_x - p1_x
+    
+    if height is None:
+        height = (p2_y - p1_y) * width / (p2_x - p1_x)
+    
+    # get corresponding points between the two images
+    pts1 = np.array(((p1_x, p1_y), (p1_x, p2_y), (p2_x, p1_y)), np.float32)
+    pts2 = np.array(((0, 0), (height, 0), (0, width)), np.float32)
+    
+    # determine and apply the affine transformation
+    matrix = cv2.getAffineTransform(pts1, pts2)
+    res = cv2.warpAffine(img, matrix, (int(height), int(width)))
+
+    # return the profile
+    return res
+
+
+
 def line_scan(img, p1, p2, half_width=5):
     """ returns the average intensity of an image along a strip of a given
     half_width, ranging from point p1 to p2.

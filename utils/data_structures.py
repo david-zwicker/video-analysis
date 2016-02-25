@@ -283,11 +283,11 @@ def prepare_data_for_yaml(data):
 
 
 
-class DictXpath(collections.MutableMapping):
+class NestedDict(collections.MutableMapping):
     """ special dictionary class representing nested dictionaries.
     This class allows easy access to nested properties using a single key:
     
-    d = DictXpath({'a': {'b': 1}})
+    d = NestedDict({'a': {'b': 1}})
     
     d['a/b']
     >>>> 1
@@ -299,7 +299,7 @@ class DictXpath(collections.MutableMapping):
     """
     
     def __init__(self, data=None, sep='/', dict_class=dict):
-        """ initialize the DictXpath object
+        """ initialize the NestedDict object
         `data` is a dictionary that is used to fill the current object
         `sep` determines the separator used for accessing different levels of
             the structure
@@ -354,7 +354,7 @@ class DictXpath(collections.MutableMapping):
                 self.data[child] = child_node
             except TypeError:
                 raise TypeError('Can only use Xpath assignment if all children '
-                                'are DictXpath instances.')
+                                'are NestedDict instances.')
                 
         else:
             self.data[key] = value
@@ -403,7 +403,7 @@ class DictXpath(collections.MutableMapping):
         """ an iterator over the values of the dictionary
         If flatten is true, iteration is recursive """
         for value in self.data.itervalues():
-            if flatten and isinstance(value, DictXpath):
+            if flatten and isinstance(value, NestedDict):
                 # recurse into sub dictionary
                 for v in value.itervalues(flatten=True):
                     yield v
@@ -416,12 +416,12 @@ class DictXpath(collections.MutableMapping):
         If flatten is true, iteration is recursive """
         if flatten:
             for key, value in self.data.iteritems():
-                if isinstance(value, DictXpath):
+                if isinstance(value, NestedDict):
                     # recurse into sub dictionary
                     try:
                         prefix = key + self.sep
                     except TypeError:
-                        raise TypeError('Keys for DictXpath must be strings '
+                        raise TypeError('Keys for NestedDict must be strings '
                                         '(`%s` is invalid)' % key)
                     for k in value.iterkeys(flatten=True):
                         yield prefix + k
@@ -436,12 +436,12 @@ class DictXpath(collections.MutableMapping):
         """ an iterator over the (key, value) items
         If flatten is true, iteration is recursive """
         for key, value in self.data.iteritems():
-            if flatten and isinstance(value, DictXpath):
+            if flatten and isinstance(value, NestedDict):
                 # recurse into sub dictionary
                 try:
                     prefix = key + self.sep
                 except TypeError:
-                    raise TypeError('Keys for DictXpath must be strings '
+                    raise TypeError('Keys for NestedDict must be strings '
                                     '(`%s` is invalid)' % key)
                 for k, v in value.iteritems(flatten=True):
                     yield prefix + k, v
@@ -463,7 +463,7 @@ class DictXpath(collections.MutableMapping):
         """ makes a shallow copy of the data """
         res = self.__class__()
         for key, value in self.iteritems():
-            if isinstance(value, (dict, DictXpath)):
+            if isinstance(value, (dict, NestedDict)):
                 value = value.copy()
             res[key] = value
         return res
@@ -473,11 +473,11 @@ class DictXpath(collections.MutableMapping):
         """ fill the object with data from a dictionary """
         for key, value in data.iteritems():
             if isinstance(value, dict):
-                if key in self and isinstance(self[key], DictXpath):
-                    # extend existing DictXpath instance
+                if key in self and isinstance(self[key], NestedDict):
+                    # extend existing NestedDict instance
                     self[key].from_dict(value)
                 else:
-                    # create new DictXpath instance
+                    # create new NestedDict instance
                     self[key] = self.__class__(value)
             else:
                 # store simple value
@@ -490,14 +490,14 @@ class DictXpath(collections.MutableMapping):
         If flatten is False, a nested dictionary with simple keys is returned """
         res = self.dict_class()
         for key, value in self.iteritems():
-            if isinstance(value, DictXpath):
+            if isinstance(value, NestedDict):
                 value = value.to_dict(flatten)
                 if flatten:
                     for k, v in value.iteritems():
                         try:
                             res[key + self.sep + k] = v
                         except TypeError:
-                            raise TypeError('Keys for DictXpath must be strings '
+                            raise TypeError('Keys for NestedDict must be strings '
                                             '(`%s` or `%s` is invalid)' % (key, k))
                 else:
                     res[key] = value
@@ -513,7 +513,7 @@ class DictXpath(collections.MutableMapping):
 
 
 
-class DictXpathLazy(DictXpath):
+class LazyNestedDict(NestedDict):
     """ special dictionary class representing nested dictionaries.
     This class allows easy access to nested properties using a single key.
     Additionally, this class supports loading lazy values if they are accessed
@@ -541,9 +541,9 @@ class DictXpathLazy(DictXpath):
                 value = value.load()
             except KeyError as err:
                 # we have to relabel KeyErrors, since they otherwise shadow
-                # KeyErrors raised by the item actually not being in the DictXpath
+                # KeyErrors raised by the item actually not being in the NestedDict
                 # This then allows us to distinguish between items not found in
-                # DictXpath (raising KeyError) and items not being able to load
+                # NestedDict (raising KeyError) and items not being able to load
                 # (raising LazyLoadError)
                 err_msg = ('Cannot load item `%s`.\nThe original error was: %s'
                            % (key, err)) 
