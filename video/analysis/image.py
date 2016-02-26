@@ -79,7 +79,7 @@ def get_subimage(img, slice_x, slice_y, width=None, height=None):
     
     # determine and apply the affine transformation
     matrix = cv2.getAffineTransform(pts1, pts2)
-    res = cv2.warpAffine(img, matrix, (int(height), int(width)))
+    res = cv2.warpAffine(img, matrix, (int(round(height)), int(round(width))))
 
     # return the profile
     return res
