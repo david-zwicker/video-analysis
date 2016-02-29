@@ -509,43 +509,45 @@ def shortest_path_in_distance_map(distance_map, end_point):
     """ finds and returns the shortest path in the distance map `distance_map`
     that leads from the given `end_point` to a start point (defined by having
     the minimal distance value in the map) """
+    # create distance map
+    w, h = distance_map.shape
+    dist_map = np.zeros((w + 2, h + 2), np.int)
+
+    # copy distance map and make sure there is a border
+    dist_map[1:-1, 1:-1] = distance_map 
+
     # make sure points outside the shape are not included in the distance
-    distance_map = distance_map.astype(np.int)
-    distance_map[distance_map <= 1] = np.iinfo(distance_map.dtype).max
+    dist_map[dist_map <= 1] = np.iinfo(dist_map.dtype).max
     
-    xmax = distance_map.shape[1] - 1
-    ymax = distance_map.shape[0] - 1
+    # initialize the list and move end point by one to reflect border 
     x, y = end_point
-    points = [(x, y)] #< make sure end_point is a tuple
-    d = distance_map[y, x]
+    points = [(x + 1, y + 1)]
+    d = dist_map[y, x]
     
     # iterate through path until we reached the minimum
     while True:
-        if 0 < x < xmax and 0 < y < ymax:
-            # find point with minimal distance in surrounding
-            surrounding = (distance_map[y-1:y+2, x-1:x+2] - d) / MASK
-            dy, dx = np.unravel_index(surrounding.argmin(), (3, 3))
-            # get new coordinates
-            x += dx - 1
-            y += dy - 1
-            # check whether the new point is viable
-            if distance_map[y, x] < d:
-                # distance decreased
-                d = distance_map[y, x]
-            elif distance_map[y, x] == d:
-                # distance stayed constant
-                if (x, y) in points:
-                    # we already saw this point
-                    break
-            else:
-                # we reached a minimum and will thus stop
-                break            
-            points.append((x, y))
+        # find point with minimal distance in surrounding
+        surrounding = (dist_map[y-1:y+2, x-1:x+2] - d) / MASK
+        dy, dx = np.unravel_index(surrounding.argmin(), (3, 3))
+        # get new coordinates
+        x += dx - 1
+        y += dy - 1
+        # check whether the new point is viable
+        if dist_map[y, x] < d:
+            # distance decreased
+            d = dist_map[y, x]
+        elif dist_map[y, x] == d:
+            # distance stayed constant
+            if (x, y) in points:
+                # we already saw this point
+                break
         else:
-            # we reached the border
-            break
+            # we reached a minimum and will thus stop
+            break            
+        points.append((x, y))
     
-    return points
+    # shift back all the points to remove the border
+    return np.array(points) - 1
 
 
 
@@ -574,6 +576,7 @@ def get_farthest_points(mask, p1=None, ret_path=False):
     while True:
         # make distance map starting from point p1
         distance_map = mask_int.copy()
+
         make_distance_map(distance_map, start_points=(p1,))
                 
         # find point farthest point away from p1
@@ -587,7 +590,7 @@ def get_farthest_points(mask, p1=None, ret_path=False):
         dist_prev = dist
         # take farthest point as new start point
         p1 = p2
-
+        
     # find path between p1 and p2
     if ret_path:
         return shortest_path_in_distance_map(distance_map, p2)
