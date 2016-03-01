@@ -301,13 +301,15 @@ class FilterRotate(VideoFilterBase):
     
     def __init__(self, source, angle=0):
         """ rotate the video by angle in counter-clockwise direction """
+        angle = angle % 360
+        
         if angle == 0 or angle == 180:
             size = source.size
         elif angle == 90 or angle == 270:
             size = (source.size[1], source.size[0])
         else: 
-            raise ValueError('angle must be from [0, 90, 180, 270] but was %s',
-                             angle)
+            raise ValueError('angle must be from [0, 90, 180, 270] but was %s'
+                             % angle)
         self.angle = angle
         
         # correct the size, since we are going to crop the movie
