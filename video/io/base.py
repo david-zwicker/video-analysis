@@ -29,7 +29,7 @@ class VideoBase(object):
     Every movie has an internal counter `frame_pos` stating which frame would
     be processed next.
     
-    Furthermore, each video holds a list of callback functions called observers.
+    Furthermore, each video holds a list of callback functions called listeners.
     These functions are called when the video is advanced to the next frame
     and can be used to observe the current progress or show the current frame. 
     """

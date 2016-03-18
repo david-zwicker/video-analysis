@@ -569,8 +569,7 @@ def ffmpeg_parse_infos(filename, print_infos=False):
     lines = infos.splitlines()
     if "No such file or directory" in lines[-1]:
         raise IOError("The file %s could not be found!\n"
-                      "Please check that you entered the correct "
-                      "path.\n"
+                      "Please check that you entered the correct path.\n"
                       "Here are the file information returned by FFmpeg:\n\n%s"
                       % (filename, infos))
     
