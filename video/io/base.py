@@ -410,7 +410,8 @@ class VideoSlice(VideoFilterBase):
         
     def set_frame_pos(self, index):
         if not 0 <= index < self.frame_count:
-            raise IndexError('Cannot access frame %d.' % index)
+            raise IndexError('Cannot access %d. frame in video of length %d'
+                             % (index, self.frame_count))
 
         self._source.set_frame_pos(self._start + index*self._step)
         self._frame_pos = index
