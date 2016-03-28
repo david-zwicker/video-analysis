@@ -585,7 +585,7 @@ class Polygon(object):
         
     def get_centerline_estimate(self, end_points=None):
         """ determines an estimate to a center line of the polygon
-        `end_points` can either be None, a single Point, or two points.
+        `end_points` can either be None, a single point, or two points.
         """
         import regions #< lazy import to prevent circular dependencies
         
@@ -624,6 +624,7 @@ class Polygon(object):
             # find path between p1 and p2
             path = regions.shortest_path_in_distance_map(distance_map, p2)
             return curves.translate_points(path, *offset)
+        
         
         if end_points is None:
             # determine both end points
