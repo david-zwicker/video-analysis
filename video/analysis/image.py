@@ -234,6 +234,10 @@ def mask_thinning(img, method='auto'):
     
     # do the thinning with the requested method
     if method == 'guo-hall':
+        if thinning is None:
+            raise ImportError('Using the `guo-hall` method for thinning '
+                              'requires the `thinning` module, which could not '
+                              'be imported.')
         skel = thinning.guo_hall_thinning(img)
     
     elif method =='python':
