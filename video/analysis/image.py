@@ -211,16 +211,32 @@ def set_image_border(img, size=1, color=0):
     
     
     
-def mask_thinning(img):
+def mask_thinning(img, method='auto'):
     """
     returns the skeleton (thinned image) of a mask.
     This uses `thinning.guo_hall_thinning` if available and otherwise falls back
     to a slow python implementation taken from 
     http://opencvpython.blogspot.com/2012/05/skeletonization-using-opencv-python.html
+    Note that this implementation is not equivalent to guo_hall implementation
     """
+    # try importing the thinning module
     try:
         import thinning
     except ImportError:
+        thinning = None
+    
+    # determine the method to use if automatic method is requested
+    if method == 'auto':
+        if thinning is None:
+            method = 'python'
+        else:
+            method = 'guo-hall'
+    
+    # do the thinning with the requested method
+    if method == 'guo-hall':
+        skel = thinning.guo_hall_thinning(img)
+    
+    elif method =='python':
         # thinning module was not available and we use a python implementation
         size = np.size(img)
         skel = np.zeros(img.shape, np.uint8)
@@ -236,9 +252,9 @@ def mask_thinning(img):
             zeros = size - cv2.countNonZero(img)
             if zeros==size:
                 break
+            
     else:
-        # use the imported thinning algorithm
-        skel = thinning.guo_hall_thinning(img)
+        raise ValueError('Unknown thinning method `%s`' % method)
         
     return skel
     
