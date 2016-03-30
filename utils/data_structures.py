@@ -79,7 +79,7 @@ def save_dict_to_csv(data, filename, first_columns=None, **kwargs):
             # check whether units are unique
             units = set(str(item.units)
                         for item in value
-                        if item is not None and hasattr(item, 'units'))
+                        if item is not None)
             assert len(units) == 1
             
             # construct key and values
