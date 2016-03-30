@@ -66,16 +66,27 @@ def save_dict_to_csv(data, filename, first_columns=None, **kwargs):
     table = collections.OrderedDict()
     for key in sorted_keys:
         value = data[key]
+        
+        # check if value has a unit
         if hasattr(value, 'magnitude'):
+            # value is single item with unit
             key += ' [%s]' % value.units
             value = value.magnitude
+            
         elif len(value) > 0 and hasattr(value[0], 'magnitude'):
-            assert len(set(str(item.units)
-                           for item in value
-                           if item is not None)) == 1
+            # value is a list with units
+            
+            # check whether units are unique
+            units = set(str(item.units)
+                        for item in value
+                        if item is not None and hasattr(item, 'units'))
+            assert len(units) == 1
+            
+            # construct key and values
             key += ' [%s]' % value[0].units
             value = [item.magnitude if item is not None else None
                      for item in value]
+            
         table[key] = value
 
     # create a pandas data frame to save data to CSV
