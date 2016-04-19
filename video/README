@@ -9,6 +9,7 @@ shapely    -- for manipulating shapes
 Optional python packages:
 tqdm      -- for showing a progress bar while iterating
 sharedmem -- for showing the debug video in a separate process while iterating
+json      -- for parsing output of ffprobe
 
 Note that this package uses the `fcntl` package and thus only works reliably
 on UNIX systems.

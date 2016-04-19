@@ -22,10 +22,6 @@ The package is organized in multiple sub-packages:
     For instance, there are math functions and data structures that are useful
     for managing caches, heterogeneous output, etc.
     </dd>
-<dt>projects</dt>
-    <dd>
-    The actual video analysis code for several projects.
-    </dd>
 <dt>external</dt>
     <dd>
     Small package that collects modules copied from other authors.
