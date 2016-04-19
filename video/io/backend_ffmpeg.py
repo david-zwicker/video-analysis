@@ -52,6 +52,7 @@ def get_ffmpeg_version(cmd):
 FFMPEG_VERSION = get_ffmpeg_version('ffmpeg')
 if FFMPEG_VERSION:
     FFMPEG_BINARY = 'ffmpeg'
+    FFPROBE_BINARY = 'ffprobe'
     logger.debug('Found ffmpeg v%s at %s',
                  '.'.join(str(i) for i in FFMPEG_VERSION), 
                  subprocess.check_output(['which', 'ffmpeg']).strip())
@@ -59,10 +60,12 @@ else:
     FFMPEG_VERSION = get_ffmpeg_version('ffmpeg.exe')
     if FFMPEG_VERSION:
         FFMPEG_BINARY = 'ffmpeg.exe'
+        FFPROBE_BINARY = 'ffprobe.exe'
         logger.debug('Found ffmpeg.exe v%s.',
                      '.'.join(str(i) for i in FFMPEG_VERSION))
     else:
         FFMPEG_BINARY = None
+        FFPROBE_BINARY = None
         logger.warn('ffmpeg binary not found. Functions relying on it will not '
                     'be available.')
 
@@ -82,11 +85,13 @@ class VideoFFmpeg(VideoBase):
     parameters_default = {
         'bufsize': None,    #< buffer size for communicating with ffmpeg
         'pix_fmt': 'rgb24', #< pixel format returned by ffmpeg
+        'video_info_method': 'header', #< method for estimating frame count
         'reopen_delay': 0, #< seconds to wait before reopening a video
         'seek_method': 'auto', #< method used for seeking
         'seek_max_frames': 100, #< the maximal number of frames we seek through
         'seek_offset': 1, #< seconds the rough seek is placed before the target
     }
+    
 
     def __init__(self, filename, parameters=None):
         """ initialize a video that will be read with FFmpeg
@@ -99,10 +104,22 @@ class VideoFFmpeg(VideoBase):
 
         # get information about the video using FFmpeg
         self.filename = os.path.expanduser(filename)
-        infos = ffmpeg_parse_infos(self.filename)
+        
+        if self.parameters['video_info_method'] == 'header':
+            # use the information from the movie header
+            infos = ffmpeg_parse_infos(self.filename)
+        elif self.parameters['video_info_method'] == 'ffprobe':
+            # determine the information by iterating through the video
+            logger.info('Determining information by iterating through video '
+                        '`%s`' % self.filename)
+            infos = ffprobe_get_infos(self.filename)
+        else:
+            raise ValueError('Unknown method `%s` for determining information '
+                             'about the video'
+                             % self.parameters['video_info_method'])
+        
+        # store information in class
         self.duration = infos['video_duration']
-        self.FFmpeg_duration = infos['duration']
-
         self.infos = infos
 
         self.pix_fmt = self.parameters['pix_fmt']
@@ -117,6 +134,7 @@ class VideoFFmpeg(VideoBase):
             w, h = infos['video_size']
             bufsize = 2 * self.depth * w * h + 100 #< add some safety margin
 
+        # initialize the process that eventually reads the video
         self.bufsize = bufsize
         self.proc = None
         self.open()
@@ -133,7 +151,14 @@ class VideoFFmpeg(VideoBase):
 
     def print_infos(self):
         """ print information about the video file """
-        ffmpeg_parse_infos(self.filename, print_infos=True)
+        if self.parameters['video_info_method'] == 'header':
+            ffmpeg_parse_infos(self.filename, print_infos=True)
+        elif self.parameters['video_info_method'] == 'ffprobe':
+            print(self.infos)
+        else:
+            raise ValueError('Unknown method `%s` for determining information '
+                             'about the video'
+                             % self.parameters['video_info_method'])
 
 
     @property
@@ -222,11 +247,15 @@ class VideoFFmpeg(VideoBase):
     def set_frame_pos(self, index):
         """ sets the video to position index """
         if index != self._frame_pos:
+            # determine the farthest frame that we would reach by skipping
             max_future_frame = self._frame_pos + \
                                self.parameters['seek_max_frames']
+                               
             if (index < self._frame_pos) or (index > max_future_frame):
+                # reopen the video at the correct position
                 self.open(index)
             else:
+                # skip frames to reach the requested position
                 skip_frames = index - self._frame_pos
                 w, h = self.size
                 for _ in xrange(skip_frames):
@@ -632,6 +661,48 @@ def ffmpeg_parse_infos(filename, print_infos=False):
         # >>> result['video_duration'] = result['video_nframes'] / result['video_fps']
 
     return result
+
+
+
+def ffprobe_get_infos(filename, print_infos=False):
+    """Get file information using ffprobe, which iterates through the video.
+
+    Returns a dictionary with the fields:
+    "video_found", "video_fps", "duration", "video_nframes",
+    "video_duration"
+
+    "video_duration" is slightly smaller than "duration" to avoid
+    fetching the uncompleted frames at the end, which raises an error.
+    """
+    import json
+    
+    cmd = [FFPROBE_BINARY,
+           '-i', filename,
+           '-print_format', 'json',
+           '-loglevel', 'error',
+           '-show_streams', '-count_frames',
+           '-select_streams', 'v']
+    
+    # run ffprobe and fetch its output from the command line
+    output = subprocess.check_output(cmd)
+
+    # parse the json output
+    infos = json.loads(output)
+
+    if print_infos:
+        print infos
+
+    # select the first stream
+    infos = infos["streams"][0]
+    
+    # add synonyms
+    fps_e, fps_d = infos['r_frame_rate'].split('/')
+    infos['video_size'] = (int(infos['width']), int(infos['height']))
+    infos['video_fps'] = float(fps_e) / float(fps_d)
+    infos['video_nframes'] = int(infos['nb_read_frames'])
+    infos['video_duration'] = float(infos['duration'])
+    
+    return infos
 
 
 
