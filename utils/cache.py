@@ -107,3 +107,59 @@ class cached_property(object):
             cache[self.__name__] = value
         return value
     
+
+
+class PersistentDict(collections.MutableMapping):
+    """ a key value database which is stored on the disk
+    keys and values must be strings.
+    """
+    
+    def __init__(self, filename):
+        # lazy import
+        import sqlite3
+        # open the sqlite table
+        self._con = sqlite3.connect(filename)
+        # make sure that the cache table exists
+        with self._con:
+            self._con.execute("CREATE table IF NOT EXISTS cache ("
+                                  "key TEXT PRIMARY KEY, "
+                                  "value TEXT"
+                              ");")
+        
+        
+    def __del__(self):
+        self._con.close()
+        
+        
+    def __len__(self):
+        return self._con.execute("SELECT Count(*) FROM cache").fetchone()[0]
+    
+    
+    def __getitem__(self, key):
+        res = self._con.execute("SELECT value FROM cache WHERE key = ? "
+                                "LIMIT 1", (key,)).fetchone()
+        if res:
+            return res[0]
+        else:
+            raise KeyError(key)
+        
+        
+    def __setitem__(self, key, value):
+        with self._con:
+            self._con.execute("INSERT OR REPLACE INTO cache VALUES (?, ?)",
+                              (key, value))
+
+
+    def __delitem__(self, key):
+        with self._con:
+            self._con.execute("DELETE FROM cache where key = ?", (key,))
+    
+    
+    def __contains__(self, key):
+        return self._con.execute("SELECT EXISTS(SELECT 1 FROM cache "
+                                 "WHERE key=? LIMIT 1);", (key,)).fetchone()[0]
+    
+    
+    def __iter__(self):
+        for row in self._con.execute("SELECT key FROM cache").fetchall():
+            yield row[0]
