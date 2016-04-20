@@ -25,6 +25,7 @@ import time
 import numpy as np
 
 from .base import VideoBase
+from utils import cache
 
 logger = logging.getLogger('video.io')
 
@@ -86,6 +87,7 @@ class VideoFFmpeg(VideoBase):
         'bufsize': None,    #< buffer size for communicating with ffmpeg
         'pix_fmt': 'rgb24', #< pixel format returned by ffmpeg
         'video_info_method': 'header', #< method for estimating frame count
+        'ffprobe_cache': None, #< cache file for the ffprobe result
         'reopen_delay': 0, #< seconds to wait before reopening a video
         'seek_method': 'auto', #< method used for seeking
         'seek_max_frames': 100, #< the maximal number of frames we seek through
@@ -110,9 +112,10 @@ class VideoFFmpeg(VideoBase):
             infos = ffmpeg_parse_infos(self.filename)
         elif self.parameters['video_info_method'] == 'ffprobe':
             # determine the information by iterating through the video
-            logger.info('Determining information by iterating through video '
-                        '`%s`' % self.filename)
-            infos = ffprobe_get_infos(self.filename)
+            infos = ffprobe_get_infos(
+                        self.filename,
+                        cache_file=self.parameters['ffprobe_cache']
+                    )
         else:
             raise ValueError('Unknown method `%s` for determining information '
                              'about the video'
@@ -664,7 +667,7 @@ def ffmpeg_parse_infos(filename, print_infos=False):
 
 
 
-def ffprobe_get_infos(filename, print_infos=False):
+def ffprobe_get_infos(video_file, print_infos=False, cache_file=None):
     """Get file information using ffprobe, which iterates through the video.
 
     Returns a dictionary with the fields:
@@ -676,15 +679,40 @@ def ffprobe_get_infos(filename, print_infos=False):
     """
     import json
     
+    # prepare program call
     cmd = [FFPROBE_BINARY,
-           '-i', filename,
+           '-i', video_file,
            '-print_format', 'json',
            '-loglevel', 'error',
            '-show_streams', '-count_frames',
            '-select_streams', 'v']
     
-    # run ffprobe and fetch its output from the command line
-    output = subprocess.check_output(cmd)
+    if cache_file:
+        # load the cache of all the ffprobe calls
+        ffprobe_cache = cache.PersistentDict(cache_file)
+        try:
+            # try to fetch the output from this cache
+            output = ffprobe_cache[video_file]
+            
+        except KeyError:
+            # the videofile was not yet processed
+            logger.info('Determining information by iterating through video '
+                        '`%s` and store it in cache `%s`',
+                        video_file, cache_file)
+            # run ffprobe and fetch its output from the command line
+            output = subprocess.check_output(cmd)
+            # store result in the cache
+            ffprobe_cache[video_file] = output
+            
+        else:
+            logger.info('Loaded information about video `%s` from cache `%s`',
+                        video_file, cache_file)
+            
+    else:
+        # run ffprobe and fetch its output from the command line
+        logger.info('Determining information by iterating through video '
+                    '`%s`' % video_file)
+        output = subprocess.check_output(cmd)
 
     # parse the json output
     infos = json.loads(output)
