@@ -136,7 +136,7 @@ class PersistentDict(collections.MutableMapping):
     
     
     def __getitem__(self, key):
-        res = self._con.execute("SELECT value FROM cache WHERE key = ? "
+        res = self._con.execute("SELECT value FROM cache WHERE key=? "
                                 "LIMIT 1", (key,)).fetchone()
         if res:
             return res[0]
@@ -152,7 +152,7 @@ class PersistentDict(collections.MutableMapping):
 
     def __delitem__(self, key):
         with self._con:
-            self._con.execute("DELETE FROM cache where key = ?", (key,))
+            self._con.execute("DELETE FROM cache where key=?", (key,))
     
     
     def __contains__(self, key):
