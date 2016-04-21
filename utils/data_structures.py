@@ -68,23 +68,24 @@ def save_dict_to_csv(data, filename, first_columns=None, **kwargs):
         value = data[key]
         
         # check if value has a unit
-        if hasattr(value, 'magnitude'):
+        if hasattr(value, 'units'):
             # value is single item with unit
             key += ' [%s]' % value.units
             value = value.magnitude
             
-        elif len(value) > 0 and hasattr(value[0], 'magnitude'):
-            # value is a list with units
+        elif len(value) > 0 and any(hasattr(v, 'units') for v in value):
+            # value is a list with at least one unit attached to it
             
-            # get list of units
             try:
+                # get list of units ignoring empty items
                 units = set(str(item.units)
                             for item in value
                             if item is not None)
             except AttributeError:
+                # one item did not have a unit
                 for k, item in enumerate(value):
                     if not hasattr(item, 'units'):
-                        print[val[k] for val in data.values()]
+                        print([val[k] for val in data.values()])
                         raise AttributeError('Value `%s = %s` does not have '
                                              'any units' % (key, item))
                 raise
