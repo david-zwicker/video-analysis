@@ -147,7 +147,7 @@ def cachedfunc(cache_store, key=make_key_hippie):
 
 def cache(*args, **kwargs):
     """The @cache decorator
-    Compatility with using ``@cache()`` and ``@cache`` is managed in
+    Compatibility with using ``@cache()`` and ``@cache`` is managed in
     the current function.
     """
     ## only one argument ?
