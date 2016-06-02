@@ -16,7 +16,6 @@ from scipy import interpolate, spatial
 from shapely import geometry
 
 from utils.cache import cached_property
-from active_contour import ActiveContour
 import curves
 import image
 
@@ -666,6 +665,9 @@ class Polygon(object):
                                  endpoints=None):
         """ determines the center line of the polygon using an active contour
         algorithm """
+        # lazy import to prevent circular imports
+        from active_contour import ActiveContour
+        
         # use an active contour algorithm to find centerline
         ac = ActiveContour(blur_radius=1, alpha=alpha, beta=beta,
                            gamma=gamma, closed_loop=False)
