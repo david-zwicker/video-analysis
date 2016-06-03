@@ -549,7 +549,7 @@ class Polygon(object):
             of the skeleton mask are returned
         """
         if ret_offset:
-            mask, offset = self.get_mask(margin=2, ret_offset=True)
+            mask, offset = self.get_mask(margin=5, ret_offset=True)
         else:
             mask = self.get_mask(ret_offset=False)
         
@@ -559,6 +559,15 @@ class Polygon(object):
             return skeleton, offset
         else:
             return skeleton
+        
+        
+    def get_skeleton_points(self):
+        """ returns points along the skeleton of the shape """
+        skeleton, offset = self.get_skeleton(ret_offset=True)
+        
+        # determine the coordinates on the skeleton
+        y, x = np.nonzero(skeleton)
+        return np.c_[x, y] + offset
         
         
     def get_morphological_graph(self, simplify_epsilon=0.1):

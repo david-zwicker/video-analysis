@@ -163,6 +163,7 @@ def show_shape(*shapes, **kwargs):
     background = kwargs.get('background', None)
     wait_for_key = kwargs.get('wait_for_key', True)
     mark_points = kwargs.get('mark_points', False)
+    aspect_equal = kwargs.get('aspect_equal', False)
     
     # set up the plotting
     plt.figure()
@@ -247,6 +248,9 @@ def show_shape(*shapes, **kwargs):
     else:
         ax.set_xlim(0, background.shape[1])
         ax.set_ylim(background.shape[0], 0)
+        
+    if aspect_equal:
+        ax.set_aspect('equal', 'datalim')
     
     plt.show()
     if wait_for_key:
