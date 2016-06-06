@@ -388,6 +388,7 @@ class Polygon(object):
             else:
                 raise ValueError('Only simple polygons are supported') 
         
+        # assume that `data` contains a list of points
         if len(data) < 3:
             raise ValueError("Polygon must have at least three points.")
         self.contour = np.asarray(data, np.double)
@@ -487,8 +488,9 @@ class Polygon(object):
     
     @cached_property
     def moments(self):
-        """ return all moments up to the third order of the polygon """
-        return cv2.moments(np.asarray(self.contour, np.uint8))
+        """ return all moments up to the third order of the polygon. Note that
+        this function converts the polygon coordinates to integers """
+        return cv2.moments(np.asarray(self.contour, np.int))
     
     
     @cached_property
