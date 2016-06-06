@@ -380,10 +380,17 @@ class Arc(Circle):
 class Polygon(object):
     """ class that represents a single polygon """
     
-    def __init__(self, contour):
-        if len(contour) < 3:
+    def __init__(self, data):
+        """ create polygon from list of points or shapely geometry """
+        if isinstance(data, geometry.Polygon):
+            if data.is_simple:
+                data = data.boundary.coords
+            else:
+                raise ValueError('Only simple polygons are supported') 
+        
+        if len(data) < 3:
             raise ValueError("Polygon must have at least three points.")
-        self.contour = np.asarray(contour, np.double)
+        self.contour = np.asarray(data, np.double)
 
 
     def __repr__(self):
@@ -479,12 +486,18 @@ class Polygon(object):
     
     
     @cached_property
+    def moments(self):
+        """ return all moments up to the third order of the polygon """
+        return cv2.moments(np.asarray(self.contour, np.uint8))
+    
+    
+    @cached_property
     def eccentricity(self):
         """ return the eccentricity of the polygon
         The eccentricity will be between 0 and 1, corresponding to a circle
         and a straight line, respectively.
         """
-        m = cv2.moments(np.asarray(self.contour, np.uint8))
+        m = self.moments
         a, b, c = m['mu20'], -m['mu11'], m['mu02']
         e1 = (a + c) + np.sqrt(4*b**2 + (a - c)**2)
         e2 = (a + c) - np.sqrt(4*b**2 + (a - c)**2)
