@@ -472,7 +472,8 @@ def make_distance_map(mask, start_points, end_points=None):
     ymax, xmax = mask.shape[:2]
     stack = defaultdict(set)
     # initialize the stack with the start points
-    stack[2] = set(tuple(p) for p in start_points) 
+    stack[2] = set((int(point[0]), int(point[1]))
+                   for point in start_points) 
 
     # loop until all points are filled
     while stack:
@@ -493,11 +494,15 @@ def make_distance_map(mask, start_points, end_points=None):
                     return 
                 
                 # add all surrounding points to the stack
-                stack[dist + 1] |= set(((x - 1, y), (x + 1, y),
-                                        (x, y - 1), (x, y + 1)))
+                stack[dist + 1] |= set(((x - 1, y),
+                                        (x + 1, y),
+                                        (x, y - 1),
+                                        (x, y + 1)))
 
-                stack[dist + SQRT2] |= set(((x - 1, y - 1), (x + 1, y - 1),
-                                            (x - 1, y + 1), (x + 1, y + 1)))
+                stack[dist + SQRT2] |= set(((x - 1, y - 1),
+                                            (x + 1, y - 1),
+                                            (x - 1, y + 1),
+                                            (x + 1, y + 1)))
 
 
 
@@ -520,7 +525,8 @@ def shortest_path_in_distance_map(distance_map, end_point):
     dist_map[dist_map <= 1] = np.iinfo(dist_map.dtype).max
     
     # initialize the list and move end point by one to reflect border 
-    x, y = end_point
+    x = int(end_point[0])
+    y = int(end_point[1])
     points = [(x + 1, y + 1)]
     d = dist_map[y, x]
     
