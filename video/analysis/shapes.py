@@ -488,9 +488,11 @@ class Polygon(object):
     
     @cached_property
     def moments(self):
-        """ return all moments up to the third order of the polygon. Note that
-        this function converts the polygon coordinates to integers """
-        return cv2.moments(np.asarray(self.contour, np.int))
+        """ return all moments of the polygon up to third order. """
+        # cv2.moments only supports np.int or np.float32, otherwise the
+        # coordinate sequence is interpreted as an image, see
+        #     https://github.com/Itseez/opencv/issues/6643
+        return cv2.moments(np.asarray(self.contour, np.float32))
     
     
     @cached_property
