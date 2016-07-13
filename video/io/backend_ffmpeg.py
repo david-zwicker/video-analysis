@@ -718,17 +718,21 @@ def ffprobe_get_infos(video_file, print_infos=False, cache_file=None):
     infos = json.loads(output)
 
     if print_infos:
-        print infos
+        print(infos)
 
     # select the first stream
     infos = infos["streams"][0]
     
     # add synonyms
-    fps_e, fps_d = infos['r_frame_rate'].split('/')
-    infos['video_size'] = (int(infos['width']), int(infos['height']))
-    infos['video_fps'] = float(fps_e) / float(fps_d)
-    infos['video_nframes'] = int(infos['nb_read_frames'])
-    infos['video_duration'] = float(infos['duration'])
+    try:
+        fps_e, fps_d = infos['r_frame_rate'].split('/')
+        infos['video_size'] = (int(infos['width']), int(infos['height']))
+        infos['video_fps'] = float(fps_e) / float(fps_d)
+        infos['video_nframes'] = int(infos['nb_read_frames'])
+        infos['video_duration'] = float(infos['duration'])
+    except KeyError:
+        logger.error('Video information did not have the expected format.\n'
+                     'The following information was obtained:\n%s', infos)
     
     return infos
 
