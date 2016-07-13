@@ -729,10 +729,14 @@ def ffprobe_get_infos(video_file, print_infos=False, cache_file=None):
         infos['video_size'] = (int(infos['width']), int(infos['height']))
         infos['video_fps'] = float(fps_e) / float(fps_d)
         infos['video_nframes'] = int(infos['nb_read_frames'])
-        infos['video_duration'] = float(infos['duration'])
     except KeyError:
         logger.error('Video information did not have the expected format.\n'
                      'The following information was obtained:\n%s', infos)
+
+    try:
+        infos['video_duration'] = float(infos['duration'])
+    except KeyError:
+        infos['video_duration'] = infos['video_nframes'] / infos['video_fps']
     
     return infos
 
