@@ -15,7 +15,7 @@ import numpy as np
 from scipy import interpolate, spatial
 from shapely import geometry
 
-from utils.cache import cached_property
+from utils.data_structures.cache import cached_property
 import curves
 import image
 

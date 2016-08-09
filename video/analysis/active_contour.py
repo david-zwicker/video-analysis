@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from scipy import spatial
 
-from utils.cache import DictFiniteCapacity
+from utils.data_structures.cache import DictFiniteCapacity
 import curves
 import image
 

@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import patches, widgets
 
-from utils import graphics
+from utils.plotting import backend
 from video.analysis.shapes import Rectangle
 
 
@@ -28,7 +28,7 @@ class RegionPicker(object):
         self.height = self.ax.get_ylim()[1]
             
         # create the widget for selecting the range
-        useblit = graphics.backend_supports_blitting()
+        useblit = backend.supports_blitting()
         self.selector = \
                 widgets.RectangleSelector(self.ax, self.select_callback,
                                           drawtype='box',

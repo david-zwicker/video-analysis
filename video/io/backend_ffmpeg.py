@@ -25,7 +25,7 @@ import time
 import numpy as np
 
 from .base import VideoBase
-from utils import cache
+from utils.data_structures import cache
 
 logger = logging.getLogger('video.io')
 
