@@ -46,9 +46,9 @@ class ActiveContour(object):
         """
         
         self.blur_radius = blur_radius
-        self.alpha = alpha  #< line tension
-        self.beta = beta    #< stiffness 
-        self.gamma = gamma  #< convergence rate
+        self.alpha = float(alpha)  #< line tension
+        self.beta = float(beta)    #< stiffness 
+        self.gamma = float(gamma)  #< convergence rate
         self.closed_loop = closed_loop
         
         self.clear_cache()  #< also initializes the cache
