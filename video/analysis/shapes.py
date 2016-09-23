@@ -55,11 +55,13 @@ class Rectangle(object):
         self.width = width
         self.height = height
         
+        
     @classmethod
     def from_points(cls, p1, p2):
         x1, x2 = min(p1[0], p2[0]), max(p1[0], p2[0])
         y1, y2 = min(p1[1], p2[1]), max(p1[1], p2[1])
         return cls(x1, y1, x2 - x1, y2 - y1)
+    
     
     @classmethod
     def from_centerpoint(cls, centerpoint, width, height):
@@ -67,64 +69,81 @@ class Rectangle(object):
         y = centerpoint[1] - height/2
         return cls(x, y, width, height)
     
+    
     @classmethod
     def from_list(cls, data):
         return cls(*data)
     
+    
     def to_list(self):
         return [self.x, self.y, self.width, self.height]
+
 
     @classmethod
     def from_array(cls, data):
         return cls(*data)
     
+    
     def to_array(self):
         return np.array(self.to_list())
     
+    
     def copy(self):
         return self.__class__(self.x, self.y, self.width, self.height)
+        
         
     def __repr__(self):
         return ("%s(x=%g, y=%g, width=%g, height=%g)"
                 % (self.__class__.__name__, self.x, self.y, self.width,
                    self.height))
             
+            
     @property
     def data(self):
         return self.x, self.y, self.width, self.height
+    
     
     @property
     def data_int(self):
         return (int(self.x), int(self.y),
                 int(self.width), int(self.height))
     
+    
     @property
     def left(self):
         return self.x
+    
     @left.setter
     def left(self, value):
         self.x = value
     
+    
     @property
     def right(self):
         return self.x + self.width
+    
     @right.setter
     def right(self, value):
         self.width = value - self.x
     
+    
     @property
     def top(self):
         return self.y
+    
     @top.setter
     def top(self, value):
         self.y = value
     
+    
     @property
     def bottom(self):
         return self.y + self.height
+    
     @bottom.setter
     def bottom(self, value):
         self.height = value - self.y        
+
 
     def set_corners(self, p1, p2):
         x1, x2 = min(p1[0], p2[0]), max(p1[0], p2[0])
@@ -134,12 +153,15 @@ class Rectangle(object):
         self.width = x2 - x1
         self.height = y2 - y1 
             
+            
     @property
     def corners(self):
         return (self.x, self.y), (self.x + self.width, self.y + self.height)
+    
     @corners.setter
     def corners(self, ps):
         self.set_corners(ps[0], ps[1])
+        
         
     @property
     def contour(self):
@@ -149,29 +171,36 @@ class Rectangle(object):
                 (x2, y2),
                 (self.x, y2))
     
+    
     @property
     def slices(self):
         slice_x = slice(int(self.x), int(self.x + self.width))
         slice_y = slice(int(self.y), int(self.y + self.height))
         return slice_x, slice_y
 
+
     @property
     def p1(self):
         return (self.x, self.y)
+    
     @p1.setter
     def p1(self, p):
         self.set_corners(p, self.p2)
            
+           
     @property
     def p2(self):
         return (self.x + self.width, self.y + self.height)
+    
     @p2.setter
     def p2(self, p):
         self.set_corners(self.p1, p)
         
+        
     @property
     def centroid(self):
         return (self.x + self.width/2, self.y + self.height/2)
+        
         
     def buffer(self, amount):
         """ dilate the rectangle by a certain amount in all directions """
@@ -180,6 +209,15 @@ class Rectangle(object):
         self.width += 2*amount
         self.height += 2*amount
     
+    
+    def intersect(self, other):
+        """ intersects this rectangle with another one """
+        self.left = max(self.left, other.left) 
+        self.right = min(self.right, other.right)
+        self.top = max(self.top, other.top)
+        self.bottom = min(self.bottom, other.bottom)
+        
+        
     def intersection(self, other):
         """ return the intersection between this rectangle and the other """
         left = max(self.left, other.left) 
@@ -187,6 +225,7 @@ class Rectangle(object):
         top = max(self.top, other.top)
         bottom = min(self.bottom, other.bottom)
         return Rectangle.from_points((left, top), (right, bottom))
+        
         
     @property
     def area(self):

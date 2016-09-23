@@ -140,7 +140,7 @@ def _check_coordinate(value, max_value):
     """ helper function checking the bounds of the rectangle """
     if -1 < value < 1:
         # convert to integer by interpreting float values as fractions
-        value = int(value*max_value)
+        value = int(value * max_value)
     
     # interpret negative numbers as counting from opposite boundary
     if value < 0:
@@ -148,7 +148,8 @@ def _check_coordinate(value, max_value):
         
     # check whether the value is within bounds
     if not 0 <= value < max_value:
-        raise IndexError('Coordinate %d of points is out of bounds.')
+        raise IndexError('Coordinate %d is out of bounds [0, %d].'
+                         % (value, max_value))
     
     return value
   
@@ -157,14 +158,25 @@ def _check_coordinate(value, max_value):
 class FilterCrop(VideoFilterBase):
     """ crops the video to the given region """
 
-    def __init__(self, source, rect=None, region='', color_channel=None):
+    def __init__(self, source, rect=None, region='', color_channel=None,
+                 size_alignment=1):
         """
-        initialized the filter that crops to the given rect=(left, top, width, height)
-        Alternative, the class understands the special strings 'lower', 'upper', 'left',
-        and 'right, which can be given in the region parameter. 
+        initialized the filter that crops the video to the specified rectangle.
+        
+        The rectangle can be either given directly by supplying
+        rect=(left, top, width, height) or a region can be specified in the
+        `region` parameter, which can take the following values : 'lower',
+        'upper', 'left', and 'right or combinations thereof. If both `rect` and
+        `region` are supplied, the `region` is discarded.
+         
         If color_channel is given, it is assumed that the input video is a color
         video and only the specified color channel is returned, thus turning
-        the video into a monochrome one
+        the video into a monochrome one.
+        
+        `size_alignment` can be given to force the width and the height to be a
+            multiple of the given integer. This might be useful to force the
+            size to be an even number, which some video codecs require. The 
+            default value is 1 and the width and the height is thus any integer.
         """
         source_width, source_height = source.size
         
@@ -180,6 +192,7 @@ class FilterCrop(VideoFilterBase):
             region = region.lower()
             left, top = 0, 0
             width, height = source_width, source_height
+            
             if 'left' in region:
                 width //= 2 
             elif 'right' in region:
@@ -204,6 +217,13 @@ class FilterCrop(VideoFilterBase):
         # extract color information
         self.color_channel = COLOR_CHANNELS.get(color_channel, color_channel)
         is_color = None if color_channel is None else False
+
+        # enforce alignment
+        if size_alignment != 1:
+            # we use round to make sure we pick the size that is closest to the
+            # specified one
+            width = int(round(width / size_alignment) * size_alignment)
+            height = int(round(height / size_alignment) * size_alignment)
 
         # create the rectangle and store it 
         self.rect = (left, top, width, height)
