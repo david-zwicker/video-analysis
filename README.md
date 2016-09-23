@@ -1,6 +1,6 @@
 video-analysis
 ==============
-This python package contains several modules and packages for doing video analysis with OpenCV and python.
+This python package contains python code for doing video analysis with OpenCV.
 The package is organized in multiple sub-packages:
 
 <dl>
@@ -15,12 +15,6 @@ The package is organized in multiple sub-packages:
     Part of the modules have been modified from code from moviepy, which
     is released under the MIT license at github. The license is included
     at the end of this file.
-    </dd>
-<dt>utils</dt>
-    <dd>
-    Miscellaneous helper functions and classes.
-    For instance, there are math functions and data structures that are useful
-    for managing caches, heterogeneous output, etc.
     </dd>
 <dt>external</dt>
     <dd>
