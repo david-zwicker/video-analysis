@@ -249,6 +249,9 @@ class VideoFFmpeg(VideoBase):
 
     def set_frame_pos(self, index):
         """ sets the video to position index """
+        if index < 0:
+            index += self.frame_count
+
         if index != self._frame_pos:
             # determine the farthest frame that we would reach by skipping
             max_future_frame = self._frame_pos + \
@@ -328,6 +331,9 @@ class VideoFFmpeg(VideoBase):
         This function tries to avoid fetching arbitrary frames
         whenever possible, by moving between adjacent frames.
         """
+        if index < 0:
+            index += self.frame_count
+        
         if index == self._frame_pos - 1:
             return self.lastread
         else:

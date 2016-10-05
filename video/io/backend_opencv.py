@@ -99,6 +99,9 @@ class VideoOpenCV(VideoBase):
 
     def set_frame_pos(self, index):
         """ sets the 0-based index of the next frame """
+        if index < 0:
+            index += self.frame_count
+
         frame_pos = self.get_frame_pos()
         
         if index < frame_pos and not self.seekable:

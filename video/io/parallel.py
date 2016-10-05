@@ -110,6 +110,8 @@ class VideoPipeReceiver(VideoBase):
 
     def get_frame(self, index):
         """ request a specific _frame from the sender """
+        if index < 0:
+            index += self.frame_count
         return self.wait_for_frame(index)
 
         

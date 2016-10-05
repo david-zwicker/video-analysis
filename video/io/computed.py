@@ -28,6 +28,9 @@ class VideoGaussianNoise(VideoBase):
         
         
     def get_frame(self, index):
+        if index < 0:
+            index += self.frame_count
+
         if index >= self.frame_count:
             raise IndexError
         else:

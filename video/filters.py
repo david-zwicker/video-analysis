@@ -408,8 +408,11 @@ class FilterReplicate(VideoFilterBase):
 
     
     def set_frame_pos(self, index):
+        if index < 0:
+            index += self.frame_count
+
         if not 0 <= index < self.frame_count:
-            raise IndexError('Cannot access _frame %d.' % index)
+            raise IndexError('Cannot access frame %d.' % index)
 
         self._source.set_frame_pos(index % self._source.frame_count)
         self._frame_pos = index
@@ -426,6 +429,60 @@ class FilterReplicate(VideoFilterBase):
         self._frame_pos += 1
         return frame
 
+
+
+class FilterDropFrames(VideoFilterBase):
+    """ removes frames to accelerate the video """
+    
+    def __init__(self, source, compression=1):
+        """ `source` is the source video and `compression` sets the compression
+        factor """
+        
+        self._compression = compression 
+        fps = source.fps / self._compression
+            
+        # calculate the number of frames to be expected
+        frame_count = int((source.frame_count - 1) / self._compression) + 1
+
+        # correct the duration and the fps
+        super(FilterDropFrames, self).__init__(source, frame_count=frame_count, 
+                                               fps=fps)
+
+        logger.debug('Created filter to change frame rate from %g to %g '
+                     '(compression factor: %g)' %
+                     (source.fps, self.fps, self._compression))
+
+    
+    def _source_index(self, index):
+        """ calculates the index in the source video corresponding to the given
+        `index` in the current video """
+        return int(index * self._compression)
+    
+    
+    def set_frame_pos(self, index):
+        if index < 0:
+            index += self.frame_count
+        if not 0 <= index < self.frame_count:
+            raise IndexError('Cannot access frame %d.' % index)
+        
+        self._source.set_frame_pos(self._source_index(index))
+        self._frame_pos = index
+
+        
+    def get_frame(self, index):
+        if index < 0:
+            index += self.frame_count
+        frame = self._source[self._source_index(index)]
+        self._frame_pos = index
+        return frame
+
+        
+    def get_next_frame(self):
+        frame = self._source[self._source_index(self._frame_pos)]
+        self._frame_pos += 1
+        return frame
+
+    
     
 #===============================================================================
 # FILTERS THAT ANALYZE CONSECUTIVE FRAMES
@@ -447,10 +504,12 @@ class FilterDiffBase(VideoFilterBase):
         
         # correct the _frame count since we are going to return differences
         super(FilterDiffBase, self).__init__(source,
-                                             frame_count=source.frame_count-1)
+                                             frame_count=source.frame_count - 1)
     
     
     def set_frame_pos(self, index):
+        if index < 0:
+            index += self.frame_count
         # set the underlying movie to requested position 
         self._source.set_frame_pos(index)
         # advance one _frame and save it in the previous _frame structure
@@ -462,6 +521,8 @@ class FilterDiffBase(VideoFilterBase):
     
       
     def get_frame(self, index):
+        if index < 0:
+            index += self.frame_count
         return self._compare_frames(self._source.get_frame(index + 1),
                                     self._source.get_frame(index)) 
     

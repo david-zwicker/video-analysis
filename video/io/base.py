@@ -73,7 +73,7 @@ class VideoBase(object):
     
     def __str__(self):
         """ returns a string representation with important properties of the
-        video """
+        video and the applied filters """
         result = "%s(%s)" % (self.__class__.__name__,
                              ', '.join(self.get_property_list()))
         if len(self._listeners) == 1:
@@ -81,6 +81,12 @@ class VideoBase(object):
         elif len(self._listeners) > 0:
             result += '[%d listeners]' % len(self._listeners)
         return result
+
+    
+    def info(self):
+        """ returns a string representation with important properties of the
+        video """
+        return "Video(%s)" % (', '.join(self.get_property_list()))
 
     
     #===========================================================================
@@ -140,12 +146,16 @@ class VideoBase(object):
 
     def set_frame_pos(self, index):
         """ sets the 0-based index of the next frame """
+        if index < 0:
+            index += self.frame_count
+
         if self.seekable:
             # if the video is seekable, we can just set the new position
             if 0 <= index < self.frame_count:
                 self._frame_pos = index
             else:
-                raise IndexError('Seeking to frame %d was not possible.' % index)
+                raise IndexError('Seeking to frame %d was not possible.' %
+                                 index)
             
         elif index >= self.get_frame_pos():
             # video is not seekable => we can skip some frames to fast forward
@@ -261,7 +271,10 @@ class VideoIterator(object):
         self._video.rewind() #< rewind video before iterating over it
         
     def next(self):
-        return self._video.get_next_frame()
+        try:
+            return self._video.get_next_frame()
+        except IndexError:
+            raise StopIteration
     
 
 
@@ -337,6 +350,8 @@ class VideoFilterBase(VideoBase):
         
         
     def set_frame_pos(self, index):
+        if index < 0:
+            index += self.frame_count
         self._source.set_frame_pos(index)
         self._frame_pos = index
 
@@ -346,6 +361,8 @@ class VideoFilterBase(VideoBase):
 
     
     def get_frame(self, index):
+        if index < 0:
+            index += self.frame_count
         frame = self._source.get_frame(index)
         self._frame_pos = index
         return self._process_frame(frame)
@@ -409,6 +426,8 @@ class VideoSlice(VideoFilterBase):
         
         
     def set_frame_pos(self, index):
+        if index < 0:
+            index += self.frame_count
         if not 0 <= index < self.frame_count:
             raise IndexError('Cannot access %d. frame in video of length %d'
                              % (index, self.frame_count))
@@ -422,6 +441,8 @@ class VideoSlice(VideoFilterBase):
         
         
     def get_frame(self, index):
+        if index < 0:
+            index += self.frame_count
         if not 0 <= index < self.frame_count:
             raise IndexError('Cannot access frame %d.' % index)
 
@@ -531,6 +552,8 @@ class VideoFork(VideoFilterBase):
 
     def set_frame_pos(self, index):
         """ set the position pointer for the video fork and all clients """
+        if index < 0:
+            index += self.frame_count
         super(VideoFork, self).set_frame_pos(index)
         
         # synchronize all the clients
@@ -552,6 +575,9 @@ class VideoFork(VideoFilterBase):
         if self.state == 'aborting':
             raise SystemExit('Another client of the VideoFork requested to '
                              'abort the iteration.')
+
+        if index < 0:
+            index += self.frame_count
 
         if index == self._frame_index:
             # increase the counter and return the cached frame
@@ -613,8 +639,11 @@ class VideoFork(VideoFilterBase):
         """
         returns a new fork client, which can then be used for iteration.
         """
-        if self._client_count is not None and len(self._clients) >= self._client_count:
-            raise ValueError('We already registered %d clients.' % self._client_count)
+        if (self._client_count is not None and
+            len(self._clients) >= self._client_count):
+            
+            raise ValueError('We already registered %d clients.'
+                             % self._client_count)
 
         # create and register the client iterator
         client = _VideoForkClient(self)

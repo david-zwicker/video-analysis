@@ -217,6 +217,9 @@ class VideoFileStack(VideoBase):
         This opens a potentially closed video and keeps it open afterwards.
         This also rewinds all successive open videos.
         """
+        if index < 0:
+            index += self.frame_count
+
         # set the frame position 
         super(VideoFileStack, self).set_frame_pos(index)
         
@@ -265,6 +268,9 @@ class VideoFileStack(VideoBase):
 
     def get_frame(self, index):
         """ returns a specific frame identified by its index """
+        if index < 0:
+            index += self.frame_count
+
         video_index, frame_index = self.get_video_index(index)
         video = self._videos[video_index]
         if video.closed:
