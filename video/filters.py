@@ -473,7 +473,7 @@ class FilterDropFrames(VideoFilterBase):
         if index < 0:
             index += self.frame_count
         frame = self._source[self._source_index(index)]
-        self._frame_pos = index
+        self._frame_pos = index + 1
         return frame
 
         
