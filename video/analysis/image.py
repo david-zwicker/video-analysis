@@ -360,12 +360,12 @@ class regionprops(object):
     def area(self):
         return self.moments['m00']
     
-    @cached_property
+    @cached_property()
     def centroid(self):
         m = self.moments
         return (m['m10']/m['m00'], m['m01']/m['m00'])
 
-    @cached_property
+    @cached_property()
     def orientation(self):
         m = self.moments
         a, b, c = m['mu20'], m['mu11'], m['mu02']
@@ -377,7 +377,7 @@ class regionprops(object):
         else:
             return -np.arctan2(2*b, (a - c))/2
     
-    @cached_property
+    @cached_property()
     def inertia_tensor_eigvals(self):
         m = self.moments
         a, b, c = m['mu20']/m['m00'], -m['mu11']/m['m00'], m['mu02']/m['m00']
@@ -386,7 +386,7 @@ class regionprops(object):
         e2 = (a + c) - np.sqrt(4*b**2 + (a - c)**2)
         return e1, e2
             
-    @cached_property
+    @cached_property()
     def eccentricity(self):
         e1, e2 = self.inertia_tensor_eigvals()
         if e1 == 0:
@@ -394,12 +394,12 @@ class regionprops(object):
         else:
             return np.sqrt(1 - e2/e1)
         
-    @cached_property
+    @cached_property()
     def major_axis_length(self):
         e1, _ = self.inertia_tensor_eigvals
         return 4*np.sqrt(e1)
 
-    @cached_property
+    @cached_property()
     def minor_axis_length(self):
         _, e2 = self.inertia_tensor_eigvals
         return 4*np.sqrt(e2)

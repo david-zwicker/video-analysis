@@ -491,41 +491,41 @@ class Polygon(object):
         self.clear_cache()
         
         
-    @cached_property
+    @cached_property()
     def contour_ring(self):
         """ return the linear ring of the polygon contour """
         return geometry.LinearRing(self.contour)
     
         
-    @cached_property
+    @cached_property()
     def polygon(self):
         """ return the shapely polygon """
         return geometry.Polygon(self.contour)
     
     
-    @cached_property
+    @cached_property()
     def centroid(self):
         return np.array(self.polygon.centroid)
     
     
-    @cached_property
+    @cached_property()
     def position(self):
         return np.array(self.polygon.representative_point())
     
     
-    @cached_property
+    @cached_property()
     def area(self):
         """ return the area of the polygon """
         return self.polygon.area
     
     
-    @cached_property
+    @cached_property()
     def perimeter(self):
         """ return the perimeter of the polygon """
         return self.contour_ring.length
     
     
-    @cached_property
+    @cached_property()
     def moments(self):
         """ return all moments of the polygon up to third order. """
         # cv2.moments only supports np.int or np.float32, otherwise the
@@ -534,7 +534,7 @@ class Polygon(object):
         return cv2.moments(np.asarray(self.contour, np.float32))
     
     
-    @cached_property
+    @cached_property()
     def eccentricity(self):
         """ return the eccentricity of the polygon
         The eccentricity will be between 0 and 1, corresponding to a circle
@@ -555,7 +555,7 @@ class Polygon(object):
         return self.polygon.contains(geometry.Point(point))
     
     
-    @cached_property
+    @cached_property()
     def bounds(self):
         bounds = geometry.MultiPoint(self.contour).bounds
         return Rectangle.from_points(bounds[:2], bounds[2:])
