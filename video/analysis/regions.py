@@ -506,9 +506,9 @@ def make_distance_map(mask, start_points, end_points=None):
 
 
 
-MASK = np.zeros((3, 3))
-MASK[1, :] = MASK[:, 1] = 1
-MASK[0, 0] = MASK[2, 0] = MASK[0, 2] = MASK[2, 2] = np.sqrt(2)
+# make array that contains the distances to the center point
+DIST_LOCAL = np.full((3, 3), 1 / np.sqrt(2), np.double)
+DIST_LOCAL[1, :] = DIST_LOCAL[:, 1] = 1 
 
 def shortest_path_in_distance_map(distance_map, end_point):
     """ finds and returns the shortest path in the distance map `distance_map`
@@ -532,24 +532,32 @@ def shortest_path_in_distance_map(distance_map, end_point):
     
     # iterate through path until we reached the minimum
     while True:
+        # extract surrounding of current point
+        dist_surrounding = dist_map[y-1:y+2, x-1:x+2]
+        if dist_surrounding.shape != (3, 3):
+            # we somehow reached the side of the mask => abort search
+            break
+        
         # find point with minimal distance in surrounding
-        surrounding = (dist_map[y-1:y+2, x-1:x+2] - d) / MASK
+        surrounding = (dist_surrounding - d) * DIST_LOCAL
         dy, dx = np.unravel_index(surrounding.argmin(), (3, 3))
         # get new coordinates
         x += dx - 1
         y += dy - 1
         # check whether the new point is viable
         if dist_map[y, x] < d:
-            # distance decreased
+            # distance decreased => keep this as the new point
             d = dist_map[y, x]
+            
         elif dist_map[y, x] == d:
-            # distance stayed constant
+            # distance stayed constant => might keep this as a new point
             if (x, y) in points:
-                # we already saw this point
+                # we already saw this point => stop iterating
                 break
+            
         else:
-            # we reached a minimum and will thus stop
-            break            
+            # distance increased => we reached a minimum and will thus stop
+            break
         points.append((x, y))
     
     # shift back all the points to remove the border
