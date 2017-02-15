@@ -525,9 +525,9 @@ def shortest_path_in_distance_map(distance_map, end_point):
     dist_map[dist_map <= 1] = np.iinfo(dist_map.dtype).max
     
     # initialize the list and move end point by one to reflect border 
-    x = int(end_point[0])
-    y = int(end_point[1])
-    points = [(x + 1, y + 1)]
+    x = int(end_point[0]) + 1
+    y = int(end_point[1]) + 1
+    points = [(x, y)]
     d = dist_map[y, x]
     
     # iterate through path until we reached the minimum
