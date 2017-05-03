@@ -444,13 +444,13 @@ class Polygon(object):
 
     def clear_cache(self):
         """ clears the internal cache """
-        self._cache = {}
+        self._cache_methods = {}
         
         
     def __getstate__(self):
         """ do not save the cache to the pickled state """
         state = self.__dict__.copy()
-        del state['_cache'] #< don't save the cache when pickling
+        del state['_cache_properties'] #< don't save the cache when pickling
         return state
 
 
