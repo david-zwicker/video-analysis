@@ -164,6 +164,7 @@ def show_shape(*shapes, **kwargs):
     wait_for_key = kwargs.get('wait_for_key', True)
     mark_points = kwargs.get('mark_points', False)
     aspect_equal = kwargs.get('aspect_equal', False)
+    show_legend = kwargs.get('show_legend', True)
     
     # set up the plotting
     plt.figure()
@@ -188,30 +189,34 @@ def show_shape(*shapes, **kwargs):
                 pass
 
     # iterate through all shapes and plot them
-    for shape in shapes:
+    for shape_id, shape in enumerate(shapes, 1):
         color = kwargs.get('color', colors.next())
         line_width = kwargs.get('lw', 3)
+        label = 'Shape %d' % shape_id
         
         if isinstance(shape, (geometry.Point, geometry.point.Point)):
             # simple point
-            ax.plot(shape.x, shape.y, 'o', color=color, ms=20)
+            ax.plot(shape.x, shape.y, 'o', color=color, ms=20, label=label)
         
         elif isinstance(shape, geometry.MultiPoint):
             # many points
             coords = np.array([(p.x, p.y) for p in shape])
-            ax.plot(coords[:, 0], coords[:, 1], 'o', color=color, ms=5)
+            ax.plot(coords[:, 0], coords[:, 1], 'o', color=color, ms=5,
+                    label=label)
             
         elif isinstance(shape, geometry.LineString):
             # simple line string
-            ax.plot(shape.xy[0], shape.xy[1], color=color, lw=line_width)
+            ax.plot(shape.xy[0], shape.xy[1], color=color, lw=line_width,
+                    label=label)
             if mark_points:
                 ax.plot(shape.xy[0], shape.xy[1], 'o',
                         markersize=2*line_width, color=color)
             
         elif isinstance(shape, geometry.multilinestring.MultiLineString):
             # many line strings
-            for line in shape:
-                ax.plot(line.xy[0], line.xy[1], color=color, lw=line_width)
+            for line_id, line in enumerate(shape):
+                ax.plot(line.xy[0], line.xy[1], color=color, lw=line_width, 
+                        label=(label if line_id == 0 else ''))
                 if mark_points:
                     ax.plot(line.xy[0], line.xy[1], 'o',
                             markersize=2*line_width, color=color)
@@ -222,17 +227,20 @@ def show_shape(*shapes, **kwargs):
                                            ec=kwargs.get('ec', 'none'),
                                            fc=color, alpha=0.5)
             ax.add_patch(patch)
+            plt.plot([], [], color=color, label=label)
             if mark_points:
                 ax.plot(shape.xy[0], shape.xy[1], 'o',
                         markersize=2*line_width, color=color)
                 
         elif isinstance(shape, geometry.MultiPolygon):
             # many polygons
-            for polygon in shape:
+            for poly_id, polygon in enumerate(shape):
                 patch = descartes.PolygonPatch(polygon,
                                                ec=kwargs.get('ec', 'none'),
                                                fc=color, alpha=0.5)
                 ax.add_patch(patch)
+                if poly_id == 0:
+                    plt.plot([], [], color=color, label=label)
                 if mark_points:
                     ax.plot(shape.xy[0], shape.xy[1], 'o',
                             markersize=2*line_width, color=color)
@@ -252,6 +260,8 @@ def show_shape(*shapes, **kwargs):
     if aspect_equal:
         ax.set_aspect('equal', 'datalim')
     
+    if show_legend:
+        plt.legend(loc='best')
     plt.show()
     if wait_for_key:
         raw_input('Press enter to continue...')
