@@ -111,6 +111,12 @@ class VideoBase(object):
 
     
     @property
+    def bounds(self):
+        """ return the bounds of the video """
+        return (0, 0, self.width, self.height)
+
+    
+    @property
     def shape(self):
         """ returns the shape of the data describing the movie """
         shape = (self.frame_count, self.size[1], self.size[0])

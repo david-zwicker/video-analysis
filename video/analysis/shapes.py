@@ -105,8 +105,7 @@ class Rectangle(object):
     
     @property
     def data_int(self):
-        return (int(self.x), int(self.y),
-                int(self.width), int(self.height))
+        return (int(self.x), int(self.y), int(self.width), int(self.height))
     
     
     @property
